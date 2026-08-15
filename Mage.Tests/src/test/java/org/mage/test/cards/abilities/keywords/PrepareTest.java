@@ -367,4 +367,68 @@ public class PrepareTest extends CardTestPlayerBase {
         assertExileCount(playerA, "Solemn Simulacrum", 1);
         assertPermanentCount(playerA, "Solemn Simulacrum", 1);
     }
+
+    @Test
+    public void test_CancelledPrepareSpellCastKeepsPermanentPrepared() {
+        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
+
+        // Archivist prepares during turn 1 upkeep.
+        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
+        addCard(Zone.GRAVEYARD, playerA, "Memnite");
+        addCard(Zone.GRAVEYARD, playerA, "Burnished Hart");
+
+        // Restore Relic is affordable, but the player will cancel
+        // during mana payment instead of completing the cast.
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 3);
+        addCard(Zone.BATTLEFIELD, playerA, "Plains");
+
+        disableManaAutoPayment(playerA);
+
+        castSpell(
+                1,
+                PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                PREPARE_SPELL,
+                "Solemn Simulacrum"
+        );
+
+        setChoice(
+                playerA,
+                org.mage.test.player.TestPlayer.MANA_CANCEL
+        );
+        setChoice(
+                playerA,
+                org.mage.test.player.TestPlayer.SKIP_FAILED_COMMAND
+        );
+
+        runCode(
+                "cancelled prepare-spell cast preserves prepare state",
+                1,
+                PhaseStep.BEGIN_COMBAT,
+                playerA,
+                (info, player, game) -> {
+                    Permanent archivist = game
+                            .getBattlefield()
+                            .getAllActivePermanents(player.getId())
+                            .stream()
+                            .filter(permanent -> ARCHIVIST.equals(permanent.getName()))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
+
+                    Assert.assertTrue(
+                            "Cancelling the prepare-spell cast must not unprepare Lorehold Archivist",
+                            archivist.isPrepared()
+                    );
+                }
+        );
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.END_COMBAT);
+        execute();
+
+        // The cancelled cast must leave the complete prepare relationship intact.
+        assertExileCount(playerA, PREPARE_SPELL, 1);
+        assertGraveyardCount(playerA, "Solemn Simulacrum", 1);
+        assertPermanentCount(playerA, "Solemn Simulacrum", 0);
+    }
 }
