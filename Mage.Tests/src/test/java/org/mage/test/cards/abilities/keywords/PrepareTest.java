@@ -166,4 +166,51 @@ public class PrepareTest extends CardTestPlayerBase {
         // ...so its associated prepare-spell copy must cease to exist.
         assertExileCount(playerA, PREPARE_SPELL, 0);
     }
+
+    @Test
+    public void test_PrepareCopyDisappearsWhenPermanentBecomesUnprepared() {
+        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
+
+        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
+        addCard(Zone.GRAVEYARD, playerA, "Ornithopter");
+        addCard(Zone.GRAVEYARD, playerA, "Memnite");
+
+        runCode(
+                "make Lorehold Archivist unprepared without casting its prepare spell",
+                1,
+                PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                (info, player, game) -> {
+                    Permanent archivist = game
+                            .getBattlefield()
+                            .getAllActivePermanents(player.getId())
+                            .stream()
+                            .filter(permanent -> ARCHIVIST.equals(permanent.getName()))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
+
+                    Assert.assertTrue(
+                            "Lorehold Archivist must be prepared before this cleanup test",
+                            archivist.isPrepared()
+                    );
+
+                    archivist.setPrepared(false, game);
+
+                    Assert.assertFalse(
+                            "Lorehold Archivist must now be unprepared",
+                            archivist.isPrepared()
+                    );
+                }
+        );
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        // The parent remains on the battlefield.
+        assertPermanentCount(playerA, ARCHIVIST, 1);
+
+        // But its prepare-spell copy must cease to exist.
+        assertExileCount(playerA, PREPARE_SPELL, 0);
+    }
 }
