@@ -348,6 +348,10 @@ public abstract class GameImpl implements Game {
                 Card rightCard = ((DoubleFacedCard) card).getRightHalfCard();
                 rightCard.setOwnerId(ownerId);
                 addCardToState(rightCard);
+            } else if (card instanceof PrepareCard) {
+                Card spellCard = ((PrepareCard) card).getSpellCard();
+                spellCard.setOwnerId(ownerId);
+                addCardToState(spellCard);
             } else if (card instanceof CardWithSpellOption) {
                 Card spellCard = ((CardWithSpellOption) card).getSpellCard();
                 spellCard.setOwnerId(ownerId);
@@ -2501,6 +2505,14 @@ public abstract class GameImpl implements Game {
             //    (Isochron Scepter) 12/1/2004: If you don't want to cast the copy, you can choose not to; the copy ceases
             //    to exist the next time state-based actions are checked.
             Zone zone = state.getZone(copiedCard.getMainCard().getId());
+
+            Object prepareRef = state.getValue(PrepareCard.getPrepareCopyKey(copiedCard.getId()));
+            if (zone == Zone.EXILED && prepareRef instanceof MageObjectReference) {
+                Permanent preparedPermanent = ((MageObjectReference) prepareRef).getPermanent(this);
+                if (preparedPermanent != null && preparedPermanent.isPrepared()) {
+                    continue;
+                }
+            }
             // TODO: remember LKI of copied cards here after LKI rework
             switch (zone) {
                 case OUTSIDE:

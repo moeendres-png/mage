@@ -10,6 +10,12 @@ import java.util.UUID;
  */
 public abstract class PrepareCard extends CardImpl {
 
+    public static final String PREPARE_COPY_KEY = "PrepareSpellCopy:";
+
+    public static String getPrepareCopyKey(UUID copyId) {
+        return PREPARE_COPY_KEY + copyId;
+    }
+
     protected Card spellCard;
 
     protected PrepareCard(UUID ownerId, CardSetInfo setInfo, CardType[] types, String costs, String preparationName, CardType typeSpell, String costsSpell) {
