@@ -278,4 +278,50 @@ public class PrepareTest extends CardTestPlayerBase {
         assertPermanentCount(playerA, ARCHIVIST, 1);
         assertExileCount(playerA, PREPARE_SPELL, 1);
     }
+
+    @Test
+    public void test_TargetEffectCreatesPrepareSpellCopy() {
+        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
+        addCard(Zone.BATTLEFIELD, playerA, "Skycoach Waypoint");
+
+        // Pay {3} for Skycoach Waypoint's prepare ability.
+        addCard(Zone.BATTLEFIELD, playerA, "Plains", 3);
+
+        activateAbility(
+                1,
+                PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                "{3}, {T}: Target creature becomes prepared",
+                ARCHIVIST
+        );
+
+        runCode(
+                "Lorehold Archivist is prepared by Skycoach Waypoint",
+                1,
+                PhaseStep.BEGIN_COMBAT,
+                playerA,
+                (info, player, game) -> {
+                    Permanent archivist = game
+                            .getBattlefield()
+                            .getAllActivePermanents(player.getId())
+                            .stream()
+                            .filter(permanent -> ARCHIVIST.equals(permanent.getName()))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
+
+                    Assert.assertTrue(
+                            "Lorehold Archivist must become prepared",
+                            archivist.isPrepared()
+                    );
+                }
+        );
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.END_COMBAT);
+        execute();
+
+        // Becoming prepared through a target effect must create the same
+        // prepare-spell copy as becoming prepared through the card's own effect.
+        assertExileCount(playerA, PREPARE_SPELL, 1);
+    }
 }
