@@ -23,6 +23,7 @@ public abstract class PrepareCard extends CardImpl {
 
     protected PrepareCard(final PrepareCard card) {
         super(card);
+        this.spellCard = card.getSpellCard().copy();
     }
 
     public Card getSpellCard() {
