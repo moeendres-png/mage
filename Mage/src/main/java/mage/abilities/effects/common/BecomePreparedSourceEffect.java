@@ -43,6 +43,14 @@ public class BecomePreparedSourceEffect extends OneShotEffect {
             return false;
         }
 
+        return preparePermanent(permanent, source, game);
+    }
+
+    static boolean preparePermanent(
+            Permanent permanent,
+            Ability source,
+            Game game
+    ) {
         // A permanent that is already prepared can't become prepared again
         // and must not create another prepare spell copy.
         if (permanent.isPrepared()) {
