@@ -16,8 +16,6 @@ public class PrepareTest extends CardTestPlayerBase {
     public void test_PreparingCreatesSpellCopyInExile() {
         addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
 
-        // Three artifact creature cards satisfy Lorehold Archivist's
-        // intervening-if prepare condition at upkeep.
         addCard(Zone.GRAVEYARD, playerA, "Ornithopter", 3);
 
         runCode(
@@ -44,7 +42,42 @@ public class PrepareTest extends CardTestPlayerBase {
         setStopAt(1, PhaseStep.BEGIN_COMBAT);
         execute();
 
-        // Prepare rules require a copy of the prepare spell to exist in exile.
         assertExileCount(playerA, PREPARE_SPELL, 1);
+    }
+
+    @Test
+    public void test_PreparedSpellCanBeCastFromExile() {
+        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
+
+        // Three qualifying graveyard cards cause Archivist to become prepared.
+        // Solemn is the unique Restore Relic target.
+        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
+        addCard(Zone.GRAVEYARD, playerA, "Ornithopter");
+        addCard(Zone.GRAVEYARD, playerA, "Memnite");
+
+        // Restore Relic costs {2}{R}{W}.
+        addCard(Zone.BATTLEFIELD, playerA, "Plains", 2);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 2);
+
+        // The prepared spell copy should be castable from exile
+        // during PlayerA's precombat main phase.
+        castSpell(
+                1,
+                PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                PREPARE_SPELL,
+                "Solemn Simulacrum"
+        );
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        // Restore Relic exiles the targeted graveyard card...
+        assertGraveyardCount(playerA, "Solemn Simulacrum", 0);
+        assertExileCount(playerA, "Solemn Simulacrum", 1);
+
+        // ...and creates a token copy of it.
+        assertPermanentCount(playerA, "Solemn Simulacrum", 1);
     }
 }
