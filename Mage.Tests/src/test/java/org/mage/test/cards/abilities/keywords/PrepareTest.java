@@ -132,4 +132,38 @@ public class PrepareTest extends CardTestPlayerBase {
         setStopAt(1, PhaseStep.END_COMBAT);
         execute();
     }
+
+    @Test
+    public void test_PrepareCopyDisappearsWhenParentLeavesBattlefield() {
+        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
+
+        // Lorehold Archivist prepares during upkeep if there are at least
+        // three artifact and/or creature cards in its owner's graveyard.
+        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
+        addCard(Zone.GRAVEYARD, playerA, "Ornithopter");
+        addCard(Zone.GRAVEYARD, playerA, "Memnite");
+
+        // Remove the prepared permanent after its upkeep trigger has resolved.
+        addCard(Zone.HAND, playerA, "Unsummon");
+        addCard(Zone.BATTLEFIELD, playerA, "Island");
+
+        castSpell(
+                1,
+                PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                "Unsummon",
+                ARCHIVIST
+        );
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        // The parent permanent is gone...
+        assertPermanentCount(playerA, ARCHIVIST, 0);
+        assertHandCount(playerA, ARCHIVIST, 1);
+
+        // ...so its associated prepare-spell copy must cease to exist.
+        assertExileCount(playerA, PREPARE_SPELL, 0);
+    }
 }
