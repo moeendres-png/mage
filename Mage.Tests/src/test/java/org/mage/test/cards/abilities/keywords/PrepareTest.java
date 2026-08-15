@@ -659,4 +659,120 @@ public class PrepareTest extends CardTestPlayerBase {
         setStopAt(3, mage.constants.PhaseStep.END_TURN);
         execute();
     }
+
+    @org.junit.Test
+    public void test_NaktamunLorespinnerPrepareLifecycle() {
+        // Naktamun Lorespinner
+        // At the beginning of your upkeep, if a player has one or fewer
+        // cards in hand, this creature becomes prepared.
+        // Prepare spell: Wheel of Fortune {2}{R}.
+        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Naktamun Lorespinner");
+        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Mountain", 3);
+
+        // Make the intervening-if condition explicit: player B has exactly
+        // one card in hand at player A's first upkeep.
+        addCard(mage.constants.Zone.HAND, playerA, "Plains", 2);
+        addCard(mage.constants.Zone.HAND, playerB, "Island", 1);
+
+        // Wheel of Fortune must be able to draw seven for both players
+        // without introducing an empty-library loss into this test.
+        addCard(mage.constants.Zone.LIBRARY, playerA, "Plains", 7);
+        addCard(mage.constants.Zone.LIBRARY, playerB, "Island", 7);
+
+        waitStackResolved(1, mage.constants.PhaseStep.UPKEEP);
+
+        runCode(
+                "Naktamun prepares and creates Wheel of Fortune copy",
+                1,
+                mage.constants.PhaseStep.UPKEEP,
+                playerA,
+                (info, player, game) -> {
+                    mage.game.permanent.Permanent naktamun = game.getBattlefield()
+                            .getAllActivePermanents()
+                            .stream()
+                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
+                            .filter(permanent -> permanent.getName().equals("Naktamun Lorespinner"))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("Naktamun Lorespinner not found"));
+
+                    org.junit.Assert.assertTrue(
+                            "Naktamun must become prepared when a player has one or fewer cards in hand",
+                            naktamun.isPrepared()
+                    );
+
+                    long copies = game.getExile().getAllCards(game)
+                            .stream()
+                            .filter(card -> card.getName().equals("Wheel of Fortune"))
+                            .count();
+
+                    org.junit.Assert.assertEquals(
+                            "Preparing Naktamun must create exactly one Wheel of Fortune copy in exile",
+                            1L,
+                            copies
+                    );
+                }
+        );
+
+        // This must find and cast the prepared spell copy from exile.
+        castSpell(
+                1,
+                mage.constants.PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                "Wheel of Fortune"
+        );
+        waitStackResolved(1, mage.constants.PhaseStep.PRECOMBAT_MAIN);
+
+        runCode(
+                "Naktamun prepared spell resolves correctly",
+                1,
+                mage.constants.PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                (info, player, game) -> {
+                    mage.game.permanent.Permanent naktamun = game.getBattlefield()
+                            .getAllActivePermanents()
+                            .stream()
+                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
+                            .filter(permanent -> permanent.getName().equals("Naktamun Lorespinner"))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("Naktamun Lorespinner not found"));
+
+                    org.junit.Assert.assertFalse(
+                            "Casting Wheel of Fortune prepare copy must unprepare Naktamun",
+                            naktamun.isPrepared()
+                    );
+
+                    long copies = game.getExile().getAllCards(game)
+                            .stream()
+                            .filter(card -> card.getName().equals("Wheel of Fortune"))
+                            .count();
+
+                    org.junit.Assert.assertEquals(
+                            "Wheel of Fortune prepare copy must be gone from exile after casting",
+                            0L,
+                            copies
+                    );
+
+                    org.junit.Assert.assertEquals(
+                            "Player A must draw seven from Wheel of Fortune",
+                            7,
+                            player.getHand().size()
+                    );
+
+                    mage.players.Player opponent = game.getPlayer(playerB.getId());
+                    if (opponent == null) {
+                        throw new AssertionError("Player B not found");
+                    }
+
+                    org.junit.Assert.assertEquals(
+                            "Player B must draw seven from Wheel of Fortune",
+                            7,
+                            opponent.getHand().size()
+                    );
+                }
+        );
+
+        setStrictChooseMode(true);
+        setStopAt(1, mage.constants.PhaseStep.END_TURN);
+        execute();
+    }
 }
