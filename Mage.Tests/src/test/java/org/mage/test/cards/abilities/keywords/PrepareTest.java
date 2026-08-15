@@ -213,4 +213,50 @@ public class PrepareTest extends CardTestPlayerBase {
         // But its prepare-spell copy must cease to exist.
         assertExileCount(playerA, PREPARE_SPELL, 0);
     }
+
+    @Test
+    public void test_NewControllerCanCastPreparedSpell() {
+        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
+
+        // Player A prepares Lorehold Archivist during turn 1 upkeep.
+        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
+        addCard(Zone.GRAVEYARD, playerA, "Memnite");
+        addCard(Zone.GRAVEYARD, playerA, "Burnished Hart");
+
+        // Player B needs a legal Restore Relic target after gaining control.
+        addCard(Zone.GRAVEYARD, playerB, "Ornithopter");
+
+        // Gain control of Archivist during player B's turn.
+        addCard(Zone.HAND, playerB, "Act of Treason");
+
+        // Act of Treason {2}{R} plus Restore Relic {2}{R}{W}.
+        addCard(Zone.BATTLEFIELD, playerB, "Mountain", 4);
+        addCard(Zone.BATTLEFIELD, playerB, "Plains", 3);
+
+        castSpell(
+                2,
+                PhaseStep.PRECOMBAT_MAIN,
+                playerB,
+                "Act of Treason",
+                ARCHIVIST
+        );
+
+        // The prepare-copy must follow the permanent's current controller.
+        castSpell(
+                2,
+                PhaseStep.POSTCOMBAT_MAIN,
+                playerB,
+                PREPARE_SPELL,
+                "Ornithopter"
+        );
+
+        setStrictChooseMode(true);
+        setStopAt(2, PhaseStep.END_TURN);
+        execute();
+
+        // Player B successfully used Restore Relic from exile.
+        assertGraveyardCount(playerB, "Ornithopter", 0);
+        assertExileCount(playerB, "Ornithopter", 1);
+        assertPermanentCount(playerB, "Ornithopter", 1);
+    }
 }
