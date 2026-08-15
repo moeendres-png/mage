@@ -482,4 +482,181 @@ public class PrepareTest extends CardTestPlayerBase {
         setStopAt(1, mage.constants.PhaseStep.END_TURN);
         execute();
     }
+
+    @org.junit.Test
+    public void test_CanPrepareAgainAfterPreparedSpellWasCast() {
+        // Lorehold Archivist prepares at upkeep with at least three
+        // artifact and/or creature cards in its controller's graveyard.
+        // Start with four so that after Restore Relic #1 exiles one,
+        // three remain and the Archivist can prepare again next upkeep.
+        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Lorehold Archivist");
+        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Mountain", 2);
+        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Plains", 2);
+        addCard(mage.constants.Zone.GRAVEYARD, playerA, "Grizzly Bears", 4);
+
+        // First prepare cycle.
+        waitStackResolved(1, mage.constants.PhaseStep.UPKEEP);
+        runCode(
+                "first prepare created one castable copy",
+                1,
+                mage.constants.PhaseStep.UPKEEP,
+                playerA,
+                (info, player, game) -> {
+                    mage.game.permanent.Permanent archivist = game.getBattlefield()
+                            .getAllActivePermanents()
+                            .stream()
+                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
+                            .filter(permanent -> permanent.getName().equals("Lorehold Archivist"))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
+
+                    org.junit.Assert.assertTrue(
+                            "Lorehold Archivist must be prepared after first upkeep trigger",
+                            archivist.isPrepared()
+                    );
+
+                    long copies = game.getExile().getAllCards(game)
+                            .stream()
+                            .filter(card -> card.getName().equals("Restore Relic"))
+                            .count();
+
+                    org.junit.Assert.assertEquals(
+                            "First prepare must create exactly one Restore Relic copy in exile",
+                            1L,
+                            copies
+                    );
+                }
+        );
+
+        castSpell(
+                1,
+                mage.constants.PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                "Restore Relic",
+                "Grizzly Bears"
+        );
+        waitStackResolved(1, mage.constants.PhaseStep.PRECOMBAT_MAIN);
+
+        runCode(
+                "first cast completed prepare lifecycle",
+                1,
+                mage.constants.PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                (info, player, game) -> {
+                    mage.game.permanent.Permanent archivist = game.getBattlefield()
+                            .getAllActivePermanents()
+                            .stream()
+                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
+                            .filter(permanent -> permanent.getName().equals("Lorehold Archivist"))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
+
+                    org.junit.Assert.assertFalse(
+                            "Casting the first prepared spell must unprepare Lorehold Archivist",
+                            archivist.isPrepared()
+                    );
+
+                    long copies = game.getExile().getAllCards(game)
+                            .stream()
+                            .filter(card -> card.getName().equals("Restore Relic"))
+                            .count();
+
+                    org.junit.Assert.assertEquals(
+                            "First Restore Relic prepare copy must be gone after it is cast",
+                            0L,
+                            copies
+                    );
+
+                    org.junit.Assert.assertEquals(
+                            "Exactly three Grizzly Bears must remain in the graveyard after first Restore Relic",
+                            3L,
+                            player.getGraveyard().getCards(game)
+                                    .stream()
+                                    .filter(card -> card.getName().equals("Grizzly Bears"))
+                                    .count()
+                    );
+                }
+        );
+
+        // Turn 2 belongs to player B. On player A's next upkeep (turn 3),
+        // the remaining three creature cards must allow a fresh prepare.
+        waitStackResolved(3, mage.constants.PhaseStep.UPKEEP);
+        runCode(
+                "second prepare created a fresh copy",
+                3,
+                mage.constants.PhaseStep.UPKEEP,
+                playerA,
+                (info, player, game) -> {
+                    mage.game.permanent.Permanent archivist = game.getBattlefield()
+                            .getAllActivePermanents()
+                            .stream()
+                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
+                            .filter(permanent -> permanent.getName().equals("Lorehold Archivist"))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
+
+                    org.junit.Assert.assertTrue(
+                            "Lorehold Archivist must become prepared again on the later upkeep",
+                            archivist.isPrepared()
+                    );
+
+                    long copies = game.getExile().getAllCards(game)
+                            .stream()
+                            .filter(card -> card.getName().equals("Restore Relic"))
+                            .count();
+
+                    org.junit.Assert.assertEquals(
+                            "Re-prepare must create exactly one new Restore Relic copy in exile",
+                            1L,
+                            copies
+                    );
+                }
+        );
+
+        // Prove that the newly created copy is actually castable too.
+        castSpell(
+                3,
+                mage.constants.PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                "Restore Relic",
+                "Grizzly Bears"
+        );
+        waitStackResolved(3, mage.constants.PhaseStep.PRECOMBAT_MAIN);
+
+        runCode(
+                "second cast completed prepare lifecycle",
+                3,
+                mage.constants.PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                (info, player, game) -> {
+                    mage.game.permanent.Permanent archivist = game.getBattlefield()
+                            .getAllActivePermanents()
+                            .stream()
+                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
+                            .filter(permanent -> permanent.getName().equals("Lorehold Archivist"))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
+
+                    org.junit.Assert.assertFalse(
+                            "Casting the second prepared spell must unprepare Lorehold Archivist again",
+                            archivist.isPrepared()
+                    );
+
+                    long copies = game.getExile().getAllCards(game)
+                            .stream()
+                            .filter(card -> card.getName().equals("Restore Relic"))
+                            .count();
+
+                    org.junit.Assert.assertEquals(
+                            "Second Restore Relic prepare copy must be gone after it is cast",
+                            0L,
+                            copies
+                    );
+                }
+        );
+
+        setStrictChooseMode(true);
+        setStopAt(3, mage.constants.PhaseStep.END_TURN);
+        execute();
+    }
 }
