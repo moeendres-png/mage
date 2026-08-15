@@ -775,4 +775,143 @@ public class PrepareTest extends CardTestPlayerBase {
         setStopAt(1, mage.constants.PhaseStep.END_TURN);
         execute();
     }
+
+    @org.junit.Test
+    public void test_KirolHistoryBuffPrepareLifecycle() {
+        // Kirol, History Buff
+        // Whenever one or more cards leave your graveyard, Kirol becomes prepared.
+        //
+        // Pack a Punch {1}{R}{W}
+        // Mill a card. Put two +1/+1 counters on target creature.
+        // It gains trample until end of turn.
+        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Kirol, History Buff");
+        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Silvercoat Lion");
+
+        // Mana for Cremate {B} and later Pack a Punch {1}{R}{W}.
+        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Swamp", 1);
+        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Mountain", 2);
+        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Plains", 1);
+
+        // Cremate supplies a real leave-your-graveyard event.
+        addCard(mage.constants.Zone.GRAVEYARD, playerA, "Grizzly Bears");
+        addCard(mage.constants.Zone.HAND, playerA, "Cremate");
+
+        // Cremate draws one; Pack a Punch then mills one.
+        addCard(mage.constants.Zone.LIBRARY, playerA, "Island", 2);
+
+        castSpell(
+                1,
+                mage.constants.PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                "Cremate",
+                "Grizzly Bears"
+        );
+        waitStackResolved(1, mage.constants.PhaseStep.PRECOMBAT_MAIN);
+
+        runCode(
+                "Kirol prepares when a card leaves its controller graveyard",
+                1,
+                mage.constants.PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                (info, player, game) -> {
+                    mage.game.permanent.Permanent kirol = game.getBattlefield()
+                            .getAllActivePermanents()
+                            .stream()
+                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
+                            .filter(permanent -> permanent.getName().equals("Kirol, History Buff"))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("Kirol, History Buff not found"));
+
+                    org.junit.Assert.assertTrue(
+                            "Kirol must become prepared after a card leaves its controller graveyard",
+                            kirol.isPrepared()
+                    );
+
+                    long copies = game.getExile().getAllCards(game)
+                            .stream()
+                            .filter(card -> card.getName().equals("Pack a Punch"))
+                            .count();
+
+                    org.junit.Assert.assertEquals(
+                            "Preparing Kirol must create exactly one Pack a Punch copy in exile",
+                            1L,
+                            copies
+                    );
+                }
+        );
+
+        // Prove that Kirol's actual prepared spell copy is castable.
+        castSpell(
+                1,
+                mage.constants.PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                "Pack a Punch",
+                "Silvercoat Lion"
+        );
+        waitStackResolved(1, mage.constants.PhaseStep.PRECOMBAT_MAIN);
+
+        // Pack a Punch must apply both its persistent counter effect and
+        // its temporary trample effect to the chosen creature.
+        checkPermanentCounters(
+                "Pack a Punch counters",
+                1,
+                mage.constants.PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                "Silvercoat Lion",
+                mage.counters.CounterType.P1P1,
+                2
+        );
+
+        checkAbility(
+                "Pack a Punch trample",
+                1,
+                mage.constants.PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                "Silvercoat Lion",
+                mage.abilities.keyword.TrampleAbility.class,
+                true
+        );
+
+        runCode(
+                "Kirol prepared spell completes lifecycle",
+                1,
+                mage.constants.PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                (info, player, game) -> {
+                    mage.game.permanent.Permanent kirol = game.getBattlefield()
+                            .getAllActivePermanents()
+                            .stream()
+                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
+                            .filter(permanent -> permanent.getName().equals("Kirol, History Buff"))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("Kirol, History Buff not found"));
+
+                    org.junit.Assert.assertFalse(
+                            "Casting Pack a Punch prepare copy must unprepare Kirol",
+                            kirol.isPrepared()
+                    );
+
+                    long copies = game.getExile().getAllCards(game)
+                            .stream()
+                            .filter(card -> card.getName().equals("Pack a Punch"))
+                            .count();
+
+                    org.junit.Assert.assertEquals(
+                            "Pack a Punch prepare copy must be gone from exile after casting",
+                            0L,
+                            copies
+                    );
+
+                    org.junit.Assert.assertEquals(
+                            "Pack a Punch must mill exactly one card",
+                            2,
+                            player.getGraveyard().size()
+                    );
+                }
+        );
+
+        setStrictChooseMode(true);
+        setStopAt(1, mage.constants.PhaseStep.END_TURN);
+        execute();
+    }
 }
