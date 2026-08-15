@@ -69,6 +69,9 @@ public class PrepareTest extends CardTestPlayerBase {
                 "Solemn Simulacrum"
         );
 
+        // Decline Solemn Simulacrum's optional ETB search.
+        setChoice(playerA, false);
+
         setStrictChooseMode(true);
         setStopAt(1, PhaseStep.BEGIN_COMBAT);
         execute();
