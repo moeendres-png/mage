@@ -83,4 +83,53 @@ public class PrepareTest extends CardTestPlayerBase {
         // ...and creates a token copy of it.
         assertPermanentCount(playerA, "Solemn Simulacrum", 1);
     }
+
+    @Test
+    public void test_CastingPreparedSpellMakesPermanentUnprepared() {
+        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
+
+        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
+        addCard(Zone.GRAVEYARD, playerA, "Ornithopter");
+        addCard(Zone.GRAVEYARD, playerA, "Memnite");
+
+        // Restore Relic costs {2}{R}{W}.
+        addCard(Zone.BATTLEFIELD, playerA, "Plains", 2);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 2);
+
+        castSpell(
+                1,
+                PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                PREPARE_SPELL,
+                "Solemn Simulacrum"
+        );
+
+        // Decline the token Solemn Simulacrum's optional ETB search.
+        setChoice(playerA, false);
+
+        runCode(
+                "Lorehold Archivist is unprepared after its prepare spell is cast",
+                1,
+                PhaseStep.BEGIN_COMBAT,
+                playerA,
+                (info, player, game) -> {
+                    Permanent archivist = game
+                            .getBattlefield()
+                            .getAllActivePermanents(player.getId())
+                            .stream()
+                            .filter(permanent -> ARCHIVIST.equals(permanent.getName()))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
+
+                    Assert.assertFalse(
+                            "Lorehold Archivist must become unprepared when its prepare spell is cast",
+                            archivist.isPrepared()
+                    );
+                }
+        );
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.END_COMBAT);
+        execute();
+    }
 }
