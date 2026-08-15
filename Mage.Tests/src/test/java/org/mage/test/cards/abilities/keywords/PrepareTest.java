@@ -259,4 +259,23 @@ public class PrepareTest extends CardTestPlayerBase {
         assertExileCount(playerB, "Ornithopter", 1);
         assertPermanentCount(playerB, "Ornithopter", 1);
     }
+
+    @Test
+    public void test_AlreadyPreparedPermanentDoesNotCreateSecondCopy() {
+        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
+
+        // The condition remains true across both of player A's upkeeps.
+        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
+        addCard(Zone.GRAVEYARD, playerA, "Ornithopter");
+        addCard(Zone.GRAVEYARD, playerA, "Memnite");
+
+        setStrictChooseMode(true);
+        setStopAt(3, PhaseStep.PRECOMBAT_MAIN);
+        execute();
+
+        // The first upkeep prepares Archivist. The second upkeep must not
+        // create another prepare-spell copy while Archivist is still prepared.
+        assertPermanentCount(playerA, ARCHIVIST, 1);
+        assertExileCount(playerA, PREPARE_SPELL, 1);
+    }
 }
