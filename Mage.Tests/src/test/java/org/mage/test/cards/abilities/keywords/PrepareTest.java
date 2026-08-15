@@ -431,4 +431,55 @@ public class PrepareTest extends CardTestPlayerBase {
         assertGraveyardCount(playerA, "Solemn Simulacrum", 1);
         assertPermanentCount(playerA, "Solemn Simulacrum", 0);
     }
+
+    @org.junit.Test
+    public void test_TargetPrepareDoesNothingForCreatureWithoutPrepareSpell() {
+        // Skycoach Waypoint
+        // {3}, {T}: Target creature becomes prepared.
+        //
+        // A creature without a prepare spell can't become prepared.
+        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Skycoach Waypoint");
+        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Mountain", 3);
+        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Grizzly Bears");
+
+        activateAbility(
+                1,
+                mage.constants.PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                "{3}, {T}: Target creature becomes prepared",
+                "Grizzly Bears"
+        );
+        waitStackResolved(1, mage.constants.PhaseStep.PRECOMBAT_MAIN);
+
+        runCode(
+                "non-prepare creature must remain unprepared",
+                1,
+                mage.constants.PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                (info, player, game) -> {
+                    mage.game.permanent.Permanent bears = game.getBattlefield()
+                            .getAllActivePermanents()
+                            .stream()
+                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
+                            .filter(permanent -> permanent.getName().equals("Grizzly Bears"))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("Grizzly Bears not found"));
+
+                    org.junit.Assert.assertFalse(
+                            "Creature without a prepare spell must remain unprepared",
+                            bears.isPrepared()
+                    );
+
+                    org.junit.Assert.assertEquals(
+                            "Preparing a creature without a prepare spell must not create an exile copy",
+                            0,
+                            game.getExile().getAllCards(game).size()
+                    );
+                }
+        );
+
+        setStrictChooseMode(true);
+        setStopAt(1, mage.constants.PhaseStep.END_TURN);
+        execute();
+    }
 }
