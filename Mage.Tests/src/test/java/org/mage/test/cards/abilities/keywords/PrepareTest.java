@@ -324,4 +324,47 @@ public class PrepareTest extends CardTestPlayerBase {
         // prepare-spell copy as becoming prepared through the card's own effect.
         assertExileCount(playerA, PREPARE_SPELL, 1);
     }
+
+    @Test
+    public void test_TargetEffectPrepareCopyCanBeCast() {
+        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
+        addCard(Zone.BATTLEFIELD, playerA, "Skycoach Waypoint");
+
+        // Only one artifact/creature card is in the graveyard, so
+        // Lorehold Archivist's own upkeep trigger cannot prepare it.
+        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
+
+        // Turn 1: {3} for Skycoach Waypoint.
+        // Turn 3: the lands untap and provide {2}{R}{W} for Restore Relic.
+        addCard(Zone.BATTLEFIELD, playerA, "Plains", 3);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain");
+
+        activateAbility(
+                1,
+                PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                "{3}, {T}: Target creature becomes prepared",
+                ARCHIVIST
+        );
+
+        castSpell(
+                3,
+                PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                PREPARE_SPELL,
+                "Solemn Simulacrum"
+        );
+
+        // Decline Solemn Simulacrum's ETB search choice in the test harness.
+        setChoice(playerA, false);
+
+        setStrictChooseMode(true);
+        setStopAt(3, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        // Restore Relic was successfully cast and resolved.
+        assertGraveyardCount(playerA, "Solemn Simulacrum", 0);
+        assertExileCount(playerA, "Solemn Simulacrum", 1);
+        assertPermanentCount(playerA, "Solemn Simulacrum", 1);
+    }
 }
