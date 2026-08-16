@@ -90,4 +90,60 @@ public class EvokeTest extends CardTestPlayerBase {
         assertLife(playerB, 22);
         assertHandCount(playerA, 2);
     }
+
+    @Test
+    public void test_AshlingGrantedEvokePersistsAfterAshlingLeaves() {
+        addCard(Zone.BATTLEFIELD, playerA, "Ashling, the Limitless");
+
+        // Cloudkin Seer is an Elemental permanent spell with no intrinsic Evoke.
+        // Four Mountains cannot pay its normal {2}{U} cost, but can pay Evoke {4}.
+        addCard(Zone.HAND, playerA, "Cloudkin Seer");
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 4);
+
+        // Remove Ashling while Cloudkin Seer is still a spell on the stack.
+        addCard(Zone.BATTLEFIELD, playerB, "Island");
+        addCard(Zone.HAND, playerB, "Unsummon");
+
+        castSpell(
+                1,
+                PhaseStep.PRECOMBAT_MAIN,
+                playerA,
+                "Cloudkin Seer"
+        );
+
+        setChoice(
+                playerA,
+                "Cast with Evoke alternative cost: {4} (source: Cloudkin Seer"
+        );
+
+        castSpell(
+                1,
+                PhaseStep.PRECOMBAT_MAIN,
+                playerB,
+                "Unsummon",
+                "Ashling, the Limitless",
+                "Cloudkin Seer"
+        );
+
+        checkHandCardCount(
+                "Ashling left before Cloudkin Seer resolved",
+                1,
+                PhaseStep.BEGIN_COMBAT,
+                playerA,
+                "Ashling, the Limitless",
+                1
+        );
+
+        checkGraveyardCount(
+                "Ashling-granted Evoke survives source removal",
+                1,
+                PhaseStep.BEGIN_COMBAT,
+                playerA,
+                "Cloudkin Seer",
+                1
+        );
+
+        setStopAt(1, PhaseStep.END_TURN);
+        execute();
+    }
 }
