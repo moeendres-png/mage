@@ -1,0 +1,123 @@
+name: Greenfield Forge raw transport hidden-info red-team
+
+on:
+  push:
+    branches:
+      - research/greenfield-engine-shootout-20260827
+    paths:
+      - '.github/workflows/greenfield-forge-hidden-info-redteam.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  redteam:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          path: forge
+          fetch-depth: 1
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: forge/pom.xml
+      - name: Ensure virtual display
+        shell: bash
+        run: command -v Xvfb >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y xvfb; }
+      - name: Instrument decoded raw transport before rendering
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          mkdir -p artifacts/forge-hidden-info
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('forge/forge-gui-desktop/src/test/java/forge/net/HeadlessNetworkClient.java')
+          s=p.read_text()
+          needle='''    private final AtomicLong eventStateMismatches = new AtomicLong(0);'''
+          repl='''    private final AtomicLong eventStateMismatches = new AtomicLong(0);\n    private final AtomicLong hiddenIdentityLeaks = new AtomicLong(0);\n    private final java.util.List<String> hiddenIdentityLeakExamples = java.util.Collections.synchronizedList(new java.util.ArrayList<>());'''
+          if needle not in s: raise SystemExit('metrics insertion point missing')
+          s=s.replace(needle,repl,1)
+          needle='''    public long getEventStateMismatches() {\n        return eventStateMismatches.get();\n    }'''
+          repl='''    public long getEventStateMismatches() {\n        return eventStateMismatches.get();\n    }\n\n    public long getHiddenIdentityLeaks() { return hiddenIdentityLeaks.get(); }\n    public java.util.List<String> getHiddenIdentityLeakExamples() {\n        synchronized (hiddenIdentityLeakExamples) { return new java.util.ArrayList<>(hiddenIdentityLeakExamples); }\n    }\n\n    private void scanDecodedRawTransport(final GameView gv, final String transportPhase) {\n        if (gv == null || gv.isGameOver()) return;\n        for (forge.game.player.PlayerView pv : gv.getPlayers()) {\n            final boolean self = username.equals(pv.getName());\n            if (!self) scanHiddenZone(pv, forge.game.zone.ZoneType.Hand, transportPhase);\n            scanHiddenZone(pv, forge.game.zone.ZoneType.Library, transportPhase);\n        }\n    }\n\n    private void scanHiddenZone(final forge.game.player.PlayerView owner, final forge.game.zone.ZoneType zone, final String transportPhase) {\n        final forge.util.collect.FCollectionView<forge.game.card.CardView> cards = owner.getCards(zone);\n        if (cards == null) return;\n        for (forge.game.card.CardView cv : cards) {\n            final String n = cv == null ? null : cv.getName();\n            if (n == null || n.isBlank() || "Card".equals(n) || "Face Down Card".equals(n)) continue;\n            hiddenIdentityLeaks.incrementAndGet();\n            if (hiddenIdentityLeakExamples.size() < 50) {\n                hiddenIdentityLeakExamples.add(transportPhase + ":owner=" + owner.getName() + ":zone=" + zone + ":id=" + cv.getId() + ":name=" + n);\n            }\n        }\n    }'''
+          if needle not in s: raise SystemExit('getter insertion point missing')
+          s=s.replace(needle,repl,1)
+          needle='''            client.onDeltaPacketReceived(packet);'''
+          repl='''            client.scanDecodedRawTransport(getGameView(), "applyDelta:" + packet.getSequenceNumber());\n            client.onDeltaPacketReceived(packet);'''
+          if needle not in s: raise SystemExit('delta hook missing')
+          s=s.replace(needle,repl,1)
+          needle='''                client.onFullStateSyncReceived(sequenceNumber);'''
+          repl='''                client.onFullStateSyncReceived(sequenceNumber);\n                client.scanDecodedRawTransport(getGameView(), "setGameView:" + sequenceNumber);'''
+          if needle not in s: raise SystemExit('full-state hook missing')
+          s=s.replace(needle,repl,1)
+          p.write_text(s)
+
+          h=Path('forge/forge-gui-desktop/src/test/java/forge/net/UnifiedNetworkHarness.java')
+          t=h.read_text()
+          needle='''                result.eventStateMismatches += client.getEventStateMismatches();'''
+          repl='''                result.eventStateMismatches += client.getEventStateMismatches();\n                result.hiddenIdentityLeaks += client.getHiddenIdentityLeaks();\n                result.hiddenIdentityLeakExamples.addAll(client.getHiddenIdentityLeakExamples());'''
+          if needle not in t: raise SystemExit('collect metrics hook missing')
+          t=t.replace(needle,repl,1)
+          needle='''        public long eventStateMismatches;'''
+          repl='''        public long eventStateMismatches;\n        public long hiddenIdentityLeaks;\n        public List<String> hiddenIdentityLeakExamples = new ArrayList<>();'''
+          if needle not in t: raise SystemExit('GameResult field hook missing')
+          t=t.replace(needle,repl,1)
+          h.write_text(t)
+          PY
+          cp forge/forge-gui-desktop/src/test/java/forge/net/HeadlessNetworkClient.java artifacts/forge-hidden-info/
+      - name: Add raw transport red-team test
+        shell: bash
+        run: |
+          cat > forge/forge-gui-desktop/src/test/java/forge/net/RawHiddenInfoTransportRedTeamTest.java <<'JAVA'
+          package forge.net;
+          import forge.deck.Deck;
+          import org.testng.Assert;
+          import org.testng.annotations.BeforeClass;
+          import org.testng.annotations.Test;
+          public class RawHiddenInfoTransportRedTeamTest {
+              @BeforeClass public static void setUp(){ TestUtils.ensureFModelInitialized(); }
+              @Test(timeOut=120000)
+              public void opponentHandAndLibrariesCarryNoIdentityInDecodedTransport(){
+                  Deck host=TestDeckLoader.createMinimalDeck("Mountain",10);
+                  Deck remote=TestDeckLoader.createMinimalDeck("Forest",10);
+                  UnifiedNetworkHarness.GameResult r=new UnifiedNetworkHarness()
+                          .playerCount(2).remoteClients(1).useAiForRemotePlayers(true)
+                          .decks(host,remote).connectionTimeout(30000).gameTimeout(90000).execute();
+                  System.out.println("RAW_HIDDEN_INFO_LEAK_COUNT="+r.hiddenIdentityLeaks);
+                  for(String x:r.hiddenIdentityLeakExamples) System.out.println("RAW_HIDDEN_INFO_LEAK_EXAMPLE="+x);
+                  Assert.assertTrue(r.gameStarted,"network game must start");
+                  Assert.assertTrue(r.fullStateSyncsReceived>0,"must observe a full raw transport state");
+                  Assert.assertEquals(r.hiddenIdentityLeaks,0L,"decoded transport exposed hidden card identity: "+r.hiddenIdentityLeakExamples);
+              }
+          }
+          JAVA
+          cp forge/forge-gui-desktop/src/test/java/forge/net/RawHiddenInfoTransportRedTeamTest.java artifacts/forge-hidden-info/
+      - name: Run red-team through reactor
+        shell: bash
+        run: |
+          set -o pipefail
+          cd forge
+          set +e
+          xvfb-run -a mvn -B -ntp -T 1C -pl forge-gui-desktop -am -Dtest=forge.net.RawHiddenInfoTransportRedTeamTest -Dsurefire.failIfNoSpecifiedTests=false test 2>&1 | tee ../artifacts/forge-hidden-info/test.log
+          rc=${PIPESTATUS[0]}; set -e; echo "$rc" > ../artifacts/forge-hidden-info/test.exit
+          grep -E 'RAW_HIDDEN_INFO_' ../artifacts/forge-hidden-info/test.log > ../artifacts/forge-hidden-info/redteam-summary.txt || true
+          test "$rc" -eq 0
+      - name: Hash evidence
+        if: always()
+        shell: bash
+        run: |
+          cd artifacts/forge-hidden-info
+          find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: greenfield-forge-hidden-info-redteam
+          path: artifacts/forge-hidden-info
+          if-no-files-found: error
