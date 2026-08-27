@@ -27,6 +27,9 @@ jobs:
           java-version: '21'
           cache: maven
           cache-dependency-path: forge/pom.xml
+      - name: Ensure virtual display
+        shell: bash
+        run: command -v Xvfb >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y xvfb; }
       - name: Apply research-only strict remote boundary patch
         shell: bash
         run: |
@@ -96,7 +99,7 @@ jobs:
           set -o pipefail
           cd forge
           set +e
-          mvn -B -ntp -T 1C -pl forge-gui-desktop -am -Dtest=forge.net.StrictRemotePilotQualificationTest -Dsurefire.failIfNoSpecifiedTests=false test 2>&1 | tee ../artifacts/forge-strict-remote/test.log
+          xvfb-run -a mvn -B -ntp -T 1C -pl forge-gui-desktop -am -Dtest=forge.net.StrictRemotePilotQualificationTest -Dsurefire.failIfNoSpecifiedTests=false test 2>&1 | tee ../artifacts/forge-strict-remote/test.log
           rc=${PIPESTATUS[0]}; set -e; echo "$rc" > ../artifacts/forge-strict-remote/test.exit; test "$rc" -eq 0
       - name: Hash evidence
         if: always()
