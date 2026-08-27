@@ -1,4 +1,4 @@
-name: Greenfield engine shootout
+name: Greenfield Manabrew qualification rerun
 
 on:
   push:
@@ -9,240 +9,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: greenfield-engine-shootout-${{ github.ref }}
+  group: greenfield-manabrew-rerun-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  forge:
-    name: Forge pinned build + tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    steps:
-      - name: Checkout pinned Forge
-        uses: actions/checkout@v4
-        with:
-          repository: Card-Forge/forge
-          ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
-          path: forge
-          fetch-depth: 1
-      - name: Setup Java 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
-          cache-dependency-path: forge/pom.xml
-      - name: Prepare evidence
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts/engine-shootout/forge/build
-          {
-            echo "candidate=forge"
-            echo "repository=https://github.com/Card-Forge/forge.git"
-            echo "expected_commit=8c7e9afb8e6caee88644b94e25da5852e36f8928"
-            echo "actual_commit=$(git -C forge rev-parse HEAD)"
-            echo "runner_os=$RUNNER_OS"
-            uname -a
-            git --version
-            java -version 2>&1
-            mvn -version
-          } > artifacts/engine-shootout/forge/build/environment.txt
-          cp forge/LICENSE artifacts/engine-shootout/forge/build/license.txt
-          sha256sum artifacts/engine-shootout/forge/build/license.txt > artifacts/engine-shootout/forge/build/hashes.sha256
-          printf '{"candidate":"forge","repository":"Card-Forge/forge","expected_commit":"8c7e9afb8e6caee88644b94e25da5852e36f8928","actual_commit":"%s"}\n' "$(git -C forge rev-parse HEAD)" > artifacts/engine-shootout/forge/build/metadata.json
-      - name: Install headless display
-        run: |
-          command -v Xvfb >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y xvfb; }
-      - name: Clean build
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          /usr/bin/time -v bash -lc 'cd forge && xvfb-run -a mvn -U -B -DskipTests clean package' > artifacts/engine-shootout/forge/build/build.log 2>&1
-          rc=$?
-          echo "$rc" > artifacts/engine-shootout/forge/build/build.exit
-          exit 0
-      - name: Upstream test suite
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          /usr/bin/time -v bash -lc 'cd forge && xvfb-run -a mvn -U -B test' > artifacts/engine-shootout/forge/build/test.log 2>&1
-          rc=$?
-          echo "$rc" > artifacts/engine-shootout/forge/build/test.exit
-          exit 0
-      - name: Hash evidence
-        if: always()
-        shell: bash
-        run: |
-          find artifacts/engine-shootout/forge/build -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum >> artifacts/engine-shootout/forge/build/hashes.sha256 || true
-      - name: Upload Forge evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: greenfield-forge-build
-          path: artifacts/engine-shootout/forge/build
-          if-no-files-found: error
-      - name: Classify Forge build
-        if: always()
-        shell: bash
-        run: |
-          b=$(cat artifacts/engine-shootout/forge/build/build.exit 2>/dev/null || echo 99)
-          t=$(cat artifacts/engine-shootout/forge/build/test.exit 2>/dev/null || echo 99)
-          echo "build_exit=$b test_exit=$t"
-          test "$b" = 0 && test "$t" = 0
-
-  xmage:
-    name: XMage pinned build + tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    steps:
-      - name: Checkout pinned XMage
-        uses: actions/checkout@v4
-        with:
-          repository: magefree/mage
-          ref: 86d86b580cd7e1f30b51110d70cecae18c1ce452
-          path: xmage
-          fetch-depth: 1
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: maven
-          cache-dependency-path: xmage/pom.xml
-      - name: Prepare evidence
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts/engine-shootout/xmage/build
-          {
-            echo "candidate=xmage"
-            echo "repository=https://github.com/magefree/mage.git"
-            echo "expected_commit=86d86b580cd7e1f30b51110d70cecae18c1ce452"
-            echo "actual_commit=$(git -C xmage rev-parse HEAD)"
-            echo "runner_os=$RUNNER_OS"
-            uname -a
-            git --version
-            java -version 2>&1
-            mvn -version
-          } > artifacts/engine-shootout/xmage/build/environment.txt
-          cp xmage/LICENSE.txt artifacts/engine-shootout/xmage/build/license.txt
-          sha256sum artifacts/engine-shootout/xmage/build/license.txt > artifacts/engine-shootout/xmage/build/hashes.sha256
-          printf '{"candidate":"xmage","repository":"magefree/mage","expected_commit":"86d86b580cd7e1f30b51110d70cecae18c1ce452","actual_commit":"%s"}\n' "$(git -C xmage rev-parse HEAD)" > artifacts/engine-shootout/xmage/build/metadata.json
-      - name: Clean build
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          /usr/bin/time -v bash -lc 'cd xmage && mvn -B -DskipTests clean package' > artifacts/engine-shootout/xmage/build/build.log 2>&1
-          rc=$?
-          echo "$rc" > artifacts/engine-shootout/xmage/build/build.exit
-          exit 0
-      - name: Upstream test suite
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          /usr/bin/time -v bash -lc 'cd xmage && mvn test -B -Dxmage.dataCollectors.printGameLogs=false -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/xmage/.travis/log4j.properties' > artifacts/engine-shootout/xmage/build/test.log 2>&1
-          rc=$?
-          echo "$rc" > artifacts/engine-shootout/xmage/build/test.exit
-          exit 0
-      - name: Hash evidence
-        if: always()
-        shell: bash
-        run: |
-          find artifacts/engine-shootout/xmage/build -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum >> artifacts/engine-shootout/xmage/build/hashes.sha256 || true
-      - name: Upload XMage evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: greenfield-xmage-build
-          path: artifacts/engine-shootout/xmage/build
-          if-no-files-found: error
-      - name: Classify XMage build
-        if: always()
-        shell: bash
-        run: |
-          b=$(cat artifacts/engine-shootout/xmage/build/build.exit 2>/dev/null || echo 99)
-          t=$(cat artifacts/engine-shootout/xmage/build/test.exit 2>/dev/null || echo 99)
-          echo "build_exit=$b test_exit=$t"
-          test "$b" = 0 && test "$t" = 0
-
-  phase:
-    name: phase.rs pinned engine build + tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    steps:
-      - name: Checkout pinned phase.rs
-        uses: actions/checkout@v4
-        with:
-          repository: phase-rs/phase
-          ref: fae406c4603f450797014f3ac8e8818b3d36c2a4
-          path: phase
-          fetch-depth: 1
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Prepare evidence
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts/engine-shootout/phase/build
-          {
-            echo "candidate=phase-rs"
-            echo "repository=https://github.com/phase-rs/phase.git"
-            echo "expected_commit=fae406c4603f450797014f3ac8e8818b3d36c2a4"
-            echo "actual_commit=$(git -C phase rev-parse HEAD)"
-            echo "runner_os=$RUNNER_OS"
-            uname -a
-            git --version
-            rustc --version
-            cargo --version
-          } > artifacts/engine-shootout/phase/build/environment.txt
-          cp phase/LICENSE-MIT artifacts/engine-shootout/phase/build/license-mit.txt
-          cp phase/LICENSE-APACHE artifacts/engine-shootout/phase/build/license-apache.txt
-          sha256sum artifacts/engine-shootout/phase/build/license-*.txt > artifacts/engine-shootout/phase/build/hashes.sha256
-          printf '{"candidate":"phase-rs","repository":"phase-rs/phase","expected_commit":"fae406c4603f450797014f3ac8e8818b3d36c2a4","actual_commit":"%s"}\n' "$(git -C phase rev-parse HEAD)" > artifacts/engine-shootout/phase/build/metadata.json
-      - name: Clean build
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          /usr/bin/time -v bash -lc 'cd phase && cargo build -p phase-engine --locked' > artifacts/engine-shootout/phase/build/build.log 2>&1
-          rc=$?
-          echo "$rc" > artifacts/engine-shootout/phase/build/build.exit
-          exit 0
-      - name: Engine tests
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          /usr/bin/time -v bash -lc 'cd phase && cargo test -p phase-engine --locked --no-fail-fast' > artifacts/engine-shootout/phase/build/test.log 2>&1
-          rc=$?
-          echo "$rc" > artifacts/engine-shootout/phase/build/test.exit
-          exit 0
-      - name: Hash evidence
-        if: always()
-        shell: bash
-        run: |
-          find artifacts/engine-shootout/phase/build -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum >> artifacts/engine-shootout/phase/build/hashes.sha256 || true
-      - name: Upload phase.rs evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: greenfield-phase-build
-          path: artifacts/engine-shootout/phase/build
-          if-no-files-found: error
-      - name: Classify phase build
-        if: always()
-        shell: bash
-        run: |
-          b=$(cat artifacts/engine-shootout/phase/build/build.exit 2>/dev/null || echo 99)
-          t=$(cat artifacts/engine-shootout/phase/build/test.exit 2>/dev/null || echo 99)
-          echo "build_exit=$b test_exit=$t"
-          test "$b" = 0 && test "$t" = 0
-
   manabrew:
     name: Manabrew pinned headless/parity build + tests
     runs-on: ubuntu-latest
@@ -258,11 +28,11 @@ jobs:
           fetch-depth: 1
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-      - name: Setup Java 21
+      - name: Setup Java 18
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: '21'
+          distribution: zulu
+          java-version: '18'
       - name: Prepare evidence
         shell: bash
         run: |
@@ -284,9 +54,10 @@ jobs:
             cargo --version
             java -version 2>&1
           } > artifacts/engine-shootout/manabrew/build/environment.txt
-          cp manabrew/LICENSE artifacts/engine-shootout/manabrew/build/license.txt
+          cp manabrew/LICENSE.md artifacts/engine-shootout/manabrew/build/license.txt
           sha256sum artifacts/engine-shootout/manabrew/build/license.txt > artifacts/engine-shootout/manabrew/build/hashes.sha256
           printf '{"candidate":"manabrew-forge-lane","repository":"witchesofthehill/manabrew","expected_commit":"754ec2aeec495d67d7bb9b89d0fd67ee22281b46","actual_commit":"%s","expected_forge_submodule":"192b5eab000069bbb8917a5df9d60d4a9128aa07","actual_forge_submodule":"%s"}\n' "$actual" "$sub" > artifacts/engine-shootout/manabrew/build/metadata.json
+          test "$actual" = "754ec2aeec495d67d7bb9b89d0fd67ee22281b46"
           test "$sub" = "192b5eab000069bbb8917a5df9d60d4a9128aa07"
       - name: Build parity + self-hosted node
         continue-on-error: true
@@ -315,7 +86,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: greenfield-manabrew-build
+          name: greenfield-manabrew-build-rerun
           path: artifacts/engine-shootout/manabrew/build
           if-no-files-found: error
       - name: Classify Manabrew build
