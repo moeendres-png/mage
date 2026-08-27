@@ -1,0 +1,136 @@
+name: Greenfield Forge decision census and RNG inventory
+
+on:
+  push:
+    branches:
+      - research/greenfield-engine-shootout-20260827
+    paths:
+      - '.github/workflows/greenfield-forge-census-rng.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  census:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          path: forge
+          fetch-depth: 1
+      - name: Materialize decision and RNG census
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          mkdir -p artifacts/forge-census-rng
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re
+          root=Path('forge')
+          pc=(root/'forge-game/src/main/java/forge/game/player/PlayerController.java').read_text()
+          ig=(root/'forge-gui/src/main/java/forge/gui/interfaces/IGuiGame.java').read_text()
+          proto=(root/'forge-gui/src/main/java/forge/gamemodes/net/ProtocolMethod.java').read_text()
+          remote=(root/'forge-gui/src/main/java/forge/gamemodes/net/server/RemoteClientGuiGame.java').read_text()
+          headless=(root/'forge-gui-desktop/src/test/java/forge/net/HeadlessNetworkGuiGame.java').read_text()
+          hclient=(root/'forge-gui-desktop/src/test/java/forge/net/HeadlessNetworkClient.java').read_text()
+
+          abstract_methods=[]
+          for m in re.finditer(r'public\s+abstract\s+[^;{]+?\s+(\w+)\s*\((.*?)\)\s*;',pc,re.S):
+              abstract_methods.append(m.group(1))
+
+          server_decisions=[]; client_actions=[]
+          enum_block=proto.split('public enum ProtocolMethod',1)[1].split('private enum Mode',1)[0]
+          for raw in enum_block.splitlines():
+              line=raw.strip()
+              m=re.match(r'(\w+)\s*\(Mode\.(SERVER|CLIENT),\s*([^,\)]+)',line)
+              if not m: continue
+              name,mode,ret=m.groups()
+              if mode=='SERVER' and ret.strip()!='Void.TYPE': server_decisions.append({'name':name,'return_type':ret.strip()})
+              elif mode=='CLIENT': client_actions.append(name)
+
+          forbidden_patterns={
+            'remote_default_yes':'result != null ? result : defaultYes',
+            'remote_default_option':'result != null ? result : defaultOption',
+            'protocol_null_return':'if (value == null) {\n            return;',
+            'headless_first_ability':'abilities != null && !abilities.isEmpty() ? abilities.get(0) : null',
+            'headless_first_blocker':'result.put(blockers.get(0), damage)',
+            'headless_default_yes':'return defaultYes;',
+            'headless_default_option':'return defaultOption;',
+            'headless_first_input':'inputOptions.get(0)',
+            'headless_first_choice':'choices.subList(0, Math.max(count, 1))',
+            'headless_first_entity':'optionList.get(0)',
+          }
+          text_by={'RemoteClientGuiGame':remote,'ProtocolMethod':proto,'HeadlessNetworkGuiGame':headless,'HeadlessNetworkClient':hclient}
+          forbidden=[]
+          for label,needle in forbidden_patterns.items():
+              for src,text in text_by.items():
+                  if needle in text: forbidden.append({'class':src,'class_of_failure':label,'needle':needle})
+
+          rng_hits=[]
+          scan_roots=[root/'forge-game/src/main/java',root/'forge-core/src/main/java',root/'forge-gui/src/main/java/forge/player']
+          patterns=[
+            ('NEW_RANDOM',re.compile(r'\bnew\s+Random\s*\(')),
+            ('NEW_SECURE_RANDOM',re.compile(r'\bnew\s+SecureRandom\s*\(')),
+            ('THREAD_LOCAL_RANDOM',re.compile(r'ThreadLocalRandom')),
+            ('COLLECTIONS_SHUFFLE',re.compile(r'Collections\.shuffle\s*\(')),
+            ('MATH_RANDOM',re.compile(r'Math\.random\s*\(')),
+            ('MY_RANDOM',re.compile(r'MyRandom(?:\.getRandom\(\)|\.percentTrue\s*\()')),
+          ]
+          for base in scan_roots:
+              for p in base.rglob('*.java'):
+                  try: lines=p.read_text(errors='replace').splitlines()
+                  except Exception: continue
+                  for i,line in enumerate(lines,1):
+                      if line.lstrip().startswith('//') or line.lstrip().startswith('*'): continue
+                      for label,rx in patterns:
+                          if rx.search(line): rng_hits.append({'kind':label,'path':str(p.relative_to(root)),'line':i,'text':line.strip()[:500]})
+
+          # Rules-game bypasses are direct entropy/default shuffle in forge-game, excluding MyRandom implementation itself.
+          bypass_kinds={'NEW_RANDOM','NEW_SECURE_RANDOM','THREAD_LOCAL_RANDOM','COLLECTIONS_SHUFFLE','MATH_RANDOM'}
+          game_bypasses=[h for h in rng_hits if h['kind'] in bypass_kinds and h['path'].startswith('forge-game/')]
+          controlled=[h for h in rng_hits if h['kind']=='MY_RANDOM' and h['path'].startswith('forge-game/')]
+
+          decision={
+            'schema':'commander-simulator-next.forge-decision-census.v1',
+            'forge_pin':'8c7e9afb8e6caee88644b94e25da5852e36f8928',
+            'player_controller_abstract_method_count':len(abstract_methods),
+            'player_controller_abstract_methods':sorted(set(abstract_methods)),
+            'remote_protocol_blocking_decision_count':len(server_decisions),
+            'remote_protocol_blocking_decisions':server_decisions,
+            'remote_protocol_client_action_count':len(client_actions),
+            'remote_protocol_client_actions':client_actions,
+            'stock_forbidden_fallback_count':len(forbidden),
+            'stock_forbidden_fallbacks':forbidden,
+            'stock_remote_path_fail_closed':False if forbidden else True,
+            'research_strict_patch_note':'server-side null/default fallback removal exists in separate qualification workflow; a complete production external-pilot adapter is not present in upstream Forge',
+          }
+          rng={
+            'schema':'commander-simulator-next.forge-rng-census.v1',
+            'forge_pin':'8c7e9afb8e6caee88644b94e25da5852e36f8928',
+            'rules_game_direct_rng_bypass_count':len(game_bypasses),
+            'rules_game_direct_rng_bypasses':game_bypasses,
+            'rules_game_myrandom_callsite_count':len(controlled),
+            'all_scanned_rng_hits':rng_hits,
+            'myrandom_provider_is_replaceable':True,
+            'event_tape_runtime_qualified':False,
+            'reason':'static provider seam/inventory does not prove event-tape capture or fresh-process replay of every draw',
+          }
+          Path('artifacts/forge-census-rng/decision-census.json').write_text(json.dumps(decision,indent=2,sort_keys=True)+'\n')
+          Path('artifacts/forge-census-rng/rng-census.json').write_text(json.dumps(rng,indent=2,sort_keys=True)+'\n')
+          print('PLAYER_CONTROLLER_ABSTRACT=',len(abstract_methods))
+          print('PROTOCOL_BLOCKING_DECISIONS=',len(server_decisions))
+          print('PROTOCOL_CLIENT_ACTIONS=',len(client_actions))
+          print('STOCK_FORBIDDEN_FALLBACKS=',len(forbidden))
+          print('RULES_GAME_DIRECT_RNG_BYPASSES=',len(game_bypasses))
+          print('RULES_GAME_MYRANDOM_CALLS=',len(controlled))
+          PY
+          (cd artifacts/forge-census-rng && sha256sum *.json > hashes.sha256)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greenfield-forge-census-rng
+          path: artifacts/forge-census-rng
+          if-no-files-found: error
