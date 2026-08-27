@@ -1,0 +1,15 @@
+{
+  "schema": "commander-simulator-next.exact-deck-requirement.v1",
+  "generated_at": "2026-08-27",
+  "source": {
+    "drive_id": "1n4wUDx7jMheUps8tkqRSa64QSV1DFdI1",
+    "title": "KAERVEK_FINAL_100.json",
+    "raw_file_sha256": "a4685705db515633415955147ae544c4b9698bb5308de9671dabf49cd4da8264"
+  },
+  "commander": "Kaervek the Merciless",
+  "card_slots": 100,
+  "distinct_names": 77,
+  "canonical_deck_hash_sha256": "aa7a90a4e5cf32f40b1c9832d329aa03f6f7bf130f2d2e9c1e80d10e97c53c7a",
+  "classification": "VERIFIED_FULL_DECK",
+  "admission_use": "opponent-only exact regression/qualification deck"
+}
