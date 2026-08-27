@@ -7,9 +7,19 @@ players="$3"
 seed="$4"
 timeout_s="${5:-90}"
 
+# Forge SimulateMatch does not accept an arbitrary absolute .dck path. For a
+# Commander .dck parameter it prefixes ForgeConstants.DECK_COMMANDER_DIR, which
+# resolves to ~/.forge/decks/commander/ in this headless runner. Stage only the
+# test fixture there and pass its basename. This is harness-only plumbing; no
+# game/rules behavior is implemented here.
+deck_dir="${HOME}/.forge/decks/commander"
+mkdir -p "$deck_dir"
+deck_name="$(basename "$deck")"
+cp -f "$deck" "$deck_dir/$deck_name"
+
 args=(sim -f commander -d)
 for ((i=0; i<players; i++)); do
-  args+=("$deck")
+  args+=("$deck_name")
 done
 args+=(-n 1 -s "$seed" -c "$timeout_s" -q)
 
