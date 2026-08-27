@@ -1,0 +1,14 @@
+{
+  "schema":"commander-simulator-next.actual-card-coverage.closeout-v1",
+  "status":"INSUFFICIENT_EVIDENCE",
+  "known_relevant_card_total":"NOT_COMPUTABLE_FROM_CURRENT_INCOMPLETE_MERGED_MANIFEST",
+  "full":"NOT_COMPUTABLE",
+  "partial":"NOT_COMPUTABLE",
+  "unknown":"NOT_COMPUTABLE",
+  "unsupported":"NOT_COMPUTABLE",
+  "production_reachable_unknown":"NOT_ESTABLISHED_ZERO",
+  "production_reachable_partial":"NOT_ESTABLISHED_ZERO",
+  "production_reachable_unsupported":"NOT_ESTABLISHED_ZERO",
+  "source_presence_evidence":{"forge_card_index_run":33090672334,"artifact_id":9654200891,"classification":"SOURCE_INDEX_ONLY"},
+  "reason":"Presence/script indexing and deck loading do not prove executable, decision-complete, hidden-info-safe, replay-safe behavior. The external decision boundary and merged Oracle requirement manifest are not complete."
+}
