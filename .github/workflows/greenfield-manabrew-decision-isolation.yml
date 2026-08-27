@@ -1,0 +1,138 @@
+name: Greenfield Manabrew decision and isolation qualification
+
+on:
+  push:
+    branches:
+      - research/greenfield-engine-shootout-20260827
+    paths:
+      - '.github/workflows/greenfield-manabrew-decision-isolation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: witchesofthehill/manabrew
+          ref: 754ec2aeec495d67d7bb9b89d0fd67ee22281b46
+          path: manabrew
+          submodules: recursive
+          fetch-depth: 1
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: |
+            manabrew/pom.xml
+            manabrew/forge/pom.xml
+            manabrew/forge-harness/pom.xml
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify pins and prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C manabrew rev-parse HEAD)" = 754ec2aeec495d67d7bb9b89d0fd67ee22281b46
+          test "$(git -C manabrew/forge rev-parse HEAD)" = 192b5eab000069bbb8917a5df9d60d4a9128aa07
+          mkdir -p artifacts/manabrew-decision-isolation
+      - name: Build prerequisites for new gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd manabrew && node scripts/harness.mjs ensure) > artifacts/manabrew-decision-isolation/harness-build.log 2>&1
+          (cd manabrew && cargo build -p self-hosted-node --features java-forge --locked) > artifacts/manabrew-decision-isolation/node-build.log 2>&1
+      - name: Run protocol and agent validation tests only
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          (cd manabrew && cargo test -p manabrew-protocol -p manabrew-agent-interface --locked --no-fail-fast) > artifacts/manabrew-decision-isolation/protocol-agent-tests.log 2>&1
+          rc=$?
+          set -e
+          echo "$rc" > artifacts/manabrew-decision-isolation/protocol-agent-tests.exit
+          test "$rc" -eq 0
+      - name: Run only scenarios actually supported by pinned java backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > artifacts/manabrew-decision-isolation/scenarios.tsv
+          for scenario in keep-and-play-land mulligan-once-play-land; do
+            log="$GITHUB_WORKSPACE/artifacts/manabrew-decision-isolation/scenario-${scenario}.log"
+            set +e
+            (cd manabrew && SELF_HOSTED_NODE_JAVA_SCENARIO="$scenario" SELF_HOSTED_NODE_JAVA_SCENARIO_PROMPTS=120 SELF_HOSTED_NODE_JAVA_GC_LOG='' RUST_LOG=self_hosted_node=info timeout 300s ./target/debug/self-hosted-node) >"$log" 2>&1
+            rc=$?
+            set -e
+            printf '%s\t%s\n' "$scenario" "$rc" >> artifacts/manabrew-decision-isolation/scenarios.tsv
+          done
+          awk '$2 != 0 { bad=1 } END { exit bad }' artifacts/manabrew-decision-isolation/scenarios.tsv
+      - name: Run new concurrent 4P isolation probe only
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          (cd manabrew && \
+            SELF_HOSTED_NODE_JAVA_CONCURRENT_GAMES=2 \
+            SELF_HOSTED_NODE_SELF_PLAY_FORMAT=Commander \
+            SELF_HOSTED_NODE_SELF_PLAY_PLAYERS=4 \
+            SELF_HOSTED_NODE_SELF_PLAY_SEED=777777 \
+            SELF_HOSTED_NODE_SELF_PLAY_DECKS='ashling_limitless_commander,neheb_minotaur_commander,kaalia_regression_commander' \
+            SELF_HOSTED_NODE_JAVA_SELF_PLAY_PROMPTS=3000 \
+            SELF_HOSTED_NODE_JAVA_GC_LOG='' \
+            RUST_LOG=self_hosted_node=info \
+            timeout 420s ./target/debug/self-hosted-node) > artifacts/manabrew-decision-isolation/concurrent-4p.log 2>&1
+          rc=$?
+          set -e
+          echo "$rc" > artifacts/manabrew-decision-isolation/concurrent-4p.exit
+          test "$rc" -eq 0
+      - name: Audit fail-closed decision invariants at exact pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re
+          root=Path('manabrew')
+          controller=(root/'forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java').read_text()
+          session=(root/'forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java').read_text()
+          agent=(root/'manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/mod.rs').read_text()
+          prompts=(root/'manabrew-rs/crates/manabrew-protocol/src/prompts/mod.rs').read_text()
+          transport=(root/'manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs').read_text()
+          findings=[]
+          def f(code, severity, present, evidence):
+            findings.append({'code':code,'severity':severity,'present':bool(present),'evidence':evidence})
+          f('TARGET_FIRST_FALLBACK','BLOCKER', 'chosen.isEmpty() ? 0 : chosen.get(0)' in controller and 'allTargets.get(0)' in controller, 'chooseTarget falls back to index/first target')
+          f('DISCARD_FIRST_N_FALLBACK','BLOCKER','guard++ < 512' in controller and 'subList(0, max)' in controller,'chooseCardsToDiscardUnlessType returns first N after retry guard')
+          f('REPLACEMENT_FIRST_FALLBACK','BLOCKER','chosen.isEmpty() ? 0 : chosen.get(0)' in controller and 'possibleReplacers.get(0)' in controller,'replacement choice falls back to first')
+          f('STATIC_ABILITY_FIRST','BLOCKER','possibleReplacers.get(0)' in controller and 'chooseSingleStaticAbility' in controller,'static ability chooser returns first')
+          f('RANDOM_TARGET_INTERNAL','BLOCKER','tr.isRandomTarget()' in controller and 'Aggregates.random' in controller,'random target/target-count RNG occurs inside adapter/controller')
+          f('RUST_AGENT_PROMPT0_DEFAULT_PASS','BLOCKER','prompt_id: 0' in agent and 'return Self::default_pass()' in agent,'prompt_id 0 maps to pass')
+          f('RUST_AGENT_DIRECTIVE_DEFAULT_PASS','BLOCKER','self.handle_directive(directive);' in agent and 'return Self::default_pass()' in agent,'directive handling returns pass output')
+          f('PROTOCOL_STALE_PROMPT','POSITIVE','StalePrompt' in transport and 'prompt_id != prompt.prompt_id' in agent,'stale prompt rejected')
+          f('PROTOCOL_UNKNOWN_ACTION','POSITIVE','UnknownActionId' in transport and 'validate_response(&action)' in agent,'advertised action validation')
+          f('PROTOCOL_WRONG_TYPE','POSITIVE','WrongPromptType' in transport and 'ResponseViolation::WrongPromptType' in agent,'wrong prompt type rejected')
+          f('PROTOCOL_CANCEL_NOT_ALLOWED','POSITIVE','CancelNotAllowed' in transport and 'ResponseViolation::CancelNotAllowed' in agent,'illegal cancel rejected')
+          blockers=[x for x in findings if x['severity']=='BLOCKER' and x['present']]
+          out={'candidate':'manabrew-forge-interactive','manabrew_pin':'754ec2aeec495d67d7bb9b89d0fd67ee22281b46','forge_pin':'192b5eab000069bbb8917a5df9d60d4a9128aa07','findings':findings,'blocker_count':len(blockers),'silent_fallbacks_zero':len(blockers)==0,'production_decision_gate':'FAIL' if blockers else 'INSUFFICIENT_EVIDENCE'}
+          Path('artifacts/manabrew-decision-isolation/fail-closed-audit.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          # Finding blockers is a successful audit result, not a workflow failure.
+          PY
+      - name: Hash evidence
+        if: always()
+        shell: bash
+        run: |
+          cd artifacts/manabrew-decision-isolation
+          find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: greenfield-manabrew-decision-isolation
+          path: artifacts/manabrew-decision-isolation
+          if-no-files-found: error
