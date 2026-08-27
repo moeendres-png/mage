@@ -1,0 +1,129 @@
+name: Greenfield phase.rs targeted qualification
+
+on:
+  push:
+    branches:
+      - research/greenfield-engine-shootout-20260827
+    paths:
+      - '.github/workflows/greenfield-phase-runtime.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  phase-targeted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout qualification harness
+        uses: actions/checkout@v4
+        with:
+          ref: research/greenfield-engine-shootout-20260827
+          path: qual
+      - name: Checkout pinned phase.rs
+        uses: actions/checkout@v4
+        with:
+          repository: phase-rs/phase
+          ref: fae406c4603f450797014f3ac8e8818b3d36c2a4
+          path: phase
+          fetch-depth: 1
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Verify pin
+        run: test "$(git -C phase rev-parse HEAD)" = "fae406c4603f450797014f3ac8e8818b3d36c2a4"
+      - name: Run targeted non-empty conformance groups
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$GITHUB_WORKSPACE/artifacts/engine-shootout/phase/targeted"
+          mkdir -p "$root/results" "$root/logs"
+          run_group() {
+            local scenario="$1" filter="$2"
+            local log="$root/logs/${scenario}.log"
+            set +e
+            (cd phase && cargo test -p phase-engine --locked "$filter" -- --nocapture) >"$log" 2>&1
+            rc=$?
+            set -e
+            passed=$(grep -Eo 'test result: ok\. [0-9]+ passed' "$log" | awk '{s+=$4} END {print s+0}')
+            failed=$(grep -Eo 'test result: (FAILED|ok)\. [0-9]+ passed; [0-9]+ failed' "$log" | awk '{s+=$6} END {print s+0}')
+            printf '{"filter":%s,"cargo_exit":%d,"passed":%d,"failed":%d}\n' "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$filter")" "$rc" "$passed" "$failed" > "$root/${scenario}.counts.json"
+            if [ "$rc" -ne 0 ] || [ "$passed" -le 0 ] || [ "$failed" -ne 0 ]; then
+              python3 qual/research/greenfield-qualification/harness.py --candidate phase-rs --commit fae406c4603f450797014f3ac8e8818b3d36c2a4 --scenario "$scenario" --status FAIL --reason "cargo_exit=$rc passed=$passed failed=$failed filter=$filter" --out "$root/results/${scenario}.result.json" || true
+              return 1
+            fi
+            python3 qual/research/greenfield-qualification/harness.py --candidate phase-rs --commit fae406c4603f450797014f3ac8e8818b3d36c2a4 --scenario "$scenario" --command "true" --cwd "$GITHUB_WORKSPACE" --out "$root/results/${scenario}.result.json"
+          }
+          failures=0
+          run_group K_COMMANDER_SOURCE_RUNTIME commander::tests || failures=$((failures+1))
+          run_group L_MULTIPLAYER_TOPOLOGY topology::tests || failures=$((failures+1))
+          run_group M_HIDDEN_INFORMATION visibility || failures=$((failures+1))
+          run_group T_INTERACTION_CONTRACT interaction || failures=$((failures+1))
+          echo "$failures" > "$root/group_failures.count"
+          test "$failures" -eq 0
+      - name: Run Commander-specific test inventory
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$GITHUB_WORKSPACE/artifacts/engine-shootout/phase/targeted"
+          cargo test --manifest-path phase/crates/engine/Cargo.toml --locked commander::tests -- --list > "$root/commander-tests.list" 2>&1 || true
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('artifacts/engine-shootout/phase/targeted/commander-tests.list')
+          lines=[x.strip() for x in p.read_text(errors='replace').splitlines() if ': test' in x]
+          Path('artifacts/engine-shootout/phase/targeted/commander-tests.json').write_text(json.dumps({'count':len(lines),'tests':lines},indent=2)+'\n')
+          if not lines:
+              raise SystemExit('zero commander tests enumerated')
+          PY
+      - name: Inventory external interaction DTO surface
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,json
+          text=Path('phase/crates/engine/src/types/interaction.rs').read_text()
+          enums={}
+          for name in ['InteractionWaitingForCode','InteractionReasonCode','InteractionOutcomeCode','InteractionIntentCode']:
+              m=re.search(r'pub enum '+name+r'\s*\{(.*?)\n\}',text,re.S)
+              if m:
+                  enums[name]=[x for x in re.findall(r'^\s*([A-Z][A-Za-z0-9_]*)\s*(?:\{|,)',m.group(1),re.M)]
+          out={
+            'candidate':'phase-rs','commit':'fae406c4603f450797014f3ac8e8818b3d36c2a4',
+            'opaque_ids':re.findall(r'opaque_string_id!\(([^)]+)\)',text),
+            'enums':enums,
+            'source_externalizable':True,
+            'externalized_and_tested_for_all_required_decisions':False
+          }
+          Path('artifacts/engine-shootout/phase/targeted/interaction-source-census.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          PY
+      - name: Compile fresh-process state serialization probe binaries twice
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          root="$GITHUB_WORKSPACE/artifacts/engine-shootout/phase/targeted"
+          (cd phase && cargo test -p phase-engine --locked serialization -- --nocapture) > "$root/logs/S_SERIALIZATION.log" 2>&1
+          rc=$?
+          passed=$(grep -Eo 'test result: ok\. [0-9]+ passed' "$root/logs/S_SERIALIZATION.log" | awk '{s+=$4} END {print s+0}')
+          if [ "$rc" -eq 0 ] && [ "$passed" -gt 0 ]; then
+            python3 qual/research/greenfield-qualification/harness.py --candidate phase-rs --commit fae406c4603f450797014f3ac8e8818b3d36c2a4 --scenario S_SERIALIZATION_SUPPORT --command true --cwd "$GITHUB_WORKSPACE" --out "$root/results/S_SERIALIZATION.result.json"
+          else
+            python3 qual/research/greenfield-qualification/harness.py --candidate phase-rs --commit fae406c4603f450797014f3ac8e8818b3d36c2a4 --scenario S_SERIALIZATION_SUPPORT --status NOT_RUN --reason "No nonzero serialization-filter test group established: cargo_exit=$rc passed=$passed" --out "$root/results/S_SERIALIZATION.result.json"
+          fi
+          exit 0
+      - name: Hash and upload evidence
+        if: always()
+        shell: bash
+        run: |
+          cd artifacts/engine-shootout/phase/targeted
+          find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true
+      - name: Upload phase targeted evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: greenfield-phase-targeted
+          path: artifacts/engine-shootout/phase/targeted
+          if-no-files-found: error
