@@ -1,0 +1,7 @@
+{
+  "schema":"commander-simulator-next.process-isolation-gate.closeout-v1",
+  "overall_production_gate":"INSUFFICIENT_EVIDENCE",
+  "manabrew":{"pin":"754ec2aeec495d67d7bb9b89d0fd67ee22281b46","forge_pin":"192b5eab000069bbb8917a5df9d60d4a9128aa07","run":33090536113,"concurrent_4p_two_game_process_isolation":"PASS"},
+  "selected_production_core":null,
+  "reason":"Candidate-specific Manabrew isolation is positive, but no production core is frozen and the production decision boundary is not admitted."
+}
