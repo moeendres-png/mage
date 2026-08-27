@@ -1,0 +1,67 @@
+{
+  "schema": "commander-simulator-next.decision-capability-registry.v2",
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "closure_run_id": 33112928078,
+  "closure_artifact_id": 9663315184,
+  "entries": [
+    {
+      "actor": "controller player",
+      "backend_source": "InputSelectEntitiesFromList",
+      "decision_kind": "ENTITY_PLAYER_SELECTION",
+      "fallback_present": false,
+      "invalid_response_test": "server selectEntity rejects non-member",
+      "legal_options": "server validChoices",
+      "response_schema": "Player choice",
+      "runtime_test": "prior strict runtime + pinned source path",
+      "runtime_trigger": "validChoices contains Player",
+      "status": "UNSUPPORTED_AT_CURRENT_REMOTE_BOUNDARY",
+      "validation": "validChoices.contains",
+      "visibility_scope": "principal"
+    },
+    {
+      "actor": "controller player",
+      "backend_source": "InputSelectEntitiesFromList",
+      "decision_kind": "ENTITY_CARD_SELECTION",
+      "fallback_present": false,
+      "invalid_response_test": "server selectEntity rejects non-member",
+      "legal_options": "setSelectables(CardView,min,max)",
+      "response_schema": "selectCard",
+      "runtime_test": "prior run observed setSelectables",
+      "runtime_trigger": "validChoices contains Card",
+      "status": "PARTIAL_NO_REQUEST_TOKEN",
+      "validation": "validChoices.contains",
+      "visibility_scope": "principal"
+    },
+    {
+      "actor": "owner",
+      "backend_source": "Input/updateButtons",
+      "decision_kind": "BUTTON_CHOICE",
+      "fallback_present": false,
+      "invalid_response_test": "NOT_COMPLETE",
+      "legal_options": "two enabled button states",
+      "response_schema": "selectButtonOk/selectButtonCancel",
+      "runtime_test": "prior run observed updateButtons",
+      "runtime_trigger": "buttons enabled",
+      "status": "PARTIAL_NO_REQUEST_TOKEN",
+      "validation": "input state",
+      "visibility_scope": "principal"
+    },
+    {
+      "actor": "remote client principal",
+      "backend_source": "ProtocolMethod SERVER non-void",
+      "decision_kind": "BLOCKING_GUI_DECISIONS_15",
+      "fallback_present": true,
+      "invalid_response_test": "prior strict patch null/wrong-type test",
+      "legal_options": "method-specific payloads",
+      "response_schema": "method-specific return type",
+      "runtime_test": "run 33095241142",
+      "runtime_trigger": "blocking GUI calls",
+      "status": "PARTIAL",
+      "validation": "ProtocolMethod type only upstream",
+      "visibility_scope": "method-specific"
+    }
+  ],
+  "production_reachable_unsupported_decisions": 1,
+  "silent_fallbacks_zero": false,
+  "gate": "FAIL"
+}
