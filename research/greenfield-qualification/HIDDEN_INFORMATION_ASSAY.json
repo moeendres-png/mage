@@ -1,0 +1,9 @@
+{
+  "schema":"commander-simulator-next.hidden-information-assay.closeout-v1",
+  "complete":false,
+  "gate":"FAIL_OR_INSUFFICIENT_EVIDENCE",
+  "forge":{"pin":"8c7e9afb8e6caee88644b94e25da5852e36f8928","raw_transport_run":33095565820,"artifact_id":9656277015,"game_started":true,"game_completed":true,"raw_hidden_identity_leak_count":74,"classification":"BACKEND_TRANSPORT_LEAK_CONFIRMED__PILOT_BOUNDARY_NOT_YET_QUALIFIED"},
+  "xmage":{"run":33089884301,"principal_scoped_external_observation_runtime_gate":false},
+  "pilot_visible_hidden_info_leaks":"ZERO_NOT_PROVEN",
+  "reason":"No finalist currently has a qualified principal-scoped external-pilot boundary through which a zero-leak runtime assay can be completed."
+}
