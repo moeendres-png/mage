@@ -1,0 +1,81 @@
+{
+  "architecture_adjudication": {
+    "client_only_strict_adapter_sufficient": false,
+    "forge_rules_core_disqualified": false,
+    "minimal_required_change": "Add a server-side typed Decision Export hook at the authoritative Input/PlayerControllerHuman boundary that publishes the exact validChoices (including Player entities), actor, min/max/constraints and a monotonic request token to the trusted adapter; validate the token/actor before translating the response back into the existing input object. Do not derive legal choices from prompt text or full GameView.",
+    "rules_reimplementation_required": false,
+    "stock_remote_gui_boundary_qualified": false
+  },
+  "candidate": "Forge + new strict external-pilot adapter",
+  "evidence_class": [
+    "CODE_DERIVED",
+    "RUNTIME_RECONCILED"
+  ],
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "gate": "DECISION_EXTERNALIZATION",
+  "status": "FAIL",
+  "hard_failure": {
+    "actor": "remote player/controller",
+    "backend_source": "InputSelectEntitiesFromList<T extends GameEntity>",
+    "backend_validation": "selectEntity rejects Player not in server-side validChoices",
+    "decision_kind": "ENTITY_PLAYER_SELECTION",
+    "fallback_present": "client can only guess/derive candidate players from GameView/prompt under current protocol",
+    "legal_options": "NOT_EXPORTED_TO_REMOTE_GUI_BOUNDARY",
+    "production_reachable": true,
+    "reachability_witness": "Kaervek the Merciless is a verified relevant opponent and its pinned Forge semantics use ValidTgts$ Any",
+    "response_schema": "existing selectPlayer(PlayerView,ITriggerEvent) has no request token",
+    "runtime_trigger": "validChoices contains Player entities",
+    "status": "UNSUPPORTED_AT_CURRENT_REMOTE_BOUNDARY",
+    "visibility_scope": "must be principal scoped"
+  },
+  "hard_gate_values": {
+    "COMPLETE_TYPED_DECISION_REQUEST_RESPONSE": false,
+    "EXACT_LEGAL_CHOICES_EXPORTED": false,
+    "PRODUCTION_REACHABLE_UNSUPPORTED_DECISIONS": 1,
+    "SILENT_FALLBACKS": "NOT_ESTABLISHED_ZERO",
+    "STALE_RESPONSE_REJECTION_AT_BACKEND_PROTOCOL": false
+  },
+  "schema": "commander-simulator-next.forge-strict-boundary-gate.v2",
+  "server_blocking_decision_transport_count": 15,
+  "server_blocking_methods": [
+    "tempShowZones",
+    "getAbilityToPlay",
+    "assignCombatDamage",
+    "assignGenericAmount",
+    "showConfirmDialog",
+    "showOptionDialog",
+    "showInputDialog",
+    "confirm",
+    "getChoices",
+    "order",
+    "sideboard",
+    "chooseSingleEntityForEffect",
+    "chooseEntitiesForEffect",
+    "manipulateCardList",
+    "openZones"
+  ],
+  "source_assertions": {
+    "card_selectables_only_exported": true,
+    "input_exports_only_card_views": true,
+    "input_retains_full_valid_choices_server_side": true,
+    "input_validates_player_selection_server_side": true,
+    "kaervek_any_target_reachability_witness": true,
+    "no_request_id_protocol_symbol": true,
+    "no_typed_decision_request_protocol_symbol": true,
+    "select_player_client_action_exists": true,
+    "show_prompt_has_no_legal_player_collection": true
+  },
+  "source_hashes": {
+    "InputSelectEntitiesFromList.java": "72afc5249ffae42a5cca849c5104b8724a93541011ce485c665cf7d49bc13c5b",
+    "ProtocolMethod.java": "54caa48ab2ab7f64ec3274b14989403b01540f3815fee25792a824365a4b2af2",
+    "kaervek_the_merciless.txt": "2abeefe31fcfef7243e3fcb2a62423f9abc8ac98ca72c89862cd11173aaa9f01"
+  },
+  "provenance": {
+    "closure_run_id": 33112928078,
+    "closure_artifact_id": 9663315184,
+    "closure_artifact_sha256": "36446570c77c040b7a722d9a5cda5238fce3c0b00d689eb11c24c803f43c1a1c",
+    "reconciled_prior_run_id": 33095241142,
+    "reconciled_prior_artifact_id": 9656740763,
+    "gameplay_rerun": false
+  }
+}
