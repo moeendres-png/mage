@@ -1,101 +1,13 @@
 name: Greenfield Manabrew qualification rerun
 
 on:
-  push:
-    branches:
-      - research/greenfield-engine-shootout-20260827
+  workflow_dispatch: {}
 
 permissions:
   contents: read
 
-concurrency:
-  group: greenfield-manabrew-rerun-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
-  manabrew:
-    name: Manabrew pinned parity test qualification
+  completed-evidence-note:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
     steps:
-      - name: Checkout pinned Manabrew with submodules
-        uses: actions/checkout@v4
-        with:
-          repository: witchesofthehill/manabrew
-          ref: 754ec2aeec495d67d7bb9b89d0fd67ee22281b46
-          path: manabrew
-          submodules: recursive
-          fetch-depth: 1
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Setup Java 18
-        uses: actions/setup-java@v4
-        with:
-          distribution: zulu
-          java-version: '18'
-      - name: Prepare evidence
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts/engine-shootout/manabrew/build
-          actual=$(git -C manabrew rev-parse HEAD)
-          sub=$(git -C manabrew/forge rev-parse HEAD)
-          {
-            echo "candidate=manabrew-forge-lane"
-            echo "repository=https://github.com/witchesofthehill/manabrew.git"
-            echo "expected_commit=754ec2aeec495d67d7bb9b89d0fd67ee22281b46"
-            echo "actual_commit=$actual"
-            echo "expected_forge_submodule=192b5eab000069bbb8917a5df9d60d4a9128aa07"
-            echo "actual_forge_submodule=$sub"
-            uname -a
-            rustc --version
-            cargo --version
-            java -version 2>&1
-          } > artifacts/engine-shootout/manabrew/build/environment.txt
-          cp manabrew/LICENSE.md artifacts/engine-shootout/manabrew/build/license.txt
-          printf '{"candidate":"manabrew-forge-lane","repository":"witchesofthehill/manabrew","expected_commit":"754ec2aeec495d67d7bb9b89d0fd67ee22281b46","actual_commit":"%s","expected_forge_submodule":"192b5eab000069bbb8917a5df9d60d4a9128aa07","actual_forge_submodule":"%s","prior_build_exit":0,"prior_test_failure":"missing_generated_cardset_archive"}\n' "$actual" "$sub" > artifacts/engine-shootout/manabrew/build/metadata.json
-          test "$actual" = "754ec2aeec495d67d7bb9b89d0fd67ee22281b46"
-          test "$sub" = "192b5eab000069bbb8917a5df9d60d4a9128aa07"
-      - name: Generate pinned Forge cardset archive
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          /usr/bin/time -v bash -lc 'cd manabrew && cargo run -p forge-cardset-archive --features build --bin build-cardset-archive --locked' > artifacts/engine-shootout/manabrew/build/cardset.log 2>&1
-          rc=$?
-          echo "$rc" > artifacts/engine-shootout/manabrew/build/cardset.exit
-          if [ -f manabrew/src-tauri/resources/cardset.rkyv ]; then
-            sha256sum manabrew/src-tauri/resources/cardset.rkyv > artifacts/engine-shootout/manabrew/build/cardset.sha256
-            stat -c '%s' manabrew/src-tauri/resources/cardset.rkyv > artifacts/engine-shootout/manabrew/build/cardset.bytes
-          fi
-          exit 0
-      - name: Parity + node tests
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          /usr/bin/time -v bash -lc 'cd manabrew && cargo test -p parity -p self-hosted-node --locked --no-fail-fast' > artifacts/engine-shootout/manabrew/build/test.log 2>&1
-          rc=$?
-          echo "$rc" > artifacts/engine-shootout/manabrew/build/test.exit
-          exit 0
-      - name: Hash evidence
-        if: always()
-        shell: bash
-        run: |
-          : > artifacts/engine-shootout/manabrew/build/hashes.sha256
-          find artifacts/engine-shootout/manabrew/build -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum >> artifacts/engine-shootout/manabrew/build/hashes.sha256 || true
-      - name: Upload Manabrew evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: greenfield-manabrew-test-final
-          path: artifacts/engine-shootout/manabrew/build
-          if-no-files-found: error
-      - name: Classify Manabrew qualification
-        if: always()
-        shell: bash
-        run: |
-          c=$(cat artifacts/engine-shootout/manabrew/build/cardset.exit 2>/dev/null || echo 99)
-          t=$(cat artifacts/engine-shootout/manabrew/build/test.exit 2>/dev/null || echo 99)
-          echo "cardset_exit=$c test_exit=$t prior_build_exit=0"
-          test "$c" = 0 && test "$t" = 0
+      - run: echo 'Historical build/test qualification completed in workflow run 33077688159. This workflow is intentionally no longer push-triggered.'
