@@ -1,0 +1,32 @@
+{
+  "schema": "commander-simulator-next.actual-card-requirement-manifest.closeout-v1",
+  "status": "INCOMPLETE_FAIL_CLOSED",
+  "domain_authority": {
+    "physically_held_unique_identities": 1338,
+    "operational_own_unique_identities": 1007,
+    "rogshai_exact_slots": 100,
+    "rogshai_normalized_sha256": "2b6258ae1c778784ed252bb46ff828343055177146634c77847506d33f4a4362",
+    "kaervek_exact_slots": 100,
+    "kaervek_deck_sha256": "aa7a90a4e5cf32f40b1c9832d329aa03f6f7bf130f2d2e9c1e80d10e97c53c7a",
+    "dargo_tymna_candidate_identities": 743,
+    "unknown_real_opponent_slots_minimum": 142
+  },
+  "precons": {
+    "required_count": 11,
+    "extraction_run_id": 33089467077,
+    "artifact_id": 9653672924,
+    "all_100_slots": true,
+    "authority": "OFFICIAL_WIZARDS_CONTENT; FORGE_EXTRACTION_HELPER_ONLY"
+  },
+  "committed_fragments": [
+    "actual-card-manifest/OWN_OPERATIONAL_1007.json",
+    "actual-card-manifest/KAERVEK_EXACT_100.json"
+  ],
+  "missing_for_complete_manifest": [
+    "deduplicated Oracle-identity union for every required source class",
+    "per-identity source-class flags and behavior priority",
+    "official-source reconciliation of all 11 precon card identities",
+    "explicit UNKNOWN real opponent slots without synthetic promotion"
+  ],
+  "complete": false
+}
