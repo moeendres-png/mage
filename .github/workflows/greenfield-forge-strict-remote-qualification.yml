@@ -134,24 +134,31 @@ jobs:
             },
           }
           Path('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.json').write_text(json.dumps(gate, indent=2, sort_keys=True) + '\n')
-          Path('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.md').write_text(f'''# Forge strict typed Decision Export gate
-
-- Qualification source head: `{source_head}`
-- Qualification source tree: `{source_tree}`
-- Forge pin: `{implementation['forge_pin']}`
-- Patch SHA-256: `{gate['patch_sha256']}`
-- Strict entity-selection seam: **{gate['strict_entity_selection_boundary']}**
-- Full production gate: **FAIL**
-
-The exact `InputSelectEntitiesFromList` option set, including `Player`
-entities, is now exported to a typed provider in the ephemeral Forge checkout.
-Responses are checked against token, decision id, actor, principal, schema,
-membership, count, cancel permission, one-shot state, and timeout state. The
-patch compiles at the declared Forge pin.
-
-This does not close the production gate: only three entity-selection entry
-points are directly routed. The census contains {implementation['census']['player_controller_abstract_method_count']} controller callback declarations and {implementation['census']['remote_protocol_blocking_decision_count']} blocking GUI decisions; {remaining} controller declarations remain outside the typed boundary. Legacy GUI/AI paths therefore remain unqualified and the complete decision/RNG/hidden-information runtime tapes have not been produced.
-''')
+          Path('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.md').write_text(
+              "\n".join([
+                  "# Forge strict typed Decision Export gate",
+                  "",
+                  f"- Qualification source head: `{source_head}`",
+                  f"- Qualification source tree: `{source_tree}`",
+                  f"- Forge pin: `{implementation['forge_pin']}`",
+                  f"- Patch SHA-256: `{gate['patch_sha256']}`",
+                  f"- Strict entity-selection seam: **{gate['strict_entity_selection_boundary']}**",
+                  "- Full production gate: **FAIL**",
+                  "",
+                  "The exact `InputSelectEntitiesFromList` option set, including `Player`",
+                  "entities, is now exported to a typed provider in the ephemeral Forge checkout.",
+                  "Responses are checked against token, decision id, actor, principal, schema,",
+                  "membership, count, cancel permission, one-shot state, and timeout state. The",
+                  "patch compiles at the declared Forge pin.",
+                  "",
+                  "This does not close the production gate: only three entity-selection entry",
+                  "points are directly routed. The census contains "
+                  f"{implementation['census']['player_controller_abstract_method_count']} controller callback declarations and "
+                  f"{implementation['census']['remote_protocol_blocking_decision_count']} blocking GUI decisions; "
+                  f"{remaining} controller declarations remain outside the typed boundary. Legacy GUI/AI paths "
+                  "therefore remain unqualified and the complete decision/RNG/hidden-information runtime tapes have not been produced.",
+              ]) + "\n"
+          )
           assert gate['status'] == 'FAIL'
           assert gate['strict_entity_selection_boundary'] == 'PASS'
           assert gate['full_decision_externalization'] == 'FAIL'
