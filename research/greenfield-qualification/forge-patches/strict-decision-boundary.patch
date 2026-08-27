@@ -505,6 +505,544 @@ index 014cb5db..bbf92839 100644
          getController().getInputQueue().setInput(this);
          awaitLatchRelease();
      }
+diff --git a/forge-gui/src/main/java/forge/gamemodes/net/CObjectOutputStream.java b/forge-gui/src/main/java/forge/gamemodes/net/CObjectOutputStream.java
+index 9ad35fe7..c56bf9bf 100644
+--- a/forge-gui/src/main/java/forge/gamemodes/net/CObjectOutputStream.java
++++ b/forge-gui/src/main/java/forge/gamemodes/net/CObjectOutputStream.java
+@@ -6,6 +6,9 @@ import java.io.IOException;
+ import java.io.ObjectOutputStream;
+ import java.io.ObjectStreamClass;
+ import java.io.OutputStream;
++import java.util.Collections;
++import java.util.IdentityHashMap;
++import java.util.Set;
+ 
+ /**
+  * {@link ObjectOutputStream} subclass used by {@link CompatibleObjectEncoder}
+@@ -33,13 +36,25 @@ public class CObjectOutputStream extends ObjectOutputStream {
+     private final Tracker tracker;
+     private final int consumerId;
+     private final boolean eventMode;
++    private final boolean replaceTrackables;
++    private final int viewerId;
++    private final boolean redactHiddenInformation;
++    private final Set<Object> redactedObjects = Collections.newSetFromMap(new IdentityHashMap<>());
+ 
+     CObjectOutputStream(OutputStream out, boolean replaceTrackables, Tracker tracker, int consumerId, boolean eventMode) throws IOException {
++        this(out, replaceTrackables, tracker, consumerId, eventMode, -1, false);
++    }
++
++    CObjectOutputStream(OutputStream out, boolean replaceTrackables, Tracker tracker, int consumerId,
++                        boolean eventMode, int viewerId, boolean redactHiddenInformation) throws IOException {
+         super(out);
+         this.tracker = tracker;
+         this.consumerId = consumerId;
+         this.eventMode = eventMode;
+-        if (replaceTrackables) {
++        this.replaceTrackables = replaceTrackables;
++        this.viewerId = viewerId;
++        this.redactHiddenInformation = redactHiddenInformation;
++        if (replaceTrackables || redactHiddenInformation) {
+             enableReplaceObject(true);
+         }
+     }
+@@ -52,6 +67,14 @@ public class CObjectOutputStream extends ObjectOutputStream {
+ 
+     @Override
+     protected Object replaceObject(Object obj) throws IOException {
+-        return TrackableSerializer.replace(obj, tracker, consumerId, eventMode);
++        if (redactedObjects.contains(obj)) {
++            return obj;
++        }
++        Object replacement = TrackableSerializer.replace(obj, tracker, consumerId, eventMode,
++                replaceTrackables, viewerId, redactHiddenInformation);
++        if (replacement != obj && replacement instanceof forge.game.card.CardView) {
++            redactedObjects.add(replacement);
++        }
++        return replacement;
+     }
+ }
+diff --git a/forge-gui/src/main/java/forge/gamemodes/net/CompatibleObjectEncoder.java b/forge-gui/src/main/java/forge/gamemodes/net/CompatibleObjectEncoder.java
+index daa20674..3dcaf2b1 100644
+--- a/forge-gui/src/main/java/forge/gamemodes/net/CompatibleObjectEncoder.java
++++ b/forge-gui/src/main/java/forge/gamemodes/net/CompatibleObjectEncoder.java
+@@ -34,6 +34,8 @@ public class CompatibleObjectEncoder extends MessageToByteEncoder<Serializable>
+      * encoders never set this; server-side wires it via {@link #setTracker}).
+      */
+     private volatile int consumerId = -1;
++    /** Server-side player identity used for hidden-information redaction. */
++    private volatile int viewerId = -1;
+ 
+     public CompatibleObjectEncoder(NetworkByteTracker byteTracker) {
+         this.byteTracker = byteTracker;
+@@ -47,16 +49,20 @@ public class CompatibleObjectEncoder extends MessageToByteEncoder<Serializable>
+         this.consumerId = consumerId;
+     }
+ 
++    public void setViewerId(int viewerId) {
++        this.viewerId = viewerId;
++    }
++
+     @Override
+     protected void encode(ChannelHandlerContext ctx, Serializable msg, ByteBuf out) throws Exception {
+-        encodeInto(msg, out, this.tracker, this.consumerId, this.byteTracker);
++        encodeInto(msg, out, this.tracker, this.consumerId, this.viewerId, this.byteTracker);
+     }
+ 
+     /** Caller passes the returned buffer to writeAndFlush, which takes ownership. */
+     public ByteBuf encodeToBuf(Serializable msg, ByteBufAllocator alloc) throws Exception {
+         ByteBuf out = alloc.buffer();
+         try {
+-            encodeInto(msg, out, this.tracker, this.consumerId, this.byteTracker);
++            encodeInto(msg, out, this.tracker, this.consumerId, this.viewerId, this.byteTracker);
+         } catch (Exception e) {
+             out.release();
+             throw e;
+@@ -65,6 +71,7 @@ public class CompatibleObjectEncoder extends MessageToByteEncoder<Serializable>
+     }
+ 
+     private static void encodeInto(Serializable msg, ByteBuf out, Tracker tracker, int consumerId,
++                                   int viewerId,
+                                    NetworkByteTracker byteTracker) throws Exception {
+         int startIdx = out.writerIndex();
+         ByteBufOutputStream byteOut = new ByteBufOutputStream(out);
+@@ -74,7 +81,12 @@ public class CompatibleObjectEncoder extends MessageToByteEncoder<Serializable>
+ 
+         try {
+             byteOut.write(LENGTH_PLACEHOLDER);
+-            objectOut = new CObjectOutputStream(new LZ4BlockOutputStream(byteOut), replace, tracker, consumerId, false);
++            // A tracker is installed only on the server-side per-client
++            // encoder.  Once installed, redaction is always enabled; an
++            // unresolved viewer id therefore fails closed and emits only
++            // neutral CardViews instead of leaking a full graph.
++            objectOut = new CObjectOutputStream(new LZ4BlockOutputStream(byteOut), replace, tracker, consumerId,
++                    false, viewerId, tracker != null);
+             objectOut.writeObject(msg);
+             objectOut.flush();
+         } finally {
+diff --git a/forge-gui/src/main/java/forge/gamemodes/net/TrackableSerializer.java b/forge-gui/src/main/java/forge/gamemodes/net/TrackableSerializer.java
+index 539b3173..b6ef5864 100644
+--- a/forge-gui/src/main/java/forge/gamemodes/net/TrackableSerializer.java
++++ b/forge-gui/src/main/java/forge/gamemodes/net/TrackableSerializer.java
+@@ -80,6 +80,40 @@ public final class TrackableSerializer implements IHasForgeLog {
+      * that never enter a tracked zone and are never broadcast).
+      */
+     static Object replace(Object obj, Tracker tracker, int consumerId, boolean eventMode) {
++        return replace(obj, tracker, consumerId, eventMode, true, -1, false);
++    }
++
++    /**
++     * Replace tracked objects while optionally enforcing the server-side
++     * per-client hidden-information boundary.  The redaction branch runs
++     * before normal reference replacement so it also protects full
++     * {@code setGameView} graphs, where tracker replacement is deliberately
++     * disabled to establish the receiver's initial tracker state.
++     *
++     * <p>A missing or invalid viewer is fail-closed: a CardView is treated as
++     * hidden rather than being serialized with its authoritative properties.
++     * The only caller that enables this mode is the server-side per-client
++     * encoder/event wrapper.</p>
++     */
++    static Object replace(Object obj, Tracker tracker, int consumerId, boolean eventMode,
++                          boolean replaceTrackables, int viewerId,
++                          boolean redactHiddenInformation) {
++        if (obj instanceof CardView cv && redactHiddenInformation
++                && !canBeShownToViewer(cv, tracker, viewerId)) {
++            if (eventMode) {
++                // Wrapped events are decoded after the delta state.  Carry a
++                // neutral snapshot, never the authoritative hidden name or
++                // image key, so event transport cannot bypass GameView
++                // redaction.
++                return new EventCardRef(cv.getId(), "Card", null, true);
++            }
++            return redactedCardView(cv, tracker);
++        }
++
++        if (!replaceTrackables) {
++            return obj;
++        }
++
+         if (obj instanceof TrackableObject trackable) {
+             byte tag = typeTagFor(trackable);
+             if (tag < 0) return obj;
+@@ -113,6 +147,46 @@ public final class TrackableSerializer implements IHasForgeLog {
+         return obj;
+     }
+ 
++    /**
++     * Authoritative visibility check used by both the object stream and the
++     * delta builder.  A viewer id is not optional in the server transport:
++     * unresolved identity must not silently fall back to an unredacted view.
++     */
++    public static boolean canBeShownToViewer(CardView card, Tracker tracker, int viewerId) {
++        if (card == null || tracker == null || viewerId < 0) {
++            return false;
++        }
++        try {
++            PlayerView viewer = tracker.getObj(TrackableTypes.PlayerViewType, viewerId);
++            return viewer != null && card.canBeShownTo(viewer);
++        } catch (RuntimeException e) {
++            netLog.warn("Hidden-information visibility check failed for CardView id={}: {}",
++                    card.getId(), e.getMessage());
++            return false;
++        }
++    }
++
++    /**
++     * Build a minimal CardView that preserves only information required to
++     * maintain the client-side object graph.  In particular, no authoritative
++     * CardStateView, OracleName, ImageKey, rules text, type, mana cost,
++     * functional variant, or hidden-card collection is copied.
++     */
++    private static CardView redactedCardView(CardView original, Tracker tracker) {
++        CardView redacted = new CardView(original.getId(), tracker, "Card");
++        redacted.set(TrackableProperty.Owner, original.getOwner());
++        redacted.set(TrackableProperty.Controller, original.getController());
++        redacted.set(TrackableProperty.Zone, original.getZone());
++        redacted.set(TrackableProperty.Facedown, true);
++        redacted.set(TrackableProperty.FacedownImageKey, null);
++        redacted.set(TrackableProperty.ImageKey, null);
++        redacted.set(TrackableProperty.OracleName, null);
++        redacted.getCurrentState().set(TrackableProperty.Name, "Card");
++        redacted.getCurrentState().set(TrackableProperty.ImageKey, null);
++        redacted.getCurrentState().set(TrackableProperty.OracleName, null);
++        return redacted;
++    }
++
+     /**
+      * Resolves {@link IdRef} and {@link EventCardRef} markers back to
+      * TrackableObjects from the given Tracker.
+@@ -177,11 +251,22 @@ public final class TrackableSerializer implements IHasForgeLog {
+      * Events that fail to serialize are dropped (logged).
+      */
+     public static List<Object> wrapEvents(List<GameEvent> events, Tracker tracker) {
++        return wrapEvents(events, tracker, -1, false);
++    }
++
++    /**
++     * Per-client event wrapper.  Event bytes are serialized before the outer
++     * protocol encoder sees them, therefore event redaction must happen here
++     * rather than relying on the outer stream's CardView replacement.
++     */
++    public static List<Object> wrapEvents(List<GameEvent> events, Tracker tracker,
++                                          int viewerId, boolean redactHiddenInformation) {
+         List<Object> wrapped = new ArrayList<>(events.size());
+         for (GameEvent event : events) {
+             try {
+                 ByteArrayOutputStream baos = new ByteArrayOutputStream(256);
+-                try (CObjectOutputStream out = new CObjectOutputStream(baos, true, tracker, -1, true)) {
++                try (CObjectOutputStream out = new CObjectOutputStream(baos, true, tracker, -1, true,
++                        viewerId, redactHiddenInformation)) {
+                     out.writeObject(event);
+                 }
+                 wrapped.add(new WrappedEvent(baos.toByteArray()));
+diff --git a/forge-gui/src/main/java/forge/gamemodes/net/server/DeltaSyncManager.java b/forge-gui/src/main/java/forge/gamemodes/net/server/DeltaSyncManager.java
+index 2b3dd97f..0e47fedf 100644
+--- a/forge-gui/src/main/java/forge/gamemodes/net/server/DeltaSyncManager.java
++++ b/forge-gui/src/main/java/forge/gamemodes/net/server/DeltaSyncManager.java
+@@ -6,9 +6,11 @@ import forge.game.card.CardView;
+ import forge.game.card.CardView.CardStateView;
+ import forge.game.player.PlayerView;
+ import forge.game.zone.ZoneType;
++import forge.card.CardStateName;
+ import forge.gamemodes.net.DeltaPacket;
+ import forge.gamemodes.net.DeltaPacket.CombatData;
+ import forge.gamemodes.net.NetworkChecksumUtil;
++import forge.gamemodes.net.TrackableSerializer;
+ import forge.game.combat.CombatView;
+ import forge.util.collect.FCollection;
+ 
+@@ -75,6 +77,22 @@ public class DeltaSyncManager implements IHasForgeLog {
+         return consumerId;
+     }
+ 
++    /** Per-client PlayerView id used for fail-closed visibility checks. */
++    private int viewerId = -1;
++
++    /** Last visibility result for each tracked CardView. */
++    private final Map<Integer, Boolean> visibilityByKey = new HashMap<>();
++
++    /** Objects that must be sent as new/full objects after a visibility change. */
++    private final Set<Integer> forceFullObjectKeys = new HashSet<>();
++
++    public void setViewerId(int viewerId) {
++        if (this.viewerId != viewerId) {
++            this.viewerId = viewerId;
++            visibilityByKey.clear();
++        }
++    }
++
+     private long sequenceNumber = 0;
+ 
+     // Objects registered with this consumer (for cleanup on disconnect/reset)
+@@ -110,6 +128,7 @@ public class DeltaSyncManager implements IHasForgeLog {
+         // need parent-before-child insertion order
+         Map<Integer, Map<TrackableProperty, Object>> newObjects = new LinkedHashMap<>();
+         Set<Integer> currentObjectIds = new HashSet<>();
++        forceFullObjectKeys.clear();
+ 
+         authoritativeInstances.clear();
+         preScanZoneCollections(gameView);
+@@ -124,6 +143,7 @@ public class DeltaSyncManager implements IHasForgeLog {
+                 regIt.remove();
+             }
+         }
++        visibilityByKey.keySet().removeIf(key -> !currentObjectIds.contains(key));
+ 
+         // Accumulate changed properties for delta-biased sampling
+         for (Map<TrackableProperty, Object> delta : objectDeltas.values()) {
+@@ -193,8 +213,36 @@ public class DeltaSyncManager implements IHasForgeLog {
+             // Different instance at same key — replacement (zone change)
+         }
+ 
++        boolean visibleToViewer = true;
++        if (obj instanceof CardView card) {
++            visibleToViewer = TrackableSerializer.canBeShownToViewer(card, obj.getTracker(), viewerId);
++            Boolean previousVisibility = visibilityByKey.put(deltaKey, visibleToViewer);
++            if (previousVisibility == null || previousVisibility != visibleToViewer) {
++                forceFullObjectKeys.add(deltaKey);
++                // A visibility change also requires fresh CardStateViews. A
++                // redacted card must not retain a previously revealed state,
++                // and a revealed card must not retain the neutral state.
++                for (TrackableProperty slot : new TrackableProperty[]{
++                        TrackableProperty.CurrentState,
++                        TrackableProperty.AlternateState,
++                        TrackableProperty.LeftSplitState,
++                        TrackableProperty.RightSplitState}) {
++                    Object child = ((Map<TrackableProperty, Object>) card.getProps()).get(slot);
++                    if (child instanceof TrackableObject state) {
++                        forceFullObjectKeys.add(DeltaPacket.makeDeltaKey(state));
++                    }
++                }
++            }
++        }
++
+         collectObjectDelta(obj, objectDeltas, newObjects);
+ 
++        // Do not recurse through hidden CardView state/collection properties:
++        // those properties contain the very identity the transport is hiding.
++        if (obj instanceof CardView && !visibleToViewer) {
++            return;
++        }
++
+         boolean parentIsGameEntityView = obj instanceof GameEntityView;
+         for (Map.Entry<TrackableProperty, Object> entry : ((Map<TrackableProperty, Object>) obj.getProps()).entrySet()) {
+             Object value = entry.getValue();
+@@ -224,8 +272,9 @@ public class DeltaSyncManager implements IHasForgeLog {
+                                     Map<Integer, Map<TrackableProperty, Object>> newObjects) {
+         int deltaKey = DeltaPacket.makeDeltaKey(obj);
+         TrackableObject old = registeredByKey.get(deltaKey);
++        boolean forceFull = forceFullObjectKeys.remove(deltaKey);
+ 
+-        if (old == obj) {
++        if (old == obj && !forceFull) {
+             // Existing object — dirty props only
+             EnumSet<TrackableProperty> dirtyProps = obj.getAndClearDirtyProps(consumerId);
+             Map<TrackableProperty, Object> delta = buildPropertyMap(obj, dirtyProps);
+@@ -237,6 +286,20 @@ public class DeltaSyncManager implements IHasForgeLog {
+             return;
+         }
+ 
++        if (old == obj) {
++            // Visibility changes are represented as a new client-side object
++            // so stale revealed CardStateView properties cannot survive a
++            // transition into a hidden zone (or vice versa).
++            obj.getAndClearDirtyProps(consumerId);
++            Map<TrackableProperty, Object> allProps = buildPropertyMap(obj, null);
++            if (!allProps.isEmpty()) {
++                newObjects.put(deltaKey, allProps);
++                netLog.trace("[DeltaSync] Visibility transition: key={} id={}, {} props",
++                        String.format("0x%08X", deltaKey), obj.getId(), allProps.size());
++            }
++            return;
++        }
++
+         // New or replacement — send full state via newObjects so the client
+         // clears stale properties before applying
+         if (old != null) {
+@@ -278,6 +341,10 @@ public class DeltaSyncManager implements IHasForgeLog {
+      * Build a property map for a subset of dirty properties.
+      */
+     private Map<TrackableProperty, Object> buildPropertyMap(TrackableObject obj, Set<TrackableProperty> dirtyProps) {
++        if (obj instanceof CardView card
++                && !TrackableSerializer.canBeShownToViewer(card, obj.getTracker(), viewerId)) {
++            return buildRedactedCardPropertyMap(card);
++        }
+         Map<TrackableProperty, Object> props = obj.getProps();
+         // Copy props — mergeDelayedProps may add entries, and we iterate later
+         Map<TrackableProperty, Object> snapshot = new EnumMap<>(props);
+@@ -296,6 +363,25 @@ public class DeltaSyncManager implements IHasForgeLog {
+         return delta;
+     }
+ 
++    /**
++     * Network-safe full state for a CardView hidden from this client.  Keep
++     * only graph-maintenance fields; no name, image, rules, type, mana cost,
++     * Oracle identity, or nested state properties cross the boundary.
++     */
++    private Map<TrackableProperty, Object> buildRedactedCardPropertyMap(CardView card) {
++        Map<TrackableProperty, Object> redacted = new EnumMap<>(TrackableProperty.class);
++        redacted.put(TrackableProperty.Name, "Card");
++        redacted.put(TrackableProperty.Owner, toNetworkValue(TrackableProperty.Owner, card.getOwner()));
++        redacted.put(TrackableProperty.Controller, toNetworkValue(TrackableProperty.Controller, card.getController()));
++        redacted.put(TrackableProperty.Zone, toNetworkValue(TrackableProperty.Zone, card.getZone()));
++        redacted.put(TrackableProperty.Facedown, true);
++        redacted.put(TrackableProperty.FacedownImageKey, null);
++        redacted.put(TrackableProperty.ImageKey, null);
++        redacted.put(TrackableProperty.OracleName, null);
++        redacted.put(TrackableProperty.CurrentState, CardStateName.Original.ordinal());
++        return redacted;
++    }
++
+     /**
+      * Merge properties delayed by a tracker freeze into a delta map.
+      * Properties with FreezeMode.RespectsFreeze are not written
+@@ -586,6 +672,8 @@ public class DeltaSyncManager implements IHasForgeLog {
+         cleanChecksumStreak = 0;
+         lastChecksumBreakdown = null;
+         lastChecksumDetail = null;
++        visibilityByKey.clear();
++        forceFullObjectKeys.clear();
+     }
+ 
+     public long getCurrentSequence() {
+diff --git a/forge-gui/src/main/java/forge/gamemodes/net/server/RemoteClient.java b/forge-gui/src/main/java/forge/gamemodes/net/server/RemoteClient.java
+index 6c72ae44..21ed5656 100644
+--- a/forge-gui/src/main/java/forge/gamemodes/net/server/RemoteClient.java
++++ b/forge-gui/src/main/java/forge/gamemodes/net/server/RemoteClient.java
+@@ -25,6 +25,7 @@ public final class RemoteClient implements IToClient, IHasForgeLog {
+     private volatile ReplyPool replies = new ReplyPool();
+     private volatile Tracker codecTracker;
+     private volatile int codecConsumerId = -1;
++    private volatile int codecViewerId = -1;
+     private final AtomicInteger sendErrors = new AtomicInteger(0);
+     private RemoteClientGuiGame gui;
+ 
+@@ -188,12 +189,23 @@ public final class RemoteClient implements IToClient, IHasForgeLog {
+      * objects this client has actually been told about.
+      */
+     public void setCodecTracker(Tracker tracker, int consumerId) {
++        setCodecTracker(tracker, consumerId, -1);
++    }
++
++    /**
++     * Bind the per-client codec to the current game tracker, delta consumer,
++     * and authoritative viewer identity.  The viewer identity is passed to
++     * both full-state and delta/event serialization so hidden information is
++     * redacted at the wire boundary.
++     */
++    public void setCodecTracker(Tracker tracker, int consumerId, int viewerId) {
+         // Skip no-op rebinds: setGameView fires on every view push, the tracker changes per game.
+-        if (tracker == codecTracker && consumerId == codecConsumerId) {
++        if (tracker == codecTracker && consumerId == codecConsumerId && viewerId == codecViewerId) {
+             return;
+         }
+         this.codecTracker = tracker;
+         this.codecConsumerId = consumerId;
++        this.codecViewerId = viewerId;
+         applyCodecTracker(channel);
+     }
+ 
+@@ -211,6 +223,7 @@ public final class RemoteClient implements IToClient, IHasForgeLog {
+         if (encoder != null) {
+             encoder.setTracker(codecTracker);
+             encoder.setConsumerId(codecConsumerId);
++            encoder.setViewerId(codecViewerId);
+         }
+         CompatibleObjectDecoder decoder = ch.pipeline().get(CompatibleObjectDecoder.class);
+         if (decoder != null) {
+diff --git a/forge-gui/src/main/java/forge/gamemodes/net/server/RemoteClientGuiGame.java b/forge-gui/src/main/java/forge/gamemodes/net/server/RemoteClientGuiGame.java
+index 768faa26..8579ee42 100644
+--- a/forge-gui/src/main/java/forge/gamemodes/net/server/RemoteClientGuiGame.java
++++ b/forge-gui/src/main/java/forge/gamemodes/net/server/RemoteClientGuiGame.java
+@@ -61,6 +61,8 @@ public class RemoteClientGuiGame extends NetworkGuiGame implements IHasForgeLog
+     private final RemoteClient client;
+     private final GameProtocolSender sender;
+     private final DeltaSyncManager syncManager;
++    /** Authoritative PlayerView id used for all per-client visibility checks. */
++    private int viewerId = -1;
+ 
+     private boolean initialSyncSent = false;
+     private boolean objectsRegistered = false;
+@@ -298,11 +300,48 @@ public class RemoteClientGuiGame extends NetworkGuiGame implements IHasForgeLog
+         // against the current game's. A null view is a transient clear between games — leave
+         // the codec on the outgoing game so its in-flight messages still resolve.
+         if (gameView != null) {
+-            client.setCodecTracker(gameView.getTracker(), syncManager.getConsumerId());
++            viewerId = resolveViewerId(gameView);
++            syncManager.setViewerId(viewerId);
++            client.setCodecTracker(gameView.getTracker(), syncManager.getConsumerId(), viewerId);
+         }
+         updateGameView();
+     }
+ 
++    /**
++     * Resolve the server-side PlayerView that owns this connection. Lobby
++     * name is authoritative; the slot/index fallback is retained for
++     * headless harnesses that construct clients before lobby metadata is
++     * attached. Returning {@code -1} is intentional and fail-closed in the
++     * serializer and delta builder.
++     */
++    private int resolveViewerId(final GameView gameView) {
++        if (gameView == null || gameView.getPlayers() == null) {
++            return -1;
++        }
++        String username = client.getUsername();
++        if (username != null) {
++            for (PlayerView player : gameView.getPlayers()) {
++                if (username.equals(player.getLobbyPlayerName()) || username.equals(player.getName())) {
++                    return player.getId();
++                }
++            }
++        }
++
++        int clientIndex = client.getIndex();
++        if (clientIndex >= 0) {
++            int position = 0;
++            for (PlayerView player : gameView.getPlayers()) {
++                if (player.getId() == clientIndex || position == clientIndex) {
++                    return player.getId();
++                }
++                position++;
++            }
++        }
++        netLog.error("Unable to resolve PlayerView for remote client index={} username={}; "
++                + "hidden-information transport remains fail-closed", clientIndex, username);
++        return -1;
++    }
++
+     @Override
+     public void openView(final TrackableCollection<PlayerView> myPlayers) {
+         send(ProtocolMethod.openView, myPlayers);
+@@ -577,7 +616,7 @@ public class RemoteClientGuiGame extends NetworkGuiGame implements IHasForgeLog
+             GameView gameView = getGameView();
+             if (gameView != null) {
+                 DeltaPacket delta = syncManager.collectDeltas(gameView);
+-                delta.setEvents(TrackableSerializer.wrapEvents(events, gameView.getTracker()));
++                delta.setEvents(TrackableSerializer.wrapEvents(events, gameView.getTracker(), viewerId, true));
+                 sender.send(ProtocolMethod.applyDelta, delta);
+ 
+                 if (logBandwidth) {
+@@ -604,7 +643,8 @@ public class RemoteClientGuiGame extends NetworkGuiGame implements IHasForgeLog
+             updateGameView(false);
+             GameView gameView = getGameView();
+             forge.trackable.Tracker tracker = gameView != null ? gameView.getTracker() : null;
+-            sender.send(ProtocolMethod.applyDelta, DeltaPacket.eventsOnly(TrackableSerializer.wrapEvents(events, tracker)));
++            sender.send(ProtocolMethod.applyDelta,
++                    DeltaPacket.eventsOnly(TrackableSerializer.wrapEvents(events, tracker, viewerId, true)));
+         }
+     }
+ 
+@@ -637,7 +677,8 @@ public class RemoteClientGuiGame extends NetworkGuiGame implements IHasForgeLog
+         if (paused) { return; }
+         final GameView gameView = getGameView();
+         final Tracker tracker = gameView != null ? gameView.getTracker() : null;
+-        sender.send(ProtocolMethod.applyDelta, DeltaPacket.eventsOnly(TrackableSerializer.wrapEvents(events, tracker)));
++        sender.send(ProtocolMethod.applyDelta,
++                DeltaPacket.eventsOnly(TrackableSerializer.wrapEvents(events, tracker, viewerId, true)));
+     }
+ 
+     @Override
 diff --git a/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java b/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java
 index 6c060538..0f9454d6 100644
 --- a/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java
