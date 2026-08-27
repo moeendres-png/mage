@@ -1,0 +1,175 @@
+name: Greenfield Manabrew java-forge runtime qualification
+
+on:
+  push:
+    branches:
+      - research/greenfield-engine-shootout-20260827
+    paths:
+      - '.github/workflows/greenfield-manabrew-runtime.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: greenfield-manabrew-runtime-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  manabrew-java-forge-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout pinned Manabrew and Forge submodule
+        uses: actions/checkout@v4
+        with:
+          repository: witchesofthehill/manabrew
+          ref: 754ec2aeec495d67d7bb9b89d0fd67ee22281b46
+          path: manabrew
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: |
+            manabrew/pom.xml
+            manabrew/forge/pom.xml
+            manabrew/forge-harness/pom.xml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify exact source pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/engine-shootout/manabrew/runtime
+          root=$(git -C manabrew rev-parse HEAD)
+          forge=$(git -C manabrew/forge rev-parse HEAD)
+          printf 'manabrew=%s\nforge_submodule=%s\n' "$root" "$forge" | tee artifacts/engine-shootout/manabrew/runtime/pins.txt
+          test "$root" = 754ec2aeec495d67d7bb9b89d0fd67ee22281b46
+          test "$forge" = 192b5eab000069bbb8917a5df9d60d4a9128aa07
+          java -version 2>&1 | tee artifacts/engine-shootout/manabrew/runtime/java.txt
+          rustc --version | tee artifacts/engine-shootout/manabrew/runtime/rust.txt
+          mvn -version | tee artifacts/engine-shootout/manabrew/runtime/maven.txt
+
+      - name: Build only the java-forge runtime prerequisites not qualified before
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This is a new qualification surface: the Forge harness JAR and the
+          # self-hosted node's java-forge feature were not exercised by the prior
+          # parity/self-hosted-node default-feature test gate.
+          (cd manabrew && node scripts/harness.mjs ensure) > artifacts/engine-shootout/manabrew/runtime/harness-build.log 2>&1
+          (cd manabrew && cargo build -p self-hosted-node --features java-forge --locked) > artifacts/engine-shootout/manabrew/runtime/node-java-forge-build.log 2>&1
+          test -f manabrew/forge-harness/target/forge-harness-jar-with-dependencies.jar
+          test -x manabrew/target/debug/self-hosted-node
+          sha256sum manabrew/forge-harness/target/forge-harness-jar-with-dependencies.jar > artifacts/engine-shootout/manabrew/runtime/harness.sha256
+
+      - name: Run 2P 3P 4P 5P Commander java-forge full-game self-play
+        shell: bash
+        run: |
+          set -euo pipefail
+          failures=0
+          : > artifacts/engine-shootout/manabrew/runtime/player-count-summary.tsv
+          for p in 2 3 4 5; do
+            log="$GITHUB_WORKSPACE/artifacts/engine-shootout/manabrew/runtime/${p}p.log"
+            set +e
+            (
+              cd manabrew
+              SELF_HOSTED_NODE_JAVA_SELF_PLAY=1 \
+              SELF_HOSTED_NODE_SELF_PLAY_FORMAT=Commander \
+              SELF_HOSTED_NODE_SELF_PLAY_PLAYERS="$p" \
+              SELF_HOSTED_NODE_SELF_PLAY_SEED=424242 \
+              SELF_HOSTED_NODE_SELF_PLAY_DECKS='ashling_limitless_commander,neheb_minotaur_commander,kaalia_regression_commander' \
+              SELF_HOSTED_NODE_JAVA_SELF_PLAY_PROMPTS=3000 \
+              SELF_HOSTED_NODE_JAVA_SELF_PLAY_GAMES=1 \
+              SELF_HOSTED_NODE_JAVA_GC_LOG='' \
+              RUST_LOG=self_hosted_node=info \
+              timeout 420s ./target/debug/self-hosted-node
+            ) > "$log" 2>&1
+            rc=$?
+            set -e
+            printf '%s\t%s\n' "$p" "$rc" >> artifacts/engine-shootout/manabrew/runtime/player-count-summary.tsv
+            if [ "$rc" -ne 0 ]; then failures=$((failures+1)); fi
+          done
+          printf '%s\n' "$failures" > artifacts/engine-shootout/manabrew/runtime/player-count-failures.count
+          test "$failures" -eq 0
+
+      - name: Run representative Forge harness scenarios
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/engine-shootout/manabrew/runtime/scenarios
+          # Use only scenarios actually advertised by the pinned node. Each run
+          # must exit zero; no fallback classification is inferred from logs.
+          for scenario in priority_stack sacrifice_cost replacement; do
+            log="$GITHUB_WORKSPACE/artifacts/engine-shootout/manabrew/runtime/scenarios/${scenario}.log"
+            set +e
+            (
+              cd manabrew
+              SELF_HOSTED_NODE_JAVA_SCENARIO="$scenario" \
+              SELF_HOSTED_NODE_JAVA_SCENARIO_PROMPTS=120 \
+              SELF_HOSTED_NODE_JAVA_GC_LOG='' \
+              RUST_LOG=self_hosted_node=info \
+              timeout 240s ./target/debug/self-hosted-node
+            ) > "$log" 2>&1
+            rc=$?
+            set -e
+            echo "$rc" > "$GITHUB_WORKSPACE/artifacts/engine-shootout/manabrew/runtime/scenarios/${scenario}.exit"
+          done
+
+      - name: Source census external prompt-response validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,re
+          from pathlib import Path
+          p=Path('manabrew/manabrew-rs/crates/self-hosted-node/src/host.rs')
+          text=p.read_text(encoding='utf-8')
+          needles={
+            'stale_prompt':'ProtocolErrorCode::StalePrompt',
+            'wrong_player':'ProtocolErrorCode::WrongPlayer',
+            'wrong_prompt_type':'ProtocolErrorCode::WrongPromptType',
+            'unknown_action_id':'ProtocolErrorCode::UnknownActionId',
+            'cancel_not_allowed':'ProtocolErrorCode::CancelNotAllowed',
+            'response_validation':'.validate_response(&action)',
+            'private_per_recipient_state':'last_state_by_slot',
+            'pending_prompts':'pending_prompts',
+          }
+          found={k:(v in text) for k,v in needles.items()}
+          out={
+            'candidate':'manabrew-java-forge',
+            'commit':'754ec2aeec495d67d7bb9b89d0fd67ee22281b46',
+            'forge_submodule':'192b5eab000069bbb8917a5df9d60d4a9128aa07',
+            'found':found,
+            'source_externalizable':all(found.values()),
+            'all_required_decisions_runtime_qualified':False
+          }
+          Path('artifacts/engine-shootout/manabrew/runtime/decision-boundary-source.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          assert all(found.values()), found
+          PY
+
+      - name: Hash evidence
+        if: always()
+        shell: bash
+        run: |
+          cd artifacts/engine-shootout/manabrew/runtime
+          find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true
+
+      - name: Upload Manabrew java-forge runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: greenfield-manabrew-java-forge-runtime
+          path: artifacts/engine-shootout/manabrew/runtime
+          if-no-files-found: error
