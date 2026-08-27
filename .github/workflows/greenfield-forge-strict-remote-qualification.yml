@@ -35,7 +35,7 @@ jobs:
           mkdir -p artifacts/forge-strict-remote
           python3 - <<'PY'
           from pathlib import Path
-          import json,re,hashlib
+          import json
           root=Path('forge')
           proto=root/'forge-gui/src/main/java/forge/gamemodes/net/ProtocolMethod.java'
           remote=root/'forge-gui/src/main/java/forge/gamemodes/net/server/RemoteClientGuiGame.java'
@@ -45,45 +45,18 @@ jobs:
           new='''        if (value == null) {\n            throw new IllegalStateException("Protocol method " + name() + " returned null for required return type " + returnType.getName());\n        }\n        if (!ReflectionUtil.isInstance(value, returnType)) {\n            throw new IllegalStateException("Protocol method " + name() + ": illegal return type " + value.getClass().getName() + ", expected " + returnType.getName());\n        }'''
           if old not in p: raise SystemExit('ProtocolMethod expected block not found')
           proto.write_text(p.replace(old,new))
-
           r=remote.read_text()
-          r=r.replace('if (paused) { return null; }\n        return sender.sendAndWait(method, args);',
-                      'if (paused) { throw new IllegalStateException("decision request attempted while remote client is paused: " + method); }\n        return sender.sendAndWait(method, args);')
-          r=r.replace('if (paused) { return null; }\n        updateGameView();\n        return sender.sendAndWait(method, args);',
-                      'if (paused) { throw new IllegalStateException("decision request attempted while remote client is paused: " + method); }\n        updateGameView();\n        return sender.sendAndWait(method, args);')
-          r=r.replace('''        final Boolean result = sendAndWait(ProtocolMethod.showConfirmDialog, message, title, yesButtonText, noButtonText, defaultYes);\n        return result != null ? result : defaultYes;''',
-                      '''        final Boolean result = sendAndWait(ProtocolMethod.showConfirmDialog, message, title, yesButtonText, noButtonText, defaultYes);\n        if (result == null) throw new IllegalStateException("missing showConfirmDialog response");\n        return result;''')
-          r=r.replace('''        final Integer result = syncAndSendAndWait(ProtocolMethod.showOptionDialog, message, title, icon, options, defaultOption);\n        return result != null ? result : defaultOption;''',
-                      '''        final Integer result = syncAndSendAndWait(ProtocolMethod.showOptionDialog, message, title, icon, options, defaultOption);\n        if (result == null) throw new IllegalStateException("missing showOptionDialog response");\n        if (result < 0 || result >= options.size()) throw new IllegalArgumentException("showOptionDialog response out of range: " + result);\n        return result;''')
-          r=r.replace('''        final Boolean result = syncAndSendAndWait(ProtocolMethod.confirm, c, question, defaultIsYes, options);\n        return result != null ? result : defaultIsYes;''',
-                      '''        final Boolean result = syncAndSendAndWait(ProtocolMethod.confirm, c, question, defaultIsYes, options);\n        if (result == null) throw new IllegalStateException("missing confirm response");\n        return result;''')
+          r=r.replace('if (paused) { return null; }\n        return sender.sendAndWait(method, args);','if (paused) { throw new IllegalStateException("decision request attempted while remote client is paused: " + method); }\n        return sender.sendAndWait(method, args);')
+          r=r.replace('if (paused) { return null; }\n        updateGameView();\n        return sender.sendAndWait(method, args);','if (paused) { throw new IllegalStateException("decision request attempted while remote client is paused: " + method); }\n        updateGameView();\n        return sender.sendAndWait(method, args);')
+          r=r.replace('''        final Boolean result = sendAndWait(ProtocolMethod.showConfirmDialog, message, title, yesButtonText, noButtonText, defaultYes);\n        return result != null ? result : defaultYes;''','''        final Boolean result = sendAndWait(ProtocolMethod.showConfirmDialog, message, title, yesButtonText, noButtonText, defaultYes);\n        if (result == null) throw new IllegalStateException("missing showConfirmDialog response");\n        return result;''')
+          r=r.replace('''        final Integer result = syncAndSendAndWait(ProtocolMethod.showOptionDialog, message, title, icon, options, defaultOption);\n        return result != null ? result : defaultOption;''','''        final Integer result = syncAndSendAndWait(ProtocolMethod.showOptionDialog, message, title, icon, options, defaultOption);\n        if (result == null) throw new IllegalStateException("missing showOptionDialog response");\n        if (result < 0 || result >= options.size()) throw new IllegalArgumentException("showOptionDialog response out of range: " + result);\n        return result;''')
+          r=r.replace('''        final Boolean result = syncAndSendAndWait(ProtocolMethod.confirm, c, question, defaultIsYes, options);\n        return result != null ? result : defaultIsYes;''','''        final Boolean result = syncAndSendAndWait(ProtocolMethod.confirm, c, question, defaultIsYes, options);\n        if (result == null) throw new IllegalStateException("missing confirm response");\n        return result;''')
           remote.write_text(r)
-
-          h=harness.read_text()
-          if '"Diana (Remote)"};' in h:
-              h=h.replace('"Diana (Remote)"};','"Diana (Remote)", "Eve (Remote)"};')
-          h=h.replace('if (count < 2 || count > 4) {','if (count < 2 || count > 5) {')
-          h=h.replace('"Player count must be 2-4, got: "','"Player count must be 2-5, got: "')
+          h=harness.read_text().replace('"Diana (Remote)"};','"Diana (Remote)", "Eve (Remote)"};').replace('if (count < 2 || count > 4) {','if (count < 2 || count > 5) {').replace('"Player count must be 2-4, got: "','"Player count must be 2-5, got: "')
           harness.write_text(h)
-
-          # Source audit after patch.
-          remote_text=remote.read_text()
-          proto_text=proto.read_text()
-          forbidden={
-            'remote_null_default_confirm': 'result != null ? result : defaultYes' in remote_text,
-            'remote_null_default_option': 'result != null ? result : defaultOption' in remote_text,
-            'protocol_null_accepted': 'if (value == null) {\n            return;' in proto_text,
-            'protocol_wrong_type_log_only': 'illegal return type {}, expected {}' in proto_text,
-          }
-          report={
-            'schema':'commander-simulator-next.forge-strict-remote-qualification.v1',
-            'forge_pin':'8c7e9afb8e6caee88644b94e25da5852e36f8928',
-            'research_only_patch':True,
-            'manabrew_code_used':False,
-            'forbidden_post_patch':forbidden,
-            'silent_transport_defaults_zero':not any(forbidden.values()),
-          }
-          Path('artifacts/forge-strict-remote/static-audit.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          remote_text=remote.read_text(); proto_text=proto.read_text()
+          forbidden={'remote_null_default_confirm':'result != null ? result : defaultYes' in remote_text,'remote_null_default_option':'result != null ? result : defaultOption' in remote_text,'protocol_null_accepted':'if (value == null) {\n            return;' in proto_text,'protocol_wrong_type_log_only':'illegal return type {}, expected {}' in proto_text}
+          Path('artifacts/forge-strict-remote/static-audit.json').write_text(json.dumps({'schema':'commander-simulator-next.forge-strict-remote-qualification.v1','forge_pin':'8c7e9afb8e6caee88644b94e25da5852e36f8928','research_only_patch':True,'manabrew_code_used':False,'forbidden_post_patch':forbidden,'silent_transport_defaults_zero':not any(forbidden.values())},indent=2,sort_keys=True)+'\n')
           Path('artifacts/forge-strict-remote/ProtocolMethod.strict.patch.java').write_text(proto_text)
           Path('artifacts/forge-strict-remote/RemoteClientGuiGame.strict.patch.java').write_text(remote_text)
           PY
@@ -93,7 +66,6 @@ jobs:
           set -euo pipefail
           cat > forge/forge-gui-desktop/src/test/java/forge/net/StrictRemotePilotQualificationTest.java <<'JAVA'
           package forge.net;
-
           import forge.card.CardDb;
           import forge.deck.Deck;
           import forge.deck.DeckSection;
@@ -105,79 +77,27 @@ jobs:
           import org.testng.annotations.Test;
           import java.util.ArrayList;
           import java.util.List;
-
           public class StrictRemotePilotQualificationTest {
-              @BeforeClass
-              public static void setUp() { TestUtils.ensureFModelInitialized(); }
-
-              @Test
-              public void protocolRejectsMissingAndWrongTypedResponses() {
-                  boolean nullRejected=false;
-                  try { ProtocolMethod.showConfirmDialog.checkReturnValue(null); }
-                  catch (IllegalStateException expected) { nullRejected=true; }
-                  Assert.assertTrue(nullRejected, "required response null must fail closed");
-                  boolean typeRejected=false;
-                  try { ProtocolMethod.showConfirmDialog.checkReturnValue("not-a-boolean"); }
-                  catch (IllegalStateException expected) { typeRejected=true; }
-                  Assert.assertTrue(typeRejected, "wrong response type must fail closed");
+              @BeforeClass public static void setUp() { TestUtils.ensureFModelInitialized(); }
+              @Test public void protocolRejectsMissingAndWrongTypedResponses() {
+                  boolean nullRejected=false; try { ProtocolMethod.showConfirmDialog.checkReturnValue(null); } catch (IllegalStateException expected) { nullRejected=true; }
+                  Assert.assertTrue(nullRejected); boolean typeRejected=false; try { ProtocolMethod.showConfirmDialog.checkReturnValue("not-a-boolean"); } catch (IllegalStateException expected) { typeRejected=true; }
+                  Assert.assertTrue(typeRejected);
               }
-
-              private static Deck minimalCommander(String name, int lands) {
-                  CardDb db=FModel.getMagicDb().getCommonCards();
-                  PaperCard commander=db.getCard("Isamaru, Hound of Konda");
-                  PaperCard plains=db.getCard("Plains");
-                  if (commander==null || plains==null) throw new IllegalStateException("qualification cards missing");
-                  Deck d=new Deck(name);
-                  d.getOrCreate(DeckSection.Commander).add(commander);
-                  for (int i=0;i<lands;i++) d.getMain().add(plains);
-                  return d;
-              }
-
-              private static void runExternalPilotCommander(int players) {
-                  List<Deck> decks=new ArrayList<>();
-                  for (int i=0;i<players;i++) decks.add(minimalCommander("strict-external-seat-"+i, 18));
-                  UnifiedNetworkHarness.GameResult r=new UnifiedNetworkHarness()
-                          .playerCount(players)
-                          .remoteClients(players-1)
-                          .useAiForRemotePlayers(false)
-                          .commander(true)
-                          .decks(decks)
-                          .connectionTimeout(60000)
-                          .gameTimeout(240000)
-                          .execute();
-                  System.out.println("STRICT_EXTERNAL_"+players+"P="+r.toDetailedReport());
-                  Assert.assertTrue(r.gameStarted, "game must start: "+r.toSummary());
-                  Assert.assertTrue(r.gameCompleted, "game must complete: "+r.toSummary());
-                  Assert.assertTrue(r.success, "game must succeed: "+r.toSummary());
-                  Assert.assertEquals(r.remoteClientCount, players-1);
-                  Assert.assertTrue(r.deltaPacketsReceived>0, "remote pilots must receive network state");
-                  Assert.assertEquals(r.sendErrors,0,"no protocol send errors");
-              }
-
-              @Test(timeOut=300000) public void externalPilotCommander2P(){ runExternalPilotCommander(2); }
-              @Test(timeOut=300000) public void externalPilotCommander3P(){ runExternalPilotCommander(3); }
-              @Test(timeOut=300000) public void externalPilotCommander4P(){ runExternalPilotCommander(4); }
-              @Test(timeOut=300000) public void externalPilotCommander5P(){ runExternalPilotCommander(5); }
+              private static Deck minimalCommander(String name, int lands) { CardDb db=FModel.getMagicDb().getCommonCards(); PaperCard commander=db.getCard("Isamaru, Hound of Konda"), plains=db.getCard("Plains"); if (commander==null||plains==null) throw new IllegalStateException("qualification cards missing"); Deck d=new Deck(name); d.getOrCreate(DeckSection.Commander).add(commander); for(int i=0;i<lands;i++) d.getMain().add(plains); return d; }
+              private static void runExternalPilotCommander(int players) { List<Deck> decks=new ArrayList<>(); for(int i=0;i<players;i++) decks.add(minimalCommander("strict-external-seat-"+i,18)); UnifiedNetworkHarness.GameResult r=new UnifiedNetworkHarness().playerCount(players).remoteClients(players-1).useAiForRemotePlayers(false).commander(true).decks(decks).connectionTimeout(60000).gameTimeout(240000).execute(); System.out.println("STRICT_EXTERNAL_"+players+"P="+r.toDetailedReport()); Assert.assertTrue(r.gameStarted); Assert.assertTrue(r.gameCompleted); Assert.assertTrue(r.success); Assert.assertEquals(r.remoteClientCount,players-1); Assert.assertTrue(r.deltaPacketsReceived>0); Assert.assertEquals(r.sendErrors,0); }
+              @Test(timeOut=300000) public void externalPilotCommander2P(){runExternalPilotCommander(2);} @Test(timeOut=300000) public void externalPilotCommander3P(){runExternalPilotCommander(3);} @Test(timeOut=300000) public void externalPilotCommander4P(){runExternalPilotCommander(4);} @Test(timeOut=300000) public void externalPilotCommander5P(){runExternalPilotCommander(5);}
           }
           JAVA
           cp forge/forge-gui-desktop/src/test/java/forge/net/StrictRemotePilotQualificationTest.java artifacts/forge-strict-remote/
-      - name: Build required Forge modules
-        shell: bash
-        run: |
-          set -o pipefail
-          cd forge
-          mvn -B -ntp -T 1C -pl forge-gui-desktop -am -DskipTests package 2>&1 | tee ../artifacts/forge-strict-remote/build.log
-      - name: Run only strict remote qualification test
+      - name: Build and run strict remote qualification through reactor
         shell: bash
         run: |
           set -o pipefail
           cd forge
           set +e
-          mvn -B -ntp -pl forge-gui-desktop -Dtest=forge.net.StrictRemotePilotQualificationTest -Dsurefire.failIfNoSpecifiedTests=false test 2>&1 | tee ../artifacts/forge-strict-remote/test.log
-          rc=${PIPESTATUS[0]}
-          set -e
-          echo "$rc" > ../artifacts/forge-strict-remote/test.exit
-          test "$rc" -eq 0
+          mvn -B -ntp -T 1C -pl forge-gui-desktop -am -Dtest=forge.net.StrictRemotePilotQualificationTest -Dsurefire.failIfNoSpecifiedTests=false test 2>&1 | tee ../artifacts/forge-strict-remote/test.log
+          rc=${PIPESTATUS[0]}; set -e; echo "$rc" > ../artifacts/forge-strict-remote/test.exit; test "$rc" -eq 0
       - name: Hash evidence
         if: always()
         shell: bash
