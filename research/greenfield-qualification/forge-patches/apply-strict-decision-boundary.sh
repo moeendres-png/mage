@@ -5,6 +5,11 @@ forge_root=${1:?Forge checkout path required}
 patch_file=${2:?Patch file required}
 expected_pin=8c7e9afb8e6caee88644b94e25da5852e36f8928
 
+# Resolve both inputs before invoking `git -C`. Git resolves a relative
+# --patch path from the selected repository, not from the caller's directory.
+forge_root=$(cd "$forge_root" && pwd)
+patch_file=$(cd "$(dirname "$patch_file")" && pwd)/$(basename "$patch_file")
+
 actual_pin=$(git -C "$forge_root" rev-parse HEAD)
 test "$actual_pin" = "$expected_pin"
 git -C "$forge_root" apply --check "$patch_file"
