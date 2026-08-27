@@ -35,9 +35,9 @@ jobs:
           if len(hits)!=1:
               raise SystemExit(f'expected exactly one oracle_cards bulk descriptor, found {len(hits)}')
           meta=hits[0]
-          uri=meta.get('download_uri')
+          uri=meta.get('jsonl_download_uri') or meta.get('download_uri')
           if not uri:
-              raise SystemExit(f'oracle_cards descriptor missing download_uri; keys={sorted(meta)}')
+              raise SystemExit(f'oracle_cards descriptor missing JSONL/download URI; keys={sorted(meta)}')
           json.dump(meta,open('artifacts/scryfall-oracle/meta.json','w'),ensure_ascii=False,indent=2,sort_keys=True)
           open('artifacts/scryfall-oracle/download_uri.txt','w').write(uri+'\n')
           PY
@@ -48,21 +48,25 @@ jobs:
           uri=$(cat artifacts/scryfall-oracle/download_uri.txt)
           curl --fail --silent --show-error --location \
             -H 'User-Agent: commander-simulator-next-research/1.0' \
-            -H 'Accept: application/json;q=0.9,*/*;q=0.8' \
-            "$uri" -o /tmp/oracle-cards.json
+            -H 'Accept: application/jsonl,application/x-ndjson,application/json;q=0.9,*/*;q=0.8' \
+            "$uri" -o /tmp/oracle-cards.jsonl
           python3 - <<'PY'
           import json
-          cards=json.load(open('/tmp/oracle-cards.json'))
           rows=[]
-          for c in cards:
-            rows.append({
-              'name':c.get('name'),
-              'oracle_id':c.get('oracle_id'),
-              'scryfall_id':c.get('id'),
-              'commander_legality':(c.get('legalities') or {}).get('commander'),
-              'color_identity':c.get('color_identity'),
-              'type_line':c.get('type_line'),
-            })
+          with open('/tmp/oracle-cards.jsonl',encoding='utf-8') as f:
+              for line_no,line in enumerate(f,1):
+                  line=line.strip()
+                  if not line:
+                      continue
+                  c=json.loads(line)
+                  rows.append({
+                    'name':c.get('name'),
+                    'oracle_id':c.get('oracle_id'),
+                    'scryfall_id':c.get('id'),
+                    'commander_legality':(c.get('legalities') or {}).get('commander'),
+                    'color_identity':c.get('color_identity'),
+                    'type_line':c.get('type_line'),
+                  })
           rows.sort(key=lambda r:(r['name'] or '').casefold())
           json.dump({'schema':'commander-simulator-next.scryfall-oracle-index.v1','count':len(rows),'cards':rows},open('artifacts/scryfall-oracle/index.json','w'),ensure_ascii=False,separators=(',',':'))
           PY
