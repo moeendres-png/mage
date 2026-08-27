@@ -52,63 +52,76 @@ jobs:
           printf '%s\n' "$jar" > artifacts/engine-shootout/forge/runtime/jar.path
           sha256sum "$jar" > artifacts/engine-shootout/forge/runtime/jar.sha256
           test "$(git -C forge rev-parse HEAD)" = "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+          # GuiDesktop uses ASSETS_DIR="" for snapshot builds, so command-line mode
+          # must run from forge-gui/, where ./res exists. This is upstream runtime layout,
+          # not a rules or card-semantics modification.
+          test -f forge/forge-gui/res/languages/en-US.properties
       - name: Run 2P 3P 4P 5P Commander CLI probes
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/engine-shootout/forge/runtime/results
-          jar="$GITHUB_WORKSPACE/$(cat artifacts/engine-shootout/forge/runtime/jar.path)"
+          root="$GITHUB_WORKSPACE/artifacts/engine-shootout/forge/runtime"
+          mkdir -p "$root/results"
+          jar="$GITHUB_WORKSPACE/$(cat "$root/jar.path")"
           deck="$GITHUB_WORKSPACE/qual/research/greenfield-qualification/decks/micro-ruhan-forge.dck"
+          failures=0
           for p in 2 3 4 5; do
             python3 qual/research/greenfield-qualification/harness.py \
               --candidate forge \
               --commit 8c7e9afb8e6caee88644b94e25da5852e36f8928 \
               --scenario "L_${p}P_commander_cli_full_game" \
-              --seed 424242 \
-              --players "$p" \
+              --seed 424242 --players "$p" \
               --command "bash '$GITHUB_WORKSPACE/qual/research/greenfield-qualification/forge_probe.sh' '$jar' '$deck' '$p' 424242 90" \
-              --cwd "$GITHUB_WORKSPACE/forge" \
-              --timeout 180 \
-              --out "$GITHUB_WORKSPACE/artifacts/engine-shootout/forge/runtime/results/L_${p}P.result.json"
+              --cwd "$GITHUB_WORKSPACE/forge/forge-gui" --timeout 180 \
+              --out "$root/results/L_${p}P.result.json" || failures=$((failures+1))
           done
+          echo "$failures" > "$root/player-count-failures.count"
       - name: Run current RogShai exact-name load/full-game probe
         shell: bash
         run: |
           set -euo pipefail
-          jar="$GITHUB_WORKSPACE/$(cat artifacts/engine-shootout/forge/runtime/jar.path)"
+          root="$GITHUB_WORKSPACE/artifacts/engine-shootout/forge/runtime"
+          jar="$GITHUB_WORKSPACE/$(cat "$root/jar.path")"
           deck="$GITHUB_WORKSPACE/qual/research/greenfield-qualification/decks/rogshai-current-forge.dck"
+          set +e
           python3 qual/research/greenfield-qualification/harness.py \
-            --candidate forge \
-            --commit 8c7e9afb8e6caee88644b94e25da5852e36f8928 \
-            --scenario CARD_ROGSHAI_CURRENT_LOAD_AND_RUN \
-            --seed 515151 \
-            --players 2 \
+            --candidate forge --commit 8c7e9afb8e6caee88644b94e25da5852e36f8928 \
+            --scenario CARD_ROGSHAI_CURRENT_LOAD_AND_RUN --seed 515151 --players 2 \
             --command "bash '$GITHUB_WORKSPACE/qual/research/greenfield-qualification/forge_probe.sh' '$jar' '$deck' 2 515151 60" \
-            --cwd "$GITHUB_WORKSPACE/forge" \
-            --timeout 150 \
-            --out "$GITHUB_WORKSPACE/artifacts/engine-shootout/forge/runtime/results/CARD_ROGSHAI.result.json"
+            --cwd "$GITHUB_WORKSPACE/forge/forge-gui" --timeout 150 \
+            --out "$root/results/CARD_ROGSHAI.result.json"
+          echo "$?" > "$root/rogshai-probe.exit"
+          exit 0
       - name: Fresh-process seeded repeatability probe
         shell: bash
         run: |
           set -euo pipefail
-          dir="$GITHUB_WORKSPACE/artifacts/engine-shootout/forge/runtime/fresh-process"
+          root="$GITHUB_WORKSPACE/artifacts/engine-shootout/forge/runtime"
+          dir="$root/fresh-process"
           mkdir -p "$dir"
-          jar="$GITHUB_WORKSPACE/$(cat artifacts/engine-shootout/forge/runtime/jar.path)"
+          jar="$GITHUB_WORKSPACE/$(cat "$root/jar.path")"
           deck="$GITHUB_WORKSPACE/qual/research/greenfield-qualification/decks/micro-ruhan-forge.dck"
+          rc=0
           for n in 1 2 3; do
-            bash "$GITHUB_WORKSPACE/qual/research/greenfield-qualification/forge_probe.sh" "$jar" "$deck" 4 989898 90 > "$dir/run${n}.out" 2> "$dir/run${n}.normalized"
+            (cd "$GITHUB_WORKSPACE/forge/forge-gui" && bash "$GITHUB_WORKSPACE/qual/research/greenfield-qualification/forge_probe.sh" "$jar" "$deck" 4 989898 90) > "$dir/run${n}.out" 2> "$dir/run${n}.normalized" || rc=1
             sha256sum "$dir/run${n}.normalized" >> "$dir/hashes.sha256"
           done
-          cmp "$dir/run1.normalized" "$dir/run2.normalized"
-          cmp "$dir/run1.normalized" "$dir/run3.normalized"
-          python3 "$GITHUB_WORKSPACE/qual/research/greenfield-qualification/harness.py" \
-            --candidate forge \
-            --commit 8c7e9afb8e6caee88644b94e25da5852e36f8928 \
-            --scenario S0_seeded_cli_fresh_process_repeatability \
-            --seed 989898 --players 4 \
-            --command "cmp '$dir/run1.normalized' '$dir/run2.normalized' && cmp '$dir/run1.normalized' '$dir/run3.normalized'" \
-            --cwd "$GITHUB_WORKSPACE" --timeout 30 \
-            --out "$GITHUB_WORKSPACE/artifacts/engine-shootout/forge/runtime/results/S0.result.json"
+          cmp "$dir/run1.normalized" "$dir/run2.normalized" || rc=1
+          cmp "$dir/run1.normalized" "$dir/run3.normalized" || rc=1
+          if [ "$rc" -eq 0 ]; then
+            python3 "$GITHUB_WORKSPACE/qual/research/greenfield-qualification/harness.py" \
+              --candidate forge --commit 8c7e9afb8e6caee88644b94e25da5852e36f8928 \
+              --scenario S0_seeded_cli_fresh_process_repeatability --seed 989898 --players 4 \
+              --command "cmp '$dir/run1.normalized' '$dir/run2.normalized' && cmp '$dir/run1.normalized' '$dir/run3.normalized'" \
+              --cwd "$GITHUB_WORKSPACE" --timeout 30 --out "$root/results/S0.result.json"
+          else
+            python3 "$GITHUB_WORKSPACE/qual/research/greenfield-qualification/harness.py" \
+              --candidate forge --commit 8c7e9afb8e6caee88644b94e25da5852e36f8928 \
+              --scenario S0_seeded_cli_fresh_process_repeatability --seed 989898 --players 4 \
+              --status FAIL --reason 'One or more fresh JVM runs failed or timing-normalized transcripts diverged' \
+              --out "$root/results/S0.result.json" || true
+          fi
+          echo "$rc" > "$root/fresh-process.exit"
       - name: Census Forge player-decision surface
         shell: bash
         run: |
@@ -120,15 +133,11 @@ jobs:
           text=p.read_text(encoding='utf-8')
           methods=[]
           for m in re.finditer(r'public\s+abstract\s+([^;]+);', text, flags=re.S):
-              sig=' '.join(m.group(1).split())
-              methods.append(sig)
+              methods.append(' '.join(m.group(1).split()))
           out={
-            'candidate':'forge',
-            'commit':'8c7e9afb8e6caee88644b94e25da5852e36f8928',
-            'surface':'PlayerController abstract callbacks',
-            'abstract_callback_count':len(methods),
-            'callbacks':methods,
-            'classification':'EXTERNALIZABLE_SOURCE_SURFACE_ONLY',
+            'candidate':'forge','commit':'8c7e9afb8e6caee88644b94e25da5852e36f8928',
+            'surface':'PlayerController abstract callbacks','abstract_callback_count':len(methods),
+            'callbacks':methods,'classification':'EXTERNALIZABLE_SOURCE_SURFACE_ONLY',
             'runtime_externalized_and_tested':False
           }
           path=Path('artifacts/engine-shootout/forge/runtime/decision-census-source.json')
@@ -145,6 +154,17 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: greenfield-forge-runtime
+          name: greenfield-forge-runtime-rerun
           path: artifacts/engine-shootout/forge/runtime
           if-no-files-found: error
+      - name: Classify runtime probes after evidence upload
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="artifacts/engine-shootout/forge/runtime"
+          pc=$(cat "$root/player-count-failures.count" 2>/dev/null || echo 99)
+          rg=$(cat "$root/rogshai-probe.exit" 2>/dev/null || echo 99)
+          fp=$(cat "$root/fresh-process.exit" 2>/dev/null || echo 99)
+          echo "player_count_failures=$pc rogshai_exit=$rg fresh_process_exit=$fp"
+          test "$pc" = 0 && test "$rg" = 0 && test "$fp" = 0
