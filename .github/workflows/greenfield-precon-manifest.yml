@@ -1,0 +1,96 @@
+name: Greenfield relevant precon manifest
+
+on:
+  push:
+    branches:
+      - research/greenfield-engine-shootout-20260827
+    paths:
+      - '.github/workflows/greenfield-precon-manifest.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout pinned Forge data helper
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          path: forge
+          fetch-depth: 1
+      - name: Parse exactly the 11 required precons
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/precons
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, re
+
+          base=Path('forge/forge-gui/res/quest/commanderprecons')
+          names=[
+            'Doom Prevails [MSC] [2026].dck',
+            'Blight Curse [ECC] [2026].dck',
+            'Dance of the Elements [ECC] [2026].dck',
+            'Wakanda Forever [MSC] [2026].dck',
+            'Lorehold Spirit [SOC] [2026].dck',
+            'Scions & Spellcraft [FIC] [2025].dck',
+            'Counter Intelligence [EOC] [2025].dck',
+            'Turtle Power! [TMC] [2026].dck',
+            'Silverquill Influence [SOC] [2026].dck',
+            'The Fantastic Four [MSC] [2026].dck',
+            'Avengers Assemble [MSC] [2026].dck',
+          ]
+          def parse(path):
+            text=path.read_text(encoding='utf-8-sig')
+            section=None; cards=[]; commanders=[]
+            for raw in text.splitlines():
+              line=raw.strip()
+              if not line or line.startswith('#') and not line.startswith('[['):
+                continue
+              if line.startswith('[') and line.endswith(']'):
+                section=line[1:-1].strip().lower(); continue
+              m=re.match(r'^(\d+)\s+(.+)$',line)
+              if not m: continue
+              qty=int(m.group(1)); rest=m.group(2).strip()
+              # Forge DCK may include set/collector suffixes after card name. Preserve raw,
+              # and derive a conservative name by stripping common |SET|collector suffix.
+              name=rest.split('|',1)[0].strip()
+              entry={'qty':qty,'name':name,'raw':rest,'section':section}
+              cards.append(entry)
+              if section in {'commander','commanders'}: commanders.append(entry)
+            return text,cards,commanders
+          decks=[]
+          for filename in names:
+            p=base/filename
+            if not p.exists(): raise SystemExit(f'missing {p}')
+            text,cards,commanders=parse(p)
+            total=sum(x['qty'] for x in cards if x['section'] not in {'sideboard','maybeboard','tokens','planes','schemes'})
+            # Quest precon .dck uses Commander + Main sections; both count toward 100.
+            if total != 100:
+              raise SystemExit(f'{filename}: expected 100 slots, got {total}')
+            decks.append({
+              'deck':re.sub(r' \[[A-Z0-9]+\] \[\d{4}\]\.dck$','',filename),
+              'filename':filename,
+              'forge_pin':'8c7e9afb8e6caee88644b94e25da5852e36f8928',
+              'file_sha256':hashlib.sha256(text.encode('utf-8')).hexdigest(),
+              'slots':total,
+              'commanders':commanders,
+              'cards':cards,
+              'authority':'EXTRACTION_HELPER_ONLY_OFFICIAL_WIZARDS_IS_CONTENT_AUTHORITY'
+            })
+          out={'schema':'commander-simulator-next.precon-extraction.v1','count':len(decks),'all_100_slots':all(d['slots']==100 for d in decks),'decks':decks}
+          Path('artifacts/precons/PRECONS_11_FORGE_EXTRACTION.json').write_text(json.dumps(out,indent=2,ensure_ascii=False,sort_keys=True)+'\n')
+          Path('artifacts/precons/SUMMARY.tsv').write_text('deck\tslots\tcommanders\tsha256\n'+''.join(f"{d['deck']}\t{d['slots']}\t{','.join(x['name'] for x in d['commanders'])}\t{d['file_sha256']}\n" for d in decks))
+          PY
+          (cd artifacts/precons && sha256sum PRECONS_11_FORGE_EXTRACTION.json SUMMARY.tsv > hashes.sha256)
+      - name: Upload exact precon extraction evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: greenfield-precons-11
+          path: artifacts/precons
+          if-no-files-found: error
