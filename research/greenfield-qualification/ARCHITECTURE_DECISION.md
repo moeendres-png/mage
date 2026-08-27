@@ -1,15 +1,26 @@
 # Architecture Decision — Current Qualification State
 
-Canonical current result: see `FINAL_ARCHITECTURE_DECISION.md`.
-
 `INITIAL_ARCHITECTURE_DECISION_FROZEN = FALSE`.
 
-No Production Rules Core, card-semantics source, control-plane implementation, pilot boundary, RNG/replay implementation, primary language, interop strategy, or production license model is frozen.
+The current evidence supports a narrow hypothesis, not a final architecture:
+Forge remains the strongest Rules Core candidate, provided its authoritative
+`Input` / `PlayerControllerHuman` boundary can be made fully typed and
+principal-scoped. The research patch now proves the Player/Card/entity
+selection seam at static and compile level, but it does not qualify the full
+decision surface.
 
-The first blocking gate remains `DECISION_EXTERNALIZATION`, but its first subgate is now directly closed as a **current-boundary FAIL** rather than generic insufficient evidence:
+Current blocker:
 
-`FIRST_BLOCKING_SUBGATE = ENTITY_PLAYER_SELECTION_LEGAL_CHOICE_EXPORT`.
+```text
+DECISION_EXTERNALIZATION
+  -> FULL_DECISION_CENSUS_AND_TYPED_CALLBACK_COVERAGE = FAIL
+```
 
-Run `33112928078` / artifact `9663315184` proves that the pinned Forge remote GUI boundary does not export authoritative legal Player choices or a typed request token. A client-only strict adapter is therefore insufficient; Forge Rules Core itself is not disqualified.
+The census is 109 controller declarations and 15 blocking GUI decisions; only
+3 controller entry points are directly routed. The remaining strict paths
+must produce explicit typed unsupported errors until they are implemented and
+runtime-qualified. No prompt parsing, GameView legality inference, AI,
+first/default/random/pass/cancel fallback, or Rules reimplementation is
+allowed.
 
-The next admissible action is the narrow research-only **server-side typed Decision Export hook** at Forge `Input` / `PlayerControllerHuman` described in `FINAL_ARCHITECTURE_DECISION.md` and `NEXT_HANDOFF.md`.
+Do not create `moeendres-png/commander-simulator-next` from this state.

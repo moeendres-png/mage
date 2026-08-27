@@ -1,0 +1,320 @@
+{
+  "complete": false,
+  "definitions": [
+    {
+      "definition": "40_starting_life",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C01",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "commander_starts_in_command_zone",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C02",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "cast_commander_from_command_zone",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C03",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "first_command_zone_cast_no_tax",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C04",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "second_same_commander_cast_plus_2",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C05",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "third_same_commander_cast_plus_4",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C06",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "partner_tax_independent",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C07",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "graveyard_command_zone_choice",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C08",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "exile_command_zone_choice",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C09",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "hand_library_replacement_choice",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C10",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "decline_zone_move_keeps_destination",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C11",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "declined_commander_moves_normally_afterwards",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C12",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "commander_damage_by_identity",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C13",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "20_commander_damage_not_loss",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C14",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "21_same_commander_damage_loss",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C15",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "damage_from_two_commanders_not_combined",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C16",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "commander_identity_through_copy_control_merge",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C17",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "four_player_commander_initialization",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C18",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "four_player_apnap",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C19",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "player_loss_game_continues",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C20",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "leaving_player_owned_objects_leave",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C21",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "control_effect_cleanup_on_exit",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C22",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    }
+  ],
+  "external_pins": {
+    "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+  },
+  "reason": "Definitions are materialized without promoting any historical targeted run to current production-boundary evidence.",
+  "schema": "commander-simulator-next.rules-matrix-c01-c22.v1",
+  "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+  "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+}

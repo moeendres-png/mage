@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "commander-simulator-next.decision-request.v1",
+  "title": "Commander Simulator Next DecisionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision_id", "token", "decision_kind", "actor", "principal", "visibility_scope", "options", "minimum_selection", "maximum_selection", "constraints", "response_schema", "semantic_context", "cancel_allowed"],
+  "properties": {
+    "decision_id": {"type": "integer", "minimum": 1},
+    "token": {"type": "integer", "minimum": 1},
+    "decision_kind": {"type": "string", "minLength": 1},
+    "actor": {"type": "string", "minLength": 1},
+    "principal": {"type": "string", "minLength": 1},
+    "visibility_scope": {"type": "string", "minLength": 1},
+    "options": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["option_id", "entity_kind", "entity_id"],
+        "properties": {
+          "option_id": {"type": "string", "minLength": 1},
+          "entity_kind": {"type": "string", "minLength": 1},
+          "entity_id": {"type": ["integer", "string"]},
+          "label": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "minimum_selection": {"type": "integer", "minimum": 0},
+    "maximum_selection": {"type": "integer", "minimum": 0},
+    "cancel_allowed": {"type": "boolean"},
+    "constraints": {"type": "object", "additionalProperties": {"type": "string"}},
+    "response_schema": {"type": "string", "minLength": 1},
+    "semantic_context": {"type": "object", "additionalProperties": {"type": "string"}}
+  }
+}

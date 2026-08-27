@@ -1,11 +1,15 @@
 name: Greenfield Forge decision census and RNG inventory
 
 on:
+  workflow_dispatch: {}
   push:
     branches:
       - research/greenfield-engine-shootout-20260827
     paths:
       - '.github/workflows/greenfield-forge-census-rng.yml'
+      - '.github/workflows/greenfield-forge-strict-remote-qualification.yml'
+      - 'research/greenfield-qualification/forge-patches/**'
+      - 'research/greenfield-qualification/forge_decision_contract_smoke.py'
 
 permissions:
   contents: read
@@ -15,12 +19,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout the exact qualification revision
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 1
+      - name: Checkout the exact Forge research pin
+        uses: actions/checkout@v4
         with:
           repository: Card-Forge/forge
           ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
           path: forge
           fetch-depth: 1
+      - name: Verify provenance and apply the strict boundary patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C forge rev-parse HEAD)" = 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          mkdir -p artifacts/forge-census-rng
+          printf '%s\n' "$(git -C qual rev-parse HEAD)" > artifacts/forge-census-rng/source_head.txt
+          printf '%s\n' "$(git -C qual rev-parse 'HEAD^{tree}')" > artifacts/forge-census-rng/source_tree.txt
+          bash qual/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge qual/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee artifacts/forge-census-rng/patch-apply.log
       - name: Materialize decision and RNG census
         shell: bash
         run: |
@@ -129,6 +151,28 @@ jobs:
           print('RULES_GAME_MYRANDOM_CALLS=',len(controlled))
           PY
           (cd artifacts/forge-census-rng && sha256sum *.json > hashes.sha256)
+      - name: Emit the strict contract census beside the source census
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_head=$(cat artifacts/forge-census-rng/source_head.txt)
+          source_tree=$(cat artifacts/forge-census-rng/source_tree.txt)
+          python3 qual/research/greenfield-qualification/forge_decision_contract_smoke.py \
+            --forge-root forge \
+            --patch qual/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            --source-head "$source_head" --source-tree "$source_tree" \
+            --out artifacts/forge-census-rng/DECISION_EXPORT_IMPLEMENTATION.json
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          path=Path('artifacts/forge-census-rng/DECISION_EXPORT_IMPLEMENTATION.json')
+          value=json.loads(path.read_text())
+          value['strict_patch_sha256']=hashlib.sha256(Path('qual/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch').read_bytes()).hexdigest()
+          value['forge_tree']=value.get('forge_tree')
+          path.write_text(json.dumps(value,indent=2,sort_keys=True)+'\n')
+          PY
+          (cd artifacts/forge-census-rng && find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true)
       - uses: actions/upload-artifact@v4
         with:
           name: greenfield-forge-census-rng

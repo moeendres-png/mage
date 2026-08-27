@@ -1,6 +1,7 @@
 name: Greenfield Forge runtime qualification
 
 on:
+  workflow_dispatch: {}
   push:
     branches:
       - research/greenfield-engine-shootout-20260827
@@ -23,8 +24,9 @@ jobs:
       - name: Checkout qualification harness
         uses: actions/checkout@v4
         with:
-          ref: research/greenfield-engine-shootout-20260827
+          ref: ${{ github.sha }}
           path: qual
+          fetch-depth: 1
       - name: Checkout pinned Forge
         uses: actions/checkout@v4
         with:
@@ -32,6 +34,18 @@ jobs:
           ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
           path: forge
           fetch-depth: 1
+      - name: Materialize exact run provenance and apply strict boundary patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
+          mkdir -p artifacts/engine-shootout/forge/runtime
+          printf 'source_head=%s\n' "$(git -C qual rev-parse HEAD)" > provenance.env
+          printf 'source_tree=%s\n' "$(git -C qual rev-parse 'HEAD^{tree}')" >> provenance.env
+          cp provenance.env artifacts/engine-shootout/forge/runtime/provenance.env
+          bash qual/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge qual/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee artifacts/engine-shootout/forge/runtime/patch-apply.log
       - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
@@ -60,6 +74,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          source provenance.env
           root="$GITHUB_WORKSPACE/artifacts/engine-shootout/forge/runtime"
           mkdir -p "$root/results"
           jar="$GITHUB_WORKSPACE/$(cat "$root/jar.path")"
@@ -69,6 +84,8 @@ jobs:
             python3 qual/research/greenfield-qualification/harness.py \
               --candidate forge \
               --commit 8c7e9afb8e6caee88644b94e25da5852e36f8928 \
+              --source-head "$source_head" --source-tree "$source_tree" \
+              --external-pin forge=8c7e9afb8e6caee88644b94e25da5852e36f8928 \
               --scenario "L_${p}P_commander_cli_full_game" \
               --seed 424242 --players "$p" \
               --command "bash '$GITHUB_WORKSPACE/qual/research/greenfield-qualification/forge_probe.sh' '$jar' '$deck' '$p' 424242 90" \
@@ -80,12 +97,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          source provenance.env
           root="$GITHUB_WORKSPACE/artifacts/engine-shootout/forge/runtime"
           jar="$GITHUB_WORKSPACE/$(cat "$root/jar.path")"
           deck="$GITHUB_WORKSPACE/qual/research/greenfield-qualification/decks/rogshai-current-forge.dck"
           set +e
           python3 qual/research/greenfield-qualification/harness.py \
             --candidate forge --commit 8c7e9afb8e6caee88644b94e25da5852e36f8928 \
+            --source-head "$source_head" --source-tree "$source_tree" \
+            --external-pin forge=8c7e9afb8e6caee88644b94e25da5852e36f8928 \
             --scenario CARD_ROGSHAI_CURRENT_LOAD_AND_RUN --seed 515151 --players 2 \
             --command "bash '$GITHUB_WORKSPACE/qual/research/greenfield-qualification/forge_probe.sh' '$jar' '$deck' 2 515151 60" \
             --cwd "$GITHUB_WORKSPACE/forge/forge-gui" --timeout 150 \
@@ -96,54 +116,64 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          source provenance.env
           root="$GITHUB_WORKSPACE/artifacts/engine-shootout/forge/runtime"
           dir="$root/fresh-process"
           mkdir -p "$dir"
           jar="$GITHUB_WORKSPACE/$(cat "$root/jar.path")"
           deck="$GITHUB_WORKSPACE/qual/research/greenfield-qualification/decks/micro-ruhan-forge.dck"
-          rc=0
           for n in 1 2 3; do
-            (cd "$GITHUB_WORKSPACE/forge/forge-gui" && bash "$GITHUB_WORKSPACE/qual/research/greenfield-qualification/forge_probe.sh" "$jar" "$deck" 4 989898 90) > "$dir/run${n}.out" 2> "$dir/run${n}.normalized" || rc=1
-            sha256sum "$dir/run${n}.normalized" >> "$dir/hashes.sha256"
+            (cd "$GITHUB_WORKSPACE/forge/forge-gui" && bash "$GITHUB_WORKSPACE/qual/research/greenfield-qualification/forge_probe.sh" "$jar" "$deck" 4 989898 90) > "$dir/run${n}.out" 2> "$dir/run${n}.stderr" || true
+            sha256sum "$dir/run${n}.out" "$dir/run${n}.stderr" >> "$dir/raw-log-hashes.sha256"
           done
-          cmp "$dir/run1.normalized" "$dir/run2.normalized" || rc=1
-          cmp "$dir/run1.normalized" "$dir/run3.normalized" || rc=1
-          if [ "$rc" -eq 0 ]; then
-            python3 "$GITHUB_WORKSPACE/qual/research/greenfield-qualification/harness.py" \
-              --candidate forge --commit 8c7e9afb8e6caee88644b94e25da5852e36f8928 \
-              --scenario S0_seeded_cli_fresh_process_repeatability --seed 989898 --players 4 \
-              --command "cmp '$dir/run1.normalized' '$dir/run2.normalized' && cmp '$dir/run1.normalized' '$dir/run3.normalized'" \
-              --cwd "$GITHUB_WORKSPACE" --timeout 30 --out "$root/results/S0.result.json"
-          else
-            python3 "$GITHUB_WORKSPACE/qual/research/greenfield-qualification/harness.py" \
-              --candidate forge --commit 8c7e9afb8e6caee88644b94e25da5852e36f8928 \
-              --scenario S0_seeded_cli_fresh_process_repeatability --seed 989898 --players 4 \
-              --status FAIL --reason 'One or more fresh JVM runs failed or timing-normalized transcripts diverged' \
-              --out "$root/results/S0.result.json" || true
-          fi
-          echo "$rc" > "$root/fresh-process.exit"
+          # The current CLI probe emits terminal text only.  It does not emit
+          # canonical state digests, RNG events, or decision events.  Keep the
+          # three real fresh-process logs as context, but never compare raw
+          # stdout/stderr as a replay criterion.
+          for n in 1 2 3; do
+            python3 - "$dir/process${n}.json" "$source_head" "$source_tree" <<'PY'
+          import json, sys
+          from pathlib import Path
+          path, head, tree = sys.argv[1:]
+          Path(path).write_text(json.dumps({
+              'schema': 'commander-simulator-next.game-run-evidence.v2',
+              'source_head': head, 'source_tree': tree,
+              'external_pins': {'forge': '8c7e9afb8e6caee88644b94e25da5852e36f8928'},
+              'scenario': 'S0_seeded_cli_fresh_process_repeatability',
+              'seed': 989898, 'players': 4,
+              'note': 'CLI probe has no canonical semantic/RNG/decision streams; raw logs are not replay evidence.'
+          }, sort_keys=True) + '\n')
+          PY
+          done
+          set +e
+          PYTHONPATH="$GITHUB_WORKSPACE/qual/research/greenfield-qualification" python3 \
+            "$GITHUB_WORKSPACE/qual/research/greenfield-qualification/semantic_replay.py" \
+            --input "$dir/process1.json" --input "$dir/process2.json" --input "$dir/process3.json" \
+            --out "$dir/SEMANTIC_REPLAY_GATE.json"
+          replay_rc=$?
+          set -e
+          python3 "$GITHUB_WORKSPACE/qual/research/greenfield-qualification/harness.py" \
+            --candidate forge --commit 8c7e9afb8e6caee88644b94e25da5852e36f8928 \
+            --source-head "$source_head" --source-tree "$source_tree" \
+            --external-pin forge=8c7e9afb8e6caee88644b94e25da5852e36f8928 \
+            --scenario S0_seeded_cli_fresh_process_repeatability --seed 989898 --players 4 \
+            --status NOT_RUN --reason 'No canonical semantic state, RNG event tape, or decision tape is emitted by the current CLI probe; raw process logs are intentionally excluded.' \
+            --out "$root/results/S0.result.json"
+          echo "$replay_rc" > "$root/fresh-process.exit"
       - name: Census Forge player-decision surface
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import json,re
-          from pathlib import Path
-          p=Path('forge/forge-game/src/main/java/forge/game/player/PlayerController.java')
-          text=p.read_text(encoding='utf-8')
-          methods=[]
-          for m in re.finditer(r'public\s+abstract\s+([^;]+);', text, flags=re.S):
-              methods.append(' '.join(m.group(1).split()))
-          out={
-            'candidate':'forge','commit':'8c7e9afb8e6caee88644b94e25da5852e36f8928',
-            'surface':'PlayerController abstract callbacks','abstract_callback_count':len(methods),
-            'callbacks':methods,'classification':'EXTERNALIZABLE_SOURCE_SURFACE_ONLY',
-            'runtime_externalized_and_tested':False
-          }
-          path=Path('artifacts/engine-shootout/forge/runtime/decision-census-source.json')
-          path.write_text(json.dumps(out,indent=2,sort_keys=True)+'\n',encoding='utf-8')
-          assert len(methods) > 40, len(methods)
-          PY
+          source_head=$(cut -d= -f2 provenance.env | head -n1)
+          source_tree=$(cut -d= -f2 provenance.env | tail -n1)
+          PYTHONPATH="$GITHUB_WORKSPACE/qual/research/greenfield-qualification" python3 \
+            qual/research/greenfield-qualification/forge_decision_contract_smoke.py \
+            --forge-root forge \
+            --patch qual/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            --source-head "$source_head" --source-tree "$source_tree" \
+            --out artifacts/engine-shootout/forge/runtime/DECISION_EXPORT_IMPLEMENTATION.json
+          cp artifacts/engine-shootout/forge/runtime/DECISION_EXPORT_IMPLEMENTATION.json \
+            artifacts/engine-shootout/forge/runtime/decision-census-source.json
       - name: Hash runtime evidence
         if: always()
         shell: bash
@@ -167,4 +197,10 @@ jobs:
           rg=$(cat "$root/rogshai-probe.exit" 2>/dev/null || echo 99)
           fp=$(cat "$root/fresh-process.exit" 2>/dev/null || echo 99)
           echo "player_count_failures=$pc rogshai_exit=$rg fresh_process_exit=$fp"
-          test "$pc" = 0 && test "$rg" = 0 && test "$fp" = 0
+          if [ "$pc" = 0 ] && [ "$rg" = 0 ] && [ "$fp" = 0 ]; then
+            echo 'FORGE_RUNTIME_GATE=PASS'
+          else
+            echo 'FORGE_RUNTIME_GATE=FAIL_OR_NOT_RUN'
+            echo 'Replay remains unqualified until canonical state, RNG, and decision tapes are emitted.'
+            exit 1
+          fi

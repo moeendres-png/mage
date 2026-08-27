@@ -1,22 +1,25 @@
-# Actual Card Requirement Manifest — Closeout State
+# Actual Card Requirement Manifest — Current Qualification State
 
-Status: **INCOMPLETE / FAIL CLOSED**.
+Status: **INCOMPLETE / FAIL-CLOSED**.
 
-## Directly verified domain controls
+The manifest derives the target from its versioned `oracle_union.target_count`
+field, currently **1,721**. It does not hard-code that number in the
+materializer.
 
-- Physically held unique identities: **1338**.
-- Operational own unique identities: **1007**.
-- RogShai: exact **100**; normalized-list SHA-256 `2b6258ae1c778784ed252bb46ff828343055177146634c77847506d33f4a4362`.
-- Kaervek: exact **100**; canonical deck hash `aa7a90a4e5cf32f40b1c9832d329aa03f6f7bf130f2d2e9c1e80d10e97c53c7a`.
-- Dargo/Tymna theorycraft candidate identities: **743**.
-- Real opponent unknown slots: **at least 142**; no synthetic completion is promoted to observed/verified truth.
+The live Scryfall source is independently indexed and hash-recorded in
+`SCRYFALL_ORACLE_INDEX_QUALIFICATION.json`. The project-specific union is not
+complete because the research checkout contains only descriptor files for the
+own 1,007-card operational pool and the exact 100-slot Kaervek deck. Those
+descriptors deliberately do not embed Drive-domain rows or Oracle IDs.
 
-## Precons
+Consequences:
 
-Run `33089467077`, artifact `9653672924`, extracted exactly the required 11 lists and asserted 100 slots for each. Forge is only the extraction helper. Official Wizards decklists remain content authority.
+- current union status: `NOT_RUN`, computed IDs `0`;
+- no name-based or synthetic identity promotion;
+- source classes still required: operational own, RogShai, Kaervek,
+  Dargo/Tymna, official precons, and unknown real opponents;
+- per-identity behavior, decision, hidden-information, and replay flags remain
+  unassessed.
 
-## Why this is not COMPLETE
-
-The research branch does not yet contain the required deduplicated per-Oracle-identity union with all source-class flags and behavior priorities. The existing 1007-own and Kaervek materializations plus the 11-precon extraction are provenance inputs, not the final merged manifest.
-
-Accordingly `ACTUAL_CARD_MANIFEST_COMPLETE = FALSE` and no behavior coverage percentage is inferred from presence or parsing.
+The Drive workbook was read-only input only. No Drive file, deck, inventory,
+allocation, purchase, or playtest state was changed.

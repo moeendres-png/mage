@@ -1,28 +1,45 @@
-name: Greenfield Forge strict external pilot boundary closure
+name: Greenfield Forge strict typed Decision Export qualification
 
 on:
+  workflow_dispatch: {}
   push:
     branches:
       - research/greenfield-engine-shootout-20260827
     paths:
       - '.github/workflows/greenfield-forge-strict-remote-qualification.yml'
+      - 'research/greenfield-qualification/forge-patches/**'
+      - 'research/greenfield-qualification/forge_decision_contract_smoke.py'
+      - 'research/greenfield-qualification/strict_decision.py'
+      - 'research/greenfield-qualification/test_strict_decision.py'
+      - 'research/greenfield-qualification/schemas/**'
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
   qualify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
-      - name: Checkout qualification branch
+      - name: Checkout the exact qualification revision
         uses: actions/checkout@v4
         with:
           path: qual
           fetch-depth: 1
 
-      - name: Checkout exact Forge pin
+      - name: Materialize qualification provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
+          {
+            echo "source_head=$(git -C qual rev-parse HEAD)"
+            echo "source_tree=$(git -C qual rev-parse 'HEAD^{tree}')"
+          } | tee provenance.env
+          mkdir -p evidence
+          cp provenance.env evidence/provenance.env
+
+      - name: Checkout the exact Forge research pin
         uses: actions/checkout@v4
         with:
           repository: Card-Forge/forge
@@ -30,187 +47,127 @@ jobs:
           path: forge
           fetch-depth: 1
 
-      - name: Anti-rerun declaration and exact-pin verification
+      - name: Apply the strict server-side Decision Export patch
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C forge rev-parse HEAD)" = "8c7e9afb8e6caee88644b94e25da5852e36f8928"
-          mkdir -p evidence
-          cat > evidence/ANTI_RERUN_GATE.txt <<'EOF'
-          GATE=FORGE_STRICT_EXTERNAL_PILOT_BOUNDARY
-          PREVIOUS_STATUS=INSUFFICIENT_EVIDENCE
-          EVIDENCE=run 33095241142 / artifact 9656740763 proves fail-closed return-type checks but used Headless auto-choice controller and did not complete 2P-5P
-          PIN_OR_CODE_CHANGED=NO_FORGE_PIN_CHANGE; QUALIFICATION_TEST_CHANGED=YES
-          WHY_RERUN_REQUIRED=NO GAMEPLAY RERUN. New closure test addresses the missing exact-legal-choice export invariant and reuses prior runtime evidence.
-          EOF
+          bash qual/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge qual/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch | tee evidence/patch-apply.log
 
-      - name: Reconcile prior strict runtime artifact without rerunning gameplay
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Execute engine-neutral negative Decision contract tests
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p evidence/prior-run
-          gh run download 33095241142 -R moeendres-png/mage -n greenfield-forge-strict-remote-qualification -D evidence/prior-run
-          test -f evidence/prior-run/test.log
+          PYTHONPATH="$GITHUB_WORKSPACE/qual/research/greenfield-qualification" \
+            python3 -m unittest discover -s qual/research/greenfield-qualification -p 'test_strict_decision.py' -v \
+            | tee evidence/strict-decision-python-tests.log
+
+      - name: Run exact-pin implementation and complete-census smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          source provenance.env
+          PYTHONPATH="$GITHUB_WORKSPACE/qual/research/greenfield-qualification" python3 \
+            qual/research/greenfield-qualification/forge_decision_contract_smoke.py \
+            --forge-root forge \
+            --patch qual/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            --source-head "$source_head" \
+            --source-tree "$source_tree" \
+            --out evidence/DECISION_EXPORT_IMPLEMENTATION.json
+
+      - name: Compile the patched exact Forge checkout
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          mvn -B '-DskipTests' -pl forge-gui -am compile \
+            | tee ../evidence/forge-compile.log
+
+      - name: Adjudicate the strict boundary fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          source provenance.env
           python3 - <<'PY'
           from pathlib import Path
-          import json, re, hashlib
-          p=Path('evidence/prior-run/test.log')
-          text=p.read_text(errors='replace')
-          required={
-            'headless_auto_choice_observed': 'Auto-clicking' in text,
-            'set_selectables_observed': 'setSelectables (3 args)' in text,
-            'temp_show_zones_observed': 'tempShowZones (2 args)' in text,
-            'two_player_incomplete_observed': 'STRICT_EXTERNAL_2P=GameResult[2-player network Commander' in text and 'completed=false' in text,
+          import hashlib, json
+
+          implementation = json.loads(Path('evidence/DECISION_EXPORT_IMPLEMENTATION.json').read_text())
+          forge = Path('forge')
+          patch = Path('qual/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch')
+          source_head = Path('provenance.env').read_text().split('source_head=', 1)[1].splitlines()[0]
+          source_tree = Path('provenance.env').read_text().split('source_tree=', 1)[1].splitlines()[0]
+          exact_entity_boundary = implementation['status'] == 'PARTIAL' and all(implementation['assertions'].values())
+          remaining = implementation['census']['remaining_controller_methods_not_externalized']
+          gate = {
+            'schema': 'commander-simulator-next.forge-strict-boundary-gate.v3',
+            'source_head': source_head,
+            'source_tree': source_tree,
+            'forge_pin': implementation['forge_pin'],
+            'forge_tree': implementation['forge_tree'],
+            'patch_sha256': hashlib.sha256(patch.read_bytes()).hexdigest(),
+            'status': 'FAIL',
+            'strict_entity_selection_boundary': 'PASS' if exact_entity_boundary else 'FAIL',
+            'full_decision_externalization': 'FAIL',
+            'full_decision_census': {
+              'controller_callbacks': implementation['census']['player_controller_abstract_method_count'],
+              'blocking_gui_decisions': implementation['census']['remote_protocol_blocking_decision_count'],
+              'directly_externalized_controller_methods': implementation['census']['directly_externalized_controller_methods'],
+              'remaining_controller_methods_not_externalized': remaining,
+              'complete': False,
+            },
+            'hard_gate_values': {
+              'EXACT_LEGAL_ENTITY_CHOICES_EXPORTED': exact_entity_boundary,
+              'PLAYER_OPTIONS_INCLUDED': exact_entity_boundary,
+              'TYPED_REQUEST_RESPONSE': exact_entity_boundary,
+              'STALE_RESPONSE_REJECTED': exact_entity_boundary,
+              'TIMEOUT_REJECTED': exact_entity_boundary,
+              'ONE_SHOT_CONSUMPTION': exact_entity_boundary,
+              'PRODUCTION_REACHABLE_UNQUALIFIED_CALLBACKS': remaining,
+              'SILENT_FALLBACKS_ZERO': False,
+              'RUNTIME_DECISION_TAPE_QUALIFIED': False,
+            },
+            'evidence_class': ['DIRECTLY_VERIFIED', 'CODE_DERIVED', 'L3_LOCALLY_EXECUTED'],
+            'failure': {
+              'code': 'FULL_DECISION_CENSUS_NOT_EXTERNALIZED',
+              'message': 'The patch proves and compiles the typed entity-selection seam, but the remaining controller callbacks and blocking GUI decisions are not admitted to the strict production path.',
+            },
           }
-          if not all(required.values()):
-              raise SystemExit(f'prior strict runtime artifact no longer matches expected evidence: {required}')
-          out={
-            'schema':'commander-simulator-next.prior-strict-runtime-reconciliation.v1',
-            'run_id':33095241142,
-            'artifact_id':9656740763,
-            'forge_pin':'8c7e9afb8e6caee88644b94e25da5852e36f8928',
-            'artifact_log_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
-            'observations':required,
-            'classification':'RUNTIME_RECONCILED',
-            'gameplay_rerun':False,
-          }
-          Path('evidence/PRIOR_STRICT_RUNTIME_RECONCILIATION.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          Path('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.json').write_text(json.dumps(gate, indent=2, sort_keys=True) + '\n')
+          Path('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.md').write_text(f'''# Forge strict typed Decision Export gate
+
+- Qualification source head: `{source_head}`
+- Qualification source tree: `{source_tree}`
+- Forge pin: `{implementation['forge_pin']}`
+- Patch SHA-256: `{gate['patch_sha256']}`
+- Strict entity-selection seam: **{gate['strict_entity_selection_boundary']}**
+- Full production gate: **FAIL**
+
+The exact `InputSelectEntitiesFromList` option set, including `Player`
+entities, is now exported to a typed provider in the ephemeral Forge checkout.
+Responses are checked against token, decision id, actor, principal, schema,
+membership, count, cancel permission, one-shot state, and timeout state. The
+patch compiles at the declared Forge pin.
+
+This does not close the production gate: only three entity-selection entry
+points are directly routed. The census contains {implementation['census']['player_controller_abstract_method_count']} controller callback declarations and {implementation['census']['remote_protocol_blocking_decision_count']} blocking GUI decisions; {remaining} controller declarations remain outside the typed boundary. Legacy GUI/AI paths therefore remain unqualified and the complete decision/RNG/hidden-information runtime tapes have not been produced.
+''')
+          assert gate['status'] == 'FAIL'
+          assert gate['strict_entity_selection_boundary'] == 'PASS'
+          assert gate['full_decision_externalization'] == 'FAIL'
           PY
 
-      - name: Prove exact legal player choices are not exported across the pinned remote boundary
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import json, re, hashlib
-
-          forge=Path('forge')
-          proto_path=forge/'forge-gui/src/main/java/forge/gamemodes/net/ProtocolMethod.java'
-          input_path=forge/'forge-gui/src/main/java/forge/gamemodes/match/input/InputSelectEntitiesFromList.java'
-          kaervek_path=forge/'forge-gui/res/cardsfolder/k/kaervek_the_merciless.txt'
-          proto=proto_path.read_text()
-          inp=input_path.read_text()
-          kaervek=kaervek_path.read_text()
-
-          # Hard source invariants at the exact Forge pin.
-          assertions={
-            'select_player_client_action_exists': 'selectPlayer              (Mode.CLIENT, Void.TYPE, PlayerView.class, ITriggerEvent.class)' in proto,
-            'show_prompt_has_no_legal_player_collection': 'showPromptMessage   (Mode.SERVER, Void.TYPE, PlayerView.class, String.class, CardView.class)' in proto,
-            'card_selectables_only_exported': 'setSelectables      (Mode.SERVER, Void.TYPE, Iterable/*CardView*/.class, Integer.TYPE, Integer.TYPE)' in proto,
-            'input_retains_full_valid_choices_server_side': 'private final FCollectionView<T> validChoices;' in inp and 'getValidChoices()' in inp,
-            'input_exports_only_card_views': 'if (v instanceof Card c)' in inp and 'vCards.add(c.getView())' in inp and 'setSelectables(vCards, this.min, this.max)' in inp,
-            'input_validates_player_selection_server_side': 'protected void onPlayerSelected(final Player p' in inp and 'if (!selectEntity(p))' in inp and 'validChoices.contains(c)' in inp,
-            'no_typed_decision_request_protocol_symbol': 'DecisionRequest' not in proto,
-            'no_request_id_protocol_symbol': 'requestId' not in proto and 'request_id' not in proto and 'decisionId' not in proto and 'decision_id' not in proto,
-            'kaervek_any_target_reachability_witness': 'ValidTgts$ Any' in kaervek and 'any target' in kaervek.lower(),
-          }
-          if not all(assertions.values()):
-              raise SystemExit('Pinned-source assumptions changed; fail closed: '+json.dumps(assertions,sort_keys=True))
-
-          # Enumerate the current server blocking methods to preserve the 15-method census.
-          server_blocking=[]
-          in_enum=False
-          for line in proto.splitlines():
-              if 'public enum ProtocolMethod' in line: in_enum=True
-              if not in_enum: continue
-              m=re.match(r'\s*([A-Za-z0-9_]+)\s*\(Mode\.SERVER,\s*([^,\)]+)', line)
-              if m and 'Void.TYPE' not in m.group(2):
-                  server_blocking.append(m.group(1))
-          if len(server_blocking) != 15:
-              raise SystemExit(f'Expected 15 server blocking methods at exact pin, got {len(server_blocking)}: {server_blocking}')
-
-          # The production-relevant failure is structural: Player validChoices can include Player,
-          # but the client receives only CardView selectables. A client-side strict adapter therefore
-          # cannot enumerate exact legal Player choices without parsing prompt/full state or reproducing rules.
-          finding={
-            'schema':'commander-simulator-next.forge-strict-boundary-gate.v2',
-            'candidate':'Forge + new strict external-pilot adapter',
-            'forge_pin':'8c7e9afb8e6caee88644b94e25da5852e36f8928',
-            'gate':'DECISION_EXTERNALIZATION',
-            'status':'FAIL',
-            'evidence_class':['CODE_DERIVED','RUNTIME_RECONCILED'],
-            'server_blocking_decision_transport_count':len(server_blocking),
-            'server_blocking_methods':server_blocking,
-            'hard_failure':{
-              'decision_kind':'ENTITY_PLAYER_SELECTION',
-              'backend_source':'InputSelectEntitiesFromList<T extends GameEntity>',
-              'runtime_trigger':'validChoices contains Player entities',
-              'actor':'remote player/controller',
-              'visibility_scope':'must be principal scoped',
-              'legal_options':'NOT_EXPORTED_TO_REMOTE_GUI_BOUNDARY',
-              'response_schema':'existing selectPlayer(PlayerView,ITriggerEvent) has no request token',
-              'backend_validation':'selectEntity rejects Player not in server-side validChoices',
-              'fallback_present':'client can only guess/derive candidate players from GameView/prompt under current protocol',
-              'production_reachable':True,
-              'reachability_witness':'Kaervek the Merciless is a verified relevant opponent and its pinned Forge semantics use ValidTgts$ Any',
-              'status':'UNSUPPORTED_AT_CURRENT_REMOTE_BOUNDARY'
-            },
-            'hard_gate_values':{
-              'SILENT_FALLBACKS':'NOT_ESTABLISHED_ZERO',
-              'PRODUCTION_REACHABLE_UNSUPPORTED_DECISIONS':1,
-              'EXACT_LEGAL_CHOICES_EXPORTED':False,
-              'COMPLETE_TYPED_DECISION_REQUEST_RESPONSE':False,
-              'STALE_RESPONSE_REJECTION_AT_BACKEND_PROTOCOL':False
-            },
-            'architecture_adjudication':{
-              'forge_rules_core_disqualified':False,
-              'stock_remote_gui_boundary_qualified':False,
-              'client_only_strict_adapter_sufficient':False,
-              'minimal_required_change':'Add a server-side typed Decision Export hook at the authoritative Input/PlayerControllerHuman boundary that publishes the exact validChoices (including Player entities), actor, min/max/constraints and a monotonic request token to the trusted adapter; validate the token/actor before translating the response back into the existing input object. Do not derive legal choices from prompt text or full GameView.',
-              'rules_reimplementation_required':False
-            },
-            'source_assertions':assertions,
-            'source_hashes':{
-              'ProtocolMethod.java':hashlib.sha256(proto_path.read_bytes()).hexdigest(),
-              'InputSelectEntitiesFromList.java':hashlib.sha256(input_path.read_bytes()).hexdigest(),
-              'kaervek_the_merciless.txt':hashlib.sha256(kaervek_path.read_bytes()).hexdigest(),
-            }
-          }
-          Path('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.json').write_text(json.dumps(finding,indent=2,sort_keys=True)+'\n')
-
-          registry=[
-            {'decision_kind':'ENTITY_PLAYER_SELECTION','backend_source':'InputSelectEntitiesFromList','runtime_trigger':'validChoices contains Player','actor':'controller player','visibility_scope':'principal','legal_options':'server validChoices','response_schema':'Player choice','validation':'validChoices.contains','invalid_response_test':'server selectEntity rejects non-member','fallback_present':False,'runtime_test':'prior strict runtime + pinned source path','status':'UNSUPPORTED_AT_CURRENT_REMOTE_BOUNDARY'},
-            {'decision_kind':'ENTITY_CARD_SELECTION','backend_source':'InputSelectEntitiesFromList','runtime_trigger':'validChoices contains Card','actor':'controller player','visibility_scope':'principal','legal_options':'setSelectables(CardView,min,max)','response_schema':'selectCard','validation':'validChoices.contains','invalid_response_test':'server selectEntity rejects non-member','fallback_present':False,'runtime_test':'prior run observed setSelectables','status':'PARTIAL_NO_REQUEST_TOKEN'},
-            {'decision_kind':'BUTTON_CHOICE','backend_source':'Input/updateButtons','runtime_trigger':'buttons enabled','actor':'owner','visibility_scope':'principal','legal_options':'two enabled button states','response_schema':'selectButtonOk/selectButtonCancel','validation':'input state','invalid_response_test':'NOT_COMPLETE','fallback_present':False,'runtime_test':'prior run observed updateButtons','status':'PARTIAL_NO_REQUEST_TOKEN'},
-            {'decision_kind':'BLOCKING_GUI_DECISIONS_15','backend_source':'ProtocolMethod SERVER non-void','runtime_trigger':'blocking GUI calls','actor':'remote client principal','visibility_scope':'method-specific','legal_options':'method-specific payloads','response_schema':'method-specific return type','validation':'ProtocolMethod type only upstream','invalid_response_test':'prior strict patch null/wrong-type test','fallback_present':True,'runtime_test':'run 33095241142','status':'PARTIAL'},
-          ]
-          Path('evidence/DECISION_CAPABILITY_REGISTRY.json').write_text(json.dumps({'schema':'commander-simulator-next.decision-capability-registry.v2','forge_pin':finding['forge_pin'],'entries':registry,'production_reachable_unsupported_decisions':1,'silent_fallbacks_zero':False,'gate':'FAIL'},indent=2,sort_keys=True)+'\n')
-
-          md=f'''# Forge Strict External-Pilot Boundary Gate — FINAL CLOSURE\n\n- Forge pin: `{finding['forge_pin']}`\n- Gate: `DECISION_EXTERNALIZATION`\n- Status: **FAIL**\n- Evidence: CODE-DERIVED + existing runtime reconciliation; no gameplay rerun.\n\n## Exact blocker\n\n`InputSelectEntitiesFromList<T extends GameEntity>` keeps the authoritative `validChoices` server-side. It exports only Card members through `setSelectables(CardView, min, max)`. Player members remain server-side and are validated only after a client sends `selectPlayer(PlayerView, ITriggerEvent)`. The pinned remote protocol has neither a typed DecisionRequest nor a request/decision token.\n\nThis is production-reachable: pinned Forge semantics for `Kaervek the Merciless` contain `ValidTgts$ Any`; the project domain classifies Kaervek as a verified relevant opponent.\n\nA client-only adapter cannot therefore send **exact legal Player options** to an external pilot without guessing from GameView/prompt text or reimplementing targeting rules. Both are forbidden.\n\n## Adjudication\n\n- Forge Rules Core: **not disqualified**.\n- Stock remote GUI boundary: **not qualified**.\n- Client-only strict adapter: **insufficient by construction**.\n- `PRODUCTION_REACHABLE_UNSUPPORTED_DECISIONS = 1` (minimum proven count).\n- `SILENT_FALLBACKS = 0`: **not established**.\n\n## Minimal required change\n\nAdd a server-side typed Decision Export hook at the authoritative `Input` / `PlayerControllerHuman` boundary. It must export exact valid choices including Player entities, actor, min/max/constraints and a monotonic request token to the trusted adapter, then validate request token + actor before applying a response to the existing Input object. No prompt parsing, no GameView inference, no Forge AI fallback, and no MTG rules reimplementation.\n'''
-          Path('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.md').write_text(md)
-          PY
-
-      - name: Qualification verdict is machine-readable and fail-closed
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json
-          g=json.load(open('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.json'))
-          r=json.load(open('evidence/DECISION_CAPABILITY_REGISTRY.json'))
-          assert g['status']=='FAIL'
-          assert g['hard_gate_values']['PRODUCTION_REACHABLE_UNSUPPORTED_DECISIONS'] >= 1
-          assert g['hard_gate_values']['EXACT_LEGAL_CHOICES_EXPORTED'] is False
-          assert r['gate']=='FAIL'
-          print('QUALIFICATION_GATE_CLOSED=TRUE')
-          print('DECISION_EXTERNALIZATION=FAIL')
-          print('FIRST_BLOCKER=ENTITY_PLAYER_SELECTION_LEGAL_CHOICE_EXPORT')
-          PY
-
-      - name: Hash evidence
+      - name: Hash current qualification evidence
         if: always()
         shell: bash
         run: |
-          cd evidence
-          find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true
+          set -euo pipefail
+          find evidence -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > evidence/hashes.sha256 || true
 
-      - name: Upload closure evidence
+      - name: Upload current qualification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: greenfield-forge-strict-boundary-closure
+          name: greenfield-forge-strict-typed-decision-boundary
           path: evidence
           if-no-files-found: error

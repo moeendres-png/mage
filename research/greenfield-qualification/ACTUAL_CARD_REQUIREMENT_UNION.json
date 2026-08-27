@@ -1,0 +1,42 @@
+{
+  "cards": [],
+  "complete": false,
+  "computed_oracle_id_count": 0,
+  "external_pins": {
+    "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+  },
+  "gate": {
+    "all_ids_in_scryfall_index": true,
+    "all_source_rows_materialized": false,
+    "synthetic_promotion": false,
+    "target_count_equal": false
+  },
+  "missing_sources": [
+    {
+      "path": "actual-card-manifest/OWN_OPERATIONAL_1007.json",
+      "reason": "descriptor contains no materialized oracle_id rows"
+    },
+    {
+      "path": "actual-card-manifest/KAERVEK_EXACT_100.json",
+      "reason": "descriptor contains no materialized oracle_id rows"
+    }
+  ],
+  "schema": "commander-simulator-next.actual-card-requirement-union.v1",
+  "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+  "source_rows": [
+    {
+      "oracle_id_count": 0,
+      "path": "actual-card-manifest/OWN_OPERATIONAL_1007.json",
+      "sha256": "9e297acb7f390188c63eab603f81822c01eb75697a50c7a5c99741b80d3417d5"
+    },
+    {
+      "oracle_id_count": 0,
+      "path": "actual-card-manifest/KAERVEK_EXACT_100.json",
+      "sha256": "3f6451bc0b85a6412b31b4b7ff9e164a25fb32507ab9d421705c7fa45c1a3867"
+    }
+  ],
+  "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e",
+  "status": "NOT_RUN",
+  "target_count": 1721,
+  "unknown_oracle_ids_not_in_scryfall_index": []
+}

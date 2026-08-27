@@ -1,9 +1,15 @@
-# Commander Matrix C01–C22 — Closeout State
+# Commander Matrix C01–C22 — Current Qualification State
 
-Status: **INCOMPLETE**.
+The complete C01–C22 structure is materialized in
+`RULES_MATRIX_C01_C22.json` with exactly 22 definitions. Each row is
+currently `NOT_RUN` and `production_qualified=false`.
 
-Existing targeted Commander evidence includes multiplayer topology and XMage tests for casting commanders, Partner commanders, and commander mutate interactions. These are preserved as PASS evidence and are not rerun.
+The definitions include multiplayer topology, multiple/Partner commanders,
+Background and Doctor's Companion, stolen/copied commanders, independent tax,
+commander damage, command-zone choices, elimination, stack/turn behavior, and
+APNAP after elimination. Existing targeted passes are not promoted to a
+complete production-boundary matrix.
 
-The research store does not yet contain a complete C01–C22 matrix proving, through the eventual production-style boundary, all required cases such as multiple commanders, Partner, Background / Choose a Background, Doctor's Companion, stolen/copied commander handling, independent tax, per-commander/per-victim damage, command-zone choices, elimination during stack/turn, and APNAP after elimination.
-
-`RULES_MATRIX_C01_C22_COMPLETE = FALSE`.
+```text
+RULES_MATRIX_C01_C22_COMPLETE = FALSE
+```

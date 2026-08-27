@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "commander-simulator-next.game-run-evidence.v2",
+  "title": "Commander Simulator Next GameRunEvidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "candidate", "commit", "source_head", "source_tree", "external_pins", "scenario", "seed", "players", "decisions", "state_hashes", "semantic_state_hashes", "rng_events", "decision_tape", "events", "result", "runtime", "failures"],
+  "properties": {
+    "schema": {"const": "commander-simulator-next.game-run-evidence.v2"},
+    "candidate": {"type": "string", "minLength": 1},
+    "commit": {"type": "string", "minLength": 1},
+    "source_head": {"type": "string", "minLength": 1},
+    "source_tree": {"type": "string", "minLength": 1},
+    "external_pins": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}},
+    "scenario": {"type": "string", "minLength": 1},
+    "seed": {"type": "integer"},
+    "players": {"type": "integer", "minimum": 2, "maximum": 5},
+    "decisions": {"type": "array"},
+    "state_hashes": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+    "semantic_state_hashes": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+    "rng_events": {"type": "array"},
+    "decision_tape": {"type": "array"},
+    "events": {"type": "array"},
+    "result": {"type": "object", "required": ["status"], "properties": {"status": {"enum": ["PASS", "FAIL", "UNSUPPORTED", "NOT_RUN"]}}},
+    "runtime": {"type": "object"},
+    "failures": {"type": "array"},
+    "evidence_level": {"type": "string"}
+  }
+}

@@ -1,9 +1,20 @@
-# RNG Inventory — Closeout
+# RNG and Replay Inventory — Current Qualification State
 
-Forge exact-pin census run `33095873712` found **8 direct rules-game RNG bypass callsites** and **20 MyRandom callsites**. The provider seam is replaceable, but the census explicitly records `event_tape_runtime_qualified=false`.
+Status: **NOT RUN / INSUFFICIENT EVIDENCE**.
 
-Rules-relevant categories requiring explicit capture/adjudication remain shuffle, random card/target/player/discard, die/coin/random number, random ordering, and starting-player randomization where applicable.
+The research package now contains versioned contracts for named `RngEvent`,
+`DecisionEvent`, `CanonicalStateDigest`, and semantic replay comparison. The
+Forge source census still identifies direct rules-game RNG bypasses and
+`MyRandom` call sites, but no current gameplay run emits a complete canonical
+RNG/event/decision tape.
 
-`RNG_TAPE_GATE = NOT_RUN / INSUFFICIENT_EVIDENCE`.
+Required streams are:
 
-No same-seed claim is promoted to event-tape replay evidence.
+- named RNG stream, draw index, bound, value, and semantic context;
+- monotonic decision event IDs with request token and response status;
+- public and principal-scoped canonical state digests;
+- three fresh processes with identical semantic trajectories.
+
+Raw stdout, stderr, timestamps, process IDs, and wall-clock durations are
+forensics only and are never replay criteria. `SEMANTIC_REPLAY_GATE.json`
+records the current `NOT_RUN` adjudication.

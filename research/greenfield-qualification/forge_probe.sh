@@ -46,7 +46,7 @@ if ! grep -Fq "Game Result:" <<<"$output"; then
   exit 22
 fi
 
-# Emit a timing-normalized semantic transcript on stderr for cross-process diff.
-printf '%s\n' "$output" \
-  | sed -E 's/Took [0-9]+ ms/Took <ms>/g; s/ended in [0-9]+ ms/ended in <ms>/g' \
-  | sed -E '/^[[:space:]]*$/d' >&2
+# Emit diagnostics for forensics only. Raw stdout/stderr is deliberately not a
+# replay criterion; the semantic replay gate requires canonical state, RNG,
+# and decision streams from the engine.
+printf '%s\n' "$output" >&2

@@ -1,0 +1,272 @@
+{
+  "classes": [
+    {
+      "definition": "basic_turn_progression",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "A",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "land_play",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "B",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "mana_activation",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "C",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "casting_and_costs",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "D",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "stack_and_priority",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "E",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "targets",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "F",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "triggers",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "G",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "replacement_effects",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "H",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "state_based_actions",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "I",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "combat",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "J",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "commander_rules",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "K",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "multiplayer",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "L",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "hidden_information",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "M",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "search_and_shuffle",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "N",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "alternate_and_additional_costs",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "O",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "continuous_effects_and_layers",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "P",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "copy_and_object_identity",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "Q",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "player_elimination",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "R",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "replay_and_determinism",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "S",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    },
+    {
+      "definition": "external_decision_completeness",
+      "evidence_class": "REQUIREMENT_DEFINITION_ONLY",
+      "external_pins": {
+        "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      },
+      "id": "T",
+      "production_qualified": false,
+      "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
+      "qualification_status": "NOT_RUN",
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    }
+  ],
+  "complete": false,
+  "external_pins": {
+    "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+  },
+  "reason": "The complete production-boundary runtime matrix is downstream of decision externalization, hidden-information, RNG/replay, and card-coverage gates.",
+  "schema": "commander-simulator-next.rules-matrix-a-t.v1",
+  "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+  "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+}

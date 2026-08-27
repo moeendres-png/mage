@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "commander-simulator-next.decision-error.v1",
+  "title": "Commander Simulator Next DecisionError",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "message"],
+  "properties": {
+    "code": {"type": "string", "enum": ["MISSING_RESPONSE", "NULL_RESPONSE", "MALFORMED_RESPONSE", "STALE_RESPONSE", "WRONG_ACTOR", "WRONG_PRINCIPAL", "ILLEGAL_OPTION", "INVALID_SELECTION_COUNT", "CANCEL_NOT_ALLOWED", "DECISION_CONSUMED", "TIMEOUT", "UNSUPPORTED_DECISION_PATH"]},
+    "message": {"type": "string", "minLength": 1},
+    "decision_id": {"type": "integer", "minimum": 1},
+    "token": {"type": "integer", "minimum": 1}
+  }
+}

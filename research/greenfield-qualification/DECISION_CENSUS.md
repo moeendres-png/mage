@@ -1,53 +1,41 @@
-# Decision Census — Closeout v2
+# Decision Census — Current Qualification State
 
-Status: **FAIL; production decision gate not passed**.
+Date: 2026-08-28
 
-## Forge
+Status: **PARTIAL / FAIL-CLOSED**.
 
-Forge remains the strongest broad Rules/Card backend candidate, but the previously uncertain Strict External Pilot question is now narrowed to a directly proven structural failure at the current remote GUI boundary.
+The exact Forge research pin is `8c7e9afb8e6caee88644b94e25da5852e36f8928`.
+The typed server-side entity-selection patch produces patched Forge tree
+`c634b817e037c4531051859f7d00805ffd74931e` and has SHA-256
+`ef10fd59faf63b241b862d1700690bc1668421f00b72541929333f7fe4d1c7e9`.
 
-Closure evidence:
+## Materialized census
 
-- exact Forge pin: `8c7e9afb8e6caee88644b94e25da5852e36f8928`;
-- prior strict runtime run: `33095241142`, artifact `9656740763` — reused, not rerun;
-- final boundary-closure run: `33112928078`, artifact `9663315184`;
-- dedicated evidence: `STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.json/.md`;
-- machine-readable registry: `DECISION_CAPABILITY_REGISTRY.json`.
+- `PlayerControllerHuman` callback declarations: **109**.
+- Blocking server GUI decisions: **15**.
+- Directly routed through the new typed seam: **3** —
+  `chooseCardsForEffect`, `chooseSingleEntityForEffect`, and
+  `chooseEntitiesForEffect`.
+- Remaining controller declarations outside the typed request/response path:
+  **106**.
+- Runtime decision-tape qualification: **NOT_RUN**.
 
-### Proven failure
+The three entity-selection paths pass static assertions and the exact Forge
+checkout compiles. This is not equivalent to full production qualification:
+the remaining callbacks and blocking GUI methods have not been converted to
+typed requests with runtime evidence. Their strict mode behavior is explicit
+failure, never implicit AI/default/first/random/pass/cancel substitution.
 
-`InputSelectEntitiesFromList<T extends GameEntity>` holds exact authoritative `validChoices` on the server. It exports only Card choices through `setSelectables(CardView,min,max)`. Player choices are not exported to the remote GUI. The remote client can send `selectPlayer(PlayerView,ITriggerEvent)`, but the protocol has no typed DecisionRequest and no monotonic request token.
-
-Therefore a **client-only** strict adapter cannot provide an external pilot with exact legal Player options without guessing from `GameView` / prompt text or reproducing targeting rules. Both are prohibited.
-
-This path is production-reachable: Kaervek the Merciless is a verified relevant opponent and its pinned Forge semantics use `ValidTgts$ Any`.
-
-Current minimum hard-gate result:
+The machine-readable source is `DECISION_CENSUS.json`; the capability-level
+view is `DECISION_CAPABILITY_REGISTRY.json`.
 
 ```text
-PRODUCTION_REACHABLE_UNSUPPORTED_DECISIONS = 1
-EXACT_LEGAL_CHOICES_EXPORTED = FALSE
-COMPLETE_TYPED_DECISION_REQUEST_RESPONSE = FALSE
-STALE_RESPONSE_REJECTION_AT_BACKEND_PROTOCOL = FALSE
-SILENT_FALLBACKS = NOT_ESTABLISHED_ZERO
+DECISION_EXTERNALIZATION                 = FAIL
+ENTITY_PLAYER_CARD_SELECTION_SEAM       = PASS_STATIC_AND_COMPILE_ONLY
+FULL_DECISION_CENSUS_AND_TYPED_CALLBACK = FAIL
+RUNTIME_DECISION_TAPE                   = NOT_RUN
+ARCHITECTURE_FREEZE                     = FALSE
 ```
 
-The count `1` is a proven minimum, not a claim that only one unsupported decision kind remains.
-
-Forge Rules Core itself is **not disqualified**. The failure is in the current human/remote decision boundary.
-
-## Other candidates
-
-- **XMage:** targeted run `33089884301` remains useful Rules evidence, but its own census records `complete_external_pilot_runtime_gate=false` and `principal_scoped_external_observation_runtime_gate=false`.
-- **phase.rs:** interaction surface is source-externalizable, but all required decisions are explicitly not externalized-and-tested.
-- **Manabrew:** run `33090536113` found current exact-pin silent/default/first-choice fallbacks; production decision gate FAIL.
-
-## Exact next technical subgate
-
-`FIRST_BLOCKING_GATE = DECISION_EXTERNALIZATION`
-
-`FIRST_BLOCKING_SUBGATE = ENTITY_PLAYER_SELECTION_LEGAL_CHOICE_EXPORT`
-
-The smallest admissible change is a server-side typed Decision Export hook at the authoritative Forge `Input` / `PlayerControllerHuman` boundary. It must export exact choices including Player entities, actor, visibility/min/max/constraints and a monotonic request token; the trusted adapter must validate token, actor and selected options before applying the response to the current Input object.
-
-No prompt parsing, full-GameView inference, Forge AI, first/default/random fallback, or MTG rules reimplementation is acceptable.
+Historical workflow IDs remain provenance context only and are not current
+HEAD proof.

@@ -1,9 +1,26 @@
-# Actual Card Coverage — Closeout
+# Actual Card Coverage — Current Qualification State
 
-Status: **INSUFFICIENT_EVIDENCE**.
+Status: **INSUFFICIENT EVIDENCE**.
 
-Positive evidence exists for source/card presence, exact RogShai runtime loading, the Forge neutral card-script index (run `33090672334`, artifact `9654200891`), and exact 100-slot materialization of 11 relevant precons. None of those facts establishes `FULL` behavior.
+The current Scryfall Oracle Cards gzip/JSONL ingest passed independently:
 
-The required per-Oracle-identity classification (`PRESENT`, `LOADABLE`, `EXECUTABLE`, `DECISION_COMPLETE`, `HIDDEN_INFO_SAFE`, `REPLAY_SAFE`, behavior verification) cannot be completed until the merged requirement manifest and strict production-style decision/observation boundary exist.
+- bulk updated: `2026-08-27T21:01:57.237+00:00`;
+- deduplicated upstream Oracle identities: **38,626**;
+- payload SHA-256: `1f798bf1cae3129f46219d71fc9e0b04e593430f8c6b0acde0711b9c1ca679df`.
 
-Therefore no `100%` coverage claim is made and reachable UNKNOWN/PARTIAL/UNSUPPORTED are **not established as zero**.
+This is only the neutral upstream index. The project-specific requirement
+union target is **1,721**, but the available own-inventory and Kaervek
+research files are descriptors without materialized `oracle_id` rows. The
+union therefore remains `NOT_RUN` at **0/1,721**. No card-name join, synthetic
+promotion, or inferred Oracle identity is accepted.
+
+The required per-identity fields remain separate:
+
+```text
+PRESENT, LOADABLE, EXECUTABLE, DECISION_COMPLETE,
+HIDDEN_INFO_SAFE, REPLAY_SAFE, behavioral_evidence
+```
+
+They are not promoted from source presence, parsing, deck loading, or card
+count. `ACTUAL_CARD_COVERAGE.json` and
+`ACTUAL_CARD_REQUIREMENT_UNION.json` contain the machine-readable status.

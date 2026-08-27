@@ -1,7 +1,16 @@
 {
-  "schema":"commander-simulator-next.process-isolation-gate.closeout-v1",
-  "overall_production_gate":"INSUFFICIENT_EVIDENCE",
-  "manabrew":{"pin":"754ec2aeec495d67d7bb9b89d0fd67ee22281b46","forge_pin":"192b5eab000069bbb8917a5df9d60d4a9128aa07","run":33090536113,"concurrent_4p_two_game_process_isolation":"PASS"},
-  "selected_production_core":null,
-  "reason":"Candidate-specific Manabrew isolation is positive, but no production core is frozen and the production decision boundary is not admitted."
+  "schema": "commander-simulator-next.process-isolation-gate.closeout-v2",
+  "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+  "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e",
+  "external_pins": {"forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928", "manabrew": "754ec2aeec495d67d7bb9b89d0fd67ee22281b46"},
+  "overall_production_gate": "INSUFFICIENT_EVIDENCE",
+  "selected_production_core": null,
+  "historical_candidate_evidence": {
+    "manabrew_concurrent_4p_two_game_process_isolation": "PASS",
+    "run": 33090536113,
+    "reused_as_current_proof": false
+  },
+  "required_isolation_dimensions": ["game_state", "rng_streams", "decision_queues", "principal_scoped_observations", "request_ids"],
+  "current_cross_game_leak_count": "NOT_RUN",
+  "reason": "Candidate-specific historical Manabrew isolation is positive, but no production core or runtime-qualified typed decision/observation boundary is admitted."
 }

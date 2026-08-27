@@ -1,11 +1,15 @@
 name: Greenfield Forge raw transport hidden-info red-team
 
 on:
+  workflow_dispatch: {}
   push:
     branches:
       - research/greenfield-engine-shootout-20260827
     paths:
       - '.github/workflows/greenfield-forge-hidden-info-redteam.yml'
+      - '.github/workflows/greenfield-forge-strict-remote-qualification.yml'
+      - 'research/greenfield-qualification/forge-patches/**'
+      - 'research/greenfield-qualification/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.json'
 
 permissions:
   contents: read
@@ -15,12 +19,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout the exact qualification revision
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 1
+      - name: Checkout the exact Forge research pin
+        uses: actions/checkout@v4
         with:
           repository: Card-Forge/forge
           ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
           path: forge
           fetch-depth: 1
+      - name: Materialize provenance and apply the research boundary patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C forge rev-parse HEAD)" = 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          mkdir -p artifacts/forge-hidden-info
+          printf '%s\n' "$(git -C qual rev-parse HEAD)" > artifacts/forge-hidden-info/source_head.txt
+          printf '%s\n' "$(git -C qual rev-parse 'HEAD^{tree}')" > artifacts/forge-hidden-info/source_tree.txt
+          bash qual/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge qual/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee artifacts/forge-hidden-info/patch-apply.log
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -112,6 +134,38 @@ jobs:
         if: always()
         shell: bash
         run: |
+          cd artifacts/forge-hidden-info
+          find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true
+      - name: Materialize fail-closed hidden-information result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+          root=Path('artifacts/forge-hidden-info')
+          log=(root/'test.log').read_text(errors='replace') if (root/'test.log').exists() else ''
+          match=re.findall(r'RAW_HIDDEN_INFO_LEAK_COUNT=(\d+)', log)
+          count=int(match[-1]) if match else None
+          exit_code=(root/'test.exit').read_text().strip() if (root/'test.exit').exists() else None
+          result={
+            'schema':'commander-simulator-next.hidden-information-assay.v2',
+            'source_head':(root/'source_head.txt').read_text().strip() if (root/'source_head.txt').exists() else None,
+            'source_tree':(root/'source_tree.txt').read_text().strip() if (root/'source_tree.txt').exists() else None,
+            'forge_pin':'8c7e9afb8e6caee88644b94e25da5852e36f8928',
+            'raw_hidden_identity_leak_count':count,
+            'test_exit':exit_code,
+            'status':'PASS' if count == 0 and exit_code == '0' else ('FAIL' if count is not None else 'NOT_RUN'),
+            'raw_stdout_stderr_as_replay_criterion':False,
+          }
+          (root/'HIDDEN_INFORMATION_GATE.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+          PY
+      - name: Rehash evidence including the machine-readable gate
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
           cd artifacts/forge-hidden-info
           find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true
       - name: Upload

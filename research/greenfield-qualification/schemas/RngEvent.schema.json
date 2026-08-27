@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "commander-simulator-next.rng-event.v1",
+  "title": "Commander Simulator Next RngEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "stream", "draw_index", "bound", "value"],
+  "properties": {
+    "event_id": {"type": "integer", "minimum": 1},
+    "stream": {"type": "string", "minLength": 1},
+    "draw_index": {"type": "integer", "minimum": 0},
+    "bound": {"type": "integer", "minimum": 1},
+    "value": {"type": "integer", "minimum": 0},
+    "semantic_context": {"type": "object"}
+  }
+}

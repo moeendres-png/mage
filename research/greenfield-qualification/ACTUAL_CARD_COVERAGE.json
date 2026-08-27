@@ -1,14 +1,27 @@
 {
-  "schema":"commander-simulator-next.actual-card-coverage.closeout-v1",
-  "status":"INSUFFICIENT_EVIDENCE",
-  "known_relevant_card_total":"NOT_COMPUTABLE_FROM_CURRENT_INCOMPLETE_MERGED_MANIFEST",
-  "full":"NOT_COMPUTABLE",
-  "partial":"NOT_COMPUTABLE",
-  "unknown":"NOT_COMPUTABLE",
-  "unsupported":"NOT_COMPUTABLE",
-  "production_reachable_unknown":"NOT_ESTABLISHED_ZERO",
-  "production_reachable_partial":"NOT_ESTABLISHED_ZERO",
-  "production_reachable_unsupported":"NOT_ESTABLISHED_ZERO",
-  "source_presence_evidence":{"forge_card_index_run":33090672334,"artifact_id":9654200891,"classification":"SOURCE_INDEX_ONLY"},
-  "reason":"Presence/script indexing and deck loading do not prove executable, decision-complete, hidden-info-safe, replay-safe behavior. The external decision boundary and merged Oracle requirement manifest are not complete."
+  "schema": "commander-simulator-next.actual-card-coverage.closeout-v2",
+  "status": "INSUFFICIENT_EVIDENCE",
+  "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+  "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e",
+  "external_pins": {"forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"},
+  "scryfall_upstream_index": {
+    "status": "PASS",
+    "oracle_identity_count": 38626,
+    "bulk_updated_at": "2026-08-27T21:01:57.237+00:00",
+    "payload_sha256": "1f798bf1cae3129f46219d71fc9e0b04e593430f8c6b0acde0711b9c1ca679df"
+  },
+  "requirement_union": {
+    "status": "NOT_RUN",
+    "target_count": 1721,
+    "computed_oracle_id_count": 0,
+    "artifact": "ACTUAL_CARD_REQUIREMENT_UNION.json",
+    "reason": "Available source files are descriptor-only and contain no materialized oracle_id rows."
+  },
+  "per_identity_flags": ["PRESENT", "LOADABLE", "EXECUTABLE", "DECISION_COMPLETE", "HIDDEN_INFO_SAFE", "REPLAY_SAFE", "behavioral_evidence"],
+  "coverage_counts": {"full": "NOT_COMPUTABLE", "partial": "NOT_COMPUTABLE", "unknown": "NOT_COMPUTABLE", "unsupported": "NOT_COMPUTABLE"},
+  "production_reachable_unknown": "NOT_ESTABLISHED_ZERO",
+  "production_reachable_partial": "NOT_ESTABLISHED_ZERO",
+  "production_reachable_unsupported": "NOT_ESTABLISHED_ZERO",
+  "synthetic_promotion": false,
+  "reason": "The live Scryfall index is complete as an upstream source, but the project-specific 1,721-identity union and behavior evidence are not materialized. No name-based promotion or card-name hack is admitted."
 }

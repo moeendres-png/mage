@@ -1,55 +1,157 @@
-name: Greenfield neutral Scryfall Oracle identity index
+name: Greenfield neutral Scryfall Oracle identity qualification
+
 on:
+  workflow_dispatch: {}
   push:
     branches: [research/greenfield-engine-shootout-20260827]
-    paths: ['.github/workflows/greenfield-scryfall-oracle-index.yml']
+    paths:
+      - '.github/workflows/greenfield-scryfall-oracle-index.yml'
+      - 'research/greenfield-qualification/ACTUAL_CARD_REQUIREMENT_MANIFEST.json'
+      - 'research/greenfield-qualification/materialize_card_manifest.py'
+      - 'research/greenfield-qualification/test_materialize_card_manifest.py'
+      - 'research/greenfield-qualification/scryfall_oracle_index.py'
+
 permissions:
   contents: read
+
 jobs:
   index:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
+      - name: Checkout the exact qualification revision
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 1
+
+      - name: Materialize source provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
+          mkdir -p artifacts/scryfall-oracle
+          printf '%s\n' "$(git -C qual rev-parse HEAD)" > artifacts/scryfall-oracle/source_head.txt
+          printf '%s\n' "$(git -C qual rev-parse 'HEAD^{tree}')" > artifacts/scryfall-oracle/source_tree.txt
+
       - name: Discover current Oracle Cards bulk data
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/scryfall-oracle
-          curl --fail --silent --show-error --location -H 'User-Agent: commander-simulator-next-research/1.0' -H 'Accept: application/json' https://api.scryfall.com/bulk-data -o artifacts/scryfall-oracle/bulk-list.json
+          curl --fail --silent --show-error --location \
+            -H 'User-Agent: commander-simulator-next-research/2.0' \
+            -H 'Accept: application/json' \
+            https://api.scryfall.com/bulk-data -o artifacts/scryfall-oracle/bulk-list.json
           python3 - <<'PY'
           import json
-          m=json.load(open('artifacts/scryfall-oracle/bulk-list.json'))
-          hits=[x for x in m.get('data',[]) if x.get('type')=='oracle_cards']
-          if len(hits)!=1: raise SystemExit(f'expected one oracle_cards descriptor, got {len(hits)}')
-          meta=hits[0]; uri=meta.get('jsonl_download_uri') or meta.get('download_uri')
-          if not uri: raise SystemExit(f'missing bulk URI; keys={sorted(meta)}')
-          json.dump(meta,open('artifacts/scryfall-oracle/meta.json','w'),ensure_ascii=False,indent=2,sort_keys=True)
-          open('artifacts/scryfall-oracle/download_uri.txt','w').write(uri+'\n')
+          from pathlib import Path
+          metadata = json.loads(Path('artifacts/scryfall-oracle/bulk-list.json').read_text())
+          hits = [item for item in metadata.get('data', []) if item.get('type') == 'oracle_cards']
+          if len(hits) != 1:
+              raise SystemExit(f'expected one oracle_cards descriptor, got {len(hits)}')
+          descriptor = hits[0]
+          uri = descriptor.get('jsonl_download_uri') or descriptor.get('download_uri')
+          if not uri:
+              raise SystemExit(f'missing bulk URI; keys={sorted(descriptor)}')
+          Path('artifacts/scryfall-oracle/meta.json').write_text(json.dumps({
+              'schema': 'commander-simulator-next.scryfall-bulk-source.v2',
+              'type': descriptor.get('type'),
+              'updated_at': descriptor.get('updated_at'),
+              'updated_at_unix': descriptor.get('updated_at_unix'),
+              'download_uri': uri,
+              'size': descriptor.get('size'),
+              'content_type': descriptor.get('content_type'),
+          }, indent=2, sort_keys=True) + '\n')
+          Path('artifacts/scryfall-oracle/download_uri.txt').write_text(uri + '\n')
           PY
-      - name: Download decompress and emit neutral identity index
+
+      - name: Download and robustly decompress the bulk payload
         shell: bash
         run: |
           set -euo pipefail
           uri=$(cat artifacts/scryfall-oracle/download_uri.txt)
-          curl --fail --silent --show-error --location -H 'User-Agent: commander-simulator-next-research/1.0' "$uri" -o /tmp/oracle-cards.payload
-          magic=$(od -An -tx1 -N2 /tmp/oracle-cards.payload | tr -d ' \n')
-          if [ "$magic" = "1f8b" ]; then gzip -dc /tmp/oracle-cards.payload > /tmp/oracle-cards.jsonl; else cp /tmp/oracle-cards.payload /tmp/oracle-cards.jsonl; fi
+          curl --fail --silent --show-error --location \
+            -H 'User-Agent: commander-simulator-next-research/2.0' "$uri" \
+            -o /tmp/oracle-cards.payload
+          magic=$(python3 -c "from pathlib import Path; raw=Path('/tmp/oracle-cards.payload').read_bytes(); print('1f8b' if raw[:2] == b'\\x1f\\x8b' else (raw.lstrip()[:1] or b'').decode('ascii', 'replace'))")
+          case "$magic" in
+            1f8b)
+              gzip -t /tmp/oracle-cards.payload
+              gzip -dc /tmp/oracle-cards.payload > /tmp/oracle-cards.jsonl
+              ;;
+            '['|'{')
+              cp /tmp/oracle-cards.payload /tmp/oracle-cards.jsonl
+              ;;
+            *)
+              echo "unexpected bulk payload magic: $magic" >&2
+              exit 1
+              ;;
+          esac
+          sha256sum /tmp/oracle-cards.payload | awk '{print $1}' > artifacts/scryfall-oracle/payload_sha256.txt
+
+      - name: Emit a deduplicated neutral Oracle identity index
+        shell: bash
+        run: |
+          set -euo pipefail
+          updated_at=$(python3 -c "import json; print(json.load(open('artifacts/scryfall-oracle/meta.json'))['updated_at'])")
+          python3 qual/research/greenfield-qualification/scryfall_oracle_index.py \
+            --payload /tmp/oracle-cards.payload \
+            --out artifacts/scryfall-oracle/index.json \
+            --source-head "$(cat artifacts/scryfall-oracle/source_head.txt)" \
+            --source-tree "$(cat artifacts/scryfall-oracle/source_tree.txt)" \
+            --bulk-updated-at "$updated_at" \
+            --bulk-download-uri "$(cat artifacts/scryfall-oracle/download_uri.txt)"
+
+      - name: Compute the relevant requirement union without synthetic promotion
+        id: union
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          python3 qual/research/greenfield-qualification/materialize_card_manifest.py \
+            --manifest qual/research/greenfield-qualification/ACTUAL_CARD_REQUIREMENT_MANIFEST.json \
+            --oracle-index artifacts/scryfall-oracle/index.json \
+            --source-head "$(cat artifacts/scryfall-oracle/source_head.txt)" \
+            --source-tree "$(cat artifacts/scryfall-oracle/source_tree.txt)" \
+            --forge-pin 8c7e9afb8e6caee88644b94e25da5852e36f8928 \
+            --out artifacts/scryfall-oracle/ACTUAL_CARD_REQUIREMENT_UNION.json
+          code=$?
+          set -e
+          printf 'union_exit_code=%s\n' "$code" > artifacts/scryfall-oracle/union_status.env
+          if [ "$code" -eq 1 ]; then
+            echo 'UNION_STATUS=FAIL' >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$code" -eq 2 ]; then
+            echo 'UNION_STATUS=NOT_RUN (required source fragments are not materialized)' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Keep the union gate fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          source artifacts/scryfall-oracle/union_status.env
+          test "$union_exit_code" != 1
           python3 - <<'PY'
           import json
-          rows=[]
-          with open('/tmp/oracle-cards.jsonl',encoding='utf-8') as f:
-            for line in f:
-              if not line.strip(): continue
-              c=json.loads(line)
-              rows.append({'name':c.get('name'),'oracle_id':c.get('oracle_id'),'scryfall_id':c.get('id'),'commander_legality':(c.get('legalities') or {}).get('commander'),'color_identity':c.get('color_identity'),'type_line':c.get('type_line')})
-          rows.sort(key=lambda r:(r['name'] or '').casefold())
-          if not rows: raise SystemExit('empty Oracle index')
-          json.dump({'schema':'commander-simulator-next.scryfall-oracle-index.v1','count':len(rows),'cards':rows},open('artifacts/scryfall-oracle/index.json','w'),ensure_ascii=False,separators=(',',':'))
-          print('oracle_rows=',len(rows))
+          from pathlib import Path
+          union=json.loads(Path('artifacts/scryfall-oracle/ACTUAL_CARD_REQUIREMENT_UNION.json').read_text())
+          assert union['gate']['synthetic_promotion'] is False
+          print('TARGET_COUNT_FROM_MANIFEST=', union['target_count'])
+          print('COMPUTED_ORACLE_ID_COUNT=', union['computed_oracle_id_count'])
+          print('UNION_STATUS=', union['status'])
           PY
-          (cd artifacts/scryfall-oracle && sha256sum bulk-list.json meta.json download_uri.txt index.json > hashes.sha256)
-      - uses: actions/upload-artifact@v4
+
+      - name: Hash current Scryfall and union evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find artifacts/scryfall-oracle -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > artifacts/scryfall-oracle/hashes.sha256 || true
+
+      - name: Upload current Scryfall qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: greenfield-scryfall-oracle-index
+          name: greenfield-scryfall-oracle-qualification
           path: artifacts/scryfall-oracle
           if-no-files-found: error

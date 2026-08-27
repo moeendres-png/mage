@@ -1,9 +1,14 @@
 {
-  "schema":"commander-simulator-next.hidden-information-assay.closeout-v1",
-  "complete":false,
-  "gate":"FAIL_OR_INSUFFICIENT_EVIDENCE",
-  "forge":{"pin":"8c7e9afb8e6caee88644b94e25da5852e36f8928","raw_transport_run":33095565820,"artifact_id":9656277015,"game_started":true,"game_completed":true,"raw_hidden_identity_leak_count":74,"classification":"BACKEND_TRANSPORT_LEAK_CONFIRMED__PILOT_BOUNDARY_NOT_YET_QUALIFIED"},
-  "xmage":{"run":33089884301,"principal_scoped_external_observation_runtime_gate":false},
-  "pilot_visible_hidden_info_leaks":"ZERO_NOT_PROVEN",
-  "reason":"No finalist currently has a qualified principal-scoped external-pilot boundary through which a zero-leak runtime assay can be completed."
+  "schema": "commander-simulator-next.hidden-information-assay.closeout-v2",
+  "complete": false,
+  "gate": "FAIL_OR_INSUFFICIENT_EVIDENCE",
+  "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+  "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e",
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "historical_raw_transport": {"run": 33095565820, "artifact_id": 9656277015, "game_started": true, "game_completed": true, "raw_hidden_identity_leak_count": 74, "reused_as_current_proof": false},
+  "strict_boundary_current": {"server_typed_entity_seam": "PASS_STATIC_AND_COMPILE_ONLY", "principal_scoped_runtime_assay": "NOT_RUN"},
+  "pilot_visible_hidden_info_leaks": "ZERO_NOT_PROVEN",
+  "required_red_team_surfaces": ["raw_transport", "observations", "logs", "exceptions", "ids", "hashes", "replay", "debug_output"],
+  "current_leak_count": "NOT_RUN",
+  "reason": "The strict entity seam compiles, but the full typed decision/observation boundary has not been runtime-qualified. The historical raw Forge transport leak remains a confirmed negative control."
 }

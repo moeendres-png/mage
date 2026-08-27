@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "commander-simulator-next.decision-response.v1",
+  "title": "Commander Simulator Next DecisionResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision_id", "token", "actor", "principal", "response_schema", "selected_option_ids", "cancel"],
+  "properties": {
+    "decision_id": {"type": "integer", "minimum": 1},
+    "token": {"type": "integer", "minimum": 1},
+    "actor": {"type": "string", "minLength": 1},
+    "principal": {"type": "string", "minLength": 1},
+    "response_schema": {"type": "string", "minLength": 1},
+    "selected_option_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "cancel": {"type": "boolean"}
+  }
+}

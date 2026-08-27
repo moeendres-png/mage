@@ -1,9 +1,13 @@
 {
-  "schema":"commander-simulator-next.semantic-replay-gate.closeout-v1",
-  "status":"NOT_RUN",
-  "pass":false,
-  "required":"fresh process A records action+rng tape; fresh processes B and C replay identical tapes with identical canonical semantic trajectories at every decision/event boundary",
-  "existing_evidence":"Forge source census explicitly sets event_tape_runtime_qualified=false",
-  "rerun_previous_tests":false,
-  "next_dependency":"DECISION_EXTERNALIZATION"
+  "schema": "commander-simulator-next.semantic-replay-gate.closeout-v2",
+  "status": "NOT_RUN",
+  "pass": false,
+  "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+  "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e",
+  "external_pins": {"forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"},
+  "required": "three fresh processes with identical canonical state digests, named RNG events, and decision events at every semantic boundary",
+  "current_implementation": {"semantic_replay.py": "PRESENT", "tape_contract.py": "PRESENT", "raw_stdout_stderr_as_criterion": false},
+  "runtime_evidence": {"canonical_state_digests": "MISSING", "rng_events": "MISSING", "decision_tape": "MISSING"},
+  "reason": "The current Forge CLI probe emits terminal text only. Fresh-process logs are retained for forensics but are never compared as replay evidence.",
+  "next_dependency": "FULL_DECISION_CENSUS_AND_TYPED_CALLBACK_COVERAGE"
 }

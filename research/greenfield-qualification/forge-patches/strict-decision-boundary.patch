@@ -1,0 +1,1073 @@
+diff --git a/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionProvider.java b/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionProvider.java
+new file mode 100644
+index 00000000..4e1b61d8
+--- /dev/null
++++ b/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionProvider.java
+@@ -0,0 +1,11 @@
++package forge.gamemodes.match.input;
++
++/**
++ * Supplies an explicit response for a server-owned decision.  Implementations
++ * must not infer legal options; the request is already the authoritative option
++ * set produced by the active Forge input.
++ */
++@FunctionalInterface
++public interface ExternalDecisionProvider {
++    ExternalDecisionResponse decide(ExternalDecisionRequest request);
++}
+diff --git a/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionRequest.java b/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionRequest.java
+new file mode 100644
+index 00000000..0238a4c3
+--- /dev/null
++++ b/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionRequest.java
+@@ -0,0 +1,146 @@
++package forge.gamemodes.match.input;
++
++import forge.game.GameEntity;
++import forge.game.card.Card;
++import forge.game.player.Player;
++
++import java.io.Serializable;
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Locale;
++import java.util.Map;
++
++/**
++ * Immutable, principal-scoped description of one authoritative Forge input.
++ * No prompt text, full GameView, CardView, or hidden card payload is carried by
++ * this contract.
++ */
++public final class ExternalDecisionRequest implements Serializable {
++    private static final long serialVersionUID = 1L;
++
++    public static final String RESPONSE_SCHEMA = "commander-simulator-next.entity-selection.v1";
++    public static final String VISIBILITY_PRINCIPAL_ONLY = "PRINCIPAL_ONLY";
++
++    private final long decisionId;
++    private final long token;
++    private final String decisionKind;
++    private final int actorId;
++    private final int principalId;
++    private final String visibilityScope;
++    private final List<Option> options;
++    private final int minimumSelection;
++    private final int maximumSelection;
++    private final boolean cancelAllowed;
++    private final Map<String, String> constraints;
++    private final String responseSchema;
++    private final Map<String, String> semanticContext;
++
++    public ExternalDecisionRequest(final long decisionId, final long token, final String decisionKind,
++                                   final int actorId, final int principalId, final String visibilityScope,
++                                   final List<Option> options, final int minimumSelection,
++                                   final int maximumSelection, final boolean cancelAllowed,
++                                   final Map<String, String> constraints, final String responseSchema,
++                                   final Map<String, String> semanticContext) {
++        if (decisionId < 1 || token < 1) {
++            throw new IllegalArgumentException("decision id and token must be positive");
++        }
++        if (isBlank(decisionKind) || isBlank(visibilityScope) || isBlank(responseSchema)) {
++            throw new IllegalArgumentException("decision kind, visibility scope, and response schema are required");
++        }
++        if (actorId < 0 || principalId < 0) {
++            throw new IllegalArgumentException("actor and principal ids must be non-negative");
++        }
++        if (options == null || minimumSelection < 0 || maximumSelection < minimumSelection
++                || maximumSelection > options.size()) {
++            throw new IllegalArgumentException("invalid exact option set or selection bounds");
++        }
++        final List<Option> copy = new ArrayList<>(options);
++        for (int i = 0; i < copy.size(); i++) {
++            final Option option = copy.get(i);
++            if (option == null) {
++                throw new IllegalArgumentException("decision option cannot be null");
++            }
++            for (int j = 0; j < i; j++) {
++                if (copy.get(j).getOptionId().equals(option.getOptionId())) {
++                    throw new IllegalArgumentException("decision option ids must be unique");
++                }
++            }
++        }
++        this.decisionId = decisionId;
++        this.token = token;
++        this.decisionKind = decisionKind;
++        this.actorId = actorId;
++        this.principalId = principalId;
++        this.visibilityScope = visibilityScope;
++        this.options = Collections.unmodifiableList(copy);
++        this.minimumSelection = minimumSelection;
++        this.maximumSelection = maximumSelection;
++        this.cancelAllowed = cancelAllowed;
++        this.constraints = Collections.unmodifiableMap(new LinkedHashMap<>(constraints == null
++                ? Collections.emptyMap() : constraints));
++        this.responseSchema = responseSchema;
++        if (semanticContext == null) {
++            throw new IllegalArgumentException("semantic context is required");
++        }
++        this.semanticContext = Collections.unmodifiableMap(new LinkedHashMap<>(semanticContext));
++    }
++
++    public static String optionIdFor(final GameEntity entity) {
++        if (entity == null) {
++            throw new IllegalArgumentException("entity cannot be null");
++        }
++        final String kind = entity instanceof Player ? "player" : entity instanceof Card ? "card" : "entity";
++        return kind + ":" + entity.getId();
++    }
++
++    public static String optionKindFor(final GameEntity entity) {
++        if (entity instanceof Player) return "PLAYER";
++        if (entity instanceof Card) return "CARD";
++        return "ENTITY";
++    }
++
++    private static boolean isBlank(final String value) {
++        return value == null || value.trim().isEmpty();
++    }
++
++    public long getDecisionId() { return decisionId; }
++    public long getToken() { return token; }
++    public String getDecisionKind() { return decisionKind; }
++    public int getActorId() { return actorId; }
++    public int getPrincipalId() { return principalId; }
++    public String getVisibilityScope() { return visibilityScope; }
++    public List<Option> getOptions() { return options; }
++    public int getMinimumSelection() { return minimumSelection; }
++    public int getMaximumSelection() { return maximumSelection; }
++    public boolean isCancelAllowed() { return cancelAllowed; }
++    public Map<String, String> getConstraints() { return constraints; }
++    public String getResponseSchema() { return responseSchema; }
++    public Map<String, String> getSemanticContext() { return semanticContext; }
++
++    public static final class Option implements Serializable {
++        private static final long serialVersionUID = 1L;
++        private final String optionId;
++        private final String entityKind;
++        private final int entityId;
++
++        public Option(final String optionId, final String entityKind, final int entityId) {
++            if (isBlank(optionId) || isBlank(entityKind) || entityId < 0) {
++                throw new IllegalArgumentException("option id, entity kind, and entity id are required");
++            }
++            final String normalizedKind = entityKind.trim().toUpperCase(Locale.ROOT);
++            final String expectedOptionId = normalizedKind.toLowerCase(Locale.ROOT) + ":" + entityId;
++            if (!expectedOptionId.equals(optionId)) {
++                throw new IllegalArgumentException("option id must be type-qualified by entity kind and id");
++            }
++            this.optionId = optionId;
++            this.entityKind = normalizedKind;
++            this.entityId = entityId;
++        }
++
++        public String getOptionId() { return optionId; }
++        public String getEntityKind() { return entityKind; }
++        public int getEntityId() { return entityId; }
++    }
++}
+diff --git a/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionResponse.java b/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionResponse.java
+new file mode 100644
+index 00000000..dedc8ad5
+--- /dev/null
++++ b/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionResponse.java
+@@ -0,0 +1,40 @@
++package forge.gamemodes.match.input;
++
++import java.io.Serializable;
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.List;
++
++/** Explicit response to one ExternalDecisionRequest. */
++public final class ExternalDecisionResponse implements Serializable {
++    private static final long serialVersionUID = 1L;
++
++    private final long decisionId;
++    private final long token;
++    private final int actorId;
++    private final int principalId;
++    private final String responseSchema;
++    private final List<String> selectedOptionIds;
++    private final boolean cancel;
++
++    public ExternalDecisionResponse(final long decisionId, final long token, final int actorId,
++                                    final int principalId, final String responseSchema,
++                                    final List<String> selectedOptionIds, final boolean cancel) {
++        this.decisionId = decisionId;
++        this.token = token;
++        this.actorId = actorId;
++        this.principalId = principalId;
++        this.responseSchema = responseSchema;
++        this.selectedOptionIds = selectedOptionIds == null
++                ? null : Collections.unmodifiableList(new ArrayList<>(selectedOptionIds));
++        this.cancel = cancel;
++    }
++
++    public long getDecisionId() { return decisionId; }
++    public long getToken() { return token; }
++    public int getActorId() { return actorId; }
++    public int getPrincipalId() { return principalId; }
++    public String getResponseSchema() { return responseSchema; }
++    public List<String> getSelectedOptionIds() { return selectedOptionIds; }
++    public boolean isCancel() { return cancel; }
++}
+diff --git a/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionValidationException.java b/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionValidationException.java
+new file mode 100644
+index 00000000..74a8ae15
+--- /dev/null
++++ b/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionValidationException.java
+@@ -0,0 +1,28 @@
++package forge.gamemodes.match.input;
++
++/** A response was rejected without applying a selection to the active input. */
++public final class ExternalDecisionValidationException extends RuntimeException {
++    public enum Code {
++        MISSING_RESPONSE,
++        NULL_RESPONSE,
++        MALFORMED_RESPONSE,
++        STALE_RESPONSE,
++        WRONG_ACTOR,
++        WRONG_PRINCIPAL,
++        ILLEGAL_OPTION,
++        INVALID_SELECTION_COUNT,
++        CANCEL_NOT_ALLOWED,
++        DECISION_CONSUMED,
++        TIMEOUT,
++        UNSUPPORTED_DECISION_PATH
++    }
++
++    private final Code code;
++
++    public ExternalDecisionValidationException(final Code code, final String message) {
++        super(code + ": " + message);
++        this.code = code;
++    }
++
++    public Code getCode() { return code; }
++}
+diff --git a/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionValidator.java b/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionValidator.java
+new file mode 100644
+index 00000000..16d99799
+--- /dev/null
++++ b/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionValidator.java
+@@ -0,0 +1,85 @@
++package forge.gamemodes.match.input;
++
++import java.util.HashSet;
++import java.util.List;
++import java.util.Set;
++
++/** Server-side validation for the typed decision contract. */
++public final class ExternalDecisionValidator {
++    private ExternalDecisionValidator() { }
++
++    public static void validateMissing(final ExternalDecisionRequest request) {
++        if (request == null) {
++            throw error(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
++                    "no authoritative decision request is open");
++        }
++        throw error(ExternalDecisionValidationException.Code.MISSING_RESPONSE,
++                "response envelope is missing");
++    }
++
++    public static List<String> validate(final ExternalDecisionRequest request,
++                                        final ExternalDecisionResponse response,
++                                        final long currentToken, final int currentActor,
++                                        final int currentPrincipal, final boolean consumed,
++                                        final boolean timedOut) {
++        if (request == null) {
++            throw error(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
++                    "no authoritative decision request is open");
++        }
++        if (timedOut) {
++            throw error(ExternalDecisionValidationException.Code.TIMEOUT, "decision deadline elapsed");
++        }
++        if (consumed) {
++            throw error(ExternalDecisionValidationException.Code.DECISION_CONSUMED, "decision was already consumed");
++        }
++        if (response == null) {
++            throw error(ExternalDecisionValidationException.Code.NULL_RESPONSE, "response is null");
++        }
++        if (response.getToken() != currentToken || response.getToken() != request.getToken()
++                || response.getDecisionId() != request.getDecisionId()) {
++            throw error(ExternalDecisionValidationException.Code.STALE_RESPONSE, "response does not match current request");
++        }
++        if (response.getActorId() != currentActor || response.getActorId() != request.getActorId()) {
++            throw error(ExternalDecisionValidationException.Code.WRONG_ACTOR, "response actor does not match current actor");
++        }
++        if (response.getPrincipalId() != currentPrincipal || response.getPrincipalId() != request.getPrincipalId()) {
++            throw error(ExternalDecisionValidationException.Code.WRONG_PRINCIPAL, "response principal does not match current principal");
++        }
++        if (!request.getResponseSchema().equals(response.getResponseSchema())
++                || response.getSelectedOptionIds() == null) {
++            throw error(ExternalDecisionValidationException.Code.MALFORMED_RESPONSE, "response schema or selection list is malformed");
++        }
++
++        final List<String> selected = response.getSelectedOptionIds();
++        final Set<String> legal = new HashSet<>();
++        for (ExternalDecisionRequest.Option option : request.getOptions()) {
++            legal.add(option.getOptionId());
++        }
++        final Set<String> seen = new HashSet<>();
++        for (String optionId : selected) {
++            if (optionId == null || optionId.isEmpty() || !legal.contains(optionId) || !seen.add(optionId)) {
++                throw error(ExternalDecisionValidationException.Code.ILLEGAL_OPTION,
++                        "selection is not a unique member of the authoritative option set");
++            }
++        }
++        if (response.isCancel()) {
++            if (!selected.isEmpty()) {
++                throw error(ExternalDecisionValidationException.Code.MALFORMED_RESPONSE,
++                        "cancel cannot include selections");
++            }
++            if (!request.isCancelAllowed()) {
++                throw error(ExternalDecisionValidationException.Code.CANCEL_NOT_ALLOWED, "cancel is not legal");
++            }
++        } else if (selected.size() < request.getMinimumSelection()
++                || selected.size() > request.getMaximumSelection()) {
++            throw error(ExternalDecisionValidationException.Code.INVALID_SELECTION_COUNT,
++                    "selection count is outside the authoritative bounds");
++        }
++        return selected;
++    }
++
++    private static ExternalDecisionValidationException error(final ExternalDecisionValidationException.Code code,
++                                                             final String message) {
++        return new ExternalDecisionValidationException(code, message);
++    }
++}
+diff --git a/forge-gui/src/main/java/forge/gamemodes/match/input/InputProxy.java b/forge-gui/src/main/java/forge/gamemodes/match/input/InputProxy.java
+index 1c425796..ccb7de5a 100644
+--- a/forge-gui/src/main/java/forge/gamemodes/match/input/InputProxy.java
++++ b/forge-gui/src/main/java/forge/gamemodes/match/input/InputProxy.java
+@@ -61,6 +61,12 @@ public class InputProxy implements Observer {
+                             game.getPhaseHandler().debugPrintState(), Singletons.getControl().getInputQueue().printInputStack());
+ */
+         input.set(nextInput);
++        if (controller.hasExternalDecisionProvider()) {
++            // The external decision boundary receives the authoritative input
++            // directly. Do not render prompt text, selectable CardViews, zones,
++            // or buttons on the GUI path while strict mode is active.
++            return;
++        }
+         if (!(nextInput instanceof InputLockUI)) {
+             controller.getGui().setCurrentPlayer(nextInput.getOwner());
+         }
+diff --git a/forge-gui/src/main/java/forge/gamemodes/match/input/InputSelectEntitiesFromList.java b/forge-gui/src/main/java/forge/gamemodes/match/input/InputSelectEntitiesFromList.java
+index fc101811..0f99a22a 100644
+--- a/forge-gui/src/main/java/forge/gamemodes/match/input/InputSelectEntitiesFromList.java
++++ b/forge-gui/src/main/java/forge/gamemodes/match/input/InputSelectEntitiesFromList.java
+@@ -24,7 +24,9 @@ import forge.util.collect.FCollectionView;
+ 
+ import java.util.ArrayList;
+ import java.util.Collection;
++import java.util.HashSet;
+ import java.util.List;
++import java.util.Set;
+ 
+ public class InputSelectEntitiesFromList<T extends GameEntity> extends InputSelectManyBase<T> {
+     private static final long serialVersionUID = -6609493252672573139L;
+@@ -48,24 +50,26 @@ public class InputSelectEntitiesFromList<T extends GameEntity> extends InputSele
+         if (min > validChoices.size()) { // pfps does this really do anything useful??
+             System.out.printf("Trying to choose at least %d things from a list with only %d things!%n", min, validChoices.size());
+         }
+-        ArrayList<CardView> vCards = new ArrayList<>();
+-        for (T v : validChoices0) {
+-            if (v instanceof Card c) {
+-                vCards.add(c.getView());
++        if (!getController().hasExternalDecisionProvider()) {
++            ArrayList<CardView> vCards = new ArrayList<>();
++            for (T v : validChoices0) {
++                if (v instanceof Card c) {
++                    vCards.add(c.getView());
++                }
+             }
+-        }
+-        getController().getGui().setSelectables(vCards, this.min, this.max);
+-        final PlayerZoneUpdates zonesToUpdate = new PlayerZoneUpdates();
+-        for (final GameEntity ge : validChoices) {
+-            final Zone cz = ge instanceof Card c ? c.getLastKnownZone() : null;
+-            if (cz != null) {
+-                zonesToUpdate.add(new PlayerZoneUpdate(cz.getPlayer().getView(), cz.getZoneType()));
++            getController().getGui().setSelectables(vCards, this.min, this.max);
++            final PlayerZoneUpdates zonesToUpdate = new PlayerZoneUpdates();
++            for (final GameEntity ge : validChoices) {
++                final Zone cz = ge instanceof Card c ? c.getLastKnownZone() : null;
++                if (cz != null) {
++                    zonesToUpdate.add(new PlayerZoneUpdate(cz.getPlayer().getView(), cz.getZoneType()));
++                }
+             }
++            FThreads.invokeInEdtNowOrLater(() -> {
++                getController().getGui().updateZones(zonesToUpdate);
++                zonesShown = getController().getGui().tempShowZones(controller.getPlayer().getView(), zonesToUpdate);
++            });
+         }
+-        FThreads.invokeInEdtNowOrLater(() -> {
+-            getController().getGui().updateZones(zonesToUpdate);
+-            zonesShown = getController().getGui().tempShowZones(controller.getPlayer().getView(), zonesToUpdate);
+-        });
+     }
+ 
+     @Override
+@@ -110,6 +114,64 @@ public class InputSelectEntitiesFromList<T extends GameEntity> extends InputSele
+         return validChoices;
+     }
+ 
++    /**
++     * Apply an already validated external response to this authoritative input.
++     * The membership check is repeated here so a future caller cannot bypass the
++     * current input's exact option set between request creation and application.
++     */
++    public final void applyExternalSelection(final List<String> optionIds) {
++        if (isFinished()) {
++            throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.STALE_RESPONSE,
++                    "input is already finished");
++        }
++        if (optionIds == null) {
++            throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.NULL_RESPONSE,
++                    "selection list is null");
++        }
++        if (optionIds.size() < min || optionIds.size() > max) {
++            throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.INVALID_SELECTION_COUNT,
++                    "selection count is outside the input bounds");
++        }
++        final Set<String> seen = new HashSet<>();
++        final List<T> resolved = new ArrayList<>();
++        for (String optionId : optionIds) {
++            if (optionId == null || !seen.add(optionId)) {
++                throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.ILLEGAL_OPTION,
++                        "selection contains a null or duplicate option");
++            }
++            T matched = null;
++            for (T candidate : validChoices) {
++                if (ExternalDecisionRequest.optionIdFor(candidate).equals(optionId)) {
++                    matched = candidate;
++                    break;
++                }
++            }
++            if (matched == null) {
++                throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.ILLEGAL_OPTION,
++                        "selection is not a member of validChoices");
++            }
++            resolved.add(matched);
++        }
++        selected.clear();
++        selected.addAll(resolved);
++        bCancelled = false;
++        stop();
++    }
++
++    public final void applyExternalCancel() {
++        if (isFinished()) {
++            throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.STALE_RESPONSE,
++                    "input is already finished");
++        }
++        if (!allowCancel) {
++            throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.CANCEL_NOT_ALLOWED,
++                    "cancel is not legal for this input");
++        }
++        bCancelled = true;
++        selected.clear();
++        stop();
++    }
++
+     @SuppressWarnings("unchecked")
+     protected boolean selectEntity(final GameEntity c) {
+         if (!validChoices.contains(c)) {
+@@ -167,8 +229,10 @@ public class InputSelectEntitiesFromList<T extends GameEntity> extends InputSele
+ 
+     @Override
+     protected void onStop() {
+-        getController().getGui().hideZones(getController().getPlayer().getView(),zonesShown);  
+-        getController().getGui().clearSelectables();
++        if (!getController().hasExternalDecisionProvider()) {
++            getController().getGui().hideZones(getController().getPlayer().getView(),zonesShown);
++            getController().getGui().clearSelectables();
++        }
+         super.onStop();
+     }
+ 
+diff --git a/forge-gui/src/main/java/forge/gamemodes/match/input/InputSyncronizedBase.java b/forge-gui/src/main/java/forge/gamemodes/match/input/InputSyncronizedBase.java
+index 014cb5db..bbf92839 100644
+--- a/forge-gui/src/main/java/forge/gamemodes/match/input/InputSyncronizedBase.java
++++ b/forge-gui/src/main/java/forge/gamemodes/match/input/InputSyncronizedBase.java
+@@ -35,6 +35,11 @@ public abstract class InputSyncronizedBase extends InputBase implements InputSyn
+     }
+ 
+     public void showAndWait() {
++        if (getController().hasExternalDecisionProvider()) {
++            throw new ExternalDecisionValidationException(
++                    ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
++                    "legacy GUI input cannot block while the external decision boundary is active");
++        }
+         getController().getInputQueue().setInput(this);
+         awaitLatchRelease();
+     }
+diff --git a/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java b/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java
+index 6c060538..0f9454d6 100644
+--- a/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java
++++ b/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java
+@@ -100,6 +100,11 @@ import java.util.Map.Entry;
+ import java.util.function.Function;
+ import java.util.function.Predicate;
+ import java.util.stream.Collectors;
++import java.util.concurrent.atomic.AtomicLong;
++import java.util.concurrent.ExecutionException;
++import java.util.concurrent.FutureTask;
++import java.util.concurrent.TimeUnit;
++import java.util.concurrent.TimeoutException;
+ 
+ /**
+  * A prototype for player controller class
+@@ -116,6 +121,11 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     private IGuiGame gui;
+ 
++    /** Optional research/production decision boundary. Null keeps the legacy GUI path. */
++    private volatile ExternalDecisionProvider externalDecisionProvider;
++    private final AtomicLong externalDecisionSequence = new AtomicLong();
++    private volatile long externalDecisionTimeoutMillis = 30000L;
++
+     private final YieldController yieldController = new YieldController(this);
+ 
+     protected final InputQueue inputQueue;
+@@ -139,12 +149,46 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+     }
+ 
+     public final IGuiGame getGui() {
++        if (hasExternalDecisionProvider()) {
++            throw new ExternalDecisionValidationException(
++                    ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
++                    "GUI access is forbidden while the external decision boundary is active");
++        }
+         return gui;
+     }
+     public final void setGui(final IGuiGame gui) {
+         this.gui = gui;
+     }
+ 
++    /**
++     * Install a server-owned decision provider. While present, entity-selection
++     * inputs are exported directly from their authoritative Input object and do
++     * not render prompt text, selectable CardViews, or temporary zones.
++     */
++    public final void setExternalDecisionProvider(final ExternalDecisionProvider provider) {
++        this.externalDecisionProvider = provider;
++    }
++
++    public final boolean hasExternalDecisionProvider() {
++        return externalDecisionProvider != null;
++    }
++
++    private void rejectExternalDecision(final String decisionKind) {
++        if (hasExternalDecisionProvider()) {
++            throw new ExternalDecisionValidationException(
++                    ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
++                    "decision kind is not yet exported: " + decisionKind);
++        }
++    }
++
++    /** Configure the deadline used by the strict external decision boundary. */
++    public final void setExternalDecisionTimeoutMillis(final long timeoutMillis) {
++        if (timeoutMillis < 1) {
++            throw new IllegalArgumentException("external decision timeout must be positive");
++        }
++        externalDecisionTimeoutMillis = timeoutMillis;
++    }
++
+     public YieldController getYieldController() {
+         return yieldController;
+     }
+@@ -282,6 +326,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+     @Override
+     public Map<Card, Integer> assignCombatDamage(final Card attacker, final CardCollectionView blockers, final CardCollectionView remaining,
+                                                  final int damageDealt, final GameEntity defender, final boolean overrideOrder) {
++        rejectExternalDecision("COMBAT_DAMAGE_ASSIGNMENT");
+         // Attacker is a poor name here, since the creature assigning damage
+         // could just as easily be the blocker.
+         final Map<Card, Integer> map = Maps.newHashMap();
+@@ -318,6 +363,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public Map<GameEntity, Integer> divideShield(Card effectSource, Map<GameEntity, Integer> affected, int shieldAmount) {
++        rejectExternalDecision("SHIELD_DIVISION");
+         final CardView vSource = CardView.get(effectSource);
+         final Map<Object, Integer> vAffected = new HashMap<>(affected.size());
+         for (Map.Entry<GameEntity, Integer> e : affected.entrySet()) {
+@@ -338,6 +384,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public Map<Byte, Integer> specifyManaCombo(SpellAbility sa, ColorSet colorSet, int manaAmount, boolean different) {
++        rejectExternalDecision("MANA_COMBINATION");
+         final List<MagicColor.Color> choices = Lists.newArrayList(colorSet.getOrderedColors());
+         final Map<Byte, Integer> remembered = macros().consumeRememberedManaCombo(choices, manaAmount, different);
+         if (remembered != null) {
+@@ -368,6 +415,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public Integer announceRequirements(final SpellAbility ability, int min, int max, final String announce) {
++        rejectExternalDecision("ANNOUNCE_REQUIREMENT");
+         final Card host = ability.getHostCard();
+         Cost cost = ability.getPayCosts();
+ 
+@@ -410,6 +458,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     private CardCollectionView choosePermanentsTo(final int min, int max, final CardCollectionView valid,
+                                                   final String message, final String action, final SpellAbility sa) {
++        rejectExternalDecision("PERMANENT_SELECTION");
+         max = Math.min(max, valid.size());
+         if (max <= 0) {
+             return CardCollection.EMPTY;
+@@ -463,9 +512,114 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+         return true;
+     }
+ 
++    private <T extends GameEntity> List<T> chooseExternalEntities(final FCollectionView<T> optionList,
++                                                                    final int min, final int max,
++                                                                    final boolean cancelAllowed,
++                                                                    final SpellAbility sa,
++                                                                    final String decisionKind) {
++        final ExternalDecisionProvider provider = externalDecisionProvider;
++        if (provider == null) {
++            throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
++                    "external decision provider is not installed");
++        }
++        if (optionList == null) {
++            throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
++                    "authoritative option list is null");
++        }
++        if (optionList.isEmpty()) {
++            if (min > 0) {
++                throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
++                        "mandatory decision has no authoritative options");
++            }
++            return Lists.newArrayList();
++        }
++        if (min < 0 || max < min || min > optionList.size()) {
++            throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
++                    "invalid authoritative selection bounds");
++        }
++
++        final int effectiveMax = Math.min(max, optionList.size());
++        final List<ExternalDecisionRequest.Option> options = new ArrayList<>();
++        final Set<String> optionIds = new HashSet<>();
++        for (final T entity : optionList) {
++            final String optionId = ExternalDecisionRequest.optionIdFor(entity);
++            if (!optionIds.add(optionId)) {
++                throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
++                        "authoritative option ids are not unique");
++            }
++            options.add(new ExternalDecisionRequest.Option(optionId,
++                    ExternalDecisionRequest.optionKindFor(entity), entity.getId()));
++        }
++
++        final Player actor = getPlayer();
++        if (actor == null) {
++            throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
++                    "authoritative actor is unavailable");
++        }
++        final Player principal = actor.getControllingPlayer() == null ? actor : actor.getControllingPlayer();
++        final long token = externalDecisionSequence.incrementAndGet();
++        final ExternalDecisionRequest request = new ExternalDecisionRequest(
++                token, token, decisionKind, actor.getId(), principal.getId(),
++                ExternalDecisionRequest.VISIBILITY_PRINCIPAL_ONLY, options, min, effectiveMax,
++                cancelAllowed, Collections.singletonMap("ordered", "false"),
++                ExternalDecisionRequest.RESPONSE_SCHEMA,
++                Collections.singletonMap("controller", "PlayerControllerHuman:" + decisionKind));
++        final InputSelectEntitiesFromList<T> input = new InputSelectEntitiesFromList<>(this, min, effectiveMax, optionList, sa);
++        input.setCancelAllowed(cancelAllowed);
++        getInputQueue().setInput(input);
++        try {
++            final FutureTask<ExternalDecisionResponse> responseTask = new FutureTask<>(() -> provider.decide(request));
++            final Thread responseThread = new Thread(responseTask, "ForgeExternalDecision-" + token);
++            responseThread.setDaemon(true);
++            responseThread.start();
++
++            final ExternalDecisionResponse response;
++            try {
++                response = responseTask.get(externalDecisionTimeoutMillis, TimeUnit.MILLISECONDS);
++            } catch (final TimeoutException ex) {
++                responseTask.cancel(true);
++                ExternalDecisionValidator.validate(request, null, token, actor.getId(), principal.getId(), false, true);
++                throw new AssertionError("timeout validator must reject the decision");
++            } catch (final InterruptedException ex) {
++                responseTask.cancel(true);
++                Thread.currentThread().interrupt();
++                throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.TIMEOUT,
++                        "decision wait was interrupted");
++            } catch (final ExecutionException ex) {
++                responseTask.cancel(true);
++                final Throwable cause = ex.getCause();
++                if (cause instanceof RuntimeException runtime) {
++                    throw runtime;
++                }
++                throw new ExternalDecisionValidationException(
++                        ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
++                        "external decision provider failed");
++            }
++
++            boolean responseConsumed = false;
++            final List<String> selected = ExternalDecisionValidator.validate(
++                    request, response, token, actor.getId(), principal.getId(), responseConsumed, false);
++            responseConsumed = true;
++            if (response.isCancel()) {
++                input.applyExternalCancel();
++            } else {
++                input.applyExternalSelection(selected);
++            }
++            input.awaitLatchRelease();
++            return new ArrayList<>(input.getSelected());
++        } catch (final RuntimeException ex) {
++            input.stop();
++            throw ex;
++        }
++    }
++
+     @Override
+     public CardCollectionView chooseCardsForEffect(final CardCollectionView sourceList, final SpellAbility sa,
+                                                    final String title, final int min, final int max, final boolean isOptional, Map<String, Object> params) {
++        if (hasExternalDecisionProvider()) {
++            return new CardCollection(chooseExternalEntities(sourceList, min, max, isOptional, sa,
++                    "ENTITY_CARD_SELECTION"));
++        }
+         // If only one card to choose, use a dialog box.
+         // Otherwise, use the order dialog to be able to grab multiple cards in one shot
+ 
+@@ -578,7 +732,12 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+     @Override
+     public <T extends GameEntity> T chooseSingleEntityForEffect(final FCollectionView<T> optionList,
+                                                                 final DelayedReveal delayedReveal, final SpellAbility sa, final String title, final boolean isOptional,
+-                                                                final Player targetedPlayer, Map<String, Object> params) {
++                                                                 final Player targetedPlayer, Map<String, Object> params) {
++        if (hasExternalDecisionProvider()) {
++            final List<T> selected = chooseExternalEntities(optionList, 1, 1, isOptional, sa,
++                    "ENTITY_SINGLE_SELECTION");
++            return selected.isEmpty() ? null : selected.get(0);
++        }
+         // Human is supposed to read the message and understand from it what to choose
+         if (optionList.isEmpty()) {
+             if (delayedReveal != null) {
+@@ -622,6 +781,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+     @Override
+     public <T extends GameEntity> List<T> chooseEntitiesForEffect(final FCollectionView<T> optionList, final int min, final int max,
+                                                                   final DelayedReveal delayedReveal, final SpellAbility sa, final String title, final Player targetedPlayer, Map<String, Object> params) {
++        if (hasExternalDecisionProvider()) {
++            return chooseExternalEntities(optionList, min, max, min == 0, sa,
++                    "ENTITY_MULTI_SELECTION");
++        }
+         // useful details for debugging problems with the mass select logic
+         Sentry.setExtra("Card", sa.getCardView().toString());
+         Sentry.setExtra("SpellAbility", sa.toString());
+@@ -662,6 +825,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public int chooseNumber(final SpellAbility sa, final String title, final int min, final int max) {
++        rejectExternalDecision("NUMBER");
+         if (min >= max) {
+             return min;
+         }
+@@ -687,12 +851,14 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+     @Override
+     public int chooseNumber(final SpellAbility sa, final String title, final List<Integer> choices,
+                             final Player relatedPlayer) {
++        rejectExternalDecision("NUMBER_ENUM");
+         return getGui().one(title, choices);
+     }
+ 
+     @Override
+     public SpellAbility chooseSingleSpellForEffect(final List<SpellAbility> spells, final SpellAbility sa,
+                                                    final String title, Map<String, Object> params) {
++        rejectExternalDecision("SPELL_ABILITY_SELECTION");
+         if (spells.size() < 2) {
+             return Iterables.getFirst(spells, null);
+         }
+@@ -710,6 +876,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public List<SpellAbility> chooseSpellAbilitiesForEffect(List<SpellAbility> spells, SpellAbility sa, String title, int num, Map<String, Object> params) {
++        rejectExternalDecision("SPELL_ABILITY_MULTI_SELECTION");
+         List<SpellAbility> result = Lists.newArrayList();
+         // create a mapping between a spell's view and the spell itself
+         Map<SpellAbilityView, SpellAbility> spellViewCache = SpellAbilityView.getMap(spells);
+@@ -744,6 +911,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+     @Override
+     public boolean confirmAction(final SpellAbility sa, final PlayerActionConfirmMode mode, final String message,
+                                  List<String> options, Card cardToShow, Map<String, Object> params) {
++        rejectExternalDecision("CONFIRM_ACTION");
+         // Another card should be displayed in the prompt on mouse over rather than the SA source
+         if (cardToShow != null) {
+             tempShowCard(cardToShow);
+@@ -771,6 +939,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public boolean confirmStaticApplication(final Card hostCard, PlayerActionConfirmMode mode, final String message, final String logic) {
++        rejectExternalDecision("CONFIRM_STATIC_APPLICATION");
+         final boolean result = InputConfirm.confirm(this, CardView.get(hostCard), message);
+         recordConfirm(CardView.get(hostCard), result);
+         return result;
+@@ -785,6 +954,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public boolean confirmTrigger(final WrappedAbility wrapper) {
++        rejectExternalDecision("CONFIRM_TRIGGER");
+         final SpellAbility sa = wrapper.getWrappedAbility();
+         final Trigger regtrig = wrapper.getTrigger();
+         AutoYieldStore.TriggerDecision decision = getTriggerDecision(wrapper.yieldKey());
+@@ -830,6 +1000,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public Player chooseStartingPlayer(final boolean isFirstGame) {
++        rejectExternalDecision("STARTING_PLAYER");
+         String prompt;
+         if (isFirstGame) {
+             prompt = localizer.getMessage("lblYouHaveWonTheCoinToss", player.getName());
+@@ -853,6 +1024,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public CardCollection orderBlockers(final Card attacker, final CardCollection blockers) {
++        rejectExternalDecision("BLOCKER_ORDER");
+         GameEntityViewMap<Card, CardView> gameCacheBlockers = GameEntityView.getMap(blockers);
+         final CardView vAttacker = CardView.get(attacker);
+         getGui().setPanelSelection(vAttacker);
+@@ -865,6 +1037,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public List<Card> exertAttackers(List<Card> attackers) {
++        rejectExternalDecision("EXERT_ATTACKERS");
+         GameEntityViewMap<Card, CardView> gameCacheExert = GameEntityView.getMap(attackers);
+         List<CardView> chosen = getGui().order(localizer.getMessage("lblExertAttackersConfirm"), localizer.getMessage("lblExerted"),
+                 0, gameCacheExert.size(), gameCacheExert.getTrackableKeys(), null, null, false);
+@@ -876,6 +1049,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public List<Card> enlistAttackers(List<Card> attackers) {
++        rejectExternalDecision("ENLIST_ATTACKERS");
+         GameEntityViewMap<Card, CardView> gameCacheExert = GameEntityView.getMap(attackers);
+         List<CardView> chosen = getGui().order(localizer.getMessage("lblEnlistAttackersConfirm"), localizer.getMessage("lblEnlisted"),
+                 0, gameCacheExert.size(), gameCacheExert.getTrackableKeys(), null, null, false);
+@@ -887,6 +1061,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public List<CostPart> orderCosts(List<CostPart> costs) {
++        rejectExternalDecision("COST_ORDER");
+         if (!isFullControl(FullControlFlag.ChooseCostOrder) || costs.size() < 2) {
+             return costs;
+         }
+@@ -897,6 +1072,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public CardCollection orderBlocker(final Card attacker, final Card blocker, final CardCollection oldBlockers) {
++        rejectExternalDecision("BLOCKER_ORDER");
+         GameEntityViewMap<Card, CardView> gameCacheBlockers = GameEntityView.getMap(oldBlockers);
+         final CardView vAttacker = CardView.get(attacker);
+         getGui().setPanelSelection(vAttacker);
+@@ -910,6 +1086,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public CardCollection orderAttackers(final Card blocker, final CardCollection attackers) {
++        rejectExternalDecision("ATTACKER_ORDER");
+         GameEntityViewMap<Card, CardView> gameCacheAttackers = GameEntityView.getMap(attackers);
+         final CardView vBlocker = CardView.get(blocker);
+         getGui().setPanelSelection(vBlocker);
+@@ -996,6 +1173,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public ImmutablePair<CardCollection, CardCollection> arrangeForScry(final CardCollection topN) {
++        rejectExternalDecision("SCRY_ORDER");
+         final ImmutablePair<CardCollection, CardCollection> remembered = macros().consumeRememberedScry(topN);
+         if (remembered != null) {
+             return remembered;
+@@ -1045,6 +1223,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public ImmutablePair<CardCollection, CardCollection> arrangeForSurveil(final CardCollection topN) {
++        rejectExternalDecision("SURVEIL_ORDER");
+         CardCollection toGrave = null;
+         CardCollection toTop = null;
+ 
+@@ -1101,6 +1280,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public CardCollectionView orderMoveToZoneList(final CardCollectionView cards, final ZoneType destinationZone, final SpellAbility source) {
++        rejectExternalDecision("ZONE_ORDER");
+         if (source == null || source.getApi() != ApiType.ReorderZone) {
+             if (destinationZone == ZoneType.Graveyard) {
+                 switch (FModel.getPreferences().getPref(FPref.UI_ALLOW_ORDER_GRAVEYARD_WHEN_NEEDED)) {
+@@ -1174,6 +1354,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+     public CardCollectionView chooseCardsToDiscardFrom(final Player p, final SpellAbility sa,
+                                                        final CardCollection valid, final int min, final int max,
+                                                        final CardCollectionView visibleToChooser) {
++        rejectExternalDecision("DISCARD");
+         boolean optional = min == 0;
+ 
+         if (p != player) {
+@@ -1203,6 +1384,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public CardCollectionView chooseCardsToDelve(final int genericAmount, final CardCollection grave) {
++        rejectExternalDecision("DELVE");
+         final int cardsInGrave = Math.min(genericAmount, grave.size());
+         if (cardsInGrave == 0) {
+             return CardCollection.EMPTY;
+@@ -1477,6 +1659,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+     @Override
+     public boolean confirmReplacementEffect(final ReplacementEffect replacementEffect, final SpellAbility effectSA,
+                                             GameEntity affected, final String question) {
++        rejectExternalDecision("CONFIRM_REPLACEMENT");
+         if (getGui().isLibgdxPort()) {
+             CardView cardView;
+             SpellAbilityView spellAbilityView = effectSA == null ? null : effectSA.getView();
+@@ -1491,6 +1674,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public boolean mulliganKeepHand(final Player mulliganingPlayer, int cardsToReturn) {
++        rejectExternalDecision("MULLIGAN");
+         // TODO we should be passing tuckCards into Confirmation Dialog
+         final InputConfirmMulligan inp = new InputConfirmMulligan(this, player, mulliganingPlayer);
+         inp.showAndWait();
+@@ -1499,6 +1683,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public CardCollectionView tuckCardsViaMulligan(CardCollectionView hand, int cardsToReturn) {
++        rejectExternalDecision("MULLIGAN_TUCK");
+         final InputLondonMulligan inp = new InputLondonMulligan(this, player, cardsToReturn);
+         inp.showAndWait();
+         return inp.getSelectedCards();
+@@ -1506,6 +1691,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public void declareAttackers(final Player attackingPlayer, final Combat combat) {
++        rejectExternalDecision("DECLARE_ATTACKERS");
+         // CombatUtil.canAttack ensures we only get here when the player has a legal attacker
+         // so APINA must never skip - the invocation itself is the available action. User
+         // initiated yields (pass until end of turn) still skip when not-attacking is legal.
+@@ -1524,6 +1710,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public void declareBlockers(final Player defender, final Combat combat) {
++        rejectExternalDecision("DECLARE_BLOCKERS");
+         // This input should not modify combat object itself, but should return user choice
+         final InputBlock inpBlock = new InputBlock(this, defender, combat);
+         inpBlock.showAndWait();
+@@ -1648,6 +1835,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public List<SpellAbility> chooseSpellAbilityToPlay() {
++        rejectExternalDecision("PRIORITY_ACTION");
+         netLog.trace("ENTRY for player {}, phase={}, isGameOver={}",
+                 player.getName(), getGame().getPhaseHandler().getPhase(), getGame().isGameOver());
+         final MagicStack stack = getGame().getStack();
+@@ -1788,6 +1976,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public List<SpellAbility> chooseSaToActivateFromOpeningHand(final List<SpellAbility> usableFromOpeningHand) {
++        rejectExternalDecision("OPENING_HAND_ABILITY");
+         final CardCollection srcCards = new CardCollection();
+         for (final SpellAbility sa : usableFromOpeningHand) {
+             srcCards.add(sa.getHostCard());
+@@ -1817,6 +2006,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public PlayerZone chooseStartingHand(List<PlayerZone> zones) {
++        rejectExternalDecision("STARTING_HAND");
+         // Create new zone objects in the UI temporarily.
+         // Spawn a new input dialog, it works by selecting a card in the zone you want and clicking OK
+         // The card will then extract the PlayerZone via the card that is chosen and return it to this function
+@@ -1830,6 +2020,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+     @Override
+     public boolean chooseBinary(final SpellAbility sa, final String question, final BinaryChoiceType kindOfChoice,
+                                 final Boolean defaultVal) {
++        rejectExternalDecision("BINARY_CHOICE");
+         final List<String> labels;
+         switch (kindOfChoice) {
+             case HeadsOrTails:
+@@ -1868,6 +2059,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public boolean chooseFlipResult(final SpellAbility sa, final Player flipper, final boolean call) {
++        rejectExternalDecision("FLIP_RESULT");
+         final List<String> labelsSrc = call ? List.of(localizer.getMessage("lblHeads"), localizer.getMessage("lblTails"))
+                 : List.of(localizer.getMessage("lblWinTheFlip"), localizer.getMessage("lblLoseTheFlip"));
+         return getGui().one(sa.getHostCard().getDisplayName() + " - " + localizer.getMessage("lblChooseAResult"), labelsSrc).equals(labelsSrc.get(0));
+@@ -1876,6 +2068,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+     @Override
+     public Pair<SpellAbilityStackInstance, GameObject> chooseTarget(final SpellAbility saSpellskite,
+                                                                     final List<Pair<SpellAbilityStackInstance, GameObject>> allTargets) {
++        rejectExternalDecision("STACK_TARGET");
+         if (allTargets.size() < 2) {
+             return Iterables.getFirst(allTargets, null);
+         }
+@@ -1913,6 +2106,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+     @Override
+     public List<AbilitySub> chooseModeForAbility(final SpellAbility sa, List<AbilitySub> possible, final int min, final int num,
+                                                  boolean allowRepeat) {
++        rejectExternalDecision("MODE_SELECTION");
+         if (!allowRepeat && min == num && num == possible.size()) {
+             return possible;
+         }
+@@ -2051,6 +2245,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+     @Override
+     public CounterType chooseCounterType(final List<CounterType> options, final SpellAbility sa, final String prompt,
+                                          Map<String, Object> params) {
++        rejectExternalDecision("COUNTER_TYPE");
+         if (options.size() <= 1) {
+             return Iterables.getFirst(options, null);
+         }
+@@ -2059,6 +2254,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public CardState chooseSingleCardState(SpellAbility sa, List<CardState> states, String message, Map<String, Object> params) {
++        rejectExternalDecision("CARD_STATE");
+         if (states.size() <= 1) {
+             return Iterables.getFirst(states, null);
+         }
+@@ -2069,6 +2265,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public String chooseKeywordForPump(final List<String> options, final SpellAbility sa, final String prompt, final Card tgtCard) {
++        rejectExternalDecision("KEYWORD");
+         if (options.size() <= 1) {
+             return Iterables.getFirst(options, null);
+         }
+@@ -2077,6 +2274,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public boolean confirmPayment(final CostPart costPart, final String question, SpellAbility sa) {
++        rejectExternalDecision("CONFIRM_PAYMENT");
+         if (getGui().isLibgdxPort()) {
+             CardView cardView;
+             try {
+@@ -2104,6 +2302,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public ReplacementEffect chooseSingleReplacementEffect(final List<ReplacementEffect> possibleReplacers) {
++        rejectExternalDecision("REPLACEMENT_ORDER");
+         final ReplacementEffect first = possibleReplacers.get(0);
+         if (possibleReplacers.size() == 1) {
+             return first;
+@@ -2217,6 +2416,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public StaticAbility chooseSingleStaticAbility(final List<StaticAbility> possibleStatics) {
++        rejectExternalDecision("STATIC_ABILITY_ORDER");
+         final StaticAbility first = possibleStatics.get(0);
+         boolean isCostReduction = first.getMode().contains(StaticAbilityMode.ReduceCost);
+         // return first option without prompting if all options are the same, or if they don't care about ordering costs
+@@ -2423,6 +2623,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+ 
+     @Override
+     public boolean chooseTargetsFor(final SpellAbility currentAbility) {
++        rejectExternalDecision("TARGET_SELECTION");
+         final TargetSelection select = new TargetSelection(this, currentAbility);
+         boolean canFilterMustTarget = true;
+ 
+@@ -2503,6 +2704,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+      */
+     @Override
+     public TargetChoices chooseNewTargetsFor(final SpellAbility ability, Predicate<GameObject> filter, boolean optional) {
++        rejectExternalDecision("TARGET_RESELECTION");
+         final SpellAbility sa = ability.isWrapper() ? ((WrappedAbility) ability).getWrappedAbility() : ability;
+         if (!sa.usesTargeting()) {
+             return null;

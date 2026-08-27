@@ -1,0 +1,49 @@
+{
+  "schema": "commander-simulator-next.implementation-evidence.v1",
+  "generated_at": "2026-08-28",
+  "qualification_input": {
+    "repository": "moeendres-png/mage",
+    "branch": "research/greenfield-engine-shootout-20260827",
+    "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+    "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+  },
+  "external_pins": {
+    "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+    "forge_patched_tree": "c634b817e037c4531051859f7d00805ffd74931e",
+    "strict_patch_sha256": "ef10fd59faf63b241b862d1700690bc1668421f00b72541929333f7fe4d1c7e9"
+  },
+  "local_validation": {
+    "python_qualification_tests": {"passed": 23, "failed": 0},
+    "forge_compile": {"status": "PASS", "command": "mvn -B -DskipTests -pl forge-gui -am compile"},
+    "forge_contract_smoke": {"status": "PARTIAL", "gate": "FAIL", "assertions": 18},
+    "scryfall_upstream_index": {"status": "PASS", "oracle_identity_count": 38626},
+    "project_requirement_union": {"status": "NOT_RUN", "target_count": 1721, "computed_oracle_id_count": 0},
+    "rules_matrix_a_t": {"definitions": 20, "qualification": "NOT_RUN"},
+    "rules_matrix_c01_c22": {"definitions": 22, "qualification": "NOT_RUN"}
+  },
+  "gate_adjudication": {
+    "Q0_provenance_and_schemas": "PASS_LOCALLY",
+    "Q1_decision_externalization": "FAIL",
+    "Q2_hidden_information": "FAIL_OR_NOT_PROVEN",
+    "Q3_rng_and_replay": "NOT_RUN",
+    "Q4_process_isolation": "INSUFFICIENT_EVIDENCE",
+    "Q5_commander_multiplayer": "INCOMPLETE",
+    "Q6_actual_card_coverage": "INSUFFICIENT_EVIDENCE",
+    "Q7_differential_adjudication": "INCOMPLETE",
+    "Q8_license_boundary": "DEFERRED"
+  },
+  "freeze": {
+    "architecture_frozen": false,
+    "ready_for_greenfield_build": false,
+    "production_repository_created": false,
+    "first_blocking_gate": "DECISION_EXTERNALIZATION",
+    "first_blocking_subgate": "FULL_DECISION_CENSUS_AND_TYPED_CALLBACK_COVERAGE",
+    "failure_code": "FULL_DECISION_CENSUS_NOT_EXTERNALIZED"
+  },
+  "boundary": {
+    "drive_access": "READ_ONLY",
+    "deck_inventory_purchase_allocation_mutation": false,
+    "commander_lab_rules_core_used": false,
+    "historical_runs_used_as_current_proof": false
+  }
+}

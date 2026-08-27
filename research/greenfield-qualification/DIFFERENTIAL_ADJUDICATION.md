@@ -1,11 +1,18 @@
-# Differential Adjudication — Closeout State
+# Differential Adjudication — Current Qualification State
 
 Status: **INCOMPLETE**.
 
-Cross-engine targeted evidence exists, but no complete final differential campaign has been executed under a common external-decision/action/RNG contract. No engine-majority behavior is treated as Rules authority.
+Forge, XMage, and phase.rs remain useful independent rules/reference
+candidates; Manabrew remains a headless/isolation reference with a failed
+interactive fallback audit. No candidate has yet supplied the common explicit
+action, decision, RNG, and canonical-state contract required for final
+differential adjudication.
 
-Future divergences must record scenario, identical initial state/actions/RNG where representable, first divergence, official Comprehensive/Commander/Oracle adjudication, classification, and production impact.
+The final campaign must use identical initial states, explicit decision
+responses, and identical RNG tapes wherever each engine can represent them.
+Every divergence must record the first divergent semantic event, then be
+adjudicated against the relevant official rules/Commander/Oracle authority.
+Engine majority is never rules authority.
 
-`DIFFERENTIAL_COMPLETE = FALSE`.
-
-This gate is downstream of the first blocker (`DECISION_EXTERNALIZATION`), because without a common explicit decision boundary identical discretionary choices cannot be reliably imposed across candidates.
+Because the typed Forge seam is currently only static/compile qualified and
+106 controller declarations remain outside it, `DIFFERENTIAL_COMPLETE = FALSE`.

@@ -1,6 +1,12 @@
 {
   "schema": "commander-simulator-next.actual-card-requirement-manifest.closeout-v1",
   "status": "INCOMPLETE_FAIL_CLOSED",
+  "qualification_input": {
+    "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+    "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e",
+    "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+    "scryfall_index_artifact": "SCRYFALL_ORACLE_INDEX_QUALIFICATION.json"
+  },
   "domain_authority": {
     "physically_held_unique_identities": 1338,
     "operational_own_unique_identities": 1007,
@@ -17,6 +23,25 @@
     "artifact_id": 9653672924,
     "all_100_slots": true,
     "authority": "OFFICIAL_WIZARDS_CONTENT; FORGE_EXTRACTION_HELPER_ONLY"
+  },
+  "oracle_union": {
+    "target_count": 1721,
+    "target_count_source": "CURRENT_REQUIREMENT_MANIFEST_TARGET",
+    "source_classes": [
+      "operational_own",
+      "rogshai",
+      "kaervek",
+      "dargo_tymna",
+      "official_precons",
+      "unknown_real_opponents"
+    ],
+    "source_files": [
+      "actual-card-manifest/OWN_OPERATIONAL_1007.json",
+      "actual-card-manifest/KAERVEK_EXACT_100.json"
+    ],
+    "row_materialization_status": "NOT_AVAILABLE_IN_RESEARCH_CHECKOUT",
+    "computed_oracle_id_count": null,
+    "complete": false
   },
   "committed_fragments": [
     "actual-card-manifest/OWN_OPERATIONAL_1007.json",

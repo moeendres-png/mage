@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "commander-simulator-next.canonical-state-digest.v1",
+  "title": "Commander Simulator Next CanonicalStateDigest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sequence", "sha256", "scope"],
+  "properties": {
+    "sequence": {"type": "integer", "minimum": 0},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "scope": {"type": "string", "enum": ["PUBLIC", "PRINCIPAL"]},
+    "principal": {"type": ["string", "null"]}
+  }
+}

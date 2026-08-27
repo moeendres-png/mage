@@ -20,6 +20,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from strict_decision import canonical_json_hash, canonical_semantic_state
+
 VALID_STATUS = {"PASS", "FAIL", "UNSUPPORTED", "NOT_RUN"}
 
 
@@ -36,20 +38,36 @@ def load_json(path: Path) -> Any:
         return json.load(f)
 
 
-def canonical_json_hash(value: Any) -> str:
-    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
+def parse_external_pins(values: list[str]) -> dict[str, str]:
+    pins: dict[str, str] = {}
+    for value in values:
+        if "=" not in value:
+            raise ValueError(f"external pin must use NAME=VALUE syntax: {value!r}")
+        name, pin = value.split("=", 1)
+        if not name or not pin:
+            raise ValueError(f"external pin must have a non-empty name and value: {value!r}")
+        if name in pins:
+            raise ValueError(f"external pin is repeated: {name!r}")
+        pins[name] = pin
+    return pins
 
 
 def base_result(args: argparse.Namespace) -> dict[str, Any]:
     return {
+        "schema": "commander-simulator-next.game-run-evidence.v2",
         "candidate": args.candidate,
         "commit": args.commit,
+        "source_head": args.source_head,
+        "source_tree": args.source_tree,
+        "external_pins": parse_external_pins(args.external_pin),
         "scenario": args.scenario,
         "seed": args.seed,
         "players": args.players,
         "decisions": [],
         "state_hashes": [],
+        "semantic_state_hashes": [],
+        "rng_events": [],
+        "decision_tape": [],
         "events": [],
         "result": {"status": "NOT_RUN"},
         "runtime": {},
@@ -62,6 +80,9 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--candidate", required=True)
     p.add_argument("--commit", required=True)
+    p.add_argument("--source-head", default=os.environ.get("GITHUB_SHA", "UNKNOWN_SOURCE_HEAD"))
+    p.add_argument("--source-tree", default=os.environ.get("SOURCE_TREE", "UNKNOWN_SOURCE_TREE"))
+    p.add_argument("--external-pin", action="append", default=[])
     p.add_argument("--scenario", required=True)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--players", type=int, default=0)
@@ -70,6 +91,7 @@ def main() -> int:
     p.add_argument("--cwd", default=".")
     p.add_argument("--timeout", type=int, default=1800)
     p.add_argument("--observable-json")
+    p.add_argument("--semantic-json")
     p.add_argument("--status", choices=sorted(VALID_STATUS))
     p.add_argument("--reason")
     p.add_argument("--out", required=True)
@@ -144,8 +166,11 @@ def main() -> int:
         else:
             record["result"]["status"] = "PASS"
 
-    if args.observable_json:
-        obs_path = Path(args.observable_json)
+    observable_paths = [("observable", args.observable_json), ("semantic", args.semantic_json)]
+    for observable_kind, configured_path in observable_paths:
+        if not configured_path:
+            continue
+        obs_path = Path(configured_path)
         if not obs_path.is_absolute():
             obs_path = Path(args.cwd) / obs_path
         if not obs_path.exists():
@@ -156,7 +181,21 @@ def main() -> int:
                 observable = load_json(obs_path)
                 record["events"].append({"kind": "canonical_observable", "sha256": canonical_json_hash(observable)})
                 record["state_hashes"].append(canonical_json_hash(observable))
-                record["runtime"]["observable_file_sha256"] = sha256_file(obs_path)
+                semantic = canonical_semantic_state(observable)
+                record["semantic_state_hashes"].append(canonical_json_hash(semantic))
+                record["events"].append({
+                    "kind": "canonical_semantic_state",
+                    "source": observable_kind,
+                    "sha256": canonical_json_hash(semantic),
+                })
+                record.setdefault("runtime", {}).setdefault("observable_files_sha256", {})[observable_kind] = sha256_file(obs_path)
+                if isinstance(observable, dict):
+                    for event_key, record_key in (("rng_events", "rng_events"), ("decision_tape", "decision_tape")):
+                        events = observable.get(event_key)
+                        if events is not None:
+                            if not isinstance(events, list):
+                                raise ValueError(f"{event_key} must be a list when present")
+                            record[record_key].extend(events)
             except Exception as exc:  # fail closed
                 record["result"]["status"] = "FAIL"
                 record["failures"].append({"code": "E_OBSERVABLE_INVALID", "message": repr(exc)})
@@ -165,6 +204,14 @@ def main() -> int:
         record["result"]["status"] = "FAIL"
         if args.reason:
             record["failures"].append({"code": "E_DECLARED_FAIL", "message": args.reason})
+
+    if record["result"]["status"] == "PASS":
+        if record["source_head"] in {"", "UNKNOWN_SOURCE_HEAD", None}:
+            record["result"]["status"] = "FAIL"
+            record["failures"].append({"code": "E_SOURCE_HEAD", "message": "PASS evidence requires an exact source_head"})
+        if record["source_tree"] in {"", "UNKNOWN_SOURCE_TREE", None}:
+            record["result"]["status"] = "FAIL"
+            record["failures"].append({"code": "E_SOURCE_TREE", "message": "PASS evidence requires an exact source_tree"})
 
     out.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return 0 if record["result"]["status"] == "PASS" else 1

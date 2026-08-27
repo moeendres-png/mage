@@ -1,9 +1,22 @@
-# Hidden Information Assay — Closeout
+# Hidden Information Assay — Current Qualification State
 
-`HIDDEN_INFO_GATE = NOT_PASS`
+Status: **FAIL OR INSUFFICIENT EVIDENCE**.
 
-Forge raw-transport red-team run `33095565820` completed its game but detected **74 decoded hidden card identities**, including opponent hand and library identities. This is a confirmed trusted-backend transport risk. It is not automatically identical to a future pilot-visible leak, because a trusted adapter may filter it; however no principal-scoped external-pilot boundary has yet been runtime-qualified, so `PILOT_VISIBLE_HIDDEN_INFO_LEAKS = 0` cannot be claimed.
+The pinned Forge raw-transport red-team run previously decoded **74 hidden
+card identities**. That result remains a negative control and is not silently
+reclassified as a future adapter leak. The new server-side typed entity seam
+has only static/compile evidence; a principal-scoped runtime observation assay
+has not yet run through the complete decision boundary.
 
-XMage targeted evidence independently records that its principal-scoped external observation runtime gate is false.
+The required red-team surface includes raw transport, principal-scoped
+observations, logs, exceptions, IDs, hashes, replay/debug output, and reveal /
+look-at lifecycle. The current gate is therefore:
 
-The next hidden-info assay must run only after the strict external decision/observation boundary exists and must include hand, library, face-down identity, reveal/look-at lifecycle, known-top invalidation, action/object IDs, hashes, errors, protocol payloads, and pilot-visible logs.
+```text
+raw Forge transport leak count        = 74 (historical negative control)
+pilot-visible leak count              = NOT_RUN
+required zero-leak gate               = NOT_PROVEN
+```
+
+See `HIDDEN_INFORMATION_ASSAY.json` for exact provenance and
+`STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.json` for the current dependency.

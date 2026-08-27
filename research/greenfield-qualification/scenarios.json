@@ -1,5 +1,6 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "evidence_schema": "commander-simulator-next.game-run-evidence.v2",
   "status_values": ["PASS", "FAIL", "UNSUPPORTED", "NOT_RUN"],
   "evidence_levels": ["L0_CLAIM", "L1_SOURCE_INSPECTED", "L2_TEST_PRESENT", "L3_LOCALLY_EXECUTED", "L4_CROSS_PROCESS_REPLAYED", "L5_REAL_DECK_QUALIFIED"],
   "classes": {
@@ -62,10 +63,12 @@
     "player_controlled_coin_die_choice", "scry", "surveil", "top_bottom_ordering",
     "library_ordering", "graveyard_ordering"
   ],
-  "decision_status_values": ["INTERNAL_ONLY", "EXTERNALIZABLE", "EXTERNALIZED_AND_TESTED", "UNSUPPORTED"],
+  "decision_status_values": ["INTERNAL_ONLY", "EXTERNALIZABLE", "EXTERNALIZED_STATIC_COMPILE_ONLY", "EXTERNALIZED_AND_TESTED", "UNSUPPORTED"],
   "regressions": ["HEDRON_ARCHIVE", "GLISSA_SUNSLAYER", "SLIP_OUT_THE_BACK", "VOID_REND"],
   "result_required_fields": [
-    "candidate", "commit", "scenario", "seed", "players", "decisions",
-    "state_hashes", "events", "result", "runtime", "failures"
+    "candidate", "commit", "source_head", "source_tree", "external_pins",
+    "scenario", "seed", "players", "decisions", "state_hashes",
+    "semantic_state_hashes", "rng_events", "decision_tape", "events", "result",
+    "runtime", "failures"
   ]
 }
