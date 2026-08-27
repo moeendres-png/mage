@@ -1,0 +1,82 @@
+name: Greenfield XMage targeted qualification v2
+
+on:
+  push:
+    branches:
+      - research/greenfield-engine-shootout-20260827
+    paths:
+      - '.github/workflows/greenfield-xmage-targeted-v2.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: magefree/mage
+          ref: 86d86b580cd7e1f30b51110d70cecae18c1ce452
+          path: xmage
+          fetch-depth: 1
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: xmage/pom.xml
+      - name: Verify pin
+        run: test "$(git -C xmage rev-parse HEAD)" = 86d86b580cd7e1f30b51110d70cecae18c1ce452
+      - name: Run only required targeted Commander tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/xmage-targeted-v2
+          classes='org.mage.test.cards.continuous.CommandersCastTest,org.mage.test.commander.duel.TestPartnerCommanders,org.mage.test.commander.duel.CommanderMutateTest'
+          set +e
+          (cd xmage && mvn -T 1C -B -pl Mage.Tests -am \
+             -Dtest="$classes" -Dsurefire.failIfNoSpecifiedTests=false \
+             -Dxmage.dataCollectors.printGameLogs=false \
+             -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/xmage/.travis/log4j.properties \
+             test) > artifacts/xmage-targeted-v2/commander.log 2>&1
+          rc=$?
+          set -e
+          echo "$rc" > artifacts/xmage-targeted-v2/maven.exit
+          tests=$(grep -Eo 'Tests run: [0-9]+' artifacts/xmage-targeted-v2/commander.log | awk '{s+=$3} END {print s+0}')
+          failures=$(grep -Eo 'Failures: [0-9]+' artifacts/xmage-targeted-v2/commander.log | awk '{s+=$2} END {print s+0}')
+          errors=$(grep -Eo 'Errors: [0-9]+' artifacts/xmage-targeted-v2/commander.log | awk '{s+=$2} END {print s+0}')
+          printf '{"maven_exit":%d,"tests":%d,"failures":%d,"errors":%d}\n' "$rc" "$tests" "$failures" "$errors" > artifacts/xmage-targeted-v2/counts.json
+          test "$rc" -eq 0
+          test "$tests" -gt 0
+          test "$failures" -eq 0
+          test "$errors" -eq 0
+      - name: Exact source decision/visibility status
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re
+          player=Path('xmage/Mage/src/main/java/mage/players/Player.java').read_text()
+          helper=Path('xmage/Mage.Tests/src/test/java/org/mage/test/serverside/base/CardTestCommander4PlayersWithAIHelps.java').read_text()
+          methods=[]
+          for line in player.splitlines():
+            s=line.strip()
+            if '(' in s and s.endswith(';') and not s.startswith('//') and any(k in s.lower() for k in ('choose','select','mulligan','attack','block','pay','target','vote','scry','surveil')):
+              methods.append(s)
+          out={'pin':'86d86b580cd7e1f30b51110d70cecae18c1ce452','candidate_decision_methods':methods,'count':len(methods),'four_player_test_helper_disables_ai':'setAIPlayer(false)' in helper,'complete_external_pilot_runtime_gate':False,'principal_scoped_external_observation_runtime_gate':False}
+          Path('artifacts/xmage-targeted-v2/source-status.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          PY
+      - name: Hash
+        if: always()
+        run: |
+          cd artifacts/xmage-targeted-v2 && find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: greenfield-xmage-targeted-v2
+          path: artifacts/xmage-targeted-v2
+          if-no-files-found: error
