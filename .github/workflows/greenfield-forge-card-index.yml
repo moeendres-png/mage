@@ -1,0 +1,68 @@
+name: Greenfield Forge neutral card-script index
+
+on:
+  push:
+    branches:
+      - research/greenfield-engine-shootout-20260827
+    paths:
+      - '.github/workflows/greenfield-forge-card-index.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          path: forge
+          fetch-depth: 1
+      - name: Build neutral card-script registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          mkdir -p artifacts/forge-card-index
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,re
+          root=Path('forge/forge-gui/res/cardsfolder')
+          rows=[]
+          for p in sorted(root.rglob('*.txt')):
+            try: text=p.read_text(encoding='utf-8-sig')
+            except UnicodeDecodeError: text=p.read_text(encoding='latin1')
+            name=None
+            for line in text.splitlines():
+              if line.startswith('Name:'):
+                name=line[5:].strip(); break
+            if not name: continue
+            low=text.lower()
+            markers=[]
+            for label,needle in [
+              ('TODO','todo'),('UNSUPPORTED','unsupported'),('NOT_IMPLEMENTED','not implemented'),
+              ('DUMMY','dummy'),('PLACEHOLDER','placeholder')]:
+              if needle in low: markers.append(label)
+            rows.append({
+              'name':name,
+              'path':str(p.relative_to(Path('forge'))),
+              'sha256':hashlib.sha256(text.encode('utf-8')).hexdigest(),
+              'has_oracle_line':any(x.startswith('Oracle:') for x in text.splitlines()),
+              'suspicious_markers':markers,
+            })
+          out={'schema':'commander-simulator-next.forge-card-script-index.v1','forge_pin':'8c7e9afb8e6caee88644b94e25da5852e36f8928','script_count':len(rows),'cards':rows}
+          Path('artifacts/forge-card-index/index.json').write_text(json.dumps(out,ensure_ascii=False,sort_keys=True,separators=(',',':'))+'\n')
+          Path('artifacts/forge-card-index/names.txt').write_text('\n'.join(sorted({r['name'] for r in rows},key=str.casefold))+'\n')
+          suspicious=[r for r in rows if r['suspicious_markers']]
+          Path('artifacts/forge-card-index/suspicious.json').write_text(json.dumps(suspicious,indent=2,ensure_ascii=False,sort_keys=True)+'\n')
+          PY
+          (cd artifacts/forge-card-index && sha256sum index.json names.txt suspicious.json > hashes.sha256)
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: greenfield-forge-card-index
+          path: artifacts/forge-card-index
+          if-no-files-found: error
