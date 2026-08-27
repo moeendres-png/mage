@@ -1,0 +1,122 @@
+name: Greenfield XMage targeted qualification
+
+on:
+  push:
+    branches:
+      - research/greenfield-engine-shootout-20260827
+    paths:
+      - '.github/workflows/greenfield-xmage-targeted.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  xmage-targeted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout qualification harness
+        uses: actions/checkout@v4
+        with:
+          ref: research/greenfield-engine-shootout-20260827
+          path: qual
+      - name: Checkout pinned XMage
+        uses: actions/checkout@v4
+        with:
+          repository: magefree/mage
+          ref: 86d86b580cd7e1f30b51110d70cecae18c1ce452
+          path: xmage
+          fetch-depth: 1
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: xmage/pom.xml
+      - name: Verify pin
+        run: test "$(git -C xmage rev-parse HEAD)" = "86d86b580cd7e1f30b51110d70cecae18c1ce452"
+      - name: Run targeted Commander and partner tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$GITHUB_WORKSPACE/artifacts/engine-shootout/xmage/targeted"
+          mkdir -p "$root/results" "$root/logs"
+          classes='org.mage.test.cards.continuous.CommandersCastTest,org.mage.test.commander.duel.TestPartnerCommanders,org.mage.test.commander.duel.CommanderMutateTest'
+          set +e
+          (cd xmage && mvn -B -pl Mage.Tests -am -Dtest="$classes" -Dsurefire.failIfNoSpecifiedTests=false -Dxmage.dataCollectors.printGameLogs=false -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/xmage/.travis/log4j.properties test) > "$root/logs/K_COMMANDER_TARGETED.log" 2>&1
+          rc=$?
+          set -e
+          tests=$(grep -Eo 'Tests run: [0-9]+' "$root/logs/K_COMMANDER_TARGETED.log" | awk '{s+=$3} END {print s+0}')
+          failures=$(grep -Eo 'Failures: [0-9]+' "$root/logs/K_COMMANDER_TARGETED.log" | awk '{s+=$2} END {print s+0}')
+          errors=$(grep -Eo 'Errors: [0-9]+' "$root/logs/K_COMMANDER_TARGETED.log" | awk '{s+=$2} END {print s+0}')
+          printf '{"classes":"%s","maven_exit":%d,"tests":%d,"failures":%d,"errors":%d}\n' "$classes" "$rc" "$tests" "$failures" "$errors" > "$root/commander-targeted-counts.json"
+          if [ "$rc" -eq 0 ] && [ "$tests" -gt 0 ] && [ "$failures" -eq 0 ] && [ "$errors" -eq 0 ]; then
+            python3 qual/research/greenfield-qualification/harness.py --candidate xmage --commit 86d86b580cd7e1f30b51110d70cecae18c1ce452 --scenario K_COMMANDER_TARGETED --players 4 --command true --cwd "$GITHUB_WORKSPACE" --out "$root/results/K_COMMANDER_TARGETED.result.json"
+          else
+            python3 qual/research/greenfield-qualification/harness.py --candidate xmage --commit 86d86b580cd7e1f30b51110d70cecae18c1ce452 --scenario K_COMMANDER_TARGETED --players 4 --status FAIL --reason "maven_exit=$rc tests=$tests failures=$failures errors=$errors" --out "$root/results/K_COMMANDER_TARGETED.result.json" || true
+            exit 1
+          fi
+      - name: Inventory 4-player test-driving boundary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re
+          helper=Path('xmage/Mage.Tests/src/test/java/org/mage/test/serverside/base/CardTestCommander4PlayersWithAIHelps.java').read_text()
+          player=Path('xmage/Mage/src/main/java/mage/players/Player.java').read_text()
+          methods=[]
+          for line in player.splitlines():
+              s=line.strip()
+              if '(' in s and s.endswith(';') and not s.startswith('//'):
+                  methods.append(s)
+          choose=[x for x in methods if any(k in x.lower() for k in ('choose','select','mulligan','attack','block','pay','target','vote','scry','surveil'))]
+          out={
+            'candidate':'xmage','commit':'86d86b580cd7e1f30b51110d70cecae18c1ce452',
+            'four_player_test_helper_disables_autonomous_ai':'setAIPlayer(false)' in helper,
+            'player_interface_candidate_decision_methods_count':len(choose),
+            'candidate_decision_signatures':choose,
+            'source_externalizable':True,
+            'all_required_decisions_externalized_and_tested':False,
+            'note':'TestPlayer coverage proves scripted test control for exercised paths, not a complete backend-neutral external pilot contract.'
+          }
+          Path('artifacts/engine-shootout/xmage/targeted/decision-source-census.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          if len(choose) < 20:
+              raise SystemExit('unexpectedly small decision surface')
+          PY
+      - name: Source-audit hidden-information boundary without overclaiming
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          player=Path('xmage/Mage/src/main/java/mage/players/Player.java').read_text()
+          out={
+            'candidate':'xmage','commit':'86d86b580cd7e1f30b51110d70cecae18c1ce452',
+            'library_api_present':'getLibrary()' in player,
+            'hand_api_present':'getHand()' in player,
+            'source_inspected':True,
+            'seat_scoped_external_observation_runtime_tested':False,
+            'gate_status':'NOT_RUN',
+            'reason':'No complete principal-scoped external pilot observation projection has been executed in this qualification yet.'
+          }
+          Path('artifacts/engine-shootout/xmage/targeted/hidden-info-source-audit.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          PY
+          python3 qual/research/greenfield-qualification/harness.py --candidate xmage --commit 86d86b580cd7e1f30b51110d70cecae18c1ce452 --scenario M_HIDDEN_INFORMATION_EXTERNAL_OBSERVATION --status NOT_RUN --reason 'No complete principal-scoped external pilot observation runtime assay yet' --out "$GITHUB_WORKSPACE/artifacts/engine-shootout/xmage/targeted/results/M_HIDDEN_INFORMATION.result.json"
+      - name: Hash and upload evidence
+        if: always()
+        shell: bash
+        run: |
+          cd artifacts/engine-shootout/xmage/targeted
+          find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true
+      - name: Upload XMage targeted evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: greenfield-xmage-targeted
+          path: artifacts/engine-shootout/xmage/targeted
+          if-no-files-found: error
