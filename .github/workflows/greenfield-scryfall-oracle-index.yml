@@ -1,0 +1,65 @@
+name: Greenfield neutral Scryfall Oracle identity index
+
+on:
+  push:
+    branches:
+      - research/greenfield-engine-shootout-20260827
+    paths:
+      - '.github/workflows/greenfield-scryfall-oracle-index.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Discover current Oracle Cards bulk data
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/scryfall-oracle
+          curl --fail --silent --show-error --location \
+            -H 'User-Agent: commander-simulator-next-research/1.0' \
+            -H 'Accept: application/json;q=0.9,*/*;q=0.8' \
+            https://api.scryfall.com/bulk-data/oracle-cards \
+            -o artifacts/scryfall-oracle/meta.json
+          python3 - <<'PY'
+          import json
+          m=json.load(open('artifacts/scryfall-oracle/meta.json'))
+          assert m['type']=='oracle_cards'
+          open('artifacts/scryfall-oracle/download_uri.txt','w').write(m['download_uri']+'\n')
+          PY
+      - name: Download once and emit compact neutral identity index
+        shell: bash
+        run: |
+          set -euo pipefail
+          uri=$(cat artifacts/scryfall-oracle/download_uri.txt)
+          curl --fail --silent --show-error --location \
+            -H 'User-Agent: commander-simulator-next-research/1.0' \
+            -H 'Accept: application/json;q=0.9,*/*;q=0.8' \
+            "$uri" -o /tmp/oracle-cards.json
+          python3 - <<'PY'
+          import json,hashlib
+          cards=json.load(open('/tmp/oracle-cards.json'))
+          rows=[]
+          for c in cards:
+            rows.append({
+              'name':c.get('name'),
+              'oracle_id':c.get('oracle_id'),
+              'scryfall_id':c.get('id'),
+              'commander_legality':(c.get('legalities') or {}).get('commander'),
+              'color_identity':c.get('color_identity'),
+              'type_line':c.get('type_line'),
+            })
+          rows.sort(key=lambda r:(r['name'] or '').casefold())
+          json.dump({'schema':'commander-simulator-next.scryfall-oracle-index.v1','count':len(rows),'cards':rows},open('artifacts/scryfall-oracle/index.json','w'),ensure_ascii=False,separators=(',',':'))
+          PY
+          (cd artifacts/scryfall-oracle && sha256sum meta.json download_uri.txt index.json > hashes.sha256)
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: greenfield-scryfall-oracle-index
+          path: artifacts/scryfall-oracle
+          if-no-files-found: error
