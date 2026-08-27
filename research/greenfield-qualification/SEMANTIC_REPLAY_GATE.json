@@ -1,0 +1,9 @@
+{
+  "schema":"commander-simulator-next.semantic-replay-gate.closeout-v1",
+  "status":"NOT_RUN",
+  "pass":false,
+  "required":"fresh process A records action+rng tape; fresh processes B and C replay identical tapes with identical canonical semantic trajectories at every decision/event boundary",
+  "existing_evidence":"Forge source census explicitly sets event_tape_runtime_qualified=false",
+  "rerun_previous_tests":false,
+  "next_dependency":"DECISION_EXTERNALIZATION"
+}
