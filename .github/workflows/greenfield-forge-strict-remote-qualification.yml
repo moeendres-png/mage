@@ -1,4 +1,4 @@
-name: Greenfield Forge strict remote human qualification
+name: Greenfield Forge strict external pilot boundary closure
 
 on:
   push:
@@ -9,108 +9,208 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   qualify:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout qualification branch
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 1
+
+      - name: Checkout exact Forge pin
+        uses: actions/checkout@v4
         with:
           repository: Card-Forge/forge
           ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
           path: forge
           fetch-depth: 1
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
-          cache-dependency-path: forge/pom.xml
-      - name: Ensure virtual display
-        shell: bash
-        run: command -v Xvfb >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y xvfb; }
-      - name: Apply research-only strict remote boundary patch
+
+      - name: Anti-rerun declaration and exact-pin verification
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C forge rev-parse HEAD)" = 8c7e9afb8e6caee88644b94e25da5852e36f8928
-          mkdir -p artifacts/forge-strict-remote
+          test "$(git -C forge rev-parse HEAD)" = "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+          mkdir -p evidence
+          cat > evidence/ANTI_RERUN_GATE.txt <<'EOF'
+          GATE=FORGE_STRICT_EXTERNAL_PILOT_BOUNDARY
+          PREVIOUS_STATUS=INSUFFICIENT_EVIDENCE
+          EVIDENCE=run 33095241142 / artifact 9656740763 proves fail-closed return-type checks but used Headless auto-choice controller and did not complete 2P-5P
+          PIN_OR_CODE_CHANGED=NO_FORGE_PIN_CHANGE; QUALIFICATION_TEST_CHANGED=YES
+          WHY_RERUN_REQUIRED=NO GAMEPLAY RERUN. New closure test addresses the missing exact-legal-choice export invariant and reuses prior runtime evidence.
+          EOF
+
+      - name: Reconcile prior strict runtime artifact without rerunning gameplay
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/prior-run
+          gh run download 33095241142 -R moeendres-png/mage -n greenfield-forge-strict-remote-qualification -D evidence/prior-run
+          test -f evidence/prior-run/test.log
           python3 - <<'PY'
           from pathlib import Path
-          import json
-          root=Path('forge')
-          proto=root/'forge-gui/src/main/java/forge/gamemodes/net/ProtocolMethod.java'
-          remote=root/'forge-gui/src/main/java/forge/gamemodes/net/server/RemoteClientGuiGame.java'
-          harness=root/'forge-gui-desktop/src/test/java/forge/net/UnifiedNetworkHarness.java'
-          p=proto.read_text()
-          old='''        // TODO only fine on disconnect\n        if (value == null) {\n            return;\n        }\n        if (!ReflectionUtil.isInstance(value, returnType)) {\n            //throw new IllegalStateException(String.format("Protocol method %s: illegal return object type %s returned by client, expected %s", name(), value.getClass().getName(), getReturnType().getName()));\n            netLog.error("Protocol method {}: illegal return type {}, expected {}", name(), value.getClass().getName(), getReturnType().getName());\n        }'''
-          new='''        if (value == null) {\n            throw new IllegalStateException("Protocol method " + name() + " returned null for required return type " + returnType.getName());\n        }\n        if (!ReflectionUtil.isInstance(value, returnType)) {\n            throw new IllegalStateException("Protocol method " + name() + ": illegal return type " + value.getClass().getName() + ", expected " + returnType.getName());\n        }'''
-          if old not in p: raise SystemExit('ProtocolMethod expected block not found')
-          proto.write_text(p.replace(old,new))
-          r=remote.read_text()
-          r=r.replace('if (paused) { return null; }\n        return sender.sendAndWait(method, args);','if (paused) { throw new IllegalStateException("decision request attempted while remote client is paused: " + method); }\n        return sender.sendAndWait(method, args);')
-          r=r.replace('if (paused) { return null; }\n        updateGameView();\n        return sender.sendAndWait(method, args);','if (paused) { throw new IllegalStateException("decision request attempted while remote client is paused: " + method); }\n        updateGameView();\n        return sender.sendAndWait(method, args);')
-          r=r.replace('''        final Boolean result = sendAndWait(ProtocolMethod.showConfirmDialog, message, title, yesButtonText, noButtonText, defaultYes);\n        return result != null ? result : defaultYes;''','''        final Boolean result = sendAndWait(ProtocolMethod.showConfirmDialog, message, title, yesButtonText, noButtonText, defaultYes);\n        if (result == null) throw new IllegalStateException("missing showConfirmDialog response");\n        return result;''')
-          r=r.replace('''        final Integer result = syncAndSendAndWait(ProtocolMethod.showOptionDialog, message, title, icon, options, defaultOption);\n        return result != null ? result : defaultOption;''','''        final Integer result = syncAndSendAndWait(ProtocolMethod.showOptionDialog, message, title, icon, options, defaultOption);\n        if (result == null) throw new IllegalStateException("missing showOptionDialog response");\n        if (result < 0 || result >= options.size()) throw new IllegalArgumentException("showOptionDialog response out of range: " + result);\n        return result;''')
-          r=r.replace('''        final Boolean result = syncAndSendAndWait(ProtocolMethod.confirm, c, question, defaultIsYes, options);\n        return result != null ? result : defaultIsYes;''','''        final Boolean result = syncAndSendAndWait(ProtocolMethod.confirm, c, question, defaultIsYes, options);\n        if (result == null) throw new IllegalStateException("missing confirm response");\n        return result;''')
-          remote.write_text(r)
-          h=harness.read_text().replace('"Diana (Remote)"};','"Diana (Remote)", "Eve (Remote)"};').replace('if (count < 2 || count > 4) {','if (count < 2 || count > 5) {').replace('"Player count must be 2-4, got: "','"Player count must be 2-5, got: "')
-          harness.write_text(h)
-          remote_text=remote.read_text(); proto_text=proto.read_text()
-          forbidden={'remote_null_default_confirm':'result != null ? result : defaultYes' in remote_text,'remote_null_default_option':'result != null ? result : defaultOption' in remote_text,'protocol_null_accepted':'if (value == null) {\n            return;' in proto_text,'protocol_wrong_type_log_only':'illegal return type {}, expected {}' in proto_text}
-          Path('artifacts/forge-strict-remote/static-audit.json').write_text(json.dumps({'schema':'commander-simulator-next.forge-strict-remote-qualification.v1','forge_pin':'8c7e9afb8e6caee88644b94e25da5852e36f8928','research_only_patch':True,'manabrew_code_used':False,'forbidden_post_patch':forbidden,'silent_transport_defaults_zero':not any(forbidden.values())},indent=2,sort_keys=True)+'\n')
-          Path('artifacts/forge-strict-remote/ProtocolMethod.strict.patch.java').write_text(proto_text)
-          Path('artifacts/forge-strict-remote/RemoteClientGuiGame.strict.patch.java').write_text(remote_text)
+          import json, re, hashlib
+          p=Path('evidence/prior-run/test.log')
+          text=p.read_text(errors='replace')
+          required={
+            'headless_auto_choice_observed': 'Auto-clicking' in text,
+            'set_selectables_observed': 'setSelectables (3 args)' in text,
+            'temp_show_zones_observed': 'tempShowZones (2 args)' in text,
+            'two_player_incomplete_observed': 'STRICT_EXTERNAL_2P=GameResult[2-player network Commander' in text and 'completed=false' in text,
+          }
+          if not all(required.values()):
+              raise SystemExit(f'prior strict runtime artifact no longer matches expected evidence: {required}')
+          out={
+            'schema':'commander-simulator-next.prior-strict-runtime-reconciliation.v1',
+            'run_id':33095241142,
+            'artifact_id':9656740763,
+            'forge_pin':'8c7e9afb8e6caee88644b94e25da5852e36f8928',
+            'artifact_log_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+            'observations':required,
+            'classification':'RUNTIME_RECONCILED',
+            'gameplay_rerun':False,
+          }
+          Path('evidence/PRIOR_STRICT_RUNTIME_RECONCILIATION.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
           PY
-      - name: Add targeted strict external-pilot tests
+
+      - name: Prove exact legal player choices are not exported across the pinned remote boundary
         shell: bash
         run: |
           set -euo pipefail
-          cat > forge/forge-gui-desktop/src/test/java/forge/net/StrictRemotePilotQualificationTest.java <<'JAVA'
-          package forge.net;
-          import forge.card.CardDb;
-          import forge.deck.Deck;
-          import forge.deck.DeckSection;
-          import forge.gamemodes.net.ProtocolMethod;
-          import forge.item.PaperCard;
-          import forge.model.FModel;
-          import org.testng.Assert;
-          import org.testng.annotations.BeforeClass;
-          import org.testng.annotations.Test;
-          import java.util.ArrayList;
-          import java.util.List;
-          public class StrictRemotePilotQualificationTest {
-              @BeforeClass public static void setUp() { TestUtils.ensureFModelInitialized(); }
-              @Test public void protocolRejectsMissingAndWrongTypedResponses() {
-                  boolean nullRejected=false; try { ProtocolMethod.showConfirmDialog.checkReturnValue(null); } catch (IllegalStateException expected) { nullRejected=true; }
-                  Assert.assertTrue(nullRejected); boolean typeRejected=false; try { ProtocolMethod.showConfirmDialog.checkReturnValue("not-a-boolean"); } catch (IllegalStateException expected) { typeRejected=true; }
-                  Assert.assertTrue(typeRejected);
-              }
-              private static Deck minimalCommander(String name, int lands) { CardDb db=FModel.getMagicDb().getCommonCards(); PaperCard commander=db.getCard("Isamaru, Hound of Konda"), plains=db.getCard("Plains"); if (commander==null||plains==null) throw new IllegalStateException("qualification cards missing"); Deck d=new Deck(name); d.getOrCreate(DeckSection.Commander).add(commander); for(int i=0;i<lands;i++) d.getMain().add(plains); return d; }
-              private static void runExternalPilotCommander(int players) { List<Deck> decks=new ArrayList<>(); for(int i=0;i<players;i++) decks.add(minimalCommander("strict-external-seat-"+i,18)); UnifiedNetworkHarness.GameResult r=new UnifiedNetworkHarness().playerCount(players).remoteClients(players-1).useAiForRemotePlayers(false).commander(true).decks(decks).connectionTimeout(60000).gameTimeout(240000).execute(); System.out.println("STRICT_EXTERNAL_"+players+"P="+r.toDetailedReport()); Assert.assertTrue(r.gameStarted); Assert.assertTrue(r.gameCompleted); Assert.assertTrue(r.success); Assert.assertEquals(r.remoteClientCount,players-1); Assert.assertTrue(r.deltaPacketsReceived>0); Assert.assertEquals(r.sendErrors,0); }
-              @Test(timeOut=300000) public void externalPilotCommander2P(){runExternalPilotCommander(2);} @Test(timeOut=300000) public void externalPilotCommander3P(){runExternalPilotCommander(3);} @Test(timeOut=300000) public void externalPilotCommander4P(){runExternalPilotCommander(4);} @Test(timeOut=300000) public void externalPilotCommander5P(){runExternalPilotCommander(5);}
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, re, hashlib
+
+          forge=Path('forge')
+          proto_path=forge/'forge-gui/src/main/java/forge/gamemodes/net/ProtocolMethod.java'
+          input_path=forge/'forge-gui/src/main/java/forge/gamemodes/match/input/InputSelectEntitiesFromList.java'
+          kaervek_path=forge/'forge-gui/res/cardsfolder/k/kaervek_the_merciless.txt'
+          proto=proto_path.read_text()
+          inp=input_path.read_text()
+          kaervek=kaervek_path.read_text()
+
+          # Hard source invariants at the exact Forge pin.
+          assertions={
+            'select_player_client_action_exists': 'selectPlayer              (Mode.CLIENT, Void.TYPE, PlayerView.class, ITriggerEvent.class)' in proto,
+            'show_prompt_has_no_legal_player_collection': 'showPromptMessage   (Mode.SERVER, Void.TYPE, PlayerView.class, String.class, CardView.class)' in proto,
+            'card_selectables_only_exported': 'setSelectables      (Mode.SERVER, Void.TYPE, Iterable/*CardView*/.class, Integer.TYPE, Integer.TYPE)' in proto,
+            'input_retains_full_valid_choices_server_side': 'private final FCollectionView<T> validChoices;' in inp and 'getValidChoices()' in inp,
+            'input_exports_only_card_views': 'if (v instanceof Card c)' in inp and 'vCards.add(c.getView())' in inp and 'setSelectables(vCards, this.min, this.max)' in inp,
+            'input_validates_player_selection_server_side': 'protected void onPlayerSelected(final Player p' in inp and 'if (!selectEntity(p))' in inp and 'validChoices.contains(c)' in inp,
+            'no_typed_decision_request_protocol_symbol': 'DecisionRequest' not in proto,
+            'no_request_id_protocol_symbol': 'requestId' not in proto and 'request_id' not in proto and 'decisionId' not in proto and 'decision_id' not in proto,
+            'kaervek_any_target_reachability_witness': 'ValidTgts$ Any' in kaervek and 'any target' in kaervek.lower(),
           }
-          JAVA
-          cp forge/forge-gui-desktop/src/test/java/forge/net/StrictRemotePilotQualificationTest.java artifacts/forge-strict-remote/
-      - name: Build and run strict remote qualification through reactor
+          if not all(assertions.values()):
+              raise SystemExit('Pinned-source assumptions changed; fail closed: '+json.dumps(assertions,sort_keys=True))
+
+          # Enumerate the current server blocking methods to preserve the 15-method census.
+          server_blocking=[]
+          in_enum=False
+          for line in proto.splitlines():
+              if 'public enum ProtocolMethod' in line: in_enum=True
+              if not in_enum: continue
+              m=re.match(r'\s*([A-Za-z0-9_]+)\s*\(Mode\.SERVER,\s*([^,\)]+)', line)
+              if m and 'Void.TYPE' not in m.group(2):
+                  server_blocking.append(m.group(1))
+          if len(server_blocking) != 15:
+              raise SystemExit(f'Expected 15 server blocking methods at exact pin, got {len(server_blocking)}: {server_blocking}')
+
+          # The production-relevant failure is structural: Player validChoices can include Player,
+          # but the client receives only CardView selectables. A client-side strict adapter therefore
+          # cannot enumerate exact legal Player choices without parsing prompt/full state or reproducing rules.
+          finding={
+            'schema':'commander-simulator-next.forge-strict-boundary-gate.v2',
+            'candidate':'Forge + new strict external-pilot adapter',
+            'forge_pin':'8c7e9afb8e6caee88644b94e25da5852e36f8928',
+            'gate':'DECISION_EXTERNALIZATION',
+            'status':'FAIL',
+            'evidence_class':['CODE_DERIVED','RUNTIME_RECONCILED'],
+            'server_blocking_decision_transport_count':len(server_blocking),
+            'server_blocking_methods':server_blocking,
+            'hard_failure':{
+              'decision_kind':'ENTITY_PLAYER_SELECTION',
+              'backend_source':'InputSelectEntitiesFromList<T extends GameEntity>',
+              'runtime_trigger':'validChoices contains Player entities',
+              'actor':'remote player/controller',
+              'visibility_scope':'must be principal scoped',
+              'legal_options':'NOT_EXPORTED_TO_REMOTE_GUI_BOUNDARY',
+              'response_schema':'existing selectPlayer(PlayerView,ITriggerEvent) has no request token',
+              'backend_validation':'selectEntity rejects Player not in server-side validChoices',
+              'fallback_present':'client can only guess/derive candidate players from GameView/prompt under current protocol',
+              'production_reachable':True,
+              'reachability_witness':'Kaervek the Merciless is a verified relevant opponent and its pinned Forge semantics use ValidTgts$ Any',
+              'status':'UNSUPPORTED_AT_CURRENT_REMOTE_BOUNDARY'
+            },
+            'hard_gate_values':{
+              'SILENT_FALLBACKS':'NOT_ESTABLISHED_ZERO',
+              'PRODUCTION_REACHABLE_UNSUPPORTED_DECISIONS':1,
+              'EXACT_LEGAL_CHOICES_EXPORTED':False,
+              'COMPLETE_TYPED_DECISION_REQUEST_RESPONSE':False,
+              'STALE_RESPONSE_REJECTION_AT_BACKEND_PROTOCOL':False
+            },
+            'architecture_adjudication':{
+              'forge_rules_core_disqualified':False,
+              'stock_remote_gui_boundary_qualified':False,
+              'client_only_strict_adapter_sufficient':False,
+              'minimal_required_change':'Add a server-side typed Decision Export hook at the authoritative Input/PlayerControllerHuman boundary that publishes the exact validChoices (including Player entities), actor, min/max/constraints and a monotonic request token to the trusted adapter; validate the token/actor before translating the response back into the existing input object. Do not derive legal choices from prompt text or full GameView.',
+              'rules_reimplementation_required':False
+            },
+            'source_assertions':assertions,
+            'source_hashes':{
+              'ProtocolMethod.java':hashlib.sha256(proto_path.read_bytes()).hexdigest(),
+              'InputSelectEntitiesFromList.java':hashlib.sha256(input_path.read_bytes()).hexdigest(),
+              'kaervek_the_merciless.txt':hashlib.sha256(kaervek_path.read_bytes()).hexdigest(),
+            }
+          }
+          Path('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.json').write_text(json.dumps(finding,indent=2,sort_keys=True)+'\n')
+
+          registry=[
+            {'decision_kind':'ENTITY_PLAYER_SELECTION','backend_source':'InputSelectEntitiesFromList','runtime_trigger':'validChoices contains Player','actor':'controller player','visibility_scope':'principal','legal_options':'server validChoices','response_schema':'Player choice','validation':'validChoices.contains','invalid_response_test':'server selectEntity rejects non-member','fallback_present':False,'runtime_test':'prior strict runtime + pinned source path','status':'UNSUPPORTED_AT_CURRENT_REMOTE_BOUNDARY'},
+            {'decision_kind':'ENTITY_CARD_SELECTION','backend_source':'InputSelectEntitiesFromList','runtime_trigger':'validChoices contains Card','actor':'controller player','visibility_scope':'principal','legal_options':'setSelectables(CardView,min,max)','response_schema':'selectCard','validation':'validChoices.contains','invalid_response_test':'server selectEntity rejects non-member','fallback_present':False,'runtime_test':'prior run observed setSelectables','status':'PARTIAL_NO_REQUEST_TOKEN'},
+            {'decision_kind':'BUTTON_CHOICE','backend_source':'Input/updateButtons','runtime_trigger':'buttons enabled','actor':'owner','visibility_scope':'principal','legal_options':'two enabled button states','response_schema':'selectButtonOk/selectButtonCancel','validation':'input state','invalid_response_test':'NOT_COMPLETE','fallback_present':False,'runtime_test':'prior run observed updateButtons','status':'PARTIAL_NO_REQUEST_TOKEN'},
+            {'decision_kind':'BLOCKING_GUI_DECISIONS_15','backend_source':'ProtocolMethod SERVER non-void','runtime_trigger':'blocking GUI calls','actor':'remote client principal','visibility_scope':'method-specific','legal_options':'method-specific payloads','response_schema':'method-specific return type','validation':'ProtocolMethod type only upstream','invalid_response_test':'prior strict patch null/wrong-type test','fallback_present':True,'runtime_test':'run 33095241142','status':'PARTIAL'},
+          ]
+          Path('evidence/DECISION_CAPABILITY_REGISTRY.json').write_text(json.dumps({'schema':'commander-simulator-next.decision-capability-registry.v2','forge_pin':finding['forge_pin'],'entries':registry,'production_reachable_unsupported_decisions':1,'silent_fallbacks_zero':False,'gate':'FAIL'},indent=2,sort_keys=True)+'\n')
+
+          md=f'''# Forge Strict External-Pilot Boundary Gate — FINAL CLOSURE\n\n- Forge pin: `{finding['forge_pin']}`\n- Gate: `DECISION_EXTERNALIZATION`\n- Status: **FAIL**\n- Evidence: CODE-DERIVED + existing runtime reconciliation; no gameplay rerun.\n\n## Exact blocker\n\n`InputSelectEntitiesFromList<T extends GameEntity>` keeps the authoritative `validChoices` server-side. It exports only Card members through `setSelectables(CardView, min, max)`. Player members remain server-side and are validated only after a client sends `selectPlayer(PlayerView, ITriggerEvent)`. The pinned remote protocol has neither a typed DecisionRequest nor a request/decision token.\n\nThis is production-reachable: pinned Forge semantics for `Kaervek the Merciless` contain `ValidTgts$ Any`; the project domain classifies Kaervek as a verified relevant opponent.\n\nA client-only adapter cannot therefore send **exact legal Player options** to an external pilot without guessing from GameView/prompt text or reimplementing targeting rules. Both are forbidden.\n\n## Adjudication\n\n- Forge Rules Core: **not disqualified**.\n- Stock remote GUI boundary: **not qualified**.\n- Client-only strict adapter: **insufficient by construction**.\n- `PRODUCTION_REACHABLE_UNSUPPORTED_DECISIONS = 1` (minimum proven count).\n- `SILENT_FALLBACKS = 0`: **not established**.\n\n## Minimal required change\n\nAdd a server-side typed Decision Export hook at the authoritative `Input` / `PlayerControllerHuman` boundary. It must export exact valid choices including Player entities, actor, min/max/constraints and a monotonic request token to the trusted adapter, then validate request token + actor before applying a response to the existing Input object. No prompt parsing, no GameView inference, no Forge AI fallback, and no MTG rules reimplementation.\n'''
+          Path('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.md').write_text(md)
+          PY
+
+      - name: Qualification verdict is machine-readable and fail-closed
         shell: bash
         run: |
-          set -o pipefail
-          cd forge
-          set +e
-          xvfb-run -a mvn -B -ntp -T 1C -pl forge-gui-desktop -am -Dtest=forge.net.StrictRemotePilotQualificationTest -Dsurefire.failIfNoSpecifiedTests=false test 2>&1 | tee ../artifacts/forge-strict-remote/test.log
-          rc=${PIPESTATUS[0]}; set -e; echo "$rc" > ../artifacts/forge-strict-remote/test.exit; test "$rc" -eq 0
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          g=json.load(open('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.json'))
+          r=json.load(open('evidence/DECISION_CAPABILITY_REGISTRY.json'))
+          assert g['status']=='FAIL'
+          assert g['hard_gate_values']['PRODUCTION_REACHABLE_UNSUPPORTED_DECISIONS'] >= 1
+          assert g['hard_gate_values']['EXACT_LEGAL_CHOICES_EXPORTED'] is False
+          assert r['gate']=='FAIL'
+          print('QUALIFICATION_GATE_CLOSED=TRUE')
+          print('DECISION_EXTERNALIZATION=FAIL')
+          print('FIRST_BLOCKER=ENTITY_PLAYER_SELECTION_LEGAL_CHOICE_EXPORT')
+          PY
+
       - name: Hash evidence
         if: always()
         shell: bash
         run: |
-          cd artifacts/forge-strict-remote
+          cd evidence
           find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true
-      - name: Upload
+
+      - name: Upload closure evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: greenfield-forge-strict-remote-qualification
-          path: artifacts/forge-strict-remote
+          name: greenfield-forge-strict-boundary-closure
+          path: evidence
           if-no-files-found: error
