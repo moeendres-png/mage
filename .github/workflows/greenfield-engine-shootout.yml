@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   manabrew:
-    name: Manabrew pinned headless/parity build + tests
+    name: Manabrew pinned parity test qualification
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -47,26 +47,27 @@ jobs:
             echo "actual_commit=$actual"
             echo "expected_forge_submodule=192b5eab000069bbb8917a5df9d60d4a9128aa07"
             echo "actual_forge_submodule=$sub"
-            echo "runner_os=$RUNNER_OS"
             uname -a
-            git --version
             rustc --version
             cargo --version
             java -version 2>&1
           } > artifacts/engine-shootout/manabrew/build/environment.txt
           cp manabrew/LICENSE.md artifacts/engine-shootout/manabrew/build/license.txt
-          sha256sum artifacts/engine-shootout/manabrew/build/license.txt > artifacts/engine-shootout/manabrew/build/hashes.sha256
-          printf '{"candidate":"manabrew-forge-lane","repository":"witchesofthehill/manabrew","expected_commit":"754ec2aeec495d67d7bb9b89d0fd67ee22281b46","actual_commit":"%s","expected_forge_submodule":"192b5eab000069bbb8917a5df9d60d4a9128aa07","actual_forge_submodule":"%s"}\n' "$actual" "$sub" > artifacts/engine-shootout/manabrew/build/metadata.json
+          printf '{"candidate":"manabrew-forge-lane","repository":"witchesofthehill/manabrew","expected_commit":"754ec2aeec495d67d7bb9b89d0fd67ee22281b46","actual_commit":"%s","expected_forge_submodule":"192b5eab000069bbb8917a5df9d60d4a9128aa07","actual_forge_submodule":"%s","prior_build_exit":0,"prior_test_failure":"missing_generated_cardset_archive"}\n' "$actual" "$sub" > artifacts/engine-shootout/manabrew/build/metadata.json
           test "$actual" = "754ec2aeec495d67d7bb9b89d0fd67ee22281b46"
           test "$sub" = "192b5eab000069bbb8917a5df9d60d4a9128aa07"
-      - name: Build parity + self-hosted node
+      - name: Generate pinned Forge cardset archive
         continue-on-error: true
         shell: bash
         run: |
           set +e
-          /usr/bin/time -v bash -lc 'cd manabrew && cargo build -p parity -p self-hosted-node --locked' > artifacts/engine-shootout/manabrew/build/build.log 2>&1
+          /usr/bin/time -v bash -lc 'cd manabrew && cargo run -p forge-cardset-archive --features build --bin build-cardset-archive --locked' > artifacts/engine-shootout/manabrew/build/cardset.log 2>&1
           rc=$?
-          echo "$rc" > artifacts/engine-shootout/manabrew/build/build.exit
+          echo "$rc" > artifacts/engine-shootout/manabrew/build/cardset.exit
+          if [ -f manabrew/src-tauri/resources/cardset.rkyv ]; then
+            sha256sum manabrew/src-tauri/resources/cardset.rkyv > artifacts/engine-shootout/manabrew/build/cardset.sha256
+            stat -c '%s' manabrew/src-tauri/resources/cardset.rkyv > artifacts/engine-shootout/manabrew/build/cardset.bytes
+          fi
           exit 0
       - name: Parity + node tests
         continue-on-error: true
@@ -81,19 +82,20 @@ jobs:
         if: always()
         shell: bash
         run: |
+          : > artifacts/engine-shootout/manabrew/build/hashes.sha256
           find artifacts/engine-shootout/manabrew/build -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum >> artifacts/engine-shootout/manabrew/build/hashes.sha256 || true
       - name: Upload Manabrew evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: greenfield-manabrew-build-rerun
+          name: greenfield-manabrew-test-final
           path: artifacts/engine-shootout/manabrew/build
           if-no-files-found: error
-      - name: Classify Manabrew build
+      - name: Classify Manabrew qualification
         if: always()
         shell: bash
         run: |
-          b=$(cat artifacts/engine-shootout/manabrew/build/build.exit 2>/dev/null || echo 99)
+          c=$(cat artifacts/engine-shootout/manabrew/build/cardset.exit 2>/dev/null || echo 99)
           t=$(cat artifacts/engine-shootout/manabrew/build/test.exit 2>/dev/null || echo 99)
-          echo "build_exit=$b test_exit=$t"
-          test "$b" = 0 && test "$t" = 0
+          echo "cardset_exit=$c test_exit=$t prior_build_exit=0"
+          test "$c" = 0 && test "$t" = 0
