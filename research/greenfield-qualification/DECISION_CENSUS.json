@@ -1,14 +1,58 @@
 {
-  "schema": "commander-simulator-next.decision-census.closeout-v1",
+  "schema": "commander-simulator-next.decision-census.closeout-v2",
   "complete": false,
-  "production_gate": "FAIL_OR_INSUFFICIENT_EVIDENCE",
+  "production_gate": "FAIL",
   "candidates": {
-    "forge": {"pin":"8c7e9afb8e6caee88644b94e25da5852e36f8928","source_abstract_methods":109,"remote_blocking_decisions":15,"stock_forbidden_fallbacks":10,"strict_run":33095241142,"status":"INSUFFICIENT_EVIDENCE","reason":"strict run did not establish all production-reachable discretionary paths; Headless auto/default behavior remained and full 2P-5P decision-stream completion was not demonstrated"},
-    "xmage": {"pin":"86d86b580cd7e1f30b51110d70cecae18c1ce452","run":33089884301,"status":"INSUFFICIENT_EVIDENCE","complete_external_pilot_runtime_gate":false,"principal_scoped_external_observation_runtime_gate":false},
-    "phase_rs": {"pin":"fae406c4603f450797014f3ac8e8818b3d36c2a4","run":33078715204,"status":"INSUFFICIENT_EVIDENCE","source_externalizable":true,"externalized_and_tested_for_all_required_decisions":false},
-    "manabrew": {"pin":"754ec2aeec495d67d7bb9b89d0fd67ee22281b46","forge_pin":"192b5eab000069bbb8917a5df9d60d4a9128aa07","run":33090536113,"status":"FAIL","silent_fallbacks_zero":false,"observed_fallback_classes":["TARGET_FIRST_FALLBACK","DISCARD_FIRST_N_FALLBACK","REPLACEMENT_FIRST_FALLBACK","STATIC_FIRST_FALLBACK","INTERNAL_RANDOM_TARGET_RNG","PROMPT0_DEFAULT_PASS","INTERRUPT_PRIORITY_PASS"]}
+    "forge": {
+      "pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+      "source_abstract_methods": 109,
+      "remote_blocking_decisions": 15,
+      "stock_forbidden_fallbacks": 10,
+      "prior_strict_run": 33095241142,
+      "prior_strict_artifact": 9656740763,
+      "closure_run": 33112928078,
+      "closure_artifact": 9663315184,
+      "status": "FAIL",
+      "exact_failure": "ENTITY_PLAYER_SELECTION legal choices remain authoritative server-side in InputSelectEntitiesFromList.validChoices but only CardView members are exported through setSelectables; selectPlayer has no typed request token",
+      "forge_rules_core_disqualified": false,
+      "client_only_strict_adapter_sufficient": false,
+      "production_reachable_unsupported_decisions_minimum": 1
+    },
+    "xmage": {
+      "pin": "86d86b580cd7e1f30b51110d70cecae18c1ce452",
+      "run": 33089884301,
+      "status": "INSUFFICIENT_EVIDENCE",
+      "complete_external_pilot_runtime_gate": false,
+      "principal_scoped_external_observation_runtime_gate": false
+    },
+    "phase_rs": {
+      "pin": "fae406c4603f450797014f3ac8e8818b3d36c2a4",
+      "run": 33078715204,
+      "status": "INSUFFICIENT_EVIDENCE",
+      "source_externalizable": true,
+      "externalized_and_tested_for_all_required_decisions": false
+    },
+    "manabrew": {
+      "pin": "754ec2aeec495d67d7bb9b89d0fd67ee22281b46",
+      "forge_pin": "192b5eab000069bbb8917a5df9d60d4a9128aa07",
+      "run": 33090536113,
+      "status": "FAIL",
+      "silent_fallbacks_zero": false,
+      "observed_fallback_classes": [
+        "TARGET_FIRST_FALLBACK",
+        "DISCARD_FIRST_N_FALLBACK",
+        "REPLACEMENT_FIRST_FALLBACK",
+        "STATIC_FIRST_FALLBACK",
+        "INTERNAL_RANDOM_TARGET_RNG",
+        "PROMPT0_DEFAULT_PASS",
+        "INTERRUPT_PRIORITY_PASS"
+      ]
+    }
   },
-  "production_reachable_unsupported_decisions": "NOT_ESTABLISHED_ZERO",
+  "production_reachable_unsupported_decisions": 1,
+  "production_reachable_unsupported_decisions_semantics": "minimum proven count at current Forge remote boundary; not a claim that only one unsupported kind exists",
   "silent_fallbacks": "NOT_ESTABLISHED_ZERO",
-  "first_blocking_gate": "DECISION_EXTERNALIZATION"
+  "first_blocking_gate": "DECISION_EXTERNALIZATION",
+  "first_blocking_subgate": "ENTITY_PLAYER_SELECTION_LEGAL_CHOICE_EXPORT",
+  "minimal_required_change": "server-side typed Decision Export hook at authoritative Input/PlayerControllerHuman boundary with exact options, actor, visibility/constraints, monotonic request token and strict response validation"
 }
