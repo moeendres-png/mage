@@ -1,15 +1,10 @@
 name: Greenfield neutral Scryfall Oracle identity index
-
 on:
   push:
-    branches:
-      - research/greenfield-engine-shootout-20260827
-    paths:
-      - '.github/workflows/greenfield-scryfall-oracle-index.yml'
-
+    branches: [research/greenfield-engine-shootout-20260827]
+    paths: ['.github/workflows/greenfield-scryfall-oracle-index.yml']
 permissions:
   contents: read
-
 jobs:
   index:
     runs-on: ubuntu-latest
@@ -20,59 +15,40 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/scryfall-oracle
-          curl --fail --silent --show-error --location \
-            -H 'User-Agent: commander-simulator-next-research/1.0' \
-            -H 'Accept: application/json;q=0.9,*/*;q=0.8' \
-            https://api.scryfall.com/bulk-data \
-            -o artifacts/scryfall-oracle/bulk-list.json
+          curl --fail --silent --show-error --location -H 'User-Agent: commander-simulator-next-research/1.0' -H 'Accept: application/json' https://api.scryfall.com/bulk-data -o artifacts/scryfall-oracle/bulk-list.json
           python3 - <<'PY'
           import json
           m=json.load(open('artifacts/scryfall-oracle/bulk-list.json'))
-          rows=m.get('data') if isinstance(m,dict) else None
-          if not isinstance(rows,list):
-              raise SystemExit(f'unexpected bulk-data response shape: {type(m).__name__} keys={list(m)[:20] if isinstance(m,dict) else None}')
-          hits=[x for x in rows if x.get('type')=='oracle_cards']
-          if len(hits)!=1:
-              raise SystemExit(f'expected exactly one oracle_cards bulk descriptor, found {len(hits)}')
-          meta=hits[0]
-          uri=meta.get('jsonl_download_uri') or meta.get('download_uri')
-          if not uri:
-              raise SystemExit(f'oracle_cards descriptor missing JSONL/download URI; keys={sorted(meta)}')
+          hits=[x for x in m.get('data',[]) if x.get('type')=='oracle_cards']
+          if len(hits)!=1: raise SystemExit(f'expected one oracle_cards descriptor, got {len(hits)}')
+          meta=hits[0]; uri=meta.get('jsonl_download_uri') or meta.get('download_uri')
+          if not uri: raise SystemExit(f'missing bulk URI; keys={sorted(meta)}')
           json.dump(meta,open('artifacts/scryfall-oracle/meta.json','w'),ensure_ascii=False,indent=2,sort_keys=True)
           open('artifacts/scryfall-oracle/download_uri.txt','w').write(uri+'\n')
           PY
-      - name: Download once and emit compact neutral identity index
+      - name: Download decompress and emit neutral identity index
         shell: bash
         run: |
           set -euo pipefail
           uri=$(cat artifacts/scryfall-oracle/download_uri.txt)
-          curl --fail --silent --show-error --location \
-            -H 'User-Agent: commander-simulator-next-research/1.0' \
-            -H 'Accept: application/jsonl,application/x-ndjson,application/json;q=0.9,*/*;q=0.8' \
-            "$uri" -o /tmp/oracle-cards.jsonl
+          curl --fail --silent --show-error --location -H 'User-Agent: commander-simulator-next-research/1.0' "$uri" -o /tmp/oracle-cards.payload
+          magic=$(od -An -tx1 -N2 /tmp/oracle-cards.payload | tr -d ' \n')
+          if [ "$magic" = "1f8b" ]; then gzip -dc /tmp/oracle-cards.payload > /tmp/oracle-cards.jsonl; else cp /tmp/oracle-cards.payload /tmp/oracle-cards.jsonl; fi
           python3 - <<'PY'
           import json
           rows=[]
           with open('/tmp/oracle-cards.jsonl',encoding='utf-8') as f:
-              for line_no,line in enumerate(f,1):
-                  line=line.strip()
-                  if not line:
-                      continue
-                  c=json.loads(line)
-                  rows.append({
-                    'name':c.get('name'),
-                    'oracle_id':c.get('oracle_id'),
-                    'scryfall_id':c.get('id'),
-                    'commander_legality':(c.get('legalities') or {}).get('commander'),
-                    'color_identity':c.get('color_identity'),
-                    'type_line':c.get('type_line'),
-                  })
+            for line in f:
+              if not line.strip(): continue
+              c=json.loads(line)
+              rows.append({'name':c.get('name'),'oracle_id':c.get('oracle_id'),'scryfall_id':c.get('id'),'commander_legality':(c.get('legalities') or {}).get('commander'),'color_identity':c.get('color_identity'),'type_line':c.get('type_line')})
           rows.sort(key=lambda r:(r['name'] or '').casefold())
+          if not rows: raise SystemExit('empty Oracle index')
           json.dump({'schema':'commander-simulator-next.scryfall-oracle-index.v1','count':len(rows),'cards':rows},open('artifacts/scryfall-oracle/index.json','w'),ensure_ascii=False,separators=(',',':'))
+          print('oracle_rows=',len(rows))
           PY
           (cd artifacts/scryfall-oracle && sha256sum bulk-list.json meta.json download_uri.txt index.json > hashes.sha256)
-      - name: Upload
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: greenfield-scryfall-oracle-index
           path: artifacts/scryfall-oracle
