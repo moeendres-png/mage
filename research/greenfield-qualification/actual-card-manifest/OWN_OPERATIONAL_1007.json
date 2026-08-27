@@ -1,1 +1,15 @@
-{"placeholder":"will be replaced in next call"}
+{
+  "schema": "commander-simulator-next.actual-card-requirement-manifest-descriptor.v1",
+  "generated_at": "2026-08-27",
+  "source": {
+    "drive_id": "1_HlokwIebhVKCeQuDvVOpr3BZWYwgKBd",
+    "title": "MTG_Kartensammlung_kanonisch_aktuell.xlsx",
+    "source_modified_at": "2026-08-20T08:10:51.737Z"
+  },
+  "derivation": "available_for_own_decks_quantity_lower_bound > 0 AND commander_legal AND (color_identity subset WUR OR color_identity subset WBR)",
+  "physical_unique_identities": 1338,
+  "operational_unique_identities": 1007,
+  "materialized_manifest_sha256": "9739c2620972467f81b141364814d2060b11e9d93df3cfc53599155cbf45c319",
+  "materialized_manifest_bytes": 172754,
+  "note": "The full 1007-row materialization is preserved as qualification evidence; this descriptor pins its source, derivation, count, and SHA-256 without embedding Drive-domain data into the temporary research runner repository."
+}
