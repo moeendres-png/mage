@@ -1,0 +1,150 @@
+name: Greenfield Forge runtime qualification
+
+on:
+  push:
+    branches:
+      - research/greenfield-engine-shootout-20260827
+    paths:
+      - '.github/workflows/greenfield-forge-runtime.yml'
+      - 'research/greenfield-qualification/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: greenfield-forge-runtime-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  forge-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout qualification harness
+        uses: actions/checkout@v4
+        with:
+          ref: research/greenfield-engine-shootout-20260827
+          path: qual
+      - name: Checkout pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          path: forge
+          fetch-depth: 1
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: forge/pom.xml
+      - name: Install headless display
+        run: command -v Xvfb >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y xvfb; }
+      - name: Build runnable pinned Forge artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/engine-shootout/forge/runtime
+          /usr/bin/time -v bash -lc 'cd forge && xvfb-run -a mvn -U -B -DskipTests package' > artifacts/engine-shootout/forge/runtime/package.log 2>&1
+          jar=$(find forge/forge-gui-desktop/target -maxdepth 1 -type f -name '*-jar-with-dependencies.jar' | head -n1)
+          test -n "$jar"
+          printf '%s\n' "$jar" > artifacts/engine-shootout/forge/runtime/jar.path
+          sha256sum "$jar" > artifacts/engine-shootout/forge/runtime/jar.sha256
+          test "$(git -C forge rev-parse HEAD)" = "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      - name: Run 2P 3P 4P 5P Commander CLI probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/engine-shootout/forge/runtime/results
+          jar="$GITHUB_WORKSPACE/$(cat artifacts/engine-shootout/forge/runtime/jar.path)"
+          deck="$GITHUB_WORKSPACE/qual/research/greenfield-qualification/decks/micro-ruhan-forge.dck"
+          for p in 2 3 4 5; do
+            python3 qual/research/greenfield-qualification/harness.py \
+              --candidate forge \
+              --commit 8c7e9afb8e6caee88644b94e25da5852e36f8928 \
+              --scenario "L_${p}P_commander_cli_full_game" \
+              --seed 424242 \
+              --players "$p" \
+              --command "bash '$GITHUB_WORKSPACE/qual/research/greenfield-qualification/forge_probe.sh' '$jar' '$deck' '$p' 424242 90" \
+              --cwd "$GITHUB_WORKSPACE/forge" \
+              --timeout 180 \
+              --out "$GITHUB_WORKSPACE/artifacts/engine-shootout/forge/runtime/results/L_${p}P.result.json"
+          done
+      - name: Run current RogShai exact-name load/full-game probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          jar="$GITHUB_WORKSPACE/$(cat artifacts/engine-shootout/forge/runtime/jar.path)"
+          deck="$GITHUB_WORKSPACE/qual/research/greenfield-qualification/decks/rogshai-current-forge.dck"
+          python3 qual/research/greenfield-qualification/harness.py \
+            --candidate forge \
+            --commit 8c7e9afb8e6caee88644b94e25da5852e36f8928 \
+            --scenario CARD_ROGSHAI_CURRENT_LOAD_AND_RUN \
+            --seed 515151 \
+            --players 2 \
+            --command "bash '$GITHUB_WORKSPACE/qual/research/greenfield-qualification/forge_probe.sh' '$jar' '$deck' 2 515151 60" \
+            --cwd "$GITHUB_WORKSPACE/forge" \
+            --timeout 150 \
+            --out "$GITHUB_WORKSPACE/artifacts/engine-shootout/forge/runtime/results/CARD_ROGSHAI.result.json"
+      - name: Fresh-process seeded repeatability probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="$GITHUB_WORKSPACE/artifacts/engine-shootout/forge/runtime/fresh-process"
+          mkdir -p "$dir"
+          jar="$GITHUB_WORKSPACE/$(cat artifacts/engine-shootout/forge/runtime/jar.path)"
+          deck="$GITHUB_WORKSPACE/qual/research/greenfield-qualification/decks/micro-ruhan-forge.dck"
+          for n in 1 2 3; do
+            bash "$GITHUB_WORKSPACE/qual/research/greenfield-qualification/forge_probe.sh" "$jar" "$deck" 4 989898 90 > "$dir/run${n}.out" 2> "$dir/run${n}.normalized"
+            sha256sum "$dir/run${n}.normalized" >> "$dir/hashes.sha256"
+          done
+          cmp "$dir/run1.normalized" "$dir/run2.normalized"
+          cmp "$dir/run1.normalized" "$dir/run3.normalized"
+          python3 "$GITHUB_WORKSPACE/qual/research/greenfield-qualification/harness.py" \
+            --candidate forge \
+            --commit 8c7e9afb8e6caee88644b94e25da5852e36f8928 \
+            --scenario S0_seeded_cli_fresh_process_repeatability \
+            --seed 989898 --players 4 \
+            --command "cmp '$dir/run1.normalized' '$dir/run2.normalized' && cmp '$dir/run1.normalized' '$dir/run3.normalized'" \
+            --cwd "$GITHUB_WORKSPACE" --timeout 30 \
+            --out "$GITHUB_WORKSPACE/artifacts/engine-shootout/forge/runtime/results/S0.result.json"
+      - name: Census Forge player-decision surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,re
+          from pathlib import Path
+          p=Path('forge/forge-game/src/main/java/forge/game/player/PlayerController.java')
+          text=p.read_text(encoding='utf-8')
+          methods=[]
+          for m in re.finditer(r'public\s+abstract\s+([^;]+);', text, flags=re.S):
+              sig=' '.join(m.group(1).split())
+              methods.append(sig)
+          out={
+            'candidate':'forge',
+            'commit':'8c7e9afb8e6caee88644b94e25da5852e36f8928',
+            'surface':'PlayerController abstract callbacks',
+            'abstract_callback_count':len(methods),
+            'callbacks':methods,
+            'classification':'EXTERNALIZABLE_SOURCE_SURFACE_ONLY',
+            'runtime_externalized_and_tested':False
+          }
+          path=Path('artifacts/engine-shootout/forge/runtime/decision-census-source.json')
+          path.write_text(json.dumps(out,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          assert len(methods) > 40, len(methods)
+          PY
+      - name: Hash runtime evidence
+        if: always()
+        shell: bash
+        run: |
+          cd artifacts/engine-shootout/forge/runtime
+          find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true
+      - name: Upload Forge runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: greenfield-forge-runtime
+          path: artifacts/engine-shootout/forge/runtime
+          if-no-files-found: error
