@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /** Real 4P Commander WS05 campaign over network views and the strict external-pilot boundary. */
 public class Ws05HiddenInfoQualificationTest {
@@ -156,7 +157,6 @@ public class Ws05HiddenInfoQualificationTest {
         for (int i = 0; i < 4; i++) {
             final Deck deck = TestDeckLoader.createMinimalDeck("Plains", i == 0 ? 12 : 20);
             if (i == 0) {
-                // Eight copies guarantee at least one canary remains in the library after a seven-card opening hand.
                 for (int j = 0; j < 8; j++) deck.getMain().add(canary);
             }
             deck.getOrCreate(DeckSection.Commander).add(commander);
@@ -166,13 +166,16 @@ public class Ws05HiddenInfoQualificationTest {
     }
 
     /**
-     * Drives every visibility mutation from the same synchronous Decision boundary used by the game loop.
-     * The canary is bound only after the first real priority decision, after opening-hand/mulligan zone churn,
-     * so every subsequent permission mutation targets the authoritative live Card instance rather than a stale
-     * zone-change copy with the same card id. A TRANSITION phase suppresses observations while a visibility
-     * mutation is in flight; only a fully established before/after projection is adjudicated.
+     * Runs the complete visibility lifecycle atomically inside the first real
+     * PRIORITY_ACTION boundary. The game thread owns every mutation. After each
+     * server-side projection flush, it waits only for the three independent
+     * network client observers to confirm receipt before applying the next
+     * mutation. Normal game actions therefore cannot move/copy the canary
+     * between lifecycle states and invalidate the test subject.
      */
     private static final class VisibilityLifecycle {
+        private static final long PHASE_TIMEOUT_MS = 10000L;
+
         private final Path secretPath;
         private int stage;
         private Throwable failure;
@@ -182,112 +185,84 @@ public class Ws05HiddenInfoQualificationTest {
         private Player charlie;
         private Player diana;
         private Card target;
-        private long revealTimestamp;
 
         private VisibilityLifecycle(final Path secretPath) {
             this.secretPath = secretPath;
         }
 
         private synchronized void onAuthoritativeDecisionBoundary(final ExternalDecisionRequest request) {
-            if (failure != null || stage < 0) return;
+            if (failure != null || stage != 0) return;
+            if (request == null || !"PRIORITY_ACTION".equals(request.getDecisionKind())) return;
+            stage = 1;
             try {
-                if (stage == 0) {
-                    if (request == null || !"PRIORITY_ACTION".equals(request.getDecisionKind())) return;
-                    HostedMatch match = HeadlessGuiDesktop.getLastMatch();
-                    if (match == null || match.getGame() == null || match.getGame().getPlayers().size() != 4) return;
-                    game = match.getGame();
-                    owner = findPlayer(game, "Alice");
-                    bob = findPlayer(game, "Bob");
-                    charlie = findPlayer(game, "Charlie");
-                    diana = findPlayer(game, "Diana");
-                    target = findCanaryInLibrary(owner);
-                    Files.createDirectories(secretPath.getParent());
-                    Files.writeString(secretPath, target.getName(), StandardCharsets.UTF_8);
-                    Ws05HiddenInfoProbe.registerSecret(target.getName());
-                    establish("HIDDEN_BASE", NONE);
-                    stage = 1;
-                    return;
+                HostedMatch match = HeadlessGuiDesktop.getLastMatch();
+                if (match == null || match.getGame() == null || match.getGame().getPlayers().size() != 4) {
+                    throw new IllegalStateException("4P hosted game unavailable at first priority boundary");
                 }
+                game = match.getGame();
+                owner = findPlayer(game, "Alice");
+                bob = findPlayer(game, "Bob");
+                charlie = findPlayer(game, "Charlie");
+                diana = findPlayer(game, "Diana");
+                target = findCanaryInLibrary(owner);
 
-                if (stage == 1 && phaseObserved("HIDDEN_BASE")) {
-                    transition();
-                    target.addMayLookTemp(bob);
-                    establish("PRIVATE_LOOK", Set.of(BOB));
-                    stage = 2;
-                    return;
+                Files.createDirectories(secretPath.getParent());
+                Files.writeString(secretPath, target.getName(), StandardCharsets.UTF_8);
+                Ws05HiddenInfoProbe.registerSecret(target.getName());
+
+                establishAndAwait("HIDDEN_BASE", NONE);
+
+                transition();
+                target.addMayLookTemp(bob);
+                establishAndAwait("PRIVATE_LOOK", Set.of(BOB));
+
+                transition();
+                target.removeMayLookTemp(bob);
+                establishAndAwait("HIDDEN_AFTER_LOOK", NONE);
+
+                transition();
+                final long revealTimestamp = game.getNextTimestamp();
+                target.addMayLookAt(revealTimestamp, game.getPlayers());
+                establishAndAwait("PUBLIC_REVEAL", Set.of(BOB, CHARLIE, DIANA));
+
+                transition();
+                target.removeMayLookAt(revealTimestamp);
+                establishAndAwait("HIDDEN_AFTER_REVEAL", NONE);
+
+                transition();
+                target.addMayLookTemp(charlie);
+                establishAndAwait("PRIVATE_SEARCH", Set.of(CHARLIE));
+
+                transition();
+                target.removeMayLookTemp(charlie);
+                establishAndAwait("HIDDEN_AFTER_SEARCH", NONE);
+
+                transition();
+                target.addMayLookTemp(diana);
+                establishAndAwait("KNOWN_TOP", Set.of(DIANA));
+
+                transition();
+                target.removeMayLookTemp(diana);
+                establishAndAwait("HIDDEN_AFTER_KNOWN_TOP", NONE);
+
+                transition();
+                if (!target.turnFaceDown(true)) {
+                    throw new IllegalStateException("failed to turn qualification card face down");
                 }
-                if (stage == 2 && phaseObserved("PRIVATE_LOOK")) {
-                    transition();
-                    target.removeMayLookTemp(bob);
-                    establish("HIDDEN_AFTER_LOOK", NONE);
-                    stage = 3;
-                    return;
+                Card moved = game.getAction().moveToPlay(target, owner, null, null);
+                if (moved == null || !moved.isInZone(ZoneType.Battlefield) || !moved.isFaceDown()) {
+                    throw new IllegalStateException("face-down battlefield setup did not persist");
                 }
-                if (stage == 3 && phaseObserved("HIDDEN_AFTER_LOOK")) {
-                    transition();
-                    revealTimestamp = game.getNextTimestamp();
-                    target.addMayLookAt(revealTimestamp, game.getPlayers());
-                    establish("PUBLIC_REVEAL", Set.of(BOB, CHARLIE, DIANA));
-                    stage = 4;
-                    return;
-                }
-                if (stage == 4 && phaseObserved("PUBLIC_REVEAL")) {
-                    transition();
-                    target.removeMayLookAt(revealTimestamp);
-                    establish("HIDDEN_AFTER_REVEAL", NONE);
-                    stage = 5;
-                    return;
-                }
-                if (stage == 5 && phaseObserved("HIDDEN_AFTER_REVEAL")) {
-                    transition();
-                    target.addMayLookTemp(charlie);
-                    establish("PRIVATE_SEARCH", Set.of(CHARLIE));
-                    stage = 6;
-                    return;
-                }
-                if (stage == 6 && phaseObserved("PRIVATE_SEARCH")) {
-                    transition();
-                    target.removeMayLookTemp(charlie);
-                    establish("HIDDEN_AFTER_SEARCH", NONE);
-                    stage = 7;
-                    return;
-                }
-                if (stage == 7 && phaseObserved("HIDDEN_AFTER_SEARCH")) {
-                    transition();
-                    target.addMayLookTemp(diana);
-                    establish("KNOWN_TOP", Set.of(DIANA));
-                    stage = 8;
-                    return;
-                }
-                if (stage == 8 && phaseObserved("KNOWN_TOP")) {
-                    transition();
-                    target.removeMayLookTemp(diana);
-                    establish("HIDDEN_AFTER_KNOWN_TOP", NONE);
-                    stage = 9;
-                    return;
-                }
-                if (stage == 9 && phaseObserved("HIDDEN_AFTER_KNOWN_TOP")) {
-                    transition();
-                    if (!target.turnFaceDown(true)) {
-                        throw new IllegalStateException("failed to turn qualification card face down");
-                    }
-                    Card moved = game.getAction().moveToPlay(target, owner, null, null);
-                    if (moved == null || !moved.isInZone(ZoneType.Battlefield) || !moved.isFaceDown()) {
-                        throw new IllegalStateException("face-down battlefield setup did not persist");
-                    }
-                    target = moved;
-                    establish("FACE_DOWN_BATTLEFIELD", NONE);
-                    stage = 10;
-                    return;
-                }
-                if (stage == 10 && phaseObserved("FACE_DOWN_BATTLEFIELD")) {
-                    Ws05HiddenInfoProbe.setPhase("COMPLETE", -1, NONE);
-                    stage = -1;
-                }
+                target = moved;
+                establishAndAwait("FACE_DOWN_BATTLEFIELD", NONE);
+
+                Ws05HiddenInfoProbe.setPhase("COMPLETE", -1, NONE);
+                stage = -1;
             } catch (Throwable error) {
                 failure = error;
                 Ws05HiddenInfoProbe.observeException(error);
                 Ws05HiddenInfoProbe.setPhase("FAILED", -1, NONE);
+                stage = -1;
             }
         }
 
@@ -295,23 +270,25 @@ public class Ws05HiddenInfoQualificationTest {
             Ws05HiddenInfoProbe.setPhase("TRANSITION", -1, NONE);
         }
 
-        private void establish(final String phase, final Set<String> visibleClients) {
+        private void establishAndAwait(final String phase, final Set<String> visibleClients) throws InterruptedException {
             Ws05HiddenInfoProbe.setPhase(phase, target.getId(), visibleClients);
             flushPrincipalViews();
+            final long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(PHASE_TIMEOUT_MS);
+            while (System.nanoTime() < deadline) {
+                if (phaseObserved(phase)) return;
+                Thread.sleep(10L);
+            }
+            throw new IllegalStateException("principal views did not observe lifecycle phase " + phase);
         }
 
-        /**
-         * RemoteClientGuiGame.updateGameView() is explicitly the game-thread-only server-side projection sync.
-         * Calling it at the authoritative decision boundary makes each lifecycle state observable immediately
-         * without sleeps, client-side filtering, or mutation from a second thread.
-         */
         private void flushPrincipalViews() {
             final FServerManager server = FServerManager.getInstance();
             for (int slot = 1; slot <= 3; slot++) {
                 final RemoteClient client = server.getClientBySlotIndex(slot);
-                if (client != null && client.getGui() != null) {
-                    client.getGui().updateGameView();
+                if (client == null || client.getGui() == null) {
+                    throw new IllegalStateException("remote principal projection unavailable for slot " + slot);
                 }
+                client.getGui().updateGameView();
             }
         }
 
