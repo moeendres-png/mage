@@ -3,13 +3,13 @@
   "complete": false,
   "gate": "FAIL_OR_INSUFFICIENT_EVIDENCE",
   "qualification_revision": {
-    "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
-    "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79",
+    "source_head": "34036a2d6704c0b70c0a59d071bc938870db0c2b",
+    "source_tree": "33e3968b35fc5cd2967f12d8f57c4b7ebab2d21f",
     "starting_research_input_head": "7f843a29808c086f960128585b49bb18a7ec381a",
     "starting_research_input_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
   },
   "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
-  "strict_patch_sha256": "d783c20c3e43947a84edc4ee2743ac959a5867e71e51b52bd9936f7c85a4cd9b",
+  "strict_patch_sha256": "42ff6d7301287af90b3c5b1ba9d809d78f19018d80f4a8ba5b0eeacad0d1e581",
   "historical_raw_transport_negative_control": {
     "run": 33095565820,
     "artifact_id": 9656277015,
@@ -17,9 +17,9 @@
     "reused_as_current_proof": false
   },
   "current_decoded_transport_assay": {
-    "run": 33124530500,
-    "artifact_id": 9667841078,
-    "artifact_sha256": "4bffb8c461acafd9437f1f722487aa830102c98bd1aca900504a79024d7836f5",
+    "run": 33152614611,
+    "artifact_id": 9678348191,
+    "artifact_sha256": "126f4062334510582b7fc9eaace074e3568b3805397334a1d8fc88f0d1ca23c8",
     "workflow_conclusion": "success",
     "scenario": "2P host/remote, distinct Mountain/Forest decks, decoded full GameView plus DeltaPacket transport",
     "raw_hidden_identity_leak_count": 0,

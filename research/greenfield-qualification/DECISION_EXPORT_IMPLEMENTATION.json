@@ -4,20 +4,24 @@
     "controller_routes_card_selection": true,
     "controller_routes_multi_selection": true,
     "controller_routes_single_selection": true,
+    "discrete_response_schema": true,
     "external_selection_is_atomic": true,
-    "gui_access_rejected": true,
     "gui_not_rendered_in_strict_input": true,
     "gui_not_rendered_in_strict_proxy": true,
     "legacy_show_and_wait_rejected": true,
     "missing_response_error": true,
     "monotonic_sequence": true,
     "no_prompt_parser_added": true,
+    "non_rendering_gui_facade": true,
     "player_and_card_option_ids": true,
+    "server_mapped_discrete_options": true,
     "timeout_is_explicit": true,
     "typed_provider_seam": true,
     "typed_request_class": true,
     "typed_response_class": true,
-    "typed_validator_class": true
+    "typed_validator_class": true,
+    "unmodelled_gui_paths_rejected": true,
+    "unsupported_controller_paths_are_explicit": true
   },
   "census": {
     "directly_externalized_controller_methods": [
@@ -207,25 +211,25 @@
   },
   "failure": {
     "code": "FULL_DECISION_CENSUS_NOT_EXTERNALIZED",
-    "message": "The typed boundary is implemented for three entity-selection entry points; the remaining controller and blocking GUI decisions are explicitly not admitted."
+    "message": "The typed entity-input boundary is implemented for three authoritative entity-selection entry points. A server-mapped discrete facade exists but remains runtime-unqualified; remaining controller and blocking GUI decisions are explicitly not admitted."
   },
   "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
   "forge_tree": "c634b817e037c4531051859f7d00805ffd74931e",
   "gate": "FAIL",
   "latest_remote_qualification": {
-    "artifact_id": 9667836800,
-    "artifact_sha256": "66f4dc3acf7a745fa7b84075142ef70e73664b8869970f267a4807bef98e9977",
-    "run": 33124530375,
+    "artifact_id": 9678342430,
+    "artifact_sha256": "1cf3fb821bae89ebc4761c412a7609862179698c1de2d862ad2219c9d49fbe67",
+    "run": 33152614647,
     "workflow_conclusion": "success"
   },
   "patch": {
     "path": "research\\greenfield-qualification\\forge-patches\\strict-decision-boundary.patch",
-    "sha256": "d783c20c3e43947a84edc4ee2743ac959a5867e71e51b52bd9936f7c85a4cd9b"
+    "sha256": "42ff6d7301287af90b3c5b1ba9d809d78f19018d80f4a8ba5b0eeacad0d1e581"
   },
   "runtime_qualification": "NOT_RUN",
   "schema": "commander-simulator-next.forge-decision-export-implementation.v1",
-  "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
-  "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79",
+  "source_head": "34036a2d6704c0b70c0a59d071bc938870db0c2b",
+  "source_tree": "33e3968b35fc5cd2967f12d8f57c4b7ebab2d21f",
   "starting_research_input": {
     "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
     "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"

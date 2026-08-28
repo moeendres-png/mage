@@ -2,8 +2,8 @@
   "schema": "commander-simulator-next.semantic-replay-gate.closeout-v2",
   "status": "NOT_RUN",
   "pass": false,
-  "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
-  "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79",
+  "source_head": "34036a2d6704c0b70c0a59d071bc938870db0c2b",
+  "source_tree": "33e3968b35fc5cd2967f12d8f57c4b7ebab2d21f",
   "external_pins": {"forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"},
   "starting_research_input": {
     "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
@@ -12,9 +12,9 @@
   "required": "three fresh processes with identical canonical state digests, named RNG events, and decision events at every semantic boundary",
   "current_implementation": {"semantic_replay.py": "PRESENT", "tape_contract.py": "PRESENT", "raw_stdout_stderr_as_criterion": false},
   "runtime_evidence": {
-    "run": 33124530414,
-    "artifact_id": 9667883597,
-    "artifact_sha256": "a1c7fe5020c36a5f07324bd15370d057f50dc3de493f8b9d7a9a0efe99fcb9b3",
+    "run": 33152614679,
+    "artifact_id": 9678412031,
+    "artifact_sha256": "6798a2841e45e8b9aada2411d1739280dba507ad769d075a84598cf3e189a8de",
     "workflow_conclusion": "failure",
     "fresh_process_count": 3,
     "canonical_state_digests": "MISSING",

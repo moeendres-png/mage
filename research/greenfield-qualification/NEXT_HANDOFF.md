@@ -15,14 +15,14 @@ Commander-Lab checkout as a Rules Core source.
 
 ## Exact current evidence
 
-- Qualification revision/tree: `0ea93d09d80e5c126eccb3323b17f14542e5559a` /
-  `64c97a207ad270fa398682c84d8dd238811a8b79`.
+- Qualification revision/tree: `34036a2d6704c0b70c0a59d071bc938870db0c2b` /
+  `33e3968b35fc5cd2967f12d8f57c4b7ebab2d21f`.
 - Forge pin: `8c7e9afb8e6caee88644b94e25da5852e36f8928`.
-- Strict patch SHA-256: `d783c20c3e43947a84edc4ee2743ac959a5867e71e51b52bd9936f7c85a4cd9b`.
-- Current strict gate: run `33124530375`, artifact `9667836800`, gate `FAIL`.
-- Current hidden-transport assay: run `33124530500`, artifact `9667841078`,
+- Strict patch SHA-256: `42ff6d7301287af90b3c5b1ba9d809d78f19018d80f4a8ba5b0eeacad0d1e581`.
+- Current strict gate: run `33152614647`, artifact `9678342430`, gate `FAIL`.
+- Current hidden-transport assay: run `33152614611`, artifact `9678348191`,
   0 decoded identity leaks in the scoped 2P test.
-- Current replay failure: run `33124530414`, artifact `9667883597`, missing
+- Current replay failure: run `33152614679`, artifact `9678412031`, missing
   canonical state/RNG/decision streams in all three fresh processes.
 
 ## Completed without repeating historical work
@@ -31,8 +31,10 @@ Commander-Lab checkout as a Rules Core source.
    upstream count 38,626.
 2. Fail-closed 1,721-union materializer; it remains `NOT_RUN` at 0/1,721
    because materialized Oracle-ID inputs are absent.
-3. Typed server-side Forge entity selection with explicit negative-response
-   validation and no GUI/AI/first/random/default/pass/cancel fallback.
+3. Typed server-side Forge entity selection plus a server-mapped discrete
+   facade, with explicit negative-response validation and no
+   GUI/AI/first/random/default/pass/cancel fallback. The facade remains
+   static/compile-only and is not runtime-qualified.
 4. Current static census: 109 controller callbacks, 15 blocking GUI decisions,
    3 directly exported, 106 remaining.
 5. Versioned Decision/RNG/State/Tape schemas, semantic replay validator, A–T,

@@ -2,10 +2,11 @@
 
 `INITIAL_ARCHITECTURE_DECISION_FROZEN = FALSE`.
 
-At research revision `0ea93d09…`, Forge is still the strongest Rules Core
+At research revision `34036a2d…`, Forge is still the strongest Rules Core
 hypothesis, not a selected architecture. The current strict patch proves a
-server-side Player/Card/entity decision seam and a scoped hidden-card transport
-correction. It does not prove a complete external control plane.
+server-side Player/Card/entity decision seam, an experimental server-mapped
+discrete facade, and a scoped hidden-card transport correction. It does not
+prove a complete external control plane.
 
 The current boundary has three directly externalized controller entry points.
 Of 109 abstract controller callbacks and 15 blocking GUI decision paths,

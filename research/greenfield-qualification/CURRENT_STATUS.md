@@ -12,29 +12,31 @@ PRODUCTION_REPOSITORY_CREATED       = FALSE
 ```
 
 The research-only qualification increment is current through revision
-`0ea93d09d80e5c126eccb3323b17f14542e5559a`. No historical run is used as
-proof for that revision. `REMOTE_QUALIFICATION_EVIDENCE.json` records the
-current remote artifacts and their SHA-256 values.
+`34036a2d6704c0b70c0a59d071bc938870db0c2b`. The affected strict-boundary,
+hidden-transport, census/RNG, and runtime workflows were all rerun at that
+exact revision; no historical run is used as proof for it.
+`REMOTE_QUALIFICATION_EVIDENCE.json` records the current remote artifacts and
+their SHA-256 values.
 
 ## Provenance
 
 - Research branch: `research/greenfield-engine-shootout-20260827`.
-- Current qualification revision/tree: `0ea93d09d80e5c126eccb3323b17f14542e5559a` /
-  `64c97a207ad270fa398682c84d8dd238811a8b79`.
+- Current qualification revision/tree: `34036a2d6704c0b70c0a59d071bc938870db0c2b` /
+  `33e3968b35fc5cd2967f12d8f57c4b7ebab2d21f`.
 - Starting research input retained for traceability: `7f843a29808c086f960128585b49bb18a7ec381a` /
   `c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e`.
 - Exact Forge pin: `8c7e9afb8e6caee88644b94e25da5852e36f8928`.
 - Strict patch SHA-256 as applied in remote qualification:
-  `d783c20c3e43947a84edc4ee2743ac959a5867e71e51b52bd9936f7c85a4cd9b`.
+  `42ff6d7301287af90b3c5b1ba9d809d78f19018d80f4a8ba5b0eeacad0d1e581`.
 
 ## Qualification gates
 
 | Gate | Current result | Current evidence boundary |
 |---|---|---|
-| Q0 provenance/schemas | PASS locally | versioned schemas, exact source/pin fields, 23 local Python tests |
-| Q1 typed decision externalization | FAIL | remote strict run `33124530375`: 3/109 controller callbacks exported, 106 remain; 15 blocking GUI decisions remain; runtime Decision-Tape absent |
-| Q2 hidden information | FAIL / insufficient evidence | remote 2P decoded-transport assay `33124530500`: 0 hidden identity names; required 4P multi-surface red team remains incomplete |
-| Q3 RNG/replay | NOT_RUN | current remote runtime run has three fresh processes but lacks `states`, `rng_events`, and `decision_tape` streams; raw logs excluded |
+| Q0 provenance/schemas | PASS locally | versioned schemas, exact source/pin fields, 24 local Python tests |
+| Q1 typed decision externalization | FAIL | remote strict run `33152614647`: entity seam and server-mapped discrete facade compile; only 3/109 direct controller routes, 15 blocking GUI paths and runtime Decision-Tape remain unqualified |
+| Q2 hidden information | FAIL / insufficient evidence | remote 2P decoded-transport assay `33152614611`: 0 hidden identity names; required 4P multi-surface red team remains incomplete |
+| Q3 RNG/replay | NOT_RUN | remote runtime run `33152614679` repeats 2P–5P/RogShai probes but lacks `states`, `rng_events`, and `decision_tape` streams; raw logs excluded |
 | Q4 process isolation | INSUFFICIENT_EVIDENCE | no selected production core with isolated queues, IDs, observations, and RNGs qualified |
 | Q5 Commander/multiplayer | INCOMPLETE | current CLI probes exit successfully for 2P–5P (including 4P), but no semantic/decision evidence or A–T/C01–C22 behavior closure exists |
 | Q6 actual-card coverage | INSUFFICIENT_EVIDENCE | Scryfall upstream index 38,626 PASS; project requirement union remains 0/1,721 because source descriptors contain no Oracle IDs |
@@ -43,11 +45,14 @@ current remote artifacts and their SHA-256 values.
 
 ## Implemented and requalified work
 
-The strict Forge patch provides a typed, server-owned entity-selection seam:
-authoritative Player/Card/entity option IDs, actor/principal/visibility scope,
-min/max/constraints/schema/context, monotonic tokens, validation, one-shot
-consumption, and atomic application. Invalid, stale, malformed, foreign,
-illegal, missing, timeout, GUI, and legacy paths fail explicitly.
+The strict Forge patch provides a typed, server-owned entity-selection seam and
+an experimental server-mapped discrete-choice facade: authoritative
+Player/Card/entity or opaque server-mapped option IDs,
+actor/principal/visibility scope, min/max/constraints/schema/context,
+monotonic tokens, validation, one-shot consumption, and atomic application.
+Invalid, stale, malformed, foreign, illegal, missing, timeout, GUI, legacy,
+and unknown paths fail explicitly. The facade is static/compile evidence only,
+not a runtime Decision-Tape qualification.
 
 The current requalification also corrected the concrete hidden-information
 leak. Per-client redaction now applies to full GameView serialization, delta

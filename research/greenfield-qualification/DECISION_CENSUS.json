@@ -3,13 +3,13 @@
   "status": "PARTIAL_FAIL_CLOSED",
   "complete": false,
   "source": {
-    "qualification_revision_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
-    "qualification_revision_tree": "64c97a207ad270fa398682c84d8dd238811a8b79",
+    "qualification_revision_head": "34036a2d6704c0b70c0a59d071bc938870db0c2b",
+    "qualification_revision_tree": "33e3968b35fc5cd2967f12d8f57c4b7ebab2d21f",
     "starting_research_input_head": "7f843a29808c086f960128585b49bb18a7ec381a",
     "starting_research_input_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e",
     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
     "forge_head_tree": "c634b817e037c4531051859f7d00805ffd74931e",
-    "strict_patch_sha256": "d783c20c3e43947a84edc4ee2743ac959a5867e71e51b52bd9936f7c85a4cd9b"
+    "strict_patch_sha256": "42ff6d7301287af90b3c5b1ba9d809d78f19018d80f4a8ba5b0eeacad0d1e581"
   },
   "census": {
     "controller_callback_declarations": 109,
@@ -44,15 +44,16 @@
     "reused_as_current_proof": false
   },
   "latest_remote_census": {
-    "run": 33124530367,
-    "artifact_id": 9667812533,
-    "artifact_sha256": "a8f5458fffb06f4630d3a9b9cf6967497cc90be889c61f11ff733bddd656420f",
+    "run": 33152614624,
+    "artifact_id": 9678318483,
+    "artifact_sha256": "bf9be7008c4f14764ec04c624d5451d7147b61296fe7f27a02f863ed7b630f2f",
     "workflow_conclusion": "success",
     "controller_callback_declarations": 109,
     "blocking_gui_decisions": 15,
     "directly_externalized_controller_method_count": 3,
     "remaining_controller_declarations_not_externalized": 106,
     "stock_forbidden_fallbacks": 10,
-    "rules_game_direct_rng_bypasses": 8
+    "rules_game_direct_rng_bypasses": 8,
+    "rules_game_myrandom_calls": 20
   }
 }

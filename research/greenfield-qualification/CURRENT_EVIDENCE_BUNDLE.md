@@ -3,17 +3,17 @@
 Date: 2026-08-28
 
 This index closes the current research-only qualification increment. It binds
-all current remote evidence to source revision
-`0ea93d09d80e5c126eccb3323b17f14542e5559a` and tree
-`64c97a207ad270fa398682c84d8dd238811a8b79`; the starting research input is
+all affected remote evidence to source revision
+`34036a2d6704c0b70c0a59d071bc938870db0c2b` and tree
+`33e3968b35fc5cd2967f12d8f57c4b7ebab2d21f`; the starting research input is
 retained only for traceability in `REMOTE_QUALIFICATION_EVIDENCE.json`.
 
 | Boundary | Current run / artifact | SHA-256 | Outcome |
 |---|---:|---|---|
-| Strict typed decision boundary | `33124530375` / `9667836800` | `66f4dc3acf7a745fa7b84075142ef70e73664b8869970f267a4807bef98e9977` | FAIL: 3/109 callbacks externalized; 106 and 15 blocking GUI paths remain |
-| Hidden-information decoded transport | `33124530500` / `9667841078` | `4bffb8c461acafd9437f1f722487aa830102c98bd1aca900504a79024d7836f5` | scoped PASS: 2P raw identity leak count 0 |
-| Decision census / RNG inventory | `33124530367` / `9667812533` | `a8f5458fffb06f4630d3a9b9cf6967497cc90be889c61f11ff733bddd656420f` | FAIL: census incomplete and uninstrumented RNG remains |
-| 2P–5P CLI / three-process replay | `33124530414` / `9667883597` | `a1c7fe5020c36a5f07324bd15370d057f50dc3de493f8b9d7a9a0efe99fcb9b3` | NOT_RUN: no state, RNG, or decision stream |
+| Strict typed decision boundary | `33152614647` / `9678342430` | `1cf3fb821bae89ebc4761c412a7609862179698c1de2d862ad2219c9d49fbe67` | FAIL: entity seam/discrete facade compile, but full census and runtime remain unqualified |
+| Hidden-information decoded transport | `33152614611` / `9678348191` | `126f4062334510582b7fc9eaace074e3568b3805397334a1d8fc88f0d1ca23c8` | scoped PASS: 2P raw identity leak count 0 |
+| Decision census / RNG inventory | `33152614624` / `9678318483` | `bf9be7008c4f14764ec04c624d5451d7147b61296fe7f27a02f863ed7b630f2f` | FAIL: 109/15 census incomplete, 10 fallback and 8 direct-RNG findings remain |
+| 2P–5P CLI / three-process replay | `33152614679` / `9678412031` | `6798a2841e45e8b9aada2411d1739280dba507ad769d075a84598cf3e189a8de` | NOT_RUN: no state, RNG, or decision stream |
 
 The qualification bundle also contains versioned schemas, the strict patch,
 the full decision census, A–T and C01–C22 requirement matrices, Scryfall and

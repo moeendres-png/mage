@@ -24,10 +24,11 @@ testing saw zero hidden card names.
 
 ## Why this is not a freeze
 
-The exact current strict run (`33124530375`) proves only three directly routed
-controller entry points. The remaining 106 of 109 callbacks and all 15
+The exact current strict run (`33152614647`) proves the entity seam and a
+server-mapped discrete facade at static/compile level, but only three directly
+routed controller entry points. The remaining 106 of 109 callbacks and all 15
 blocking GUI decision paths lack a runtime-qualified typed request/response
-contract. The current runtime run (`33124530414`) also contains no canonical
+contract. The current runtime run (`33152614679`) also contains no canonical
 state, RNG, or Decision-Tape streams, and the 1,721 actual-card requirement
 union is still missing materialized Oracle IDs.
 

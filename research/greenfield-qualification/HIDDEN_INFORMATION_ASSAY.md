@@ -2,12 +2,12 @@
 
 Status: **scoped raw-transport PASS; overall FAIL / insufficient evidence**.
 
-At current research revision `0ea93d09…` the Forge transport red-team
+At current research revision `34036a2d…` the Forge transport red-team
 completed successfully at the exact Forge pin. The remote client decoded zero
 hidden card names while receiving a full `GameView` and subsequent
 `DeltaPacket`s for distinct Mountain/Forest decks. The evidence is GitHub run
-`33124530500`, artifact `9667841078`, SHA-256
-`4bffb8c461acafd9437f1f722487aa830102c98bd1aca900504a79024d7836f5`.
+`33152614611`, artifact `9678348191`, SHA-256
+`126f4062334510582b7fc9eaace074e3568b3805397334a1d8fc88f0d1ca23c8`.
 
 The correction is server-side and per-client: the initial full-state object
 stream, delta property maps, and wrapped game events are all redacted using

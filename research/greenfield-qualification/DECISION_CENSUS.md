@@ -4,13 +4,13 @@ Date: 2026-08-28
 
 Status: **PARTIAL / FAIL-CLOSED**.
 
-Current qualification revision: `0ea93d09d80e5c126eccb3323b17f14542e5559a` /
-`64c97a207ad270fa398682c84d8dd238811a8b79`.
+Current qualification revision: `34036a2d6704c0b70c0a59d071bc938870db0c2b` /
+`33e3968b35fc5cd2967f12d8f57c4b7ebab2d21f`.
 
 The exact Forge research pin is `8c7e9afb8e6caee88644b94e25da5852e36f8928`
 (unpatched head tree `c634b817e037c4531051859f7d00805ffd74931e`). The
 typed server-side patch SHA-256 is
-`d783c20c3e43947a84edc4ee2743ac959a5867e71e51b52bd9936f7c85a4cd9b`.
+`42ff6d7301287af90b3c5b1ba9d809d78f19018d80f4a8ba5b0eeacad0d1e581`.
 
 ## Materialized census
 
@@ -21,15 +21,16 @@ typed server-side patch SHA-256 is
   `chooseEntitiesForEffect`.
 - Remaining controller declarations outside the typed request/response path:
   **106**.
-- Remote current census run: **33124530367**, artifact **9667812533**,
-  SHA-256 `a8f5458fffb06f4630d3a9b9cf6967497cc90be889c61f11ff733bddd656420f`.
+- Remote current census run: **33152614624**, artifact **9678318483**,
+  SHA-256 `bf9be7008c4f14764ec04c624d5451d7147b61296fe7f27a02f863ed7b630f2f`.
 - Runtime decision-tape qualification: **NOT_RUN**.
 
-The three entity-selection paths pass static assertions and the exact Forge
-checkout compiles. This is not equivalent to full production qualification:
-the remaining callbacks and blocking GUI methods have not been converted to
-typed requests with runtime evidence. Their strict mode behavior is explicit
-failure, never implicit AI/default/first/random/pass/cancel substitution.
+The three entity-selection paths and the new server-mapped discrete facade
+pass static assertions and the exact Forge checkout compiles. This is not
+equivalent to full production qualification: the remaining callbacks and
+blocking GUI methods have not been converted to typed requests with runtime
+evidence. Their strict mode behavior is explicit failure, never implicit
+AI/default/first/random/pass/cancel substitution.
 
 The machine-readable source is `DECISION_CENSUS.json`; the capability-level
 view is `DECISION_CAPABILITY_REGISTRY.json`.
