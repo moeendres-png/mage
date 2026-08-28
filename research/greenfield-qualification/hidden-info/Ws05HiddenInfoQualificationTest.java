@@ -52,7 +52,7 @@ public class Ws05HiddenInfoQualificationTest {
         ExternalDecisionTape.setEventObserver(Ws05HiddenInfoProbe::observeReplay);
         PlayerControllerHuman.setExternalDecisionProviderFactory(player -> request -> {
             Ws05HiddenInfoProbe.observeDecision(player.getName(), player.getId(), request);
-            lifecycle.onAuthoritativeDecisionBoundary();
+            lifecycle.onAuthoritativeDecisionBoundary(request);
             return decide(request);
         });
 
@@ -167,9 +167,10 @@ public class Ws05HiddenInfoQualificationTest {
 
     /**
      * Drives every visibility mutation from the same synchronous Decision boundary used by the game loop.
-     * This prevents the qualification harness from mutating Forge game collections concurrently with SBA/static
-     * effect processing. A TRANSITION phase suppresses observations while a visibility mutation is in flight;
-     * only a fully established before/after projection is adjudicated.
+     * The canary is bound only after the first real priority decision, after opening-hand/mulligan zone churn,
+     * so every subsequent permission mutation targets the authoritative live Card instance rather than a stale
+     * zone-change copy with the same card id. A TRANSITION phase suppresses observations while a visibility
+     * mutation is in flight; only a fully established before/after projection is adjudicated.
      */
     private static final class VisibilityLifecycle {
         private final Path secretPath;
@@ -187,10 +188,11 @@ public class Ws05HiddenInfoQualificationTest {
             this.secretPath = secretPath;
         }
 
-        private synchronized void onAuthoritativeDecisionBoundary() {
+        private synchronized void onAuthoritativeDecisionBoundary(final ExternalDecisionRequest request) {
             if (failure != null || stage < 0) return;
             try {
                 if (stage == 0) {
+                    if (request == null || !"PRIORITY_ACTION".equals(request.getDecisionKind())) return;
                     HostedMatch match = HeadlessGuiDesktop.getLastMatch();
                     if (match == null || match.getGame() == null || match.getGame().getPlayers().size() != 4) return;
                     game = match.getGame();
