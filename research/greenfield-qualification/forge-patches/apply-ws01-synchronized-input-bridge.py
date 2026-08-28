@@ -109,7 +109,8 @@ replace_once(
             }
             throw new ExternalDecisionValidationException(
                     ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
-                    "unsupported synchronized input in strict external mode: " + getClass().getSimpleName());
+                    "legacy GUI input cannot block while the external decision boundary is active; "
+                            + "unsupported synchronized input: " + getClass().getSimpleName());
         }
         getController().getInputQueue().setInput(this);
         awaitLatchRelease();
