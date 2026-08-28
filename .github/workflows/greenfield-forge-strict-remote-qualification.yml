@@ -62,7 +62,7 @@ jobs:
           set -euo pipefail
           PYTHONPATH="$GITHUB_WORKSPACE/qual/research/greenfield-qualification" \
             python3 -m unittest discover -s qual/research/greenfield-qualification -p 'test_strict_decision.py' -v \
-            | tee evidence/strict-decision-python-tests.log
+            2>&1 | tee evidence/strict-decision-python-tests.log
 
       - name: Run exact-pin implementation and complete-census smoke test
         shell: bash
