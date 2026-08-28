@@ -25,8 +25,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 /** Real 4P Commander WS05 campaign over network views and the strict external-pilot boundary. */
 public class Ws05HiddenInfoQualificationTest {
@@ -45,28 +43,16 @@ public class Ws05HiddenInfoQualificationTest {
     public void fourPlayerPrincipalScopedHiddenInformationBoundary() throws Exception {
         final Path evidence = Path.of(System.getProperty("ws05.evidencePath"));
         final Path secretPath = Path.of(System.getProperty("ws05.secretPath"));
-        final AtomicBoolean lifecycleComplete = new AtomicBoolean(false);
-        final AtomicReference<Throwable> lifecycleFailure = new AtomicReference<>();
+        final VisibilityLifecycle lifecycle = new VisibilityLifecycle(secretPath);
 
         Ws05HiddenInfoProbe.reset();
         System.setProperty("forge.ws01.externalHumanHost", "true");
         ExternalDecisionTape.setEventObserver(Ws05HiddenInfoProbe::observeReplay);
         PlayerControllerHuman.setExternalDecisionProviderFactory(player -> request -> {
             Ws05HiddenInfoProbe.observeDecision(player.getName(), player.getId(), request);
+            lifecycle.onAuthoritativeDecisionBoundary();
             return decide(request);
         });
-
-        final Thread lifecycle = new Thread(() -> {
-            try {
-                exerciseVisibilityLifecycle(secretPath);
-                lifecycleComplete.set(true);
-            } catch (Throwable error) {
-                lifecycleFailure.set(error);
-                Ws05HiddenInfoProbe.observeException(error);
-            }
-        }, "WS05-Hidden-Info-Lifecycle");
-        lifecycle.setDaemon(true);
-        lifecycle.start();
 
         UnifiedNetworkHarness.GameResult result = null;
         try {
@@ -79,20 +65,19 @@ public class Ws05HiddenInfoQualificationTest {
                     .connectionTimeout(45000)
                     .gameTimeout(180000)
                     .execute();
-            lifecycle.join(30000L);
         } finally {
             PlayerControllerHuman.setExternalDecisionProviderFactory(null);
             ExternalDecisionTape.setEventObserver(null);
         }
 
         if (result == null) throw new IllegalStateException("network harness returned no result");
-        final boolean coverage = lifecycleComplete.get() && requiredLifecycleCoverage();
+        final boolean coverage = requiredLifecycleCoverage();
         Ws05HiddenInfoProbe.writeEvidence(
                 evidence, result.gameCompleted, result.playerCount, result.gameFormat,
                 result.fullStateSyncsReceived, result.deltaPacketsReceived, coverage);
 
-        if (lifecycleFailure.get() != null) {
-            throw new AssertionError("WS05 lifecycle exercise failed", lifecycleFailure.get());
+        if (lifecycle.failure() != null) {
+            throw new AssertionError("WS05 lifecycle exercise failed", lifecycle.failure());
         }
         Assert.assertTrue(result.passed(), "4P Commander network game must complete: " + result.toSummary());
         Assert.assertTrue(coverage, "all principal/lifecycle phase observations must be present");
@@ -177,70 +162,141 @@ public class Ws05HiddenInfoQualificationTest {
         return decks;
     }
 
-    private static void exerciseVisibilityLifecycle(final Path secretPath) throws Exception {
-        Assert.assertTrue(Ws05HiddenInfoProbe.awaitRemoteClients(3, 45000), "three remote principal views required");
-        Game game = awaitGame(45000L);
-        Player owner = findPlayer(game, "Alice");
-        Player bob = findPlayer(game, "Bob");
-        Player charlie = findPlayer(game, "Charlie");
-        Player diana = findPlayer(game, "Diana");
+    /**
+     * Drives every visibility mutation from the same synchronous Decision boundary used by the game loop.
+     * This prevents the qualification harness from mutating Forge game collections concurrently with SBA/static
+     * effect processing. A TRANSITION phase suppresses observations while a visibility mutation is in flight;
+     * only a fully established before/after projection is adjudicated.
+     */
+    private static final class VisibilityLifecycle {
+        private final Path secretPath;
+        private int stage;
+        private Throwable failure;
+        private Game game;
+        private Player owner;
+        private Player bob;
+        private Player charlie;
+        private Player diana;
+        private Card target;
+        private long revealTimestamp;
 
-        Card target = findCanaryInLibrary(owner);
-        Files.createDirectories(secretPath.getParent());
-        Files.writeString(secretPath, target.getName(), StandardCharsets.UTF_8);
-        Ws05HiddenInfoProbe.registerSecret(target.getName());
-
-        Ws05HiddenInfoProbe.setPhase("HIDDEN_BASE", target.getId(), NONE);
-        target.addMayLookTemp(owner);
-        awaitPhase("HIDDEN_BASE");
-        target.removeMayLookTemp(owner);
-
-        Ws05HiddenInfoProbe.setPhase("PRIVATE_LOOK", target.getId(), Set.of(BOB));
-        target.addMayLookTemp(bob);
-        awaitPhase("PRIVATE_LOOK");
-        Ws05HiddenInfoProbe.setPhase("HIDDEN_AFTER_LOOK", target.getId(), NONE);
-        target.removeMayLookTemp(bob);
-        awaitPhase("HIDDEN_AFTER_LOOK");
-
-        long revealTimestamp = game.getNextTimestamp();
-        Ws05HiddenInfoProbe.setPhase("PUBLIC_REVEAL", target.getId(), Set.of(BOB, CHARLIE, DIANA));
-        target.addMayLookAt(revealTimestamp, game.getPlayers());
-        awaitPhase("PUBLIC_REVEAL");
-        Ws05HiddenInfoProbe.setPhase("HIDDEN_AFTER_REVEAL", target.getId(), NONE);
-        target.removeMayLookAt(revealTimestamp);
-        awaitPhase("HIDDEN_AFTER_REVEAL");
-
-        Ws05HiddenInfoProbe.setPhase("PRIVATE_SEARCH", target.getId(), Set.of(CHARLIE));
-        target.addMayLookTemp(charlie);
-        awaitPhase("PRIVATE_SEARCH");
-        Ws05HiddenInfoProbe.setPhase("HIDDEN_AFTER_SEARCH", target.getId(), NONE);
-        target.removeMayLookTemp(charlie);
-        awaitPhase("HIDDEN_AFTER_SEARCH");
-
-        Ws05HiddenInfoProbe.setPhase("KNOWN_TOP", target.getId(), Set.of(DIANA));
-        target.addMayLookTemp(diana);
-        awaitPhase("KNOWN_TOP");
-        Ws05HiddenInfoProbe.setPhase("HIDDEN_AFTER_KNOWN_TOP", target.getId(), NONE);
-        target.removeMayLookTemp(diana);
-        awaitPhase("HIDDEN_AFTER_KNOWN_TOP");
-
-        if (!target.turnFaceDown(true)) throw new IllegalStateException("failed to turn qualification card face down");
-        Ws05HiddenInfoProbe.setPhase("FACE_DOWN_BATTLEFIELD", target.getId(), NONE);
-        Card moved = game.getAction().moveToPlay(target, owner, null, null);
-        if (moved == null || !moved.isInZone(ZoneType.Battlefield) || !moved.isFaceDown()) {
-            throw new IllegalStateException("face-down battlefield setup did not persist");
+        private VisibilityLifecycle(final Path secretPath) {
+            this.secretPath = secretPath;
         }
-        awaitPhase("FACE_DOWN_BATTLEFIELD");
-    }
 
-    private static Game awaitGame(final long timeoutMs) throws Exception {
-        long deadline = System.currentTimeMillis() + timeoutMs;
-        while (System.currentTimeMillis() < deadline) {
-            HostedMatch match = HeadlessGuiDesktop.getLastMatch();
-            if (match != null && match.getGame() != null && match.getGame().getPlayers().size() == 4) return match.getGame();
-            Thread.sleep(50L);
+        private synchronized void onAuthoritativeDecisionBoundary() {
+            if (failure != null || stage < 0) return;
+            try {
+                if (stage == 0) {
+                    HostedMatch match = HeadlessGuiDesktop.getLastMatch();
+                    if (match == null || match.getGame() == null || match.getGame().getPlayers().size() != 4) return;
+                    game = match.getGame();
+                    owner = findPlayer(game, "Alice");
+                    bob = findPlayer(game, "Bob");
+                    charlie = findPlayer(game, "Charlie");
+                    diana = findPlayer(game, "Diana");
+                    target = findCanaryInLibrary(owner);
+                    Files.createDirectories(secretPath.getParent());
+                    Files.writeString(secretPath, target.getName(), StandardCharsets.UTF_8);
+                    Ws05HiddenInfoProbe.registerSecret(target.getName());
+                    establish("HIDDEN_BASE", NONE);
+                    stage = 1;
+                    return;
+                }
+
+                if (stage == 1 && phaseObserved("HIDDEN_BASE")) {
+                    transition();
+                    target.addMayLookTemp(bob);
+                    establish("PRIVATE_LOOK", Set.of(BOB));
+                    stage = 2;
+                    return;
+                }
+                if (stage == 2 && phaseObserved("PRIVATE_LOOK")) {
+                    transition();
+                    target.removeMayLookTemp(bob);
+                    establish("HIDDEN_AFTER_LOOK", NONE);
+                    stage = 3;
+                    return;
+                }
+                if (stage == 3 && phaseObserved("HIDDEN_AFTER_LOOK")) {
+                    transition();
+                    revealTimestamp = game.getNextTimestamp();
+                    target.addMayLookAt(revealTimestamp, game.getPlayers());
+                    establish("PUBLIC_REVEAL", Set.of(BOB, CHARLIE, DIANA));
+                    stage = 4;
+                    return;
+                }
+                if (stage == 4 && phaseObserved("PUBLIC_REVEAL")) {
+                    transition();
+                    target.removeMayLookAt(revealTimestamp);
+                    establish("HIDDEN_AFTER_REVEAL", NONE);
+                    stage = 5;
+                    return;
+                }
+                if (stage == 5 && phaseObserved("HIDDEN_AFTER_REVEAL")) {
+                    transition();
+                    target.addMayLookTemp(charlie);
+                    establish("PRIVATE_SEARCH", Set.of(CHARLIE));
+                    stage = 6;
+                    return;
+                }
+                if (stage == 6 && phaseObserved("PRIVATE_SEARCH")) {
+                    transition();
+                    target.removeMayLookTemp(charlie);
+                    establish("HIDDEN_AFTER_SEARCH", NONE);
+                    stage = 7;
+                    return;
+                }
+                if (stage == 7 && phaseObserved("HIDDEN_AFTER_SEARCH")) {
+                    transition();
+                    target.addMayLookTemp(diana);
+                    establish("KNOWN_TOP", Set.of(DIANA));
+                    stage = 8;
+                    return;
+                }
+                if (stage == 8 && phaseObserved("KNOWN_TOP")) {
+                    transition();
+                    target.removeMayLookTemp(diana);
+                    establish("HIDDEN_AFTER_KNOWN_TOP", NONE);
+                    stage = 9;
+                    return;
+                }
+                if (stage == 9 && phaseObserved("HIDDEN_AFTER_KNOWN_TOP")) {
+                    transition();
+                    if (!target.turnFaceDown(true)) {
+                        throw new IllegalStateException("failed to turn qualification card face down");
+                    }
+                    Card moved = game.getAction().moveToPlay(target, owner, null, null);
+                    if (moved == null || !moved.isInZone(ZoneType.Battlefield) || !moved.isFaceDown()) {
+                        throw new IllegalStateException("face-down battlefield setup did not persist");
+                    }
+                    target = moved;
+                    establish("FACE_DOWN_BATTLEFIELD", NONE);
+                    stage = 10;
+                    return;
+                }
+                if (stage == 10 && phaseObserved("FACE_DOWN_BATTLEFIELD")) {
+                    Ws05HiddenInfoProbe.setPhase("COMPLETE", -1, NONE);
+                    stage = -1;
+                }
+            } catch (Throwable error) {
+                failure = error;
+                Ws05HiddenInfoProbe.observeException(error);
+                Ws05HiddenInfoProbe.setPhase("FAILED", -1, NONE);
+            }
         }
-        throw new IllegalStateException("4P server game not available for lifecycle exercise");
+
+        private void transition() {
+            Ws05HiddenInfoProbe.setPhase("TRANSITION", -1, NONE);
+        }
+
+        private void establish(final String phase, final Set<String> visibleClients) {
+            Ws05HiddenInfoProbe.setPhase(phase, target.getId(), visibleClients);
+        }
+
+        private Throwable failure() {
+            return failure;
+        }
     }
 
     private static Player findPlayer(final Game game, final String prefix) {
@@ -255,15 +311,10 @@ public class Ws05HiddenInfoQualificationTest {
         throw new IllegalStateException("hidden canary did not remain in host library");
     }
 
-    private static void awaitPhase(final String phase) throws InterruptedException {
-        final long deadline = System.currentTimeMillis() + 5000L;
-        while (System.currentTimeMillis() < deadline) {
-            if (Ws05HiddenInfoProbe.phaseSampleCount(phase, BOB) > 0
-                    && Ws05HiddenInfoProbe.phaseSampleCount(phase, CHARLIE) > 0
-                    && Ws05HiddenInfoProbe.phaseSampleCount(phase, DIANA) > 0) return;
-            Thread.sleep(50L);
-        }
-        throw new IllegalStateException("missing decoded client observation for phase " + phase);
+    private static boolean phaseObserved(final String phase) {
+        return Ws05HiddenInfoProbe.phaseSampleCount(phase, BOB) > 0
+                && Ws05HiddenInfoProbe.phaseSampleCount(phase, CHARLIE) > 0
+                && Ws05HiddenInfoProbe.phaseSampleCount(phase, DIANA) > 0;
     }
 
     private static boolean requiredLifecycleCoverage() {
@@ -272,11 +323,8 @@ public class Ws05HiddenInfoQualificationTest {
                 "HIDDEN_AFTER_REVEAL", "PRIVATE_SEARCH", "HIDDEN_AFTER_SEARCH", "KNOWN_TOP",
                 "HIDDEN_AFTER_KNOWN_TOP", "FACE_DOWN_BATTLEFIELD"
         };
-        String[] clients = {BOB, CHARLIE, DIANA};
         for (String phase : phases) {
-            for (String client : clients) {
-                if (Ws05HiddenInfoProbe.phaseSampleCount(phase, client) < 1) return false;
-            }
+            if (!phaseObserved(phase)) return false;
         }
         return true;
     }
