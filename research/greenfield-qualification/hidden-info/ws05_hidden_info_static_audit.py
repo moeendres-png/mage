@@ -62,8 +62,13 @@ def main() -> None:
             "TrackableSerializer.canBeShownToViewer" in delta
             and "buildRedactedCardPropertyMap" in delta
         ),
-        "visibility_transition_forces_fresh_object": (
+        "visibility_transition_invalidates_projection": (
             "previousVisibility" in delta and "forceFullObjectKeys.add" in delta
+        ),
+        "visibility_card_refresh_preserves_client_identity": (
+            "old == obj && forceFull && obj instanceof CardView" in delta
+            and "objectDeltas.put(deltaKey, allProps)" in delta
+            and "Visibility refresh in place" in delta
         ),
         "redacted_delta_excludes_identity_fields": all(
             token in delta for token in (
