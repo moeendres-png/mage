@@ -19,14 +19,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
+      AUDIT_BASE_SHA: c0e42fb42c4a603aff4a76b1284f8271c12bfd42
       FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
       WS07_RESULT_PATH: ${{ github.workspace }}/artifacts/ws07/raw-semantic.jsonl
     steps:
-      - name: Checkout qualification repository
+      - name: Checkout qualification inputs
         uses: actions/checkout@v4
         with:
           path: qualification
-          fetch-depth: 0
+          fetch-depth: 10
+          filter: blob:none
+          sparse-checkout: |
+            research/greenfield-qualification/ws07
+            research/greenfield-qualification/RULES_MATRIX_A_T.json
+            research/greenfield-qualification/RULES_MATRIX_C01_C22.json
 
       - name: Record qualification source identity
         id: source
@@ -36,7 +42,7 @@ jobs:
           cd qualification
           echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "tree=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
-          test "$(git merge-base c0e42fb42c4a603aff4a76b1284f8271c12bfd42 HEAD)" = "c0e42fb42c4a603aff4a76b1284f8271c12bfd42"
+          git merge-base --is-ancestor "$AUDIT_BASE_SHA" HEAD
 
       - name: Checkout pinned Forge
         uses: actions/checkout@v4
@@ -114,6 +120,7 @@ jobs:
           {
             "qualification_head": "${{ steps.source.outputs.head }}",
             "qualification_tree": "${{ steps.source.outputs.tree }}",
+            "audit_base_sha": "$AUDIT_BASE_SHA",
             "forge_pin": "$FORGE_PIN",
             "test_exit_code": ${{ steps.tests.outputs.exit_code || '999' }},
             "collector_exit_code": ${{ steps.collect.outputs.exit_code || '999' }},
