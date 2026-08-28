@@ -84,7 +84,7 @@ jobs:
         run: |
           set +e
           cd forge
-          xvfb-run -a ./mvnw -B -pl forge-gui-desktop -am \
+          xvfb-run -a mvn -B -pl forge-gui-desktop -am \
             -Dtest=forge.ws07.WS07CommanderConformanceTest,forge.ws07.WS07StartupConformanceTest \
             -DfailIfNoTests=false test
           rc=$?
