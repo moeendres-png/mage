@@ -27,17 +27,26 @@ def main() -> None:
 
     delta = root / "forge-gui/src/main/java/forge/gamemodes/net/server/DeltaSyncManager.java"
 
+    # Record only non-sensitive transition metadata in the qualification log.
+    # This distinguishes a server authorization failure from a client projection
+    # refresh failure without emitting card identity or any hidden payload.
+    replace_once(
+        delta,
+        "            Boolean previousVisibility = visibilityByKey.put(deltaKey, visibleToViewer);\n"
+        "            if (previousVisibility == null || previousVisibility != visibleToViewer) {",
+        "            Boolean previousVisibility = visibilityByKey.put(deltaKey, visibleToViewer);\n"
+        "            if (previousVisibility == null || previousVisibility != visibleToViewer) {\n"
+        "                netLog.info(\"[WS05Visibility] viewerId={} cardId={} previous={} visible={}\",\n"
+        "                        viewerId, card.getId(), previousVisibility, visibleToViewer);",
+    )
+
     # WS01 correctly detects per-principal CardView visibility changes and asks
-    # for a full refresh.  Its generic full-refresh path uses newObjects, which
+    # for a full refresh. Its generic full-refresh path uses newObjects, which
     # the client intentionally interprets as a zone-change replacement for an
-    # existing CardView.  For a visibility-only refresh that breaks references
-    # held by the unchanged zone collection: the tracker points at the refreshed
-    # CardView while the library/hand collection still points at the old neutral
-    # instance.  Preserve CardView identity for visibility-only refreshes by
-    # sending a full property map through objectDeltas.  CardStateView refreshes
+    # existing CardView. Preserve CardView identity for visibility-only refreshes
+    # by sending a full property map through objectDeltas. CardStateView refreshes
     # remain on the existing newObjects path, whose client handling clears and
-    # repopulates those state objects in place; that is required to remove stale
-    # revealed state when visibility becomes hidden again.
+    # repopulates those state objects in place.
     replace_once(
         delta,
         "        if (old == obj && !forceFull) {",
@@ -46,8 +55,7 @@ def main() -> None:
         "            Map<TrackableProperty, Object> allProps = buildPropertyMap(obj, null);\n"
         "            if (!allProps.isEmpty()) {\n"
         "                objectDeltas.put(deltaKey, allProps);\n"
-        "                netLog.trace(\"[DeltaSync] Visibility refresh in place: key={} id={}, {} props\",\n"
-        "                        String.format(\"0x%08X\", deltaKey), obj.getId(), allProps.size());\n"
+        "                netLog.info(\"[WS05VisibilityRefresh] cardId={} props={}\", obj.getId(), allProps.size());\n"
         "            }\n"
         "            return;\n"
         "        }\n\n"
@@ -96,6 +104,7 @@ def main() -> None:
     print("WS05_HIDDEN_INFO_OVERLAY_APPLIED=TRUE")
     print("WS05_FACE_DOWN_VISIBILITY_ENFORCED=TRUE")
     print("WS05_VISIBILITY_REFRESH_PRESERVES_CARD_IDENTITY=TRUE")
+    print("WS05_VISIBILITY_TRANSITION_DIAGNOSTICS=TRUE")
     print("WS05_AUTHORITATIVE_CHECKSUM_SIDECHANNEL_DISABLED=TRUE")
     print("WS05_TRANSPORT_METADATA_ASSERTION=TRUE")
 
