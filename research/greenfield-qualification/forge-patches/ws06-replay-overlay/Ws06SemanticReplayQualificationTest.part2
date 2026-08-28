@@ -1,0 +1,263 @@
+            }
+            if (result.isEmpty()) {
+                throw new IllegalArgumentException("WS06 RNG Tape replay input is empty");
+            }
+            return new RngReplay(result);
+        }
+
+        @Override
+        public int next(final MyRandom.RngRequest request) {
+            if (index >= lines.size()) {
+                throw new IllegalStateException("WS06 RNG Tape exhausted at event " + request.getEventId());
+            }
+            final RngLine expected = lines.get(index++);
+            requireEqual("rng.event_id", Long.toString(expected.eventId), Long.toString(request.getEventId()));
+            requireEqual("rng.game_id", expected.gameId, request.getGameId());
+            requireEqual("rng.stream", expected.stream, request.getStream());
+            requireEqual("rng.draw_index", Long.toString(expected.drawIndex), Long.toString(request.getDrawIndex()));
+            requireEqual("rng.bits", Integer.toString(expected.bits), Integer.toString(request.getBits()));
+            return expected.value;
+        }
+
+        void assertConsumed() {
+            if (index != lines.size()) {
+                throw new IllegalStateException("WS06 RNG Tape replay left " + (lines.size() - index) + " events unconsumed");
+            }
+        }
+    }
+
+    private static final class RngLine {
+        final long eventId;
+        final String gameId;
+        final String stream;
+        final long drawIndex;
+        final int bits;
+        final int value;
+
+        RngLine(long eventId, String gameId, String stream, long drawIndex, int bits, int value) {
+            this.eventId = eventId;
+            this.gameId = gameId;
+            this.stream = stream;
+            this.drawIndex = drawIndex;
+            this.bits = bits;
+            this.value = value;
+        }
+    }
+
+    private static ExternalDecisionResponse response(final ExternalDecisionRequest request, final List<String> selected) {
+        return new ExternalDecisionResponse(
+                request.getDecisionId(), request.getToken(), request.getActorId(), request.getPrincipalId(),
+                request.getResponseSchema(), selected, false);
+    }
+
+    private static String requireSemantic(final ExternalDecisionRequest request, final String semantic) {
+        for (final ExternalDecisionRequest.Option option : request.getOptions()) {
+            if (semantic.equals(option.getSemanticValue())) {
+                return option.getOptionId();
+            }
+        }
+        throw new ExternalDecisionValidationException(
+                ExternalDecisionValidationException.Code.ILLEGAL_OPTION,
+                "authoritative option missing from " + request.getDecisionKind() + ": " + semantic);
+    }
+
+    private static String lowestOptionId(final ExternalDecisionRequest request) {
+        String best = null;
+        for (final ExternalDecisionRequest.Option option : request.getOptions()) {
+            if (best == null || option.getOptionId().compareTo(best) < 0) {
+                best = option.getOptionId();
+            }
+        }
+        if (best == null) {
+            throw new ExternalDecisionValidationException(
+                    ExternalDecisionValidationException.Code.ILLEGAL_OPTION,
+                    "authoritative option set is empty for " + request.getDecisionKind());
+        }
+        return best;
+    }
+
+    private static void selectLowestExact(final ExternalDecisionRequest request, final List<String> selected) {
+        final List<ExternalDecisionRequest.Option> ordered = new ArrayList<>(request.getOptions());
+        ordered.sort(Comparator.comparing(ExternalDecisionRequest.Option::getOptionId));
+        final int count = request.getMinimumSelection();
+        if (count < 0 || count > ordered.size() || count != request.getMaximumSelection()) {
+            throw new ExternalDecisionValidationException(
+                    ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
+                    "WS06 policy requires exact cardinality for " + request.getDecisionKind());
+        }
+        for (int i = 0; i < count; i++) {
+            selected.add(ordered.get(i).getOptionId());
+        }
+    }
+
+    private static List<Deck> createQualificationDecks() {
+        final List<Deck> decks = new ArrayList<>();
+        final PaperCard commander = FModel.getMagicDb().getCommonCards().getCard("Isamaru, Hound of Konda");
+        if (commander == null) {
+            throw new IllegalStateException("qualification commander card is unavailable");
+        }
+        for (int i = 0; i < 4; i++) {
+            final Deck deck = TestDeckLoader.createMinimalDeck("Plains", 12);
+            deck.getOrCreate(DeckSection.Commander).add(commander);
+            decks.add(deck);
+        }
+        return decks;
+    }
+
+    private static String stateJson(final Game game, final long sequence, final String checkpoint) {
+        final StringBuilder json = new StringBuilder();
+        json.append("{\"sequence\":").append(sequence)
+                .append(",\"checkpoint\":\"").append(escape(checkpoint)).append('\"')
+                .append(",\"turn\":").append(game.getPhaseHandler().getTurn())
+                .append(",\"phase\":");
+        final PhaseType phase = game.getPhaseHandler().getPhase();
+        appendStringOrNull(json, phase == null ? null : phase.name());
+        json.append(",\"active_player\":");
+        appendIntOrNull(json, game.getPhaseHandler().getPlayerTurn() == null ? null : game.getPhaseHandler().getPlayerTurn().getId());
+        json.append(",\"starting_player\":");
+        appendIntOrNull(json, game.getStartingPlayer() == null ? null : game.getStartingPlayer().getId());
+        json.append(",\"game_stage\":\"").append(escape(game.getAge().name())).append('\"');
+        json.append(",\"players\":[");
+
+        final List<Player> players = new ArrayList<>();
+        for (final Player player : game.getRegisteredPlayers()) {
+            players.add(player);
+        }
+        players.sort(Comparator.comparingInt(Player::getId));
+        for (int i = 0; i < players.size(); i++) {
+            if (i != 0) json.append(',');
+            final Player player = players.get(i);
+            json.append("{\"id\":").append(player.getId())
+                    .append(",\"life\":").append(player.getLife())
+                    .append(",\"zones\":{");
+            appendZone(json, player, ZoneType.Library, true);
+            json.append(',');
+            appendZone(json, player, ZoneType.Hand, false);
+            json.append(',');
+            appendZone(json, player, ZoneType.Battlefield, false);
+            json.append(',');
+            appendZone(json, player, ZoneType.Graveyard, false);
+            json.append(',');
+            appendZone(json, player, ZoneType.Exile, false);
+            json.append(',');
+            appendZone(json, player, ZoneType.Command, false);
+            json.append("}}");
+        }
+        json.append("]}");
+        return json.toString();
+    }
+
+    private static void appendZone(final StringBuilder json, final Player player, final ZoneType zone, final boolean ordered) {
+        final List<Card> cards = new ArrayList<>();
+        for (final Card card : player.getCardsIn(zone)) {
+            cards.add(card);
+        }
+        if (!ordered) {
+            cards.sort(Comparator.comparingInt(Card::getId));
+        }
+        json.append('\"').append(zone.name()).append("\":[");
+        for (int i = 0; i < cards.size(); i++) {
+            if (i != 0) json.append(',');
+            final Card card = cards.get(i);
+            json.append("{\"id\":").append(card.getId())
+                    .append(",\"name\":\"").append(escape(card.getName())).append("\"}");
+        }
+        json.append(']');
+    }
+
+    private static void writeEvidence(
+            final Path out,
+            final String mode,
+            final UnifiedNetworkHarness.GameResult result,
+            final List<String> states,
+            final List<MyRandom.RngEvent> rngEvents,
+            final List<ExternalDecisionTape.Event> decisions,
+            final Throwable failure) throws IOException {
+        final StringBuilder json = new StringBuilder();
+        json.append("{\n  \"schema\":\"commander-simulator-next.ws06-game-run.v1\",")
+                .append("\n  \"mode\":\"").append(escape(mode)).append("\",")
+                .append("\n  \"game_id\":\"").append(GAME_ID).append("\",")
+                .append("\n  \"seed\":").append(SEED).append(',')
+                .append("\n  \"players\":4,")
+                .append("\n  \"scenario\":\"WS06_4P_COMMANDER_SEMANTIC_REPLAY\",")
+                .append("\n  \"game_completed\":").append(result != null && result.gameCompleted).append(',')
+                .append("\n  \"turn_count\":").append(result == null ? -1 : result.turnCount).append(',')
+                .append("\n  \"states\":[");
+        for (int i = 0; i < states.size(); i++) {
+            if (i != 0) json.append(',');
+            json.append("\n    ").append(states.get(i));
+        }
+        json.append("\n  ],\n  \"rng_events\":[");
+        for (int i = 0; i < rngEvents.size(); i++) {
+            if (i != 0) json.append(',');
+            final MyRandom.RngEvent event = rngEvents.get(i);
+            json.append("\n    {\"event_id\":").append(event.getEventId())
+                    .append(",\"game_id\":\"").append(escape(event.getGameId())).append('\"')
+                    .append(",\"stream\":\"").append(escape(event.getStream())).append('\"')
+                    .append(",\"draw_index\":").append(event.getDrawIndex())
+                    .append(",\"bits\":").append(event.getBits())
+                    .append(",\"value\":").append(event.getValue()).append('}');
+        }
+        json.append("\n  ],\n  \"decision_tape\":[");
+        for (int i = 0; i < decisions.size(); i++) {
+            if (i != 0) json.append(',');
+            final ExternalDecisionTape.Event event = decisions.get(i);
+            json.append("\n    {\"event_id\":").append(event.getEventId())
+                    .append(",\"decision_id\":").append(event.getDecisionId())
+                    .append(",\"token\":").append(event.getToken())
+                    .append(",\"decision_kind\":\"").append(escape(event.getDecisionKind())).append('\"')
+                    .append(",\"actor_id\":").append(event.getActorId())
+                    .append(",\"principal_id\":").append(event.getPrincipalId())
+                    .append(",\"response_status\":\"").append(event.getResponseStatus()).append('\"')
+                    .append(",\"selected_option_ids\":[");
+            for (int j = 0; j < event.getSelectedOptionIds().size(); j++) {
+                if (j != 0) json.append(',');
+                json.append('\"').append(escape(event.getSelectedOptionIds().get(j))).append('\"');
+            }
+            json.append(']');
+            if (event.getErrorCode() != null) {
+                json.append(",\"error_code\":\"").append(escape(event.getErrorCode())).append('\"');
+            }
+            json.append('}');
+        }
+        json.append("\n  ],\n  \"failure\":");
+        if (failure == null) {
+            json.append("null");
+        } else {
+            json.append("{\"code\":\"REPLAY_EXECUTION_FAILED\",\"type\":\"")
+                    .append(escape(failure.getClass().getName()))
+                    .append("\",\"message\":\"").append(escape(String.valueOf(failure.getMessage()))).append("\"}");
+        }
+        json.append("\n}\n");
+        Files.createDirectories(out.toAbsolutePath().getParent());
+        Files.writeString(out, json.toString(), StandardCharsets.UTF_8);
+    }
+
+    private static void requireEqual(final String field, final String expected, final String actual) {
+        if (!expected.equals(actual)) {
+            throw new IllegalStateException("WS06 replay mismatch " + field + ": expected=" + expected + " actual=" + actual);
+        }
+    }
+
+    private static Path requiredPath(final String property) {
+        final String value = System.getProperty(property);
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException(property + " system property is required");
+        }
+        return Path.of(value);
+    }
+
+    private static void appendStringOrNull(final StringBuilder json, final String value) {
+        if (value == null) json.append("null");
+        else json.append('\"').append(escape(value)).append('\"');
+    }
+
+    private static void appendIntOrNull(final StringBuilder json, final Integer value) {
+        if (value == null) json.append("null");
+        else json.append(value);
+    }
+
+    private static String escape(final String value) {
+        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
+    }
+}
