@@ -39,6 +39,7 @@ def source_assertions(forge: Path) -> dict[str, bool]:
     error_path = forge / "forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionValidationException.java"
     synchronized_input_path = forge / "forge-gui/src/main/java/forge/gamemodes/match/input/InputSyncronizedBase.java"
     external_gui_path = forge / "forge-gui/src/main/java/forge/player/ExternalDecisionGuiAdapter.java"
+    java_contract_path = forge / "forge-gui/src/test/java/forge/gamemodes/match/input/ExternalDecisionValidatorContractTest.java"
     inp = input_path.read_text(encoding="utf-8")
     proxy = proxy_path.read_text(encoding="utf-8")
     controller = controller_path.read_text(encoding="utf-8")
@@ -48,6 +49,7 @@ def source_assertions(forge: Path) -> dict[str, bool]:
     error = error_path.read_text(encoding="utf-8")
     synchronized_input = synchronized_input_path.read_text(encoding="utf-8")
     external_gui = external_gui_path.read_text(encoding="utf-8")
+    java_contract = java_contract_path.read_text(encoding="utf-8")
     return {
         "typed_request_class": "class ExternalDecisionRequest" in request,
         "typed_response_class": "class ExternalDecisionResponse" in response,
@@ -73,6 +75,22 @@ def source_assertions(forge: Path) -> dict[str, bool]:
         and "UNSUPPORTED_DECISION_PATH" in controller,
         "no_prompt_parser_added": "private final String prompt" not in request
         and "GameView gameView" not in request,
+        "java_validator_contract_probe": all(marker in java_contract for marker in (
+            "class ExternalDecisionValidatorContractTest",
+            "JAVA_EXTERNAL_DECISION_CONTRACT=PASS",
+            "STALE_RESPONSE",
+            "WRONG_ACTOR",
+            "WRONG_PRINCIPAL",
+            "MALFORMED_RESPONSE",
+            "NULL_RESPONSE",
+            "MISSING_RESPONSE",
+            "UNSUPPORTED_DECISION_PATH",
+            "ILLEGAL_OPTION",
+            "INVALID_SELECTION_COUNT",
+            "CANCEL_NOT_ALLOWED",
+            "DECISION_CONSUMED",
+            "TIMEOUT",
+        )),
     }
 
 

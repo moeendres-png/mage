@@ -83,6 +83,18 @@ jobs:
           mvn -B '-DskipTests' -pl forge-gui -am compile \
             | tee ../evidence/forge-compile.log
 
+      - name: Compile and run the Java decision validator contract probe
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          mvn -B '-DskipTests' -pl forge-gui -am test-compile \
+            | tee ../evidence/forge-test-compile.log
+          java -cp 'forge-gui/target/test-classes:forge-gui/target/classes:forge-game/target/classes:forge-core/target/classes:forge-ai/target/classes' \
+            forge.gamemodes.match.input.ExternalDecisionValidatorContractTest \
+            | tee ../evidence/java-decision-contract.log
+          grep -Fx 'JAVA_EXTERNAL_DECISION_CONTRACT=PASS' ../evidence/java-decision-contract.log
+
       - name: Adjudicate the strict boundary fail-closed
         shell: bash
         run: |
@@ -97,10 +109,12 @@ jobs:
           patch = Path('qual/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch')
           source_head = Path('provenance.env').read_text().split('source_head=', 1)[1].splitlines()[0]
           source_tree = Path('provenance.env').read_text().split('source_tree=', 1)[1].splitlines()[0]
+          java_contract_log = Path('evidence/java-decision-contract.log').read_text()
+          java_validator_contract = 'JAVA_EXTERNAL_DECISION_CONTRACT=PASS' in java_contract_log
           exact_entity_boundary = implementation['status'] == 'PARTIAL' and all(implementation['assertions'].values())
           remaining = implementation['census']['remaining_controller_methods_not_externalized']
           gate = {
-            'schema': 'commander-simulator-next.forge-strict-boundary-gate.v3',
+            'schema': 'commander-simulator-next.forge-strict-boundary-gate.v4',
             'source_head': source_head,
             'source_tree': source_tree,
             'forge_pin': implementation['forge_pin'],
@@ -108,6 +122,7 @@ jobs:
             'patch_sha256': hashlib.sha256(patch.read_bytes()).hexdigest(),
             'status': 'FAIL',
             'strict_entity_selection_boundary': 'PASS' if exact_entity_boundary else 'FAIL',
+            'java_runtime_validator_contract': 'PASS' if java_validator_contract else 'FAIL',
             'full_decision_externalization': 'FAIL',
             'full_decision_census': {
               'controller_callbacks': implementation['census']['player_controller_abstract_method_count'],
@@ -123,14 +138,15 @@ jobs:
               'STALE_RESPONSE_REJECTED': exact_entity_boundary,
               'TIMEOUT_REJECTED': exact_entity_boundary,
               'ONE_SHOT_CONSUMPTION': exact_entity_boundary,
+              'JAVA_RUNTIME_VALIDATOR_CONTRACT': java_validator_contract,
               'PRODUCTION_REACHABLE_UNQUALIFIED_CALLBACKS': remaining,
               'SILENT_FALLBACKS_ZERO': False,
               'RUNTIME_DECISION_TAPE_QUALIFIED': False,
             },
-            'evidence_class': ['DIRECTLY_VERIFIED', 'CODE_DERIVED', 'L3_LOCALLY_EXECUTED'],
+            'evidence_class': ['DIRECTLY_VERIFIED', 'CODE_DERIVED', 'CI_EXECUTED'],
             'failure': {
               'code': 'FULL_DECISION_CENSUS_NOT_EXTERNALIZED',
-              'message': 'The patch proves and compiles the typed entity-selection seam, but the remaining controller callbacks and blocking GUI decisions are not admitted to the strict production path.',
+              'message': 'The patch proves, compiles, and executes a server-side validator contract for the typed seam, but the remaining controller callbacks and blocking GUI decisions are not admitted to the strict production path.',
             },
           }
           Path('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.json').write_text(json.dumps(gate, indent=2, sort_keys=True) + '\n')
@@ -143,13 +159,17 @@ jobs:
                   f"- Forge pin: `{implementation['forge_pin']}`",
                   f"- Patch SHA-256: `{gate['patch_sha256']}`",
                   f"- Strict entity-selection seam: **{gate['strict_entity_selection_boundary']}**",
+                  f"- Java runtime validator contract: **{gate['java_runtime_validator_contract']}**",
                   "- Full production gate: **FAIL**",
                   "",
                   "The exact `InputSelectEntitiesFromList` option set, including `Player`",
                   "entities, is now exported to a typed provider in the ephemeral Forge checkout.",
                   "Responses are checked against token, decision id, actor, principal, schema,",
                   "membership, count, cancel permission, one-shot state, and timeout state. The",
-                  "patch compiles at the declared Forge pin.",
+                  "patch compiles at the declared Forge pin. A dependency-free Java contract probe",
+                  "also executes the server-side validator's accepted, stale, actor/principal,",
+                  "malformed, missing, unknown-path, illegal-option, count, cancel, one-shot,",
+                  "and timeout cases. It is a validator-contract result, not a gameplay tape.",
                   "",
                   "This does not close the production gate: only three entity-selection entry",
                   "points are directly routed. The census contains "
@@ -161,6 +181,7 @@ jobs:
           )
           assert gate['status'] == 'FAIL'
           assert gate['strict_entity_selection_boundary'] == 'PASS'
+          assert gate['java_runtime_validator_contract'] == 'PASS'
           assert gate['full_decision_externalization'] == 'FAIL'
           PY
 

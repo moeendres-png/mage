@@ -2325,3 +2325,116 @@ index 6c060538..71eca729 100644
          final String p1Str = TextUtil.concatNoSpace("-- Pile 1 (", String.valueOf(pile1.size()), " cards) --");
          final String p2Str = TextUtil.concatNoSpace("-- Pile 2 (", String.valueOf(pile2.size()), " cards) --");
  
+diff --git a/forge-gui/src/test/java/forge/gamemodes/match/input/ExternalDecisionValidatorContractTest.java b/forge-gui/src/test/java/forge/gamemodes/match/input/ExternalDecisionValidatorContractTest.java
+new file mode 100644
+index 00000000..41454c71
+--- /dev/null
++++ b/forge-gui/src/test/java/forge/gamemodes/match/input/ExternalDecisionValidatorContractTest.java
+@@ -0,0 +1,107 @@
++package forge.gamemodes.match.input;
++
++import java.util.List;
++import java.util.Map;
++
++/**
++ * Dependency-free runtime probe for the server-side decision validator.
++ *
++ * <p>This deliberately uses only discrete server-mapped options so it can run
++ * without a GUI, card database, or synthetic game state. It verifies that
++ * every invalid response is rejected before an engine input could be changed.</p>
++ */
++public final class ExternalDecisionValidatorContractTest {
++    private ExternalDecisionValidatorContractTest() { }
++
++    public static void main(final String[] args) {
++        final ExternalDecisionRequest request = request();
++        final ExternalDecisionResponse accepted = response(request, List.of("choice:1"), false);
++        final List<String> selected = ExternalDecisionValidator.validate(request, accepted, 17L, 7, 7,
++                false, false);
++        require(selected.equals(List.of("choice:1")), "valid response was not preserved");
++
++        expect(ExternalDecisionValidationException.Code.STALE_RESPONSE,
++                () -> ExternalDecisionValidator.validate(request,
++                        new ExternalDecisionResponse(1L, 18L, 7, 7,
++                                ExternalDecisionRequest.DISCRETE_RESPONSE_SCHEMA, List.of("choice:1"), false),
++                        17L, 7, 7, false, false));
++        expect(ExternalDecisionValidationException.Code.WRONG_ACTOR,
++                () -> ExternalDecisionValidator.validate(request,
++                        new ExternalDecisionResponse(1L, 17L, 8, 7,
++                                ExternalDecisionRequest.DISCRETE_RESPONSE_SCHEMA, List.of("choice:1"), false),
++                        17L, 7, 7, false, false));
++        expect(ExternalDecisionValidationException.Code.WRONG_PRINCIPAL,
++                () -> ExternalDecisionValidator.validate(request,
++                        new ExternalDecisionResponse(1L, 17L, 7, 8,
++                                ExternalDecisionRequest.DISCRETE_RESPONSE_SCHEMA, List.of("choice:1"), false),
++                        17L, 7, 7, false, false));
++        expect(ExternalDecisionValidationException.Code.MALFORMED_RESPONSE,
++                () -> ExternalDecisionValidator.validate(request,
++                        new ExternalDecisionResponse(1L, 17L, 7, 7, "wrong.schema", List.of("choice:1"), false),
++                        17L, 7, 7, false, false));
++        expect(ExternalDecisionValidationException.Code.NULL_RESPONSE,
++                () -> ExternalDecisionValidator.validate(request, null, 17L, 7, 7, false, false));
++        expect(ExternalDecisionValidationException.Code.MISSING_RESPONSE,
++                () -> ExternalDecisionValidator.validateMissing(request));
++        expect(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
++                () -> ExternalDecisionValidator.validateMissing(null));
++        expect(ExternalDecisionValidationException.Code.ILLEGAL_OPTION,
++                () -> ExternalDecisionValidator.validate(request, response(request, List.of("choice:99"), false),
++                        17L, 7, 7, false, false));
++        expect(ExternalDecisionValidationException.Code.INVALID_SELECTION_COUNT,
++                () -> ExternalDecisionValidator.validate(request, response(request, List.of(), false),
++                        17L, 7, 7, false, false));
++        expect(ExternalDecisionValidationException.Code.CANCEL_NOT_ALLOWED,
++                () -> ExternalDecisionValidator.validate(request, response(request, List.of(), true),
++                        17L, 7, 7, false, false));
++        expect(ExternalDecisionValidationException.Code.DECISION_CONSUMED,
++                () -> ExternalDecisionValidator.validate(request, accepted, 17L, 7, 7, true, false));
++        expect(ExternalDecisionValidationException.Code.TIMEOUT,
++                () -> ExternalDecisionValidator.validate(request, accepted, 17L, 7, 7, false, true));
++
++        System.out.println("JAVA_EXTERNAL_DECISION_CONTRACT=PASS");
++    }
++
++    private static ExternalDecisionRequest request() {
++        return new ExternalDecisionRequest(1L, 17L, "CONTRACT_PROBE", 7, 7,
++                ExternalDecisionRequest.VISIBILITY_PRINCIPAL_ONLY,
++                List.of(
++                        ExternalDecisionRequest.Option.discrete("choice:0", "PROBE", "zero"),
++                        ExternalDecisionRequest.Option.discrete("choice:1", "PROBE", "one")),
++                1, 1, false, Map.of("ordered", "false"),
++                ExternalDecisionRequest.DISCRETE_RESPONSE_SCHEMA,
++                Map.of("test", "ExternalDecisionValidatorContractTest"));
++    }
++
++    private static ExternalDecisionResponse response(final ExternalDecisionRequest request,
++                                                     final List<String> selected, final boolean cancel) {
++        return new ExternalDecisionResponse(request.getDecisionId(), request.getToken(), request.getActorId(),
++                request.getPrincipalId(), request.getResponseSchema(), selected, cancel);
++    }
++
++    private static void expect(final ExternalDecisionValidationException.Code expected,
++                               final ThrowingRunnable action) {
++        try {
++            action.run();
++        } catch (ExternalDecisionValidationException error) {
++            if (error.getCode() == expected) {
++                return;
++            }
++            throw new AssertionError("expected " + expected + " but received " + error.getCode(), error);
++        } catch (Exception error) {
++            throw new AssertionError("expected " + expected + " but received unexpected exception", error);
++        }
++        throw new AssertionError("expected " + expected + " to be rejected");
++    }
++
++    @FunctionalInterface
++    private interface ThrowingRunnable {
++        void run() throws Exception;
++    }
++
++    private static void require(final boolean value, final String message) {
++        if (!value) {
++            throw new AssertionError(message);
++        }
++    }
++}
