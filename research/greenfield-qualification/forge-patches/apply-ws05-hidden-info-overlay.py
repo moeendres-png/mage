@@ -25,13 +25,41 @@ def main() -> None:
         "return viewer != null && card.canBeShownTo(viewer) && card.canFaceDownBeShownTo(viewer);",
     )
 
+    delta = root / "forge-gui/src/main/java/forge/gamemodes/net/server/DeltaSyncManager.java"
+
+    # WS01 correctly detects per-principal CardView visibility changes and asks
+    # for a full refresh.  Its generic full-refresh path uses newObjects, which
+    # the client intentionally interprets as a zone-change replacement for an
+    # existing CardView.  For a visibility-only refresh that breaks references
+    # held by the unchanged zone collection: the tracker points at the refreshed
+    # CardView while the library/hand collection still points at the old neutral
+    # instance.  Preserve CardView identity for visibility-only refreshes by
+    # sending a full property map through objectDeltas.  CardStateView refreshes
+    # remain on the existing newObjects path, whose client handling clears and
+    # repopulates those state objects in place; that is required to remove stale
+    # revealed state when visibility becomes hidden again.
+    replace_once(
+        delta,
+        "        if (old == obj && !forceFull) {",
+        "        if (old == obj && forceFull && obj instanceof CardView) {\n"
+        "            obj.getAndClearDirtyProps(consumerId);\n"
+        "            Map<TrackableProperty, Object> allProps = buildPropertyMap(obj, null);\n"
+        "            if (!allProps.isEmpty()) {\n"
+        "                objectDeltas.put(deltaKey, allProps);\n"
+        "                netLog.trace(\"[DeltaSync] Visibility refresh in place: key={} id={}, {} props\",\n"
+        "                        String.format(\"0x%08X\", deltaKey), obj.getId(), allProps.size());\n"
+        "            }\n"
+        "            return;\n"
+        "        }\n\n"
+        "        if (old == obj && !forceFull) {",
+    )
+
     # The stock sampled checksum is computed from the authoritative GameView,
     # including hidden card properties. Sending that value to a principal whose
     # delta payload is redacted creates a fingerprint/oracle over backend-only
     # state and also guarantees checksum divergence. Until Forge has a checksum
     # over the exact principal projection, fail closed by omitting this debug
     # checksum from the principal-scoped delta transport.
-    delta = root / "forge-gui/src/main/java/forge/gamemodes/net/server/DeltaSyncManager.java"
     replace_once(
         delta,
         "        if (packetsSinceLastChecksum >= checksumInterval) {",
@@ -67,6 +95,7 @@ def main() -> None:
 
     print("WS05_HIDDEN_INFO_OVERLAY_APPLIED=TRUE")
     print("WS05_FACE_DOWN_VISIBILITY_ENFORCED=TRUE")
+    print("WS05_VISIBILITY_REFRESH_PRESERVES_CARD_IDENTITY=TRUE")
     print("WS05_AUTHORITATIVE_CHECKSUM_SIDECHANNEL_DISABLED=TRUE")
     print("WS05_TRANSPORT_METADATA_ASSERTION=TRUE")
 
