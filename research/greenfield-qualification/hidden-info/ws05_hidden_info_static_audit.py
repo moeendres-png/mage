@@ -30,7 +30,7 @@ def main() -> None:
         raise SystemExit(f"WS01 dependency drift: {args.ws01_head} != {WS01_HEAD}")
 
     serializer = read(root, "forge-gui/src/main/java/forge/gamemodes/net/TrackableSerializer.java")
-    delta = read(root, "forge-gui/src/main/java/forge/gamemodes/net/DeltaSyncManager.java")
+    delta = read(root, "forge-gui/src/main/java/forge/gamemodes/net/server/DeltaSyncManager.java")
     request = read(root, "forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionRequest.java")
     tape = read(root, "forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionTape.java")
     client = read(root, "forge-gui-desktop/src/test/java/forge/net/HeadlessNetworkClient.java")
@@ -75,6 +75,10 @@ def main() -> None:
             and "CardView" not in tape
             and "getSemanticContext()" not in tape
             and "selectedOptionIds" in tape
+        ),
+        "decision_option_ids_are_opaque_typed_membership_tokens": (
+            "option id must be type-qualified by entity kind and id" in request
+            and "semanticValue = String.valueOf(entityId)" in request
         ),
         "decoded_client_views_are_probed_after_state_application": (
             "Ws05HiddenInfoProbe.observe(client.username, getGameView(), \"delta:" in client
