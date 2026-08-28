@@ -25,7 +25,7 @@ for patcher in \
   apply-ws01-synchronized-input-bridge.py \
   apply-ws01-ability-choice-bridge.py \
   apply-ws01-mana-convoke-bridge.py \
-  apply-ws01-closeout-decision-families.py \
+  apply-ws01-closeout-decision-families-v2.py \
   apply-ws01-full-game-closeout.py \
   apply-ws01-full-game-test.py
 do
