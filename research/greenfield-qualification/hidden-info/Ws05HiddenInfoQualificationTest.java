@@ -105,6 +105,7 @@ public class Ws05HiddenInfoQualificationTest {
             case "PRIORITY_ACTION" -> selected.add(requireSemantic(request, "PASS_PRIORITY"));
             case "STARTING_PLAYER", "STARTING_HAND" -> selected.add(lowestOptionId(request));
             case "MAX_HAND_SIZE_DISCARD" -> selectLowestExact(request, selected);
+            case "DECLARE_ATTACKERS", "DECLARE_BLOCKERS" -> selected.add(requireSemantic(request, "DONE"));
             default -> throw new ExternalDecisionValidationException(
                     ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
                     "WS05 pilot has no explicit policy for " + request.getDecisionKind());
