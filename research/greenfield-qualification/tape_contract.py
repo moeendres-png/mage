@@ -70,13 +70,17 @@ class DecisionEvent:
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "DecisionEvent":
+        actor = value.get("actor_id", value.get("actor"))
+        principal = value.get("principal_id", value.get("principal"))
+        if actor is None or principal is None:
+            raise ValueError("decision event requires actor and principal identity")
         return cls(
             event_id=int(value["event_id"]),
             decision_id=int(value["decision_id"]),
             token=int(value["token"]),
             decision_kind=str(value["decision_kind"]),
-            actor=str(value.get("actor_id", value.get("actor"))),
-            principal=str(value.get("principal_id", value.get("principal"))),
+            actor=str(actor),
+            principal=str(principal),
             response_status=str(value["response_status"]),
             selected_option_ids=tuple(str(item) for item in value.get("selected_option_ids", ())),
             error_code=None if value.get("error_code") is None else str(value["error_code"]),
@@ -168,17 +172,59 @@ def validate_rng_tape(events: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
 
 
 def validate_decision_tape(events: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """Validate the accepted full-game Decision Tape without inventing choices."""
+    """Validate the accepted full-game Decision Tape without inventing choices.
 
-    validate_monotonic_event_ids(events)
+    WS01 owns one ExternalDecisionTape sequence per principal/controller. Its
+    event_id, decision_id, and token therefore restart at 1 for each principal.
+    Cross-principal observer arrival order is not an identifier sequence and is
+    intentionally not treated as one here. Every principal sequence remains
+    strict, contiguous, and gap-free in the order actually observed.
+    """
+
     if not events:
         raise ValueError("Decision Tape is empty")
+
     parsed = [DecisionEvent.from_mapping(item) for item in events]
     nonaccepted = [event.event_id for event in parsed if event.response_status != "ACCEPTED"]
     if nonaccepted:
         raise ValueError(f"Decision Tape contains non-accepted events: {nonaccepted!r}")
+
+    expected_by_principal: dict[str, int] = {}
+    decision_expected_by_principal: dict[str, int] = {}
+    token_expected_by_principal: dict[str, int] = {}
+    principals: set[str] = set()
+    for event in parsed:
+        principal = event.principal
+        principals.add(principal)
+
+        expected_event = expected_by_principal.get(principal, 1)
+        if event.event_id != expected_event:
+            raise ValueError(
+                f"Decision Tape event_id for principal {principal} must be contiguous from 1; "
+                f"expected {expected_event}, got {event.event_id}"
+            )
+        expected_by_principal[principal] = expected_event + 1
+
+        expected_decision = decision_expected_by_principal.get(principal, 1)
+        if event.decision_id != expected_decision:
+            raise ValueError(
+                f"Decision Tape decision_id for principal {principal} must be contiguous from 1; "
+                f"expected {expected_decision}, got {event.decision_id}"
+            )
+        decision_expected_by_principal[principal] = expected_decision + 1
+
+        expected_token = token_expected_by_principal.get(principal, 1)
+        if event.token != expected_token:
+            raise ValueError(
+                f"Decision Tape token for principal {principal} must be contiguous from 1; "
+                f"expected {expected_token}, got {event.token}"
+            )
+        token_expected_by_principal[principal] = expected_token + 1
+
     return {
         "event_count": len(parsed),
+        "principal_count": len(principals),
+        "principals": sorted(principals),
         "decision_kinds": sorted({event.decision_kind for event in parsed}),
         "sha256": canonical_json_hash(canonical_semantic_state(list(events))),
     }
