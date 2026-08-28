@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 FORGE_PIN = "8c7e9afb8e6caee88644b94e25da5852e36f8928"
@@ -14,6 +15,16 @@ def read(root: Path, rel: str) -> str:
     if not path.is_file():
         raise SystemExit(f"required file missing: {rel}")
     return path.read_text(encoding="utf-8")
+
+
+def java_code_without_comments(source: str) -> str:
+    """Remove Java line/block comments before source-level privacy assertions.
+
+    Hidden-information audits must inspect executable declarations and calls,
+    not fail because a Javadoc comment names a forbidden payload type while
+    explicitly documenting that the type is not retained.
+    """
+    return re.sub(r"/\*.*?\*/|//[^\n]*", "", source, flags=re.DOTALL)
 
 
 def main() -> None:
@@ -33,6 +44,7 @@ def main() -> None:
     delta = read(root, "forge-gui/src/main/java/forge/gamemodes/net/server/DeltaSyncManager.java")
     request = read(root, "forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionRequest.java")
     tape = read(root, "forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionTape.java")
+    tape_code = java_code_without_comments(tape)
     client = read(root, "forge-gui-desktop/src/test/java/forge/net/HeadlessNetworkClient.java")
 
     assertions = {
@@ -71,10 +83,10 @@ def main() -> None:
             and "import forge.game.card.CardView" not in request
         ),
         "decision_tape_omits_semantic_context_and_views": (
-            "GameView" not in tape
-            and "CardView" not in tape
-            and "getSemanticContext()" not in tape
-            and "selectedOptionIds" in tape
+            "GameView" not in tape_code
+            and "CardView" not in tape_code
+            and "getSemanticContext()" not in tape_code
+            and "selectedOptionIds" in tape_code
         ),
         "decision_option_ids_are_opaque_typed_membership_tokens": (
             "option id must be type-qualified by entity kind and id" in request
