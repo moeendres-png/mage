@@ -9,10 +9,10 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Forge random wrapper plus WS06 process-isolated game-scoped deterministic
- * streams. Legacy callers retain the stock provider only outside an active
- * strict WS06 game scope. Decision-relevant in-game callers must use an
- * explicit named-stream overload, except for qualified transitive Forge-core
- * helpers whose rules caller is proven on the current stack.
+ * streams. Legacy callers retain the stock provider outside the rules call
+ * graph. Decision-relevant in-game callers must use an explicit named stream,
+ * except for qualified transitive Forge-core helpers whose rules caller is
+ * proven on the current stack.
  */
 public class MyRandom {
     private static Random random = new SecureRandom();
@@ -179,12 +179,26 @@ public class MyRandom {
     public static Random getRandom() {
         if (Boolean.getBoolean("forge.ws06.strictGameRng") && activeScope() != null) {
             final String bridgedStream = qualifiedTransitiveRulesStream();
-            if (bridgedStream == null) {
-                throw new IllegalStateException("WS06 unnamed RNG used while a strict game RNG scope is active");
+            if (bridgedStream != null) {
+                return getRandom(bridgedStream);
             }
-            return getRandom(bridgedStream);
+            if (hasRulesCaller()) {
+                throw new IllegalStateException("WS06 unnamed rules RNG used while a strict game RNG scope is active");
+            }
+            // UI/lobby/pilot randomness is deliberately outside the authoritative
+            // rules RNG tape and remains on the independent legacy provider.
+            return random;
         }
         return random;
+    }
+
+    private static boolean hasRulesCaller() {
+        for (final StackTraceElement frame : Thread.currentThread().getStackTrace()) {
+            if (frame.getClassName().startsWith("forge.game.")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String qualifiedTransitiveRulesStream() {
