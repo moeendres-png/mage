@@ -38,6 +38,7 @@ def source_assertions(forge: Path) -> dict[str, bool]:
     validator_path = forge / "forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionValidator.java"
     error_path = forge / "forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionValidationException.java"
     synchronized_input_path = forge / "forge-gui/src/main/java/forge/gamemodes/match/input/InputSyncronizedBase.java"
+    external_gui_path = forge / "forge-gui/src/main/java/forge/player/ExternalDecisionGuiAdapter.java"
     inp = input_path.read_text(encoding="utf-8")
     proxy = proxy_path.read_text(encoding="utf-8")
     controller = controller_path.read_text(encoding="utf-8")
@@ -46,12 +47,15 @@ def source_assertions(forge: Path) -> dict[str, bool]:
     validator = validator_path.read_text(encoding="utf-8")
     error = error_path.read_text(encoding="utf-8")
     synchronized_input = synchronized_input_path.read_text(encoding="utf-8")
+    external_gui = external_gui_path.read_text(encoding="utf-8")
     return {
         "typed_request_class": "class ExternalDecisionRequest" in request,
         "typed_response_class": "class ExternalDecisionResponse" in response,
         "typed_validator_class": "class ExternalDecisionValidator" in validator,
         "typed_provider_seam": "interface ExternalDecisionProvider" in (forge / "forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionProvider.java").read_text(encoding="utf-8"),
         "player_and_card_option_ids": 'kind + ":" + entity.getId()' in request,
+        "discrete_response_schema": "DISCRETE_RESPONSE_SCHEMA" in request and "static Option discrete" in request,
+        "server_mapped_discrete_options": "chooseExternalDiscrete" in controller and "requestExternalSelection" in controller,
         "authoritative_valid_choices_reapplied": "validChoices" in inp and "applyExternalSelection" in inp,
         "external_selection_is_atomic": "final List<T> resolved" in inp and "selected.addAll(resolved)" in inp,
         "gui_not_rendered_in_strict_input": "if (!getController().hasExternalDecisionProvider())" in inp,
@@ -63,7 +67,10 @@ def source_assertions(forge: Path) -> dict[str, bool]:
         "timeout_is_explicit": "externalDecisionTimeoutMillis" in controller and "TimeoutException" in controller,
         "missing_response_error": "MISSING_RESPONSE" in error and "validateMissing" in validator,
         "legacy_show_and_wait_rejected": "legacy GUI input cannot block" in synchronized_input,
-        "gui_access_rejected": "GUI access is forbidden" in controller,
+        "non_rendering_gui_facade": "ExternalDecisionGuiAdapter.create" in controller and "Proxy.newProxyInstance" in external_gui,
+        "unmodelled_gui_paths_rejected": "unmodelled GUI operation is blocked" in external_gui,
+        "unsupported_controller_paths_are_explicit": "rejectExternalDecision" in controller
+        and "UNSUPPORTED_DECISION_PATH" in controller,
         "no_prompt_parser_added": "private final String prompt" not in request
         and "GameView gameView" not in request,
     }
@@ -124,7 +131,7 @@ def main() -> int:
         "runtime_qualification": "NOT_RUN",
         "failure": {
             "code": "FULL_DECISION_CENSUS_NOT_EXTERNALIZED",
-            "message": "The typed boundary is implemented for three entity-selection entry points; the remaining controller and blocking GUI decisions are explicitly not admitted.",
+            "message": "The typed entity-input boundary is implemented for three authoritative entity-selection entry points. A server-mapped discrete facade exists but remains runtime-unqualified; remaining controller and blocking GUI decisions are explicitly not admitted.",
         },
     }
     if actual_pin != FORGE_PIN:

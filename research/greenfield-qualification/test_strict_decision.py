@@ -90,6 +90,12 @@ class StrictDecisionTests(unittest.TestCase):
         self.assert_code(DecisionErrorCode.NULL_RESPONSE, lambda: validate_response(req, None))
         self.assert_code(DecisionErrorCode.MALFORMED_RESPONSE, lambda: validate_response(req, object()))
 
+    def test_unknown_path_is_explicitly_rejected(self) -> None:
+        self.assert_code(
+            DecisionErrorCode.UNSUPPORTED_DECISION_PATH,
+            lambda: validate_response(None, None),
+        )
+
     def test_timeout_and_consumed_rejected(self) -> None:
         req = request()
         self.assert_code(DecisionErrorCode.TIMEOUT, lambda: validate_response(req, response(req), timed_out=True))
