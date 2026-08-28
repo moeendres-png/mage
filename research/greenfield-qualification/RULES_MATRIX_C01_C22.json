@@ -12,8 +12,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "commander_starts_in_command_zone",
@@ -26,8 +26,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "cast_commander_from_command_zone",
@@ -40,8 +40,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "first_command_zone_cast_no_tax",
@@ -54,8 +54,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "second_same_commander_cast_plus_2",
@@ -68,8 +68,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "third_same_commander_cast_plus_4",
@@ -82,8 +82,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "partner_tax_independent",
@@ -96,8 +96,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "graveyard_command_zone_choice",
@@ -110,8 +110,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "exile_command_zone_choice",
@@ -124,8 +124,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "hand_library_replacement_choice",
@@ -138,8 +138,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "decline_zone_move_keeps_destination",
@@ -152,8 +152,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "declined_commander_moves_normally_afterwards",
@@ -166,8 +166,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "commander_damage_by_identity",
@@ -180,8 +180,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "20_commander_damage_not_loss",
@@ -194,8 +194,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "21_same_commander_damage_loss",
@@ -208,8 +208,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "damage_from_two_commanders_not_combined",
@@ -222,8 +222,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "commander_identity_through_copy_control_merge",
@@ -236,8 +236,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "four_player_commander_initialization",
@@ -250,8 +250,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "four_player_apnap",
@@ -264,8 +264,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "player_loss_game_continues",
@@ -278,8 +278,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "leaving_player_owned_objects_leave",
@@ -292,8 +292,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "control_effect_cleanup_on_exit",
@@ -306,8 +306,8 @@
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
       "source_definition_status": "AVAILABLE_IN_SCENARIO_MANIFEST",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     }
   ],
   "external_pins": {
@@ -315,6 +315,6 @@
   },
   "reason": "Definitions are materialized without promoting any historical targeted run to current production-boundary evidence.",
   "schema": "commander-simulator-next.rules-matrix-c01-c22.v1",
-  "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-  "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+  "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+  "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
 }

@@ -1,22 +1,31 @@
 # Hidden Information Assay — Current Qualification State
 
-Status: **FAIL OR INSUFFICIENT EVIDENCE**.
+Status: **scoped raw-transport PASS; overall FAIL / insufficient evidence**.
 
-The pinned Forge raw-transport red-team run previously decoded **74 hidden
-card identities**. That result remains a negative control and is not silently
-reclassified as a future adapter leak. The new server-side typed entity seam
-has only static/compile evidence; a principal-scoped runtime observation assay
-has not yet run through the complete decision boundary.
+At current research revision `0ea93d09…` the Forge transport red-team
+completed successfully at the exact Forge pin. The remote client decoded zero
+hidden card names while receiving a full `GameView` and subsequent
+`DeltaPacket`s for distinct Mountain/Forest decks. The evidence is GitHub run
+`33124530500`, artifact `9667841078`, SHA-256
+`4bffb8c461acafd9437f1f722487aa830102c98bd1aca900504a79024d7836f5`.
 
-The required red-team surface includes raw transport, principal-scoped
-observations, logs, exceptions, IDs, hashes, replay/debug output, and reveal /
-look-at lifecycle. The current gate is therefore:
+The correction is server-side and per-client: the initial full-state object
+stream, delta property maps, and wrapped game events are all redacted using
+the authoritative `CardView.canBeShownTo` visibility check. A visibility
+transition forces a fresh client CardView so that a previously revealed state
+cannot persist after entering a hidden zone. An unresolved client identity is
+fail-closed and receives neutral card views.
+
+This replaces neither the historical 74-name leak nor the broader gate. That
+historical run remains a negative control; it is not reused as evidence for the
+current revision. The following are still unqualified: principal-scoped
+observations, logs, exceptions, identity-bearing IDs/hashes, replay,
+debug-output, reveal/look lifecycle, and the required 4P Commander campaign.
 
 ```text
-raw Forge transport leak count        = 74 (historical negative control)
-pilot-visible leak count              = NOT_RUN
-required zero-leak gate               = NOT_PROVEN
+current 2P decoded-transport identity leaks = 0
+all required hidden-information surfaces    = NOT_PROVEN
+production hidden-information gate          = FAIL / INSUFFICIENT EVIDENCE
 ```
 
-See `HIDDEN_INFORMATION_ASSAY.json` for exact provenance and
-`STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.json` for the current dependency.
+See `REMOTE_QUALIFICATION_EVIDENCE.json` for exact run provenance.

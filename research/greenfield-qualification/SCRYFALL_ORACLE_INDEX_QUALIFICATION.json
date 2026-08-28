@@ -1,5 +1,9 @@
 {
   "schema": "commander-simulator-next.scryfall-oracle-index-qualification.v1",
+  "current_assessment_revision": {
+    "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+    "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
+  },
   "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
   "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e",
   "bulk_type": "oracle_cards",
@@ -15,5 +19,5 @@
     "deduplication": "oracle_id with deterministic lowest Scryfall id representative"
   },
   "qualification_status": "PASS",
-  "note": "Live Scryfall bulk ingest and neutral deduplicated Oracle-ID index passed. This is the complete upstream index, not the project-specific requirement union."
+  "note": "Live Scryfall bulk ingest and neutral deduplicated Oracle-ID index passed at the recorded data-materialization provenance. This is the complete upstream index, not the project-specific requirement union; the separate current assessment revision does not imply a new bulk ingest."
 }

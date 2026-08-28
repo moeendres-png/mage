@@ -1,14 +1,49 @@
 {
-  "schema": "commander-simulator-next.hidden-information-assay.closeout-v2",
+  "schema": "commander-simulator-next.hidden-information-assay.closeout-v3",
   "complete": false,
   "gate": "FAIL_OR_INSUFFICIENT_EVIDENCE",
-  "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-  "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e",
+  "qualification_revision": {
+    "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+    "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79",
+    "starting_research_input_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+    "starting_research_input_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+  },
   "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
-  "historical_raw_transport": {"run": 33095565820, "artifact_id": 9656277015, "game_started": true, "game_completed": true, "raw_hidden_identity_leak_count": 74, "reused_as_current_proof": false},
-  "strict_boundary_current": {"server_typed_entity_seam": "PASS_STATIC_AND_COMPILE_ONLY", "principal_scoped_runtime_assay": "NOT_RUN"},
+  "strict_patch_sha256": "d783c20c3e43947a84edc4ee2743ac959a5867e71e51b52bd9936f7c85a4cd9b",
+  "historical_raw_transport_negative_control": {
+    "run": 33095565820,
+    "artifact_id": 9656277015,
+    "raw_hidden_identity_leak_count": 74,
+    "reused_as_current_proof": false
+  },
+  "current_decoded_transport_assay": {
+    "run": 33124530500,
+    "artifact_id": 9667841078,
+    "artifact_sha256": "4bffb8c461acafd9437f1f722487aa830102c98bd1aca900504a79024d7836f5",
+    "workflow_conclusion": "success",
+    "scenario": "2P host/remote, distinct Mountain/Forest decks, decoded full GameView plus DeltaPacket transport",
+    "raw_hidden_identity_leak_count": 0,
+    "test_exit": 0,
+    "implemented_redaction_boundary": [
+      "per-client full GameView serialization",
+      "per-client DeltaSyncManager CardView maps",
+      "per-client wrapped GameEvent snapshots",
+      "visibility-transition replacement of stale client CardViews"
+    ],
+    "evidence_class": ["DIRECTLY_VERIFIED", "CODE_DERIVED", "L3_LOCALLY_EXECUTED"],
+    "raw_stdout_stderr_as_replay_criterion": false,
+    "status": "PASS_SCOPED"
+  },
+  "required_red_team_surfaces": {
+    "decoded_raw_transport_identity": "PASS_SCOPED",
+    "principal_scoped_observations": "NOT_RUN",
+    "logs": "NOT_RUN",
+    "exceptions": "NOT_RUN",
+    "identity_bearing_ids_and_hashes": "NOT_RUN",
+    "replay": "NOT_RUN",
+    "debug_output": "NOT_RUN",
+    "reveal_and_look_lifecycle": "NOT_RUN"
+  },
   "pilot_visible_hidden_info_leaks": "ZERO_NOT_PROVEN",
-  "required_red_team_surfaces": ["raw_transport", "observations", "logs", "exceptions", "ids", "hashes", "replay", "debug_output"],
-  "current_leak_count": "NOT_RUN",
-  "reason": "The strict entity seam compiles, but the full typed decision/observation boundary has not been runtime-qualified. The historical raw Forge transport leak remains a confirmed negative control."
+  "reason": "The 74-name transport leak is fixed for the current exact 2P decoded-transport assay, but the required multi-surface, principal-scoped 4P Commander red team is not yet complete. It must not be promoted to a production hidden-information pass."
 }

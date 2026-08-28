@@ -22,6 +22,10 @@
     }
   ],
   "schema": "commander-simulator-next.actual-card-requirement-union.v1",
+  "current_assessment_revision": {
+    "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+    "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
+  },
   "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
   "source_rows": [
     {

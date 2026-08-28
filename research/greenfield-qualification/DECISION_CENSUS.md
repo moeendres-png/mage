@@ -4,10 +4,13 @@ Date: 2026-08-28
 
 Status: **PARTIAL / FAIL-CLOSED**.
 
-The exact Forge research pin is `8c7e9afb8e6caee88644b94e25da5852e36f8928`.
-The typed server-side entity-selection patch produces patched Forge tree
-`c634b817e037c4531051859f7d00805ffd74931e` and has SHA-256
-`ef10fd59faf63b241b862d1700690bc1668421f00b72541929333f7fe4d1c7e9`.
+Current qualification revision: `0ea93d09d80e5c126eccb3323b17f14542e5559a` /
+`64c97a207ad270fa398682c84d8dd238811a8b79`.
+
+The exact Forge research pin is `8c7e9afb8e6caee88644b94e25da5852e36f8928`
+(unpatched head tree `c634b817e037c4531051859f7d00805ffd74931e`). The
+typed server-side patch SHA-256 is
+`d783c20c3e43947a84edc4ee2743ac959a5867e71e51b52bd9936f7c85a4cd9b`.
 
 ## Materialized census
 
@@ -18,6 +21,8 @@ The typed server-side entity-selection patch produces patched Forge tree
   `chooseEntitiesForEffect`.
 - Remaining controller declarations outside the typed request/response path:
   **106**.
+- Remote current census run: **33124530367**, artifact **9667812533**,
+  SHA-256 `a8f5458fffb06f4630d3a9b9cf6967497cc90be889c61f11ff733bddd656420f`.
 - Runtime decision-tape qualification: **NOT_RUN**.
 
 The three entity-selection paths pass static assertions and the exact Forge
@@ -37,5 +42,6 @@ RUNTIME_DECISION_TAPE                   = NOT_RUN
 ARCHITECTURE_FREEZE                     = FALSE
 ```
 
-Historical workflow IDs remain provenance context only and are not current
-HEAD proof.
+`REMOTE_QUALIFICATION_EVIDENCE.json` binds the remote evidence to the current
+research revision. Historical workflow IDs remain provenance context only and
+are not current-head proof.

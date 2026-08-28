@@ -1,8 +1,12 @@
 {
   "schema": "commander-simulator-next.process-isolation-gate.closeout-v2",
-  "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-  "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e",
+  "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+  "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79",
   "external_pins": {"forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928", "manabrew": "754ec2aeec495d67d7bb9b89d0fd67ee22281b46"},
+  "starting_research_input": {
+    "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+    "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+  },
   "overall_production_gate": "INSUFFICIENT_EVIDENCE",
   "selected_production_core": null,
   "historical_candidate_evidence": {

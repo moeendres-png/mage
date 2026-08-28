@@ -2,6 +2,9 @@
 
 Status: **DEFERRED — architecture not frozen**.
 
+Current assessment revision: `0ea93d09d80e5c126eccb3323b17f14542e5559a` /
+`64c97a207ad270fa398682c84d8dd238811a8b79`.
+
 Current qualification pins and declared licenses:
 
 - Forge `8c7e9afb8e6caee88644b94e25da5852e36f8928`: GPL-3.0;

@@ -1,0 +1,61 @@
+{
+  "schema": "commander-simulator-next.evidence-bundle-manifest.v1",
+  "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+  "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79",
+  "external_pins": {
+    "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+  },
+  "strict_patch_sha256": "d783c20c3e43947a84edc4ee2743ac959a5867e71e51b52bd9936f7c85a4cd9b",
+  "remote_artifacts": [
+    {
+      "boundary": "strict_typed_decision_boundary",
+      "run": 33124530375,
+      "artifact_id": 9667836800,
+      "sha256": "66f4dc3acf7a745fa7b84075142ef70e73664b8869970f267a4807bef98e9977",
+      "status": "FAIL"
+    },
+    {
+      "boundary": "hidden_information_decoded_transport",
+      "run": 33124530500,
+      "artifact_id": 9667841078,
+      "sha256": "4bffb8c461acafd9437f1f722487aa830102c98bd1aca900504a79024d7836f5",
+      "status": "PASS_SCOPED"
+    },
+    {
+      "boundary": "decision_census_and_rng_inventory",
+      "run": 33124530367,
+      "artifact_id": 9667812533,
+      "sha256": "a8f5458fffb06f4630d3a9b9cf6967497cc90be889c61f11ff733bddd656420f",
+      "status": "FAIL"
+    },
+    {
+      "boundary": "runtime_probe_and_semantic_replay",
+      "run": 33124530414,
+      "artifact_id": 9667883597,
+      "sha256": "a1c7fe5020c36a5f07324bd15370d057f50dc3de493f8b9d7a9a0efe99fcb9b3",
+      "status": "NOT_RUN"
+    }
+  ],
+  "required_local_artifacts": [
+    "CURRENT_EVIDENCE_BUNDLE.md",
+    "REMOTE_QUALIFICATION_EVIDENCE.json",
+    "EVIDENCE_BUNDLE_MANIFEST.json",
+    "CURRENT_STATUS.md",
+    "NEXT_HANDOFF.md",
+    "FINAL_ENGINE_SCORECARD.md",
+    "FINAL_ARCHITECTURE_DECISION.md",
+    "DECISION_CENSUS.json",
+    "DECISION_CAPABILITY_REGISTRY.json",
+    "HIDDEN_INFORMATION_ASSAY.json",
+    "SEMANTIC_REPLAY_GATE.json",
+    "PROCESS_ISOLATION_GATE.json",
+    "ACTUAL_CARD_COVERAGE.json",
+    "RULES_MATRIX_A_T.json",
+    "RULES_MATRIX_C01_C22.json",
+    "DIFFERENTIAL_ADJUDICATION.md",
+    "LICENSE_FINAL_DECISION.md"
+  ],
+  "architecture_frozen": false,
+  "production_repository_created": false,
+  "first_blocking_gate": "FULL_DECISION_CENSUS_NOT_EXTERNALIZED"
+}

@@ -10,8 +10,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "land_play",
@@ -23,8 +23,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "mana_activation",
@@ -36,8 +36,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "casting_and_costs",
@@ -49,8 +49,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "stack_and_priority",
@@ -62,8 +62,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "targets",
@@ -75,8 +75,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "triggers",
@@ -88,8 +88,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "replacement_effects",
@@ -101,8 +101,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "state_based_actions",
@@ -114,8 +114,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "combat",
@@ -127,8 +127,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "commander_rules",
@@ -140,8 +140,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "multiplayer",
@@ -153,8 +153,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "hidden_information",
@@ -166,8 +166,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "search_and_shuffle",
@@ -179,8 +179,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "alternate_and_additional_costs",
@@ -192,8 +192,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "continuous_effects_and_layers",
@@ -205,8 +205,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "copy_and_object_identity",
@@ -218,8 +218,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "player_elimination",
@@ -231,8 +231,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "replay_and_determinism",
@@ -244,8 +244,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     },
     {
       "definition": "external_decision_completeness",
@@ -257,8 +257,8 @@
       "production_qualified": false,
       "qualification_boundary": "strict_typed_decision_export_and_principal_scoped_observation",
       "qualification_status": "NOT_RUN",
-      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+      "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+      "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
     }
   ],
   "complete": false,
@@ -267,6 +267,6 @@
   },
   "reason": "The complete production-boundary runtime matrix is downstream of decision externalization, hidden-information, RNG/replay, and card-coverage gates.",
   "schema": "commander-simulator-next.rules-matrix-a-t.v1",
-  "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-  "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+  "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+  "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
 }

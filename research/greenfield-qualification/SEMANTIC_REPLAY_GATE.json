@@ -2,12 +2,25 @@
   "schema": "commander-simulator-next.semantic-replay-gate.closeout-v2",
   "status": "NOT_RUN",
   "pass": false,
-  "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-  "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e",
+  "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+  "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79",
   "external_pins": {"forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"},
+  "starting_research_input": {
+    "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+    "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+  },
   "required": "three fresh processes with identical canonical state digests, named RNG events, and decision events at every semantic boundary",
   "current_implementation": {"semantic_replay.py": "PRESENT", "tape_contract.py": "PRESENT", "raw_stdout_stderr_as_criterion": false},
-  "runtime_evidence": {"canonical_state_digests": "MISSING", "rng_events": "MISSING", "decision_tape": "MISSING"},
+  "runtime_evidence": {
+    "run": 33124530414,
+    "artifact_id": 9667883597,
+    "artifact_sha256": "a1c7fe5020c36a5f07324bd15370d057f50dc3de493f8b9d7a9a0efe99fcb9b3",
+    "workflow_conclusion": "failure",
+    "fresh_process_count": 3,
+    "canonical_state_digests": "MISSING",
+    "rng_events": "MISSING",
+    "decision_tape": "MISSING"
+  },
   "reason": "The current Forge CLI probe emits terminal text only. Fresh-process logs are retained for forensics but are never compared as replay evidence.",
   "next_dependency": "FULL_DECISION_CENSUS_AND_TYPED_CALLBACK_COVERAGE"
 }

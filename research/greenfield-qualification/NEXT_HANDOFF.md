@@ -10,57 +10,64 @@ FIRST_BLOCKING_GATE = DECISION_EXTERNALIZATION
 FIRST_BLOCKING_SUBGATE = FULL_DECISION_CENSUS_AND_TYPED_CALLBACK_COVERAGE
 ```
 
-Do not create `moeendres-png/commander-simulator-next` and do not use the old
+Do not create `moeendres-png/commander-simulator-next`. Do not use the old
 Commander-Lab checkout as a Rules Core source.
 
-## Current exact inputs
+## Exact current evidence
 
-- Research input head: `7f843a29808c086f960128585b49bb18a7ec381a`.
-- Research input tree: `c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e`.
+- Qualification revision/tree: `0ea93d09d80e5c126eccb3323b17f14542e5559a` /
+  `64c97a207ad270fa398682c84d8dd238811a8b79`.
 - Forge pin: `8c7e9afb8e6caee88644b94e25da5852e36f8928`.
-- Strict patch SHA-256: `ef10fd59faf63b241b862d1700690bc1668421f00b72541929333f7fe4d1c7e9`.
+- Strict patch SHA-256: `d783c20c3e43947a84edc4ee2743ac959a5867e71e51b52bd9936f7c85a4cd9b`.
+- Current strict gate: run `33124530375`, artifact `9667836800`, gate `FAIL`.
+- Current hidden-transport assay: run `33124530500`, artifact `9667841078`,
+  0 decoded identity leaks in the scoped 2P test.
+- Current replay failure: run `33124530414`, artifact `9667883597`, missing
+  canonical state/RNG/decision streams in all three fresh processes.
 
-## Completed in this increment
+## Completed without repeating historical work
 
-1. Robust Scryfall gzip/JSONL (and plain JSON array) ingest with deterministic
-   Oracle-ID deduplication; current upstream count is 38,626.
-2. Fail-closed project union materializer; current result is `NOT_RUN`, 0/1,721
-   because only descriptor fragments are present.
-3. Research-only typed Forge server boundary for exact Player/Card/entity
-   selections, monotonic token, actor/principal, schema/constraint validation,
-   atomic application, and explicit timeout/unsupported errors.
-4. Static census: 109 controller declarations, 15 blocking GUI decisions, 3
-   directly routed entity-selection methods, 106 remaining.
-5. Versioned Decision/RNG/State/Tape schemas and semantic-only replay tool.
-6. Exact A–T and C01–C22 matrix materialization, all rows marked `NOT_RUN`.
-7. Current status, scorecard, architecture, hidden-info, isolation,
-   differential, license, and coverage documents synchronized to the same
-   provenance boundary.
+1. Robust Scryfall gzip/plain ingest, deterministic Oracle dedup, and
+   upstream count 38,626.
+2. Fail-closed 1,721-union materializer; it remains `NOT_RUN` at 0/1,721
+   because materialized Oracle-ID inputs are absent.
+3. Typed server-side Forge entity selection with explicit negative-response
+   validation and no GUI/AI/first/random/default/pass/cancel fallback.
+4. Current static census: 109 controller callbacks, 15 blocking GUI decisions,
+   3 directly exported, 106 remaining.
+5. Versioned Decision/RNG/State/Tape schemas, semantic replay validator, A–T,
+   C01–C22, card-coverage, differential, isolation, and license artifacts.
+6. Per-client hidden-card redaction in full state, deltas, events, and
+   visibility transitions; current raw decoded transport name-leak count is 0.
+7. Current 2P–5P CLI probe executions, including a successful 4P CLI probe;
+   these are not semantic replay or Decision-Tape evidence.
 
-## Required next work
+## Required next work — no substitutions allowed
 
-1. Extend the typed export to every discretionary controller callback and all
-   15 blocking GUI decisions, or prove an explicit typed unsupported path is
-   unreachable for the complete 4P Commander scope.
-2. Add runtime DecisionRequest/DecisionEvent emission and a trusted adapter
-   integration test covering valid/invalid/stale/wrong-principal/timeout paths.
-3. Rerun the hidden-information assay through that exact boundary; require zero
-   principal-scoped leaks across raw transport, logs, exceptions, IDs, hashes,
-   and debug output.
-4. Instrument named RNG streams, canonical public/principal state digests,
-   event tapes, and decision tapes; run three fresh processes with semantic
-   equality at every boundary.
-5. Rebuild the complete 1,721-identity union from materialized source rows
-   (including official precons and explicitly unknown opponent slots) without
-   name-based or synthetic promotion.
-6. Execute A–T/C01–C22 and per-identity behavior coverage through the same
-   boundary, then run differential adjudication against XMage/phase.rs.
-7. Only if every Q0–Q8 gate passes, derive the final ADR/scorecard and create
-   the private production repository; otherwise preserve `FALSE` and record
-   the next exact blocker.
+1. Replace the remaining 106 callback paths and 15 blocking GUI decision
+   paths with typed server-owned requests, or prove a path is structurally
+   non-discretionary and unreachable in the bounded 2P–5P Commander scope.
+   A generic `UNSUPPORTED_DECISION_PATH` is a fail-closed diagnostic, not
+   production coverage.
+2. Emit runtime DecisionRequest/DecisionEvent records for every open decision
+   and test valid, stale, foreign actor/principal, malformed, missing,
+   timeout, illegal-option, and one-shot responses under real 4P gameplay.
+3. Extend the hidden-information campaign to 4P and cover principal-scoped
+   observations, raw bytes/metadata, logs, exceptions, IDs/hashes, replay,
+   debug output, and reveal/look lifecycle. Require zero leaks across every
+   surface.
+4. Replace global/random bypasses with named game-scoped RNG streams and emit
+   an event tape plus canonical state digests. Reproduce one 4P trajectory in
+   three fresh processes without using stdout/stderr/timestamps as criteria.
+5. Obtain materialized source Oracle IDs for the exact 1,721 requirement
+   union. Do not map names, invent identities, or promote unknown cards.
+6. Execute A–T and C01–C22 plus behavior coverage through the strict boundary,
+   then conduct first-divergence adjudication against XMage and phase.rs.
+7. Complete process-isolation and license/distribution gates. Only then may an
+   ADR/scorecard be frozen and the private production repository be created.
 
 ## Guardrails
 
-Google Drive remains read-only. No deck, inventory, purchase, allocation, or
-playtest-lab state may be changed. Historical runs may be cited only as
-historical context, never as current-head evidence.
+Google Drive is read-only. No deck, inventory, purchase, allocation, or
+Playtest-Lab state may change. Historical results are context only, never
+current-head proof.

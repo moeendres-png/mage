@@ -2,25 +2,23 @@
 
 `INITIAL_ARCHITECTURE_DECISION_FROZEN = FALSE`.
 
-The current evidence supports a narrow hypothesis, not a final architecture:
-Forge remains the strongest Rules Core candidate, provided its authoritative
-`Input` / `PlayerControllerHuman` boundary can be made fully typed and
-principal-scoped. The research patch now proves the Player/Card/entity
-selection seam at static and compile level, but it does not qualify the full
-decision surface.
+At research revision `0ea93d09…`, Forge is still the strongest Rules Core
+hypothesis, not a selected architecture. The current strict patch proves a
+server-side Player/Card/entity decision seam and a scoped hidden-card transport
+correction. It does not prove a complete external control plane.
 
-Current blocker:
+The current boundary has three directly externalized controller entry points.
+Of 109 abstract controller callbacks and 15 blocking GUI decision paths,
+106/15 remain outside a runtime-qualified typed request/response contract.
+They must remain explicit fail-closed diagnostics; none may fall back to prompt
+parsing, GameView inference, AI, first/default/random/pass/cancel behavior.
+
+The first blocker remains:
 
 ```text
 DECISION_EXTERNALIZATION
   -> FULL_DECISION_CENSUS_AND_TYPED_CALLBACK_COVERAGE = FAIL
 ```
 
-The census is 109 controller declarations and 15 blocking GUI decisions; only
-3 controller entry points are directly routed. The remaining strict paths
-must produce explicit typed unsupported errors until they are implemented and
-runtime-qualified. No prompt parsing, GameView legality inference, AI,
-first/default/random/pass/cancel fallback, or Rules reimplementation is
-allowed.
-
-Do not create `moeendres-png/commander-simulator-next` from this state.
+`REMOTE_QUALIFICATION_EVIDENCE.json` contains current exact artifacts. Do not
+create `moeendres-png/commander-simulator-next` from this state.

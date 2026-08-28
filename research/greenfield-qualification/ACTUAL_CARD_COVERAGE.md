@@ -2,6 +2,11 @@
 
 Status: **INSUFFICIENT EVIDENCE**.
 
+The data ingest is retained at its own exact materialization provenance; the
+current assessment revision is `0ea93d09d80e5c126eccb3323b17f14542e5559a` /
+`64c97a207ad270fa398682c84d8dd238811a8b79`. It does not convert the prior
+data input into current behavioral evidence.
+
 The current Scryfall Oracle Cards gzip/JSONL ingest passed independently:
 
 - bulk updated: `2026-08-27T21:01:57.237+00:00`;

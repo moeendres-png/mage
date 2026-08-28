@@ -1,16 +1,20 @@
 {
-  "schema": "commander-simulator-next.implementation-evidence.v1",
+  "schema": "commander-simulator-next.implementation-evidence.v2",
   "generated_at": "2026-08-28",
-  "qualification_input": {
+  "qualification_revision": {
     "repository": "moeendres-png/mage",
     "branch": "research/greenfield-engine-shootout-20260827",
-    "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-    "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+    "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79",
+    "starting_research_input": {
+      "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
+      "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+    }
   },
   "external_pins": {
     "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
-    "forge_patched_tree": "c634b817e037c4531051859f7d00805ffd74931e",
-    "strict_patch_sha256": "ef10fd59faf63b241b862d1700690bc1668421f00b72541929333f7fe4d1c7e9"
+    "forge_head_tree": "c634b817e037c4531051859f7d00805ffd74931e",
+    "strict_patch_sha256": "d783c20c3e43947a84edc4ee2743ac959a5867e71e51b52bd9936f7c85a4cd9b"
   },
   "local_validation": {
     "python_qualification_tests": {"passed": 23, "failed": 0},
@@ -21,15 +25,21 @@
     "rules_matrix_a_t": {"definitions": 20, "qualification": "NOT_RUN"},
     "rules_matrix_c01_c22": {"definitions": 22, "qualification": "NOT_RUN"}
   },
+  "remote_validation": {
+    "strict_decision_boundary": {"run": 33124530375, "artifact_id": 9667836800, "gate": "FAIL"},
+    "hidden_information_raw_transport": {"run": 33124530500, "artifact_id": 9667841078, "identity_leaks": 0, "status": "PASS_SCOPED"},
+    "decision_census_rng": {"run": 33124530367, "artifact_id": 9667812533, "status": "FAIL"},
+    "runtime_probe_replay": {"run": 33124530414, "artifact_id": 9667883597, "semantic_replay": "NOT_RUN"}
+  },
   "gate_adjudication": {
     "Q0_provenance_and_schemas": "PASS_LOCALLY",
     "Q1_decision_externalization": "FAIL",
-    "Q2_hidden_information": "FAIL_OR_NOT_PROVEN",
+    "Q2_hidden_information": "FAIL_OR_INSUFFICIENT_EVIDENCE",
     "Q3_rng_and_replay": "NOT_RUN",
     "Q4_process_isolation": "INSUFFICIENT_EVIDENCE",
     "Q5_commander_multiplayer": "INCOMPLETE",
     "Q6_actual_card_coverage": "INSUFFICIENT_EVIDENCE",
-    "Q7_differential_adjudication": "INCOMPLETE",
+    "Q7_differential": "INCOMPLETE",
     "Q8_license_boundary": "DEFERRED"
   },
   "freeze": {

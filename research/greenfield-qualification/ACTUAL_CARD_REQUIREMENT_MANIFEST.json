@@ -1,6 +1,10 @@
 {
   "schema": "commander-simulator-next.actual-card-requirement-manifest.closeout-v1",
   "status": "INCOMPLETE_FAIL_CLOSED",
+  "current_assessment_revision": {
+    "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
+    "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
+  },
   "qualification_input": {
     "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
     "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e",
