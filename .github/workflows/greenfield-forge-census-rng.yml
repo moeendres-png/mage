@@ -171,6 +171,31 @@ jobs:
           value['strict_patch_sha256']=hashlib.sha256(Path('qual/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch').read_bytes()).hexdigest()
           value['forge_tree']=value.get('forge_tree')
           path.write_text(json.dumps(value,indent=2,sort_keys=True)+'\n')
+          census=value['census']
+          strict_census={
+            'schema':'commander-simulator-next.strict-decision-census.v1',
+            'source_head':value['source_head'],
+            'source_tree':value['source_tree'],
+            'forge_pin':value['forge_pin'],
+            'forge_tree':value['forge_tree'],
+            'patch_sha256':value['strict_patch_sha256'],
+            'controller_callback_count':census['player_controller_abstract_method_count'],
+            'controller_callbacks':census['player_controller_callback_census'],
+            'controller_static_classification_counts':census['controller_static_classification_counts'],
+            'controller_static_census_complete':census['controller_static_census_complete'],
+            'blocking_gui_decision_count':census['remote_protocol_blocking_decision_count'],
+            'blocking_gui_decisions':census['remote_protocol_blocking_decision_census'],
+            'blocking_gui_static_classification_counts':census['blocking_gui_static_classification_counts'],
+            'blocking_gui_static_census_complete':census['blocking_gui_static_census_complete'],
+            'static_status':'PASS' if census['controller_static_census_complete'] and census['blocking_gui_static_census_complete'] else 'FAIL',
+            'runtime_status':'NOT_RUN',
+            'gate':'FAIL',
+          }
+          assert strict_census['controller_callback_count']==109
+          assert strict_census['blocking_gui_decision_count']==15
+          assert strict_census['static_status']=='PASS'
+          Path('artifacts/forge-census-rng/STRICT_DECISION_CENSUS.json').write_text(
+              json.dumps(strict_census,indent=2,sort_keys=True)+'\n')
           PY
           (cd artifacts/forge-census-rng && find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true)
       - uses: actions/upload-artifact@v4

@@ -111,10 +111,13 @@ jobs:
           source_tree = Path('provenance.env').read_text().split('source_tree=', 1)[1].splitlines()[0]
           java_contract_log = Path('evidence/java-decision-contract.log').read_text()
           java_validator_contract = 'JAVA_EXTERNAL_DECISION_CONTRACT=PASS' in java_contract_log
+          decision_tape_contract = implementation['decision_tape_contract'] == 'PASS'
+          static_census_complete = implementation['census']['controller_static_census_complete'] \
+              and implementation['census']['blocking_gui_static_census_complete']
           exact_entity_boundary = implementation['status'] == 'PARTIAL' and all(implementation['assertions'].values())
           remaining = implementation['census']['remaining_controller_methods_not_externalized']
           gate = {
-            'schema': 'commander-simulator-next.forge-strict-boundary-gate.v4',
+            'schema': 'commander-simulator-next.forge-strict-boundary-gate.v5',
             'source_head': source_head,
             'source_tree': source_tree,
             'forge_pin': implementation['forge_pin'],
@@ -123,12 +126,17 @@ jobs:
             'status': 'FAIL',
             'strict_entity_selection_boundary': 'PASS' if exact_entity_boundary else 'FAIL',
             'java_runtime_validator_contract': 'PASS' if java_validator_contract else 'FAIL',
+            'decision_tape_contract': 'PASS' if decision_tape_contract else 'FAIL',
             'full_decision_externalization': 'FAIL',
             'full_decision_census': {
               'controller_callbacks': implementation['census']['player_controller_abstract_method_count'],
               'blocking_gui_decisions': implementation['census']['remote_protocol_blocking_decision_count'],
               'directly_externalized_controller_methods': implementation['census']['directly_externalized_controller_methods'],
               'remaining_controller_methods_not_externalized': remaining,
+              'controller_static_census_complete': implementation['census']['controller_static_census_complete'],
+              'controller_static_classification_counts': implementation['census']['controller_static_classification_counts'],
+              'blocking_gui_static_census_complete': implementation['census']['blocking_gui_static_census_complete'],
+              'blocking_gui_static_classification_counts': implementation['census']['blocking_gui_static_classification_counts'],
               'complete': False,
             },
             'hard_gate_values': {
@@ -139,6 +147,8 @@ jobs:
               'TIMEOUT_REJECTED': exact_entity_boundary,
               'ONE_SHOT_CONSUMPTION': exact_entity_boundary,
               'JAVA_RUNTIME_VALIDATOR_CONTRACT': java_validator_contract,
+              'DECISION_TAPE_CONTRACT': decision_tape_contract,
+              'STATIC_DECISION_CENSUS_COMPLETE': static_census_complete,
               'PRODUCTION_REACHABLE_UNQUALIFIED_CALLBACKS': remaining,
               'SILENT_FALLBACKS_ZERO': False,
               'RUNTIME_DECISION_TAPE_QUALIFIED': False,
@@ -146,7 +156,7 @@ jobs:
             'evidence_class': ['DIRECTLY_VERIFIED', 'CODE_DERIVED', 'CI_EXECUTED'],
             'failure': {
               'code': 'FULL_DECISION_CENSUS_NOT_EXTERNALIZED',
-              'message': 'The patch proves, compiles, and executes a server-side validator contract for the typed seam, but the remaining controller callbacks and blocking GUI decisions are not admitted to the strict production path.',
+              'message': 'The patch proves, compiles, and executes a server-side validator and metadata-only DecisionTape contract for the typed seam, but the remaining controller callbacks and blocking GUI decisions are not admitted to the strict production path.',
             },
           }
           Path('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.json').write_text(json.dumps(gate, indent=2, sort_keys=True) + '\n')
@@ -160,6 +170,8 @@ jobs:
                   f"- Patch SHA-256: `{gate['patch_sha256']}`",
                   f"- Strict entity-selection seam: **{gate['strict_entity_selection_boundary']}**",
                   f"- Java runtime validator contract: **{gate['java_runtime_validator_contract']}**",
+                  f"- DecisionTape contract: **{gate['decision_tape_contract']}**",
+                  f"- Static 109/15 census materialized: **{'PASS' if static_census_complete else 'FAIL'}**",
                   "- Full production gate: **FAIL**",
                   "",
                   "The exact `InputSelectEntitiesFromList` option set, including `Player`",
@@ -169,7 +181,14 @@ jobs:
                   "patch compiles at the declared Forge pin. A dependency-free Java contract probe",
                   "also executes the server-side validator's accepted, stale, actor/principal,",
                   "malformed, missing, unknown-path, illegal-option, count, cancel, one-shot,",
-                  "and timeout cases. It is a validator-contract result, not a gameplay tape.",
+                  "and timeout cases. The same server path appends a metadata-only, principal-scoped",
+                  "DecisionTape event and rejects a second use of a consumed token. This is a",
+                  "validator/tape contract result, not a complete gameplay tape.",
+                  "",
+                  "All 109 controller callbacks and all 15 blocking GUI return paths are",
+                  "individually classified from the exact pin. That is a complete static census,",
+                  "not a runtime completeness claim; paths that are only GUI-adapter-dependent",
+                  "or otherwise unqualified remain fail-closed for production adjudication.",
                   "",
                   "This does not close the production gate: only three entity-selection entry",
                   "points are directly routed. The census contains "
@@ -182,6 +201,8 @@ jobs:
           assert gate['status'] == 'FAIL'
           assert gate['strict_entity_selection_boundary'] == 'PASS'
           assert gate['java_runtime_validator_contract'] == 'PASS'
+          assert gate['decision_tape_contract'] == 'PASS'
+          assert static_census_complete
           assert gate['full_decision_externalization'] == 'FAIL'
           PY
 

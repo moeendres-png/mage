@@ -40,6 +40,7 @@ def source_assertions(forge: Path) -> dict[str, bool]:
     synchronized_input_path = forge / "forge-gui/src/main/java/forge/gamemodes/match/input/InputSyncronizedBase.java"
     external_gui_path = forge / "forge-gui/src/main/java/forge/player/ExternalDecisionGuiAdapter.java"
     java_contract_path = forge / "forge-gui/src/test/java/forge/gamemodes/match/input/ExternalDecisionValidatorContractTest.java"
+    tape_path = forge / "forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionTape.java"
     inp = input_path.read_text(encoding="utf-8")
     proxy = proxy_path.read_text(encoding="utf-8")
     controller = controller_path.read_text(encoding="utf-8")
@@ -50,6 +51,7 @@ def source_assertions(forge: Path) -> dict[str, bool]:
     synchronized_input = synchronized_input_path.read_text(encoding="utf-8")
     external_gui = external_gui_path.read_text(encoding="utf-8")
     java_contract = java_contract_path.read_text(encoding="utf-8")
+    tape = tape_path.read_text(encoding="utf-8")
     return {
         "typed_request_class": "class ExternalDecisionRequest" in request,
         "typed_response_class": "class ExternalDecisionResponse" in response,
@@ -78,6 +80,7 @@ def source_assertions(forge: Path) -> dict[str, bool]:
         "java_validator_contract_probe": all(marker in java_contract for marker in (
             "class ExternalDecisionValidatorContractTest",
             "JAVA_EXTERNAL_DECISION_CONTRACT=PASS",
+            "ExternalDecisionTape",
             "STALE_RESPONSE",
             "WRONG_ACTOR",
             "WRONG_PRINCIPAL",
@@ -91,32 +94,170 @@ def source_assertions(forge: Path) -> dict[str, bool]:
             "DECISION_CONSUMED",
             "TIMEOUT",
         )),
+        "server_side_decision_tape": all(marker in tape for marker in (
+            "class ExternalDecisionTape",
+            "validateAndRecord",
+            "consumedTokens",
+            "ResponseStatus",
+            "getSelectedOptionIds",
+            "appendFailure",
+        )) and "externalDecisionTape.validateAndRecord" in controller,
+        "decision_tape_excludes_hidden_payload": all(marker not in tape for marker in (
+            "private final ExternalDecisionRequest",
+            "getSemanticContext()",
+            "getOptions()",
+        )),
     }
+
+
+def _split_java_parameters(parameters: str) -> list[str]:
+    if not parameters.strip():
+        return []
+    result: list[str] = []
+    start = 0
+    depth = 0
+    for index, character in enumerate(parameters):
+        if character in "<([{":
+            depth += 1
+        elif character in ">)]}":
+            depth -= 1
+        elif character == "," and depth == 0:
+            result.append(parameters[start:index])
+            start = index + 1
+    result.append(parameters[start:])
+    return result
+
+
+def _java_parameter_types(parameters: str) -> tuple[str, ...]:
+    normalized: list[str] = []
+    for parameter in _split_java_parameters(parameters):
+        value = re.sub(r"@\w+(?:\([^)]*\))?\s*", "", parameter)
+        value = re.sub(r"\bfinal\s+", "", value).strip()
+        value = re.sub(r"\s+", " ", value)
+        value = re.sub(r"\s+[A-Za-z_$][\w$]*$", "", value)
+        normalized.append(value)
+    return tuple(normalized)
+
+
+def _java_block(source: str, opening_brace: int) -> str | None:
+    depth = 0
+    for index in range(opening_brace, len(source)):
+        if source[index] == "{":
+            depth += 1
+        elif source[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[opening_brace:index + 1]
+    return None
+
+
+def _java_public_method_bodies(source: str) -> dict[tuple[str, tuple[str, ...]], str]:
+    result: dict[tuple[str, tuple[str, ...]], str] = {}
+    pattern = re.compile(
+        r"\bpublic\s+(?!class\b)[^;{}]+?\s+(\w+)\s*\((.*?)\)\s*(?:throws\s+[^\{]+)?\{",
+        re.S,
+    )
+    for match in pattern.finditer(source):
+        body = _java_block(source, match.end() - 1)
+        if body is not None:
+            result[(match.group(1), _java_parameter_types(match.group(2)))] = body
+    return result
+
+
+def _controller_static_status(body: str | None) -> str:
+    if body is None:
+        return "MISSING_OVERRIDE"
+    if "rejectExternalDecision(" in body:
+        return "EXPLICITLY_REJECTED_STATIC"
+    if "hasExternalDecisionProvider()" in body and (
+        "chooseExternal" in body or "requestExternalSelection" in body
+    ):
+        return "TYPED_EXTERNALIZED_STATIC"
+    if any(re.search(rf"\b{name}\s*\(", body) for name in (
+        "chooseCardsForEffect", "chooseSingleEntityForEffect", "chooseEntitiesForEffect",
+    )):
+        return "DELEGATES_TO_TYPED_EXTERNAL_STATIC"
+    if "hasExternalDecisionProvider()" in body:
+        return "STRICT_GUARD_UNCLASSIFIED"
+    if "getGui()" in body:
+        return "GUI_ADAPTER_DEPENDENT_STATIC"
+    return "LEGACY_PATH_UNCLASSIFIED"
 
 
 def census(forge: Path) -> dict[str, Any]:
     controller = (forge / "forge-game/src/main/java/forge/game/player/PlayerController.java").read_text(encoding="utf-8")
     protocol = (forge / "forge-gui/src/main/java/forge/gamemodes/net/ProtocolMethod.java").read_text(encoding="utf-8")
-    abstract_methods = sorted([
-        match.group(1)
+    human_controller = (forge / "forge-gui/src/main/java/forge/player/PlayerControllerHuman.java").read_text(encoding="utf-8")
+    external_gui = (forge / "forge-gui/src/main/java/forge/player/ExternalDecisionGuiAdapter.java").read_text(encoding="utf-8")
+    abstract_declarations = [
+        (match.group(1), _java_parameter_types(match.group(2)))
         for match in re.finditer(r"public\s+abstract\s+[^;{]+?\s+(\w+)\s*\((.*?)\)\s*;", controller, re.S)
-    ])
+    ]
+    human_methods = _java_public_method_bodies(human_controller)
+    callback_census = []
+    for callback_index, (name, parameter_types) in enumerate(abstract_declarations, 1):
+        body = human_methods.get((name, parameter_types))
+        callback_census.append({
+            "callback_index": callback_index,
+            "callback_id": f"{name}({', '.join(parameter_types)})",
+            "name": name,
+            "parameter_types": list(parameter_types),
+            "static_status": _controller_static_status(body),
+            "runtime_evidence": "NOT_RUN",
+        })
     enum_block = protocol.split("public enum ProtocolMethod", 1)[1].split("private enum Mode", 1)[0]
     blocking = []
     for line in enum_block.splitlines():
         match = re.match(r"\s*(\w+)\s*\(Mode\.SERVER,\s*([^,\)]+)", line)
         if match and match.group(2).strip() != "Void.TYPE":
             blocking.append({"name": match.group(1), "return_type": match.group(2).strip()})
+    typed_gui_handlers = {
+        "showConfirmDialog", "confirm", "showOptionDialog", "showInputDialog", "getChoices",
+        "order", "chooseSingleEntityForEffect", "chooseEntitiesForEffect",
+    }
+    explicit_gui_rejections = {
+        "getAbilityToPlay", "assignCombatDamage", "assignGenericAmount", "sideboard",
+        "manipulateCardList", "openZones",
+    }
+    gui_callback_census = []
+    for decision in blocking:
+        name = decision["name"]
+        if name in typed_gui_handlers and f'case "{name}"' in external_gui:
+            static_status = "TYPED_EXTERNALIZED_STATIC"
+        elif name in explicit_gui_rejections and f'case "{name}"' in external_gui:
+            static_status = "EXPLICITLY_REJECTED_STATIC"
+        else:
+            static_status = "FAIL_CLOSED_DEFAULT_STATIC"
+        gui_callback_census.append({
+            **decision,
+            "static_status": static_status,
+            "runtime_evidence": "NOT_RUN",
+        })
+    controller_status_counts: dict[str, int] = {}
+    for item in callback_census:
+        status = item["static_status"]
+        controller_status_counts[status] = controller_status_counts.get(status, 0) + 1
+    gui_status_counts: dict[str, int] = {}
+    for item in gui_callback_census:
+        status = item["static_status"]
+        gui_status_counts[status] = gui_status_counts.get(status, 0) + 1
     return {
-        "player_controller_abstract_method_count": len(abstract_methods),
-        "player_controller_abstract_methods": abstract_methods,
+        "player_controller_abstract_method_count": len(abstract_declarations),
+        "player_controller_abstract_methods": sorted(name for name, _ in abstract_declarations),
+        "player_controller_callback_census": callback_census,
+        "controller_static_classification_counts": dict(sorted(controller_status_counts.items())),
+        "controller_static_census_complete": len(callback_census) == len(abstract_declarations)
+        and all(item["static_status"] != "MISSING_OVERRIDE" for item in callback_census),
         "remote_protocol_blocking_decision_count": len(blocking),
         "remote_protocol_blocking_decisions": blocking,
+        "remote_protocol_blocking_decision_census": gui_callback_census,
+        "blocking_gui_static_classification_counts": dict(sorted(gui_status_counts.items())),
+        "blocking_gui_static_census_complete": len(gui_callback_census) == len(blocking),
         "directly_externalized_controller_methods": [
             "chooseCardsForEffect", "chooseSingleEntityForEffect", "chooseEntitiesForEffect"
         ],
         "directly_externalized_method_count": 3,
-        "remaining_controller_methods_not_externalized": max(0, len(abstract_methods) - 3),
+        "remaining_controller_methods_not_externalized": max(0, len(abstract_declarations) - 3),
         "full_decision_census_complete": False,
         "runtime_decision_tape_qualified": False,
     }
@@ -147,9 +288,11 @@ def main() -> int:
         "status": "PARTIAL",
         "gate": "FAIL",
         "runtime_qualification": "NOT_RUN",
+        "decision_tape_contract": "PASS" if assertions["server_side_decision_tape"]
+        and assertions["decision_tape_excludes_hidden_payload"] else "FAIL",
         "failure": {
             "code": "FULL_DECISION_CENSUS_NOT_EXTERNALIZED",
-            "message": "The typed entity-input boundary is implemented for three authoritative entity-selection entry points. A server-mapped discrete facade exists but remains runtime-unqualified; remaining controller and blocking GUI decisions are explicitly not admitted.",
+            "message": "The typed entity-input boundary and a server-side metadata-only DecisionTape contract are implemented, but the tape has not yet been exercised through a complete game. Remaining controller and blocking GUI decisions are explicitly not admitted.",
         },
     }
     if actual_pin != FORGE_PIN:

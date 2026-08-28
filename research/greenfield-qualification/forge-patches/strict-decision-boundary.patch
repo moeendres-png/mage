@@ -242,6 +242,143 @@ index 00000000..dedc8ad5
 +    public List<String> getSelectedOptionIds() { return selectedOptionIds; }
 +    public boolean isCancel() { return cancel; }
 +}
+diff --git a/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionTape.java b/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionTape.java
+new file mode 100644
+index 00000000..176a9301
+--- /dev/null
++++ b/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionTape.java
+@@ -0,0 +1,131 @@
++package forge.gamemodes.match.input;
++
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.HashSet;
++import java.util.List;
++import java.util.Set;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Server-owned, principal-scoped event tape for the strict decision boundary.
++ *
++ * <p>The tape records only response-envelope metadata and selected opaque
++ * option ids. It deliberately never records prompt text, {@code GameView},
++ * {@code CardView}, labels, or semantic context, so it is safe to retain as
++ * decision evidence without becoming a hidden-information transport.</p>
++ */
++public final class ExternalDecisionTape {
++    public enum ResponseStatus {
++        ACCEPTED,
++        REJECTED,
++        TIMEOUT,
++        UNSUPPORTED
++    }
++
++    /** Immutable, replay-oriented record of one response outcome. */
++    public static final class Event {
++        private final long eventId;
++        private final long decisionId;
++        private final long token;
++        private final String decisionKind;
++        private final int actorId;
++        private final int principalId;
++        private final ResponseStatus responseStatus;
++        private final List<String> selectedOptionIds;
++        private final String errorCode;
++
++        private Event(final long eventId, final ExternalDecisionRequest request,
++                      final ExternalDecisionResponse response,
++                      final ResponseStatus responseStatus, final String errorCode) {
++            this.eventId = eventId;
++            this.decisionId = request.getDecisionId();
++            this.token = request.getToken();
++            this.decisionKind = request.getDecisionKind();
++            this.actorId = request.getActorId();
++            this.principalId = request.getPrincipalId();
++            this.responseStatus = responseStatus;
++            this.selectedOptionIds = Collections.unmodifiableList(new ArrayList<>(
++                    response == null || response.getSelectedOptionIds() == null
++                            ? Collections.emptyList() : response.getSelectedOptionIds()));
++            this.errorCode = errorCode;
++        }
++
++        public long getEventId() { return eventId; }
++        public long getDecisionId() { return decisionId; }
++        public long getToken() { return token; }
++        public String getDecisionKind() { return decisionKind; }
++        public int getActorId() { return actorId; }
++        public int getPrincipalId() { return principalId; }
++        public ResponseStatus getResponseStatus() { return responseStatus; }
++        public List<String> getSelectedOptionIds() { return selectedOptionIds; }
++        public String getErrorCode() { return errorCode; }
++    }
++
++    private final AtomicLong eventSequence = new AtomicLong();
++    private final List<Event> events = new ArrayList<>();
++    private final Set<Long> consumedTokens = new HashSet<>();
++
++    /**
++     * Validate and consume one response while recording its exact outcome.
++     * A second use of the same token is rejected and receives its own tape
++     * event, even if a caller accidentally reuses the same response envelope.
++     */
++    public synchronized List<String> validateAndRecord(final ExternalDecisionRequest request,
++                                                        final ExternalDecisionResponse response,
++                                                        final long currentToken, final int currentActor,
++                                                        final int currentPrincipal, final boolean timedOut) {
++        final boolean consumed = request != null && consumedTokens.contains(request.getToken());
++        try {
++            final List<String> selected = ExternalDecisionValidator.validate(request, response,
++                    currentToken, currentActor, currentPrincipal, consumed, timedOut);
++            consumedTokens.add(request.getToken());
++            append(request, response, ResponseStatus.ACCEPTED, null);
++            return selected;
++        } catch (final ExternalDecisionValidationException error) {
++            appendFailure(request, response, error);
++            throw error;
++        }
++    }
++
++    /** Record an explicit provider-side failure after an authoritative request opened. */
++    public synchronized void recordProviderFailure(final ExternalDecisionRequest request,
++                                                   final ExternalDecisionValidationException error) {
++        appendFailure(request, null, error);
++    }
++
++    /** Return an immutable snapshot suitable for a principal-scoped DecisionEvent export. */
++    public synchronized List<Event> snapshot() {
++        return Collections.unmodifiableList(new ArrayList<>(events));
++    }
++
++    /** Clear one game-run tape before a new explicitly isolated run starts. */
++    public synchronized void clear() {
++        events.clear();
++        consumedTokens.clear();
++        eventSequence.set(0);
++    }
++
++    private void appendFailure(final ExternalDecisionRequest request,
++                               final ExternalDecisionResponse response,
++                               final ExternalDecisionValidationException error) {
++        if (request == null) {
++            return;
++        }
++        final ResponseStatus status = switch (error.getCode()) {
++            case TIMEOUT -> ResponseStatus.TIMEOUT;
++            case UNSUPPORTED_DECISION_PATH -> ResponseStatus.UNSUPPORTED;
++            default -> ResponseStatus.REJECTED;
++        };
++        append(request, response, status, error.getCode().name());
++    }
++
++    private void append(final ExternalDecisionRequest request,
++                        final ExternalDecisionResponse response,
++                        final ResponseStatus status, final String errorCode) {
++        if (request == null) {
++            return;
++        }
++        events.add(new Event(eventSequence.incrementAndGet(), request, response, status, errorCode));
++    }
++}
 diff --git a/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionValidationException.java b/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalDecisionValidationException.java
 new file mode 100644
 index 00000000..74a8ae15
@@ -1384,7 +1521,7 @@ index 00000000..301eec7b
 +    }
 +}
 diff --git a/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java b/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java
-index 6c060538..71eca729 100644
+index 6c060538..d6d2499a 100644
 --- a/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java
 +++ b/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java
 @@ -100,6 +100,11 @@ import java.util.Map.Entry;
@@ -1399,7 +1536,7 @@ index 6c060538..71eca729 100644
  
  /**
   * A prototype for player controller class
-@@ -116,6 +121,12 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -116,6 +121,13 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      private IGuiGame gui;
  
@@ -1407,12 +1544,13 @@ index 6c060538..71eca729 100644
 +    private volatile ExternalDecisionProvider externalDecisionProvider;
 +    private transient IGuiGame externalDecisionGui;
 +    private final AtomicLong externalDecisionSequence = new AtomicLong();
++    private final ExternalDecisionTape externalDecisionTape = new ExternalDecisionTape();
 +    private volatile long externalDecisionTimeoutMillis = 30000L;
 +
      private final YieldController yieldController = new YieldController(this);
  
      protected final InputQueue inputQueue;
-@@ -139,12 +150,48 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -139,12 +151,58 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
      }
  
      public final IGuiGame getGui() {
@@ -1442,6 +1580,16 @@ index 6c060538..71eca729 100644
 +        return externalDecisionProvider != null;
 +    }
 +
++    /** Return only the principal-scoped metadata tape for the current game run. */
++    public final List<ExternalDecisionTape.Event> getExternalDecisionTapeSnapshot() {
++        return externalDecisionTape.snapshot();
++    }
++
++    /** Start a new isolated game-run tape without changing the installed provider. */
++    public final void clearExternalDecisionTape() {
++        externalDecisionTape.clear();
++    }
++
 +    private void rejectExternalDecision(final String decisionKind) {
 +        if (hasExternalDecisionProvider()) {
 +            throw new ExternalDecisionValidationException(
@@ -1461,7 +1609,7 @@ index 6c060538..71eca729 100644
      public YieldController getYieldController() {
          return yieldController;
      }
-@@ -282,6 +329,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -282,6 +340,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
      @Override
      public Map<Card, Integer> assignCombatDamage(final Card attacker, final CardCollectionView blockers, final CardCollectionView remaining,
                                                   final int damageDealt, final GameEntity defender, final boolean overrideOrder) {
@@ -1469,7 +1617,7 @@ index 6c060538..71eca729 100644
          // Attacker is a poor name here, since the creature assigning damage
          // could just as easily be the blocker.
          final Map<Card, Integer> map = Maps.newHashMap();
-@@ -318,6 +366,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -318,6 +377,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public Map<GameEntity, Integer> divideShield(Card effectSource, Map<GameEntity, Integer> affected, int shieldAmount) {
@@ -1477,7 +1625,7 @@ index 6c060538..71eca729 100644
          final CardView vSource = CardView.get(effectSource);
          final Map<Object, Integer> vAffected = new HashMap<>(affected.size());
          for (Map.Entry<GameEntity, Integer> e : affected.entrySet()) {
-@@ -338,6 +387,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -338,6 +398,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public Map<Byte, Integer> specifyManaCombo(SpellAbility sa, ColorSet colorSet, int manaAmount, boolean different) {
@@ -1485,7 +1633,7 @@ index 6c060538..71eca729 100644
          final List<MagicColor.Color> choices = Lists.newArrayList(colorSet.getOrderedColors());
          final Map<Byte, Integer> remembered = macros().consumeRememberedManaCombo(choices, manaAmount, different);
          if (remembered != null) {
-@@ -409,11 +459,15 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -409,11 +470,15 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
      }
  
      private CardCollectionView choosePermanentsTo(final int min, int max, final CardCollectionView valid,
@@ -1502,7 +1650,7 @@ index 6c060538..71eca729 100644
  
          String inpMessage = localizer.getMessage((min == 0 ? "lblSelectUpToNumTargetToAction" :
                  "lblSelectNumTargetToAction"), message, action);
-@@ -463,9 +517,237 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -463,9 +528,240 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
          return true;
      }
  
@@ -1557,25 +1705,28 @@ index 6c060538..71eca729 100644
 +                response = responseTask.get(externalDecisionTimeoutMillis, TimeUnit.MILLISECONDS);
 +            } catch (final TimeoutException ex) {
 +                responseTask.cancel(true);
-+                ExternalDecisionValidator.validate(request, null, token, actor.getId(), principal.getId(), false, true);
++                externalDecisionTape.validateAndRecord(request, null, token, actor.getId(), principal.getId(), true);
 +                throw new AssertionError("timeout validator must reject the decision");
 +            } catch (final InterruptedException ex) {
 +                responseTask.cancel(true);
 +                Thread.currentThread().interrupt();
-+                throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.TIMEOUT,
++                final ExternalDecisionValidationException error = new ExternalDecisionValidationException(
++                        ExternalDecisionValidationException.Code.TIMEOUT,
 +                        "decision wait was interrupted");
++                externalDecisionTape.recordProviderFailure(request, error);
++                throw error;
 +            } catch (final ExecutionException ex) {
 +                responseTask.cancel(true);
 +                final Throwable cause = ex.getCause();
-+                if (cause instanceof RuntimeException runtime) {
-+                    throw runtime;
-+                }
-+                throw new ExternalDecisionValidationException(
-+                        ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
-+                        "external decision provider failed");
++                final ExternalDecisionValidationException error = cause instanceof ExternalDecisionValidationException typed
++                        ? typed : new ExternalDecisionValidationException(
++                                ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
++                                "external decision provider failed");
++                externalDecisionTape.recordProviderFailure(request, error);
++                throw error;
 +            }
 +
-+            ExternalDecisionValidator.validate(request, response, token, actor.getId(), principal.getId(), false, false);
++            externalDecisionTape.validateAndRecord(request, response, token, actor.getId(), principal.getId(), false);
 +            return response;
 +        } catch (final RuntimeException ex) {
 +            throw ex;
@@ -1740,7 +1891,7 @@ index 6c060538..71eca729 100644
          // If only one card to choose, use a dialog box.
          // Otherwise, use the order dialog to be able to grab multiple cards in one shot
  
-@@ -578,7 +860,12 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -578,7 +874,12 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
      @Override
      public <T extends GameEntity> T chooseSingleEntityForEffect(final FCollectionView<T> optionList,
                                                                  final DelayedReveal delayedReveal, final SpellAbility sa, final String title, final boolean isOptional,
@@ -1754,7 +1905,7 @@ index 6c060538..71eca729 100644
          // Human is supposed to read the message and understand from it what to choose
          if (optionList.isEmpty()) {
              if (delayedReveal != null) {
-@@ -622,6 +909,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -622,6 +923,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
      @Override
      public <T extends GameEntity> List<T> chooseEntitiesForEffect(final FCollectionView<T> optionList, final int min, final int max,
                                                                    final DelayedReveal delayedReveal, final SpellAbility sa, final String title, final Player targetedPlayer, Map<String, Object> params) {
@@ -1765,7 +1916,7 @@ index 6c060538..71eca729 100644
          // useful details for debugging problems with the mass select logic
          Sentry.setExtra("Card", sa.getCardView().toString());
          Sentry.setExtra("SpellAbility", sa.toString());
-@@ -662,6 +953,18 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -662,6 +967,18 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public int chooseNumber(final SpellAbility sa, final String title, final int min, final int max) {
@@ -1784,7 +1935,7 @@ index 6c060538..71eca729 100644
          if (min >= max) {
              return min;
          }
-@@ -687,12 +990,23 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -687,12 +1004,23 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
      @Override
      public int chooseNumber(final SpellAbility sa, final String title, final List<Integer> choices,
                              final Player relatedPlayer) {
@@ -1808,7 +1959,7 @@ index 6c060538..71eca729 100644
          if (spells.size() < 2) {
              return Iterables.getFirst(spells, null);
          }
-@@ -710,6 +1024,14 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -710,6 +1038,14 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public List<SpellAbility> chooseSpellAbilitiesForEffect(List<SpellAbility> spells, SpellAbility sa, String title, int num, Map<String, Object> params) {
@@ -1823,7 +1974,7 @@ index 6c060538..71eca729 100644
          List<SpellAbility> result = Lists.newArrayList();
          // create a mapping between a spell's view and the spell itself
          Map<SpellAbilityView, SpellAbility> spellViewCache = SpellAbilityView.getMap(spells);
-@@ -744,6 +1066,15 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -744,6 +1080,15 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
      @Override
      public boolean confirmAction(final SpellAbility sa, final PlayerActionConfirmMode mode, final String message,
                                   List<String> options, Card cardToShow, Map<String, Object> params) {
@@ -1839,7 +1990,7 @@ index 6c060538..71eca729 100644
          // Another card should be displayed in the prompt on mouse over rather than the SA source
          if (cardToShow != null) {
              tempShowCard(cardToShow);
-@@ -764,6 +1095,11 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -764,6 +1109,11 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
      @Override
      public boolean confirmBidAction(final SpellAbility sa, final PlayerActionConfirmMode bidlife, final String string,
                                      final int bid, final Player winner) {
@@ -1851,7 +2002,7 @@ index 6c060538..71eca729 100644
          final boolean result = InputConfirm.confirm(this, sa, string + " " + localizer.getMessage("lblHighestBidder") + " " + winner);
          recordConfirm(sa, result);
          return result;
-@@ -771,6 +1107,11 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -771,6 +1121,11 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public boolean confirmStaticApplication(final Card hostCard, PlayerActionConfirmMode mode, final String message, final String logic) {
@@ -1863,7 +2014,7 @@ index 6c060538..71eca729 100644
          final boolean result = InputConfirm.confirm(this, CardView.get(hostCard), message);
          recordConfirm(CardView.get(hostCard), result);
          return result;
-@@ -785,6 +1126,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -785,6 +1140,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public boolean confirmTrigger(final WrappedAbility wrapper) {
@@ -1873,7 +2024,7 @@ index 6c060538..71eca729 100644
          final SpellAbility sa = wrapper.getWrappedAbility();
          final Trigger regtrig = wrapper.getTrigger();
          AutoYieldStore.TriggerDecision decision = getTriggerDecision(wrapper.yieldKey());
-@@ -830,6 +1174,14 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -830,6 +1188,14 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public Player chooseStartingPlayer(final boolean isFirstGame) {
@@ -1888,7 +2039,7 @@ index 6c060538..71eca729 100644
          String prompt;
          if (isFirstGame) {
              prompt = localizer.getMessage("lblYouHaveWonTheCoinToss", player.getName());
-@@ -853,6 +1205,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -853,6 +1219,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public CardCollection orderBlockers(final Card attacker, final CardCollection blockers) {
@@ -1899,7 +2050,7 @@ index 6c060538..71eca729 100644
          GameEntityViewMap<Card, CardView> gameCacheBlockers = GameEntityView.getMap(blockers);
          final CardView vAttacker = CardView.get(attacker);
          getGui().setPanelSelection(vAttacker);
-@@ -865,6 +1221,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -865,6 +1235,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public List<Card> exertAttackers(List<Card> attackers) {
@@ -1910,7 +2061,7 @@ index 6c060538..71eca729 100644
          GameEntityViewMap<Card, CardView> gameCacheExert = GameEntityView.getMap(attackers);
          List<CardView> chosen = getGui().order(localizer.getMessage("lblExertAttackersConfirm"), localizer.getMessage("lblExerted"),
                  0, gameCacheExert.size(), gameCacheExert.getTrackableKeys(), null, null, false);
-@@ -876,6 +1236,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -876,6 +1250,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public List<Card> enlistAttackers(List<Card> attackers) {
@@ -1921,7 +2072,7 @@ index 6c060538..71eca729 100644
          GameEntityViewMap<Card, CardView> gameCacheExert = GameEntityView.getMap(attackers);
          List<CardView> chosen = getGui().order(localizer.getMessage("lblEnlistAttackersConfirm"), localizer.getMessage("lblEnlisted"),
                  0, gameCacheExert.size(), gameCacheExert.getTrackableKeys(), null, null, false);
-@@ -887,6 +1251,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -887,6 +1265,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public List<CostPart> orderCosts(List<CostPart> costs) {
@@ -1931,7 +2082,7 @@ index 6c060538..71eca729 100644
          if (!isFullControl(FullControlFlag.ChooseCostOrder) || costs.size() < 2) {
              return costs;
          }
-@@ -910,6 +1277,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -910,6 +1291,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public CardCollection orderAttackers(final Card blocker, final CardCollection attackers) {
@@ -1942,7 +2093,7 @@ index 6c060538..71eca729 100644
          GameEntityViewMap<Card, CardView> gameCacheAttackers = GameEntityView.getMap(attackers);
          final CardView vBlocker = CardView.get(blocker);
          getGui().setPanelSelection(vBlocker);
-@@ -996,6 +1367,17 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -996,6 +1381,17 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public ImmutablePair<CardCollection, CardCollection> arrangeForScry(final CardCollection topN) {
@@ -1960,7 +2111,7 @@ index 6c060538..71eca729 100644
          final ImmutablePair<CardCollection, CardCollection> remembered = macros().consumeRememberedScry(topN);
          if (remembered != null) {
              return remembered;
-@@ -1045,6 +1427,16 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1045,6 +1441,16 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public ImmutablePair<CardCollection, CardCollection> arrangeForSurveil(final CardCollection topN) {
@@ -1977,7 +2128,7 @@ index 6c060538..71eca729 100644
          CardCollection toGrave = null;
          CardCollection toTop = null;
  
-@@ -1087,6 +1479,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1087,6 +1493,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public boolean willPutCardOnTop(final Card c) {
@@ -1987,7 +2138,7 @@ index 6c060538..71eca729 100644
          final CardView view = CardView.get(c);
  
          tempShowCard(c);
-@@ -1129,6 +1524,15 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1129,6 +1538,15 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
          boolean topOfDeck = orderedMoveToTopOfLibrary(destinationZone, source);
  
@@ -2003,7 +2154,7 @@ index 6c060538..71eca729 100644
          switch (destinationZone) {
              case Library:
                  choices = getGui().order(localizer.getMessage("lblChooseOrderCardsPutIntoLibrary"), localizer.getMessage(topOfDeck ? "lblClosestToTop" : "lblClosestToBottom"), choices, null);
-@@ -1174,6 +1578,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1174,6 +1592,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
      public CardCollectionView chooseCardsToDiscardFrom(final Player p, final SpellAbility sa,
                                                         final CardCollection valid, final int min, final int max,
                                                         final CardCollectionView visibleToChooser) {
@@ -2013,7 +2164,7 @@ index 6c060538..71eca729 100644
          boolean optional = min == 0;
  
          if (p != player) {
-@@ -1207,6 +1614,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1207,6 +1628,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
          if (cardsInGrave == 0) {
              return CardCollection.EMPTY;
          }
@@ -2023,7 +2174,7 @@ index 6c060538..71eca729 100644
  
          final CardCollection toExile = new CardCollection();
          final ImmutableList.Builder<Integer> cntChoice = ImmutableList.builder();
-@@ -1477,6 +1887,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1477,6 +1901,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
      @Override
      public boolean confirmReplacementEffect(final ReplacementEffect replacementEffect, final SpellAbility effectSA,
                                              GameEntity affected, final String question) {
@@ -2033,7 +2184,7 @@ index 6c060538..71eca729 100644
          if (getGui().isLibgdxPort()) {
              CardView cardView;
              SpellAbilityView spellAbilityView = effectSA == null ? null : effectSA.getView();
-@@ -1491,6 +1904,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1491,6 +1918,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public boolean mulliganKeepHand(final Player mulliganingPlayer, int cardsToReturn) {
@@ -2041,7 +2192,7 @@ index 6c060538..71eca729 100644
          // TODO we should be passing tuckCards into Confirmation Dialog
          final InputConfirmMulligan inp = new InputConfirmMulligan(this, player, mulliganingPlayer);
          inp.showAndWait();
-@@ -1499,6 +1913,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1499,6 +1927,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public CardCollectionView tuckCardsViaMulligan(CardCollectionView hand, int cardsToReturn) {
@@ -2049,7 +2200,7 @@ index 6c060538..71eca729 100644
          final InputLondonMulligan inp = new InputLondonMulligan(this, player, cardsToReturn);
          inp.showAndWait();
          return inp.getSelectedCards();
-@@ -1506,6 +1921,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1506,6 +1935,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public void declareAttackers(final Player attackingPlayer, final Combat combat) {
@@ -2057,7 +2208,7 @@ index 6c060538..71eca729 100644
          // CombatUtil.canAttack ensures we only get here when the player has a legal attacker
          // so APINA must never skip - the invocation itself is the available action. User
          // initiated yields (pass until end of turn) still skip when not-attacking is legal.
-@@ -1524,6 +1940,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1524,6 +1954,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public void declareBlockers(final Player defender, final Combat combat) {
@@ -2065,7 +2216,7 @@ index 6c060538..71eca729 100644
          // This input should not modify combat object itself, but should return user choice
          final InputBlock inpBlock = new InputBlock(this, defender, combat);
          inpBlock.showAndWait();
-@@ -1648,6 +2065,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1648,6 +2079,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public List<SpellAbility> chooseSpellAbilityToPlay() {
@@ -2073,7 +2224,7 @@ index 6c060538..71eca729 100644
          netLog.trace("ENTRY for player {}, phase={}, isGameOver={}",
                  player.getName(), getGame().getPhaseHandler().getPhase(), getGame().isGameOver());
          final MagicStack stack = getGame().getStack();
-@@ -1740,6 +2158,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1740,6 +2172,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
      @Override
      public CardCollectionView chooseCardsToDiscardToMaximumHandSize(final int nDiscard) {
          final int max = player.getMaxHandSize();
@@ -2084,7 +2235,7 @@ index 6c060538..71eca729 100644
  
          if (getGui().isLibgdxPort()) {
              tempShowCards(player.getCardsIn(ZoneType.Hand));
-@@ -1770,6 +2192,12 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1770,6 +2206,12 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public CardCollectionView chooseCardsToRevealFromHand(int min, int max, final CardCollectionView valid) {
@@ -2097,7 +2248,7 @@ index 6c060538..71eca729 100644
          max = Math.min(max, valid.size());
          min = Math.min(min, max);
          final InputSelectCardsFromList inp = new InputSelectCardsFromList(this, min, max, valid);
-@@ -1788,6 +2216,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1788,6 +2230,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public List<SpellAbility> chooseSaToActivateFromOpeningHand(final List<SpellAbility> usableFromOpeningHand) {
@@ -2108,7 +2259,7 @@ index 6c060538..71eca729 100644
          final CardCollection srcCards = new CardCollection();
          for (final SpellAbility sa : usableFromOpeningHand) {
              srcCards.add(sa.getHostCard());
-@@ -1817,6 +2249,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1817,6 +2263,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public PlayerZone chooseStartingHand(List<PlayerZone> zones) {
@@ -2116,7 +2267,7 @@ index 6c060538..71eca729 100644
          // Create new zone objects in the UI temporarily.
          // Spawn a new input dialog, it works by selecting a card in the zone you want and clicking OK
          // The card will then extract the PlayerZone via the card that is chosen and return it to this function
-@@ -1830,6 +2263,11 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1830,6 +2277,11 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
      @Override
      public boolean chooseBinary(final SpellAbility sa, final String question, final BinaryChoiceType kindOfChoice,
                                  final Boolean defaultVal) {
@@ -2128,7 +2279,7 @@ index 6c060538..71eca729 100644
          final List<String> labels;
          switch (kindOfChoice) {
              case HeadsOrTails:
-@@ -1868,6 +2306,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1868,6 +2320,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public boolean chooseFlipResult(final SpellAbility sa, final Player flipper, final boolean call) {
@@ -2138,7 +2289,7 @@ index 6c060538..71eca729 100644
          final List<String> labelsSrc = call ? List.of(localizer.getMessage("lblHeads"), localizer.getMessage("lblTails"))
                  : List.of(localizer.getMessage("lblWinTheFlip"), localizer.getMessage("lblLoseTheFlip"));
          return getGui().one(sa.getHostCard().getDisplayName() + " - " + localizer.getMessage("lblChooseAResult"), labelsSrc).equals(labelsSrc.get(0));
-@@ -1875,7 +2316,14 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1875,7 +2330,14 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public Pair<SpellAbilityStackInstance, GameObject> chooseTarget(final SpellAbility saSpellskite,
@@ -2154,7 +2305,7 @@ index 6c060538..71eca729 100644
          if (allTargets.size() < 2) {
              return Iterables.getFirst(allTargets, null);
          }
-@@ -1912,7 +2360,19 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1912,7 +2374,19 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
       */
      @Override
      public List<AbilitySub> chooseModeForAbility(final SpellAbility sa, List<AbilitySub> possible, final int min, final int num,
@@ -2175,7 +2326,7 @@ index 6c060538..71eca729 100644
          if (!allowRepeat && min == num && num == possible.size()) {
              return possible;
          }
-@@ -1979,6 +2439,11 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -1979,6 +2453,11 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public ColorSet chooseColors(final String message, final SpellAbility sa, final int min, final int max, ColorSet options) {
@@ -2187,7 +2338,7 @@ index 6c060538..71eca729 100644
          return ColorSet.fromEnums(getGui().getChoices(message, min, max, Lists.newArrayList(options.getOrderedColors())));
      }
  
-@@ -2012,6 +2477,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -2012,6 +2491,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
          if (withColorless && !colors.isColorless()) {
              choices.add(MagicColor.Color.COLORLESS);
          }
@@ -2198,7 +2349,7 @@ index 6c060538..71eca729 100644
          final Byte remembered = macros().consumeRememberedColorChoice(choices);
          if (remembered != null) {
              return remembered;
-@@ -2037,6 +2506,11 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -2037,6 +2520,11 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
                  .map(CardFaceView::new)
                  .sorted()
                  .collect(Collectors.toList());
@@ -2210,7 +2361,7 @@ index 6c060538..71eca729 100644
          CardFaceView cardFaceView = getGui().one(message, choices);
          return StaticData.instance().getCommonCards().getFaceByName(cardFaceView.getName());
      }
-@@ -2044,6 +2518,11 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -2044,6 +2532,11 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
      @Override
      public ICardFace chooseSingleCardFace(SpellAbility sa, List<ICardFace> faces, String message) {
          Map<CardFaceView, ICardFace> mapped = faces.stream().collect(Collectors.toMap(CardFaceView::new, Function.identity(), (a, b) -> a, TreeMap::new));
@@ -2222,7 +2373,7 @@ index 6c060538..71eca729 100644
          CardFaceView chosen = getGui().one(message, Lists.newArrayList(mapped.keySet()));
          return mapped.get(chosen);
      }
-@@ -2051,6 +2530,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -2051,6 +2544,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
      @Override
      public CounterType chooseCounterType(final List<CounterType> options, final SpellAbility sa, final String prompt,
                                           Map<String, Object> params) {
@@ -2233,7 +2384,7 @@ index 6c060538..71eca729 100644
          if (options.size() <= 1) {
              return Iterables.getFirst(options, null);
          }
-@@ -2059,6 +2542,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -2059,6 +2556,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public CardState chooseSingleCardState(SpellAbility sa, List<CardState> states, String message, Map<String, Object> params) {
@@ -2244,7 +2395,7 @@ index 6c060538..71eca729 100644
          if (states.size() <= 1) {
              return Iterables.getFirst(states, null);
          }
-@@ -2069,6 +2556,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -2069,6 +2570,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public String chooseKeywordForPump(final List<String> options, final SpellAbility sa, final String prompt, final Card tgtCard) {
@@ -2255,7 +2406,7 @@ index 6c060538..71eca729 100644
          if (options.size() <= 1) {
              return Iterables.getFirst(options, null);
          }
-@@ -2077,6 +2568,13 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -2077,6 +2582,13 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public boolean confirmPayment(final CostPart costPart, final String question, SpellAbility sa) {
@@ -2269,7 +2420,7 @@ index 6c060538..71eca729 100644
          if (getGui().isLibgdxPort()) {
              CardView cardView;
              try {
-@@ -2104,6 +2602,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -2104,6 +2616,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public ReplacementEffect chooseSingleReplacementEffect(final List<ReplacementEffect> possibleReplacers) {
@@ -2277,7 +2428,7 @@ index 6c060538..71eca729 100644
          final ReplacementEffect first = possibleReplacers.get(0);
          if (possibleReplacers.size() == 1) {
              return first;
-@@ -2217,6 +2716,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -2217,6 +2730,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public StaticAbility chooseSingleStaticAbility(final List<StaticAbility> possibleStatics) {
@@ -2288,7 +2439,7 @@ index 6c060538..71eca729 100644
          final StaticAbility first = possibleStatics.get(0);
          boolean isCostReduction = first.getMode().contains(StaticAbilityMode.ReduceCost);
          // return first option without prompting if all options are the same, or if they don't care about ordering costs
-@@ -2232,6 +2735,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -2232,6 +2749,10 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public String chooseProtectionType(final SpellAbility sa, final List<String> choices) {
@@ -2299,7 +2450,7 @@ index 6c060538..71eca729 100644
          return getGui().one(Localizer.getInstance().getMessage("lblChooseAProtection"), choices);
      }
  
-@@ -2423,6 +2930,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -2423,6 +2944,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
  
      @Override
      public boolean chooseTargetsFor(final SpellAbility currentAbility) {
@@ -2307,7 +2458,7 @@ index 6c060538..71eca729 100644
          final TargetSelection select = new TargetSelection(this, currentAbility);
          boolean canFilterMustTarget = true;
  
-@@ -2503,6 +3011,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -2503,6 +3025,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
       */
      @Override
      public TargetChoices chooseNewTargetsFor(final SpellAbility ability, Predicate<GameObject> filter, boolean optional) {
@@ -2315,7 +2466,7 @@ index 6c060538..71eca729 100644
          final SpellAbility sa = ability.isWrapper() ? ((WrappedAbility) ability).getWrappedAbility() : ability;
          if (!sa.usesTargeting()) {
              return null;
-@@ -2522,6 +3031,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
+@@ -2522,6 +3045,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
      @Override
      public boolean chooseCardsPile(final SpellAbility sa, final CardCollectionView pile1,
                                     final CardCollectionView pile2, final String faceUp) {
@@ -2327,10 +2478,10 @@ index 6c060538..71eca729 100644
  
 diff --git a/forge-gui/src/test/java/forge/gamemodes/match/input/ExternalDecisionValidatorContractTest.java b/forge-gui/src/test/java/forge/gamemodes/match/input/ExternalDecisionValidatorContractTest.java
 new file mode 100644
-index 00000000..41454c71
+index 00000000..e5fb1f62
 --- /dev/null
 +++ b/forge-gui/src/test/java/forge/gamemodes/match/input/ExternalDecisionValidatorContractTest.java
-@@ -0,0 +1,107 @@
+@@ -0,0 +1,130 @@
 +package forge.gamemodes.match.input;
 +
 +import java.util.List;
@@ -2352,6 +2503,29 @@ index 00000000..41454c71
 +        final List<String> selected = ExternalDecisionValidator.validate(request, accepted, 17L, 7, 7,
 +                false, false);
 +        require(selected.equals(List.of("choice:1")), "valid response was not preserved");
++
++        final ExternalDecisionTape tape = new ExternalDecisionTape();
++        require(tape.validateAndRecord(request, accepted, 17L, 7, 7, false).equals(List.of("choice:1")),
++                "tape did not preserve an accepted response");
++        expect(ExternalDecisionValidationException.Code.DECISION_CONSUMED,
++                () -> tape.validateAndRecord(request, accepted, 17L, 7, 7, false));
++        final List<ExternalDecisionTape.Event> tapeEvents = tape.snapshot();
++        require(tapeEvents.size() == 2, "accepted and consumed responses were not both recorded");
++        require(tapeEvents.get(0).getEventId() == 1L
++                        && tapeEvents.get(0).getResponseStatus() == ExternalDecisionTape.ResponseStatus.ACCEPTED
++                        && tapeEvents.get(0).getSelectedOptionIds().equals(List.of("choice:1"))
++                        && tapeEvents.get(0).getErrorCode() == null,
++                "accepted decision event is not canonical");
++        require(tapeEvents.get(1).getEventId() == 2L
++                        && tapeEvents.get(1).getResponseStatus() == ExternalDecisionTape.ResponseStatus.REJECTED
++                        && "DECISION_CONSUMED".equals(tapeEvents.get(1).getErrorCode()),
++                "consumed decision event is not canonical");
++
++        final ExternalDecisionTape timeoutTape = new ExternalDecisionTape();
++        expect(ExternalDecisionValidationException.Code.TIMEOUT,
++                () -> timeoutTape.validateAndRecord(request, accepted, 17L, 7, 7, true));
++        require(timeoutTape.snapshot().get(0).getResponseStatus() == ExternalDecisionTape.ResponseStatus.TIMEOUT,
++                "timeout decision event is not classified as TIMEOUT");
 +
 +        expect(ExternalDecisionValidationException.Code.STALE_RESPONSE,
 +                () -> ExternalDecisionValidator.validate(request,
