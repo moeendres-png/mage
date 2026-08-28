@@ -72,6 +72,8 @@ def index_rows(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
         oracle_id = card["oracle_id"]
         compact = {
             "name": card.get("name"),
+            "face_names": [face.get("name") for face in card.get("card_faces", [])
+                           if isinstance(face, dict) and isinstance(face.get("name"), str)],
             "oracle_id": oracle_id,
             "scryfall_id": card.get("id"),
             "commander_legality": (card.get("legalities") or {}).get("commander"),
@@ -98,7 +100,7 @@ def main() -> int:
 
     cards = index_rows(rows_from_text(payload_text(args.payload)))
     result = {
-        "schema": "commander-simulator-next.scryfall-oracle-index.v2",
+        "schema": "commander-simulator-next.scryfall-oracle-index.v3",
         "source_head": args.source_head,
         "source_tree": args.source_tree,
         "bulk_updated_at": args.bulk_updated_at,

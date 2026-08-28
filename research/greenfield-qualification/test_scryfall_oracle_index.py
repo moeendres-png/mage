@@ -11,7 +11,8 @@ class ScryfallOracleIndexTests(unittest.TestCase):
     def test_gzip_jsonl_and_deterministic_deduplication(self) -> None:
         rows = [
             {"id": "z", "oracle_id": "oracle-b", "name": "B", "legalities": {}},
-            {"id": "a", "oracle_id": "oracle-a", "name": "A", "legalities": {}},
+            {"id": "a", "oracle_id": "oracle-a", "name": "A // Adventure", "legalities": {},
+             "card_faces": [{"name": "A"}, {"name": "Adventure"}]},
             {"id": "y", "oracle_id": "oracle-b", "name": "B newer", "legalities": {}},
         ]
         with tempfile.TemporaryDirectory() as directory:
@@ -22,6 +23,7 @@ class ScryfallOracleIndexTests(unittest.TestCase):
             indexed = index_rows(rows_from_text(payload_text(path)))
         self.assertEqual([row["oracle_id"] for row in indexed], ["oracle-a", "oracle-b"])
         self.assertEqual(indexed[1]["scryfall_id"], "y")
+        self.assertEqual(indexed[0]["face_names"], ["A", "Adventure"])
 
     def test_plain_json_array_is_supported(self) -> None:
         text = json.dumps([{"id": "a", "oracle_id": "oracle-a", "name": "A"}])
