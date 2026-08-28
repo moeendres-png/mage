@@ -40,6 +40,18 @@ def main() -> None:
         "                        viewerId, card.getId(), previousVisibility, visibleToViewer);",
     )
 
+    # A hidden projection must revoke any previously transported look permission.
+    # Otherwise client-side canBeShownTo() can remain true after the server has
+    # already returned the card to hidden state.
+    replace_once(
+        delta,
+        "        redacted.put(TrackableProperty.Zone, toNetworkValue(TrackableProperty.Zone, card.getZone()));\n"
+        "        redacted.put(TrackableProperty.Facedown, true);",
+        "        redacted.put(TrackableProperty.Zone, toNetworkValue(TrackableProperty.Zone, card.getZone()));\n"
+        "        redacted.put(TrackableProperty.PlayerMayLook, null);\n"
+        "        redacted.put(TrackableProperty.Facedown, true);",
+    )
+
     # WS01 correctly detects per-principal CardView visibility changes and asks
     # for a full refresh. Its generic full-refresh path uses newObjects, which
     # the client intentionally interprets as a zone-change replacement for an
@@ -61,6 +73,38 @@ def main() -> None:
         "            return;\n"
         "        }\n\n"
         "        if (old == obj && !forceFull) {",
+    )
+
+    # WS01 intentionally stops recursion below a hidden CardView so nested state
+    # cannot leak. On a visible->hidden transition, however, the client may
+    # already hold an identity-bearing CardStateView from the preceding visible
+    # projection. Emit an empty full-state record for each state slot that WS01
+    # marked for refresh. NetworkGuiGame treats TYPE_CSV newObjects as in-place
+    # replacement and clears the old props before applying the empty neutral map.
+    replace_once(
+        delta,
+        "        if (obj instanceof CardView && !visibleToViewer) {\n"
+        "            return;\n"
+        "        }",
+        "        if (obj instanceof CardView card && !visibleToViewer) {\n"
+        "            for (TrackableProperty slot : new TrackableProperty[]{\n"
+        "                    TrackableProperty.CurrentState,\n"
+        "                    TrackableProperty.AlternateState,\n"
+        "                    TrackableProperty.LeftSplitState,\n"
+        "                    TrackableProperty.RightSplitState}) {\n"
+        "                Object child = ((Map<TrackableProperty, Object>) card.getProps()).get(slot);\n"
+        "                if (child instanceof TrackableObject state) {\n"
+        "                    int stateKey = DeltaPacket.makeDeltaKey(state);\n"
+        "                    if (forceFullObjectKeys.remove(stateKey)) {\n"
+        "                        state.getAndClearDirtyProps(consumerId);\n"
+        "                        newObjects.put(stateKey, Collections.emptyMap());\n"
+        "                        netLog.info(\"[WS05VisibilityStateReset] cardId={} stateKey={}\",\n"
+        "                                card.getId(), String.format(\"0x%08X\", stateKey));\n"
+        "                    }\n"
+        "                }\n"
+        "            }\n"
+        "            return;\n"
+        "        }",
     )
 
     # The stock sampled checksum is computed from the authoritative GameView,
@@ -105,6 +149,8 @@ def main() -> None:
     print("WS05_HIDDEN_INFO_OVERLAY_APPLIED=TRUE")
     print("WS05_FACE_DOWN_VISIBILITY_ENFORCED=TRUE")
     print("WS05_VISIBILITY_REFRESH_PRESERVES_CARD_IDENTITY=TRUE")
+    print("WS05_HIDDEN_LOOK_PERMISSION_REVOKED=TRUE")
+    print("WS05_HIDDEN_CARD_STATE_INVALIDATED=TRUE")
     print("WS05_VISIBILITY_TRANSITION_DIAGNOSTICS=TRUE")
     print("WS05_AUTHORITATIVE_CHECKSUM_SIDECHANNEL_DISABLED=TRUE")
     print("WS05_TRANSPORT_METADATA_ASSERTION=TRUE")
