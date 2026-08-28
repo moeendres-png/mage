@@ -18,12 +18,6 @@ def read(root: Path, rel: str) -> str:
 
 
 def java_code_without_comments(source: str) -> str:
-    """Remove Java line/block comments before source-level privacy assertions.
-
-    Hidden-information audits must inspect executable declarations and calls,
-    not fail because a Javadoc comment names a forbidden payload type while
-    explicitly documenting that the type is not retained.
-    """
     return re.sub(r"/\*.*?\*/|//[^\n]*", "", source, flags=re.DOTALL)
 
 
@@ -69,6 +63,14 @@ def main() -> None:
             "old == obj && forceFull && obj instanceof CardView" in delta
             and "objectDeltas.put(deltaKey, allProps)" in delta
             and "Visibility refresh in place" in delta
+        ),
+        "hidden_projection_revokes_look_permission": (
+            "redacted.put(TrackableProperty.PlayerMayLook, null)" in delta
+        ),
+        "hidden_projection_clears_stale_card_state": (
+            "newObjects.put(stateKey, Collections.emptyMap())" in delta
+            and "WS05VisibilityStateReset" in delta
+            and "forceFullObjectKeys.remove(stateKey)" in delta
         ),
         "redacted_delta_excludes_identity_fields": all(
             token in delta for token in (
