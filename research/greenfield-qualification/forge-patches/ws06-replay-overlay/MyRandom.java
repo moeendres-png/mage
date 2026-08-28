@@ -11,7 +11,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * Forge random wrapper plus WS06 process-isolated game-scoped deterministic
  * streams. Legacy callers retain the stock provider only outside an active
  * strict WS06 game scope. Decision-relevant in-game callers must use an
- * explicit named-stream overload.
+ * explicit named-stream overload, except for qualified transitive Forge-core
+ * helpers whose rules caller is proven on the current stack.
  */
 public class MyRandom {
     private static Random random = new SecureRandom();
@@ -177,9 +178,33 @@ public class MyRandom {
 
     public static Random getRandom() {
         if (Boolean.getBoolean("forge.ws06.strictGameRng") && activeScope() != null) {
-            throw new IllegalStateException("WS06 unnamed RNG used while a strict game RNG scope is active");
+            final String bridgedStream = qualifiedTransitiveRulesStream();
+            if (bridgedStream == null) {
+                throw new IllegalStateException("WS06 unnamed RNG used while a strict game RNG scope is active");
+            }
+            return getRandom(bridgedStream);
         }
         return random;
+    }
+
+    private static String qualifiedTransitiveRulesStream() {
+        boolean rulesCaller = false;
+        String helperClass = null;
+        String helperMethod = null;
+        for (final StackTraceElement frame : Thread.currentThread().getStackTrace()) {
+            final String className = frame.getClassName();
+            if (className.startsWith("forge.game.")) {
+                rulesCaller = true;
+            }
+            if (className.equals("forge.util.Aggregates") || className.equals("forge.util.StreamUtil")) {
+                helperClass = className;
+                helperMethod = frame.getMethodName();
+            }
+        }
+        if (!rulesCaller || helperClass == null || helperMethod == null) {
+            return null;
+        }
+        return "rules.transitive." + helperClass + "." + helperMethod;
     }
 
     public static Random getRandom(final String stream) {
