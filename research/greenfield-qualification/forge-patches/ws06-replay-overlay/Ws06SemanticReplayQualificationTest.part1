@@ -24,16 +24,21 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * WS06 qualification: one process executes one real 4P Commander game.
- * Process A records the authoritative Decision/RNG tapes; B/C consume flat
- * replay scripts derived byte-for-byte from A's semantic tapes and emit fresh
- * semantic evidence for cross-process comparison.
+ * Process A records authoritative principal-scoped Decision tapes plus the
+ * game RNG tape; B/C consume A's tapes and emit fresh semantic evidence.
+ * Cross-principal thread arrival order is not an authoritative Decision-Tape
+ * ordering: each WS01 controller owns its own contiguous event sequence.
  */
 public final class Ws06SemanticReplayQualificationTest {
     private static final String GAME_ID = "ws06-4p-commander-game";
@@ -153,15 +158,15 @@ public final class Ws06SemanticReplayQualificationTest {
     }
 
     private static final class DecisionReplay implements DecisionSource {
-        private final List<DecisionLine> lines;
-        private int index;
+        private final Map<String, List<DecisionLine>> linesByPrincipal;
+        private final Map<String, AtomicInteger> indexByPrincipal = new ConcurrentHashMap<>();
 
-        private DecisionReplay(final List<DecisionLine> lines) {
-            this.lines = lines;
+        private DecisionReplay(final Map<String, List<DecisionLine>> linesByPrincipal) {
+            this.linesByPrincipal = linesByPrincipal;
         }
 
         static DecisionReplay load(final Path path) throws IOException {
-            final List<DecisionLine> result = new ArrayList<>();
+            final Map<String, List<DecisionLine>> result = new HashMap<>();
             for (final String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
                 if (line.isBlank()) continue;
                 final String[] fields = line.split("\\t", -1);
@@ -179,38 +184,65 @@ public final class Ws06SemanticReplayQualificationTest {
                         selected.add(new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8));
                     }
                 }
-                result.add(new DecisionLine(
+                final DecisionLine parsed = new DecisionLine(
                         Long.parseLong(fields[0]),
                         Long.parseLong(fields[1]),
                         Long.parseLong(fields[2]),
                         new String(Base64.getDecoder().decode(fields[3]), StandardCharsets.UTF_8),
                         fields[4],
                         fields[5],
-                        selected));
+                        selected);
+                result.computeIfAbsent(parsed.principal, ignored -> new ArrayList<>()).add(parsed);
             }
             if (result.isEmpty()) {
                 throw new IllegalArgumentException("WS06 Decision Tape replay input is empty");
+            }
+            for (final Map.Entry<String, List<DecisionLine>> entry : result.entrySet()) {
+                final List<DecisionLine> lines = entry.getValue();
+                for (int i = 0; i < lines.size(); i++) {
+                    final long expected = i + 1L;
+                    final DecisionLine line = lines.get(i);
+                    if (line.eventId != expected || line.decisionId != expected || line.token != expected) {
+                        throw new IllegalArgumentException(
+                                "WS06 principal Decision Tape is not contiguous for " + entry.getKey()
+                                        + " at index " + i + ": event=" + line.eventId
+                                        + " decision=" + line.decisionId + " token=" + line.token);
+                    }
+                }
             }
             return new DecisionReplay(result);
         }
 
         @Override
         public ExternalDecisionResponse decide(final Player player, final ExternalDecisionRequest request) {
-            if (index >= lines.size()) {
-                throw new IllegalStateException("WS06 Decision Tape exhausted at " + request.getDecisionKind());
+            final String principal = String.valueOf(request.getPrincipalId());
+            final List<DecisionLine> lines = linesByPrincipal.get(principal);
+            if (lines == null) {
+                throw new IllegalStateException("WS06 Decision Tape has no principal " + principal);
             }
-            final DecisionLine expected = lines.get(index++);
+            final int index = indexByPrincipal.computeIfAbsent(principal, ignored -> new AtomicInteger()).getAndIncrement();
+            if (index >= lines.size()) {
+                throw new IllegalStateException(
+                        "WS06 Decision Tape exhausted for principal " + principal + " at " + request.getDecisionKind());
+            }
+            final DecisionLine expected = lines.get(index);
             requireEqual("decision_id", Long.toString(expected.decisionId), Long.toString(request.getDecisionId()));
             requireEqual("token", Long.toString(expected.token), Long.toString(request.getToken()));
             requireEqual("decision_kind", expected.kind, request.getDecisionKind());
             requireEqual("actor_id", expected.actor, String.valueOf(request.getActorId()));
-            requireEqual("principal_id", expected.principal, String.valueOf(request.getPrincipalId()));
+            requireEqual("principal_id", expected.principal, principal);
             return response(request, expected.selected);
         }
 
         void assertConsumed() {
-            if (index != lines.size()) {
-                throw new IllegalStateException("WS06 Decision Tape replay left " + (lines.size() - index) + " events unconsumed");
+            for (final Map.Entry<String, List<DecisionLine>> entry : linesByPrincipal.entrySet()) {
+                final AtomicInteger consumed = indexByPrincipal.get(entry.getKey());
+                final int count = consumed == null ? 0 : consumed.get();
+                if (count != entry.getValue().size()) {
+                    throw new IllegalStateException(
+                            "WS06 Decision Tape replay for principal " + entry.getKey() + " consumed "
+                                    + count + " of " + entry.getValue().size() + " events");
+                }
             }
         }
     }
