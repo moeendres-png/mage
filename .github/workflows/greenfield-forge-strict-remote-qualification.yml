@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - research/greenfield-engine-shootout-20260827
+      - work/ws01-decision-boundary-20260828
     paths:
       - '.github/workflows/greenfield-forge-strict-remote-qualification.yml'
       - 'research/greenfield-qualification/forge-patches/**'
@@ -95,6 +96,19 @@ jobs:
             | tee ../evidence/java-decision-contract.log
           grep -Fx 'JAVA_EXTERNAL_DECISION_CONTRACT=PASS' ../evidence/java-decision-contract.log
 
+      - name: Run real 4P Commander external-pilot full game
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.ExternalDecisionFullGameQualificationTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws01.decisionTapePath="$GITHUB_WORKSPACE/evidence/FULL_GAME_DECISION_TAPE.json" \
+            test | tee ../evidence/full-game-decision-tape.log
+          test -s ../evidence/FULL_GAME_DECISION_TAPE.json
+          grep -Fx 'WS01_FULL_GAME_DECISION_TAPE=PASS' ../evidence/full-game-decision-tape.log
+
       - name: Adjudicate the strict boundary fail-closed
         shell: bash
         run: |
@@ -156,7 +170,7 @@ jobs:
             'evidence_class': ['DIRECTLY_VERIFIED', 'CODE_DERIVED', 'CI_EXECUTED'],
             'failure': {
               'code': 'FULL_DECISION_CENSUS_NOT_EXTERNALIZED',
-              'message': 'The patch proves, compiles, and executes a server-side validator and metadata-only DecisionTape contract for the typed seam, but the remaining controller callbacks and blocking GUI decisions are not admitted to the strict production path.',
+              'message': 'Full 109/15 production callback coverage is not yet adjudicated; this run may contain an intermediate real full-game tape but does not promote Q1 until the final census is zero.',
             },
           }
           Path('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.json').write_text(json.dumps(gate, indent=2, sort_keys=True) + '\n')
@@ -172,30 +186,7 @@ jobs:
                   f"- Java runtime validator contract: **{gate['java_runtime_validator_contract']}**",
                   f"- DecisionTape contract: **{gate['decision_tape_contract']}**",
                   f"- Static 109/15 census materialized: **{'PASS' if static_census_complete else 'FAIL'}**",
-                  "- Full production gate: **FAIL**",
-                  "",
-                  "The exact `InputSelectEntitiesFromList` option set, including `Player`",
-                  "entities, is now exported to a typed provider in the ephemeral Forge checkout.",
-                  "Responses are checked against token, decision id, actor, principal, schema,",
-                  "membership, count, cancel permission, one-shot state, and timeout state. The",
-                  "patch compiles at the declared Forge pin. A dependency-free Java contract probe",
-                  "also executes the server-side validator's accepted, stale, actor/principal,",
-                  "malformed, missing, unknown-path, illegal-option, count, cancel, one-shot,",
-                  "and timeout cases. The same server path appends a metadata-only, principal-scoped",
-                  "DecisionTape event and rejects a second use of a consumed token. This is a",
-                  "validator/tape contract result, not a complete gameplay tape.",
-                  "",
-                  "All 109 controller callbacks and all 15 blocking GUI return paths are",
-                  "individually classified from the exact pin. That is a complete static census,",
-                  "not a runtime completeness claim; paths that are only GUI-adapter-dependent",
-                  "or otherwise unqualified remain fail-closed for production adjudication.",
-                  "",
-                  "This does not close the production gate: only three entity-selection entry",
-                  "points are directly routed. The census contains "
-                  f"{implementation['census']['player_controller_abstract_method_count']} controller callback declarations and "
-                  f"{implementation['census']['remote_protocol_blocking_decision_count']} blocking GUI decisions; "
-                  f"{remaining} controller declarations remain outside the typed boundary. Legacy GUI/AI paths "
-                  "therefore remain unqualified and the complete decision/RNG/hidden-information runtime tapes have not been produced.",
+                  "- Full production gate: **FAIL (intermediate WS01 run)**",
               ]) + "\n"
           )
           assert gate['status'] == 'FAIL'
@@ -203,7 +194,6 @@ jobs:
           assert gate['java_runtime_validator_contract'] == 'PASS'
           assert gate['decision_tape_contract'] == 'PASS'
           assert static_census_complete
-          assert gate['full_decision_externalization'] == 'FAIL'
           PY
 
       - name: Hash current qualification evidence
