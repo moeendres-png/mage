@@ -11,6 +11,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 FORGE_PIN = "8c7e9afb8e6caee88644b94e25da5852e36f8928"
@@ -328,6 +330,19 @@ def main() -> int:
     out.write_text(json.dumps(inventory, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if uncontrolled:
         raise SystemExit(f"WS06 uncontrolled rules/game RNG paths remain: {len(uncontrolled)}")
+
+    transitive_audit = Path(__file__).with_name("apply-ws06-core-rng-helpers.py")
+    subprocess.run(
+        [sys.executable, str(transitive_audit), str(root), "--inventory", str(out)],
+        check=True,
+    )
+    inventory = json.loads(out.read_text(encoding="utf-8"))
+    overlay = inventory["overlay"]
+    if overlay.get("transitive_core_uncontrolled_rng_paths") != 0:
+        raise SystemExit("WS06 transitive core RNG audit did not close")
+    if overlay.get("strict_runtime_unnamed_rng_guard") != "PASS":
+        raise SystemExit("WS06 strict runtime unnamed RNG guard is not proven")
+
     print("WS06_RNG_OVERLAY_APPLIED=TRUE")
     print("WS06_BASELINE_DIRECT_RNG=8")
     print("WS06_BASELINE_MYRANDOM=20")
