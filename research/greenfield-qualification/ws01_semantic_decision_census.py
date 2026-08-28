@@ -72,10 +72,6 @@ EXPLICIT_DELEGATED_OR_STATE_MACHINE = {
 GUI_PRESENTATION_NONDECISION = {"tempShowZones", "openZones"}
 GUI_NONPRODUCTION_COMMANDER = {"sideboard"}
 GUI_TYPED_CONTROLLER_BYPASS = {"getAbilityToPlay", "assignCombatDamage", "assignGenericAmount"}
-# Forge has one PlayerControllerHuman caller of manipulateCardList: arrangeForMove.
-# The production abstract callbacks that reach arrangeForMove (scry/surveil) are
-# directly externalized before that GUI helper. Unknown direct GUI use still
-# fails closed in ExternalDecisionGuiAdapter.
 GUI_STRICT_UNREACHABLE_HELPER = {"manipulateCardList"}
 GUI_TYPED_ADAPTER = {
     "showConfirmDialog", "showOptionDialog", "showInputDialog", "confirm",
@@ -131,6 +127,8 @@ def main() -> int:
     sync_source = (forge / "forge-gui/src/main/java/forge/gamemodes/match/input/InputSyncronizedBase.java").read_text()
     mana_source = (forge / "forge-gui/src/main/java/forge/gamemodes/match/input/InputPayMana.java").read_text()
     gui_adapter = (forge / "forge-gui/src/main/java/forge/player/ExternalDecisionGuiAdapter.java").read_text()
+    target_input_source = (forge / "forge-gui/src/main/java/forge/gamemodes/match/input/InputSelectTargets.java").read_text()
+    target_selection_source = (forge / "forge-gui/src/main/java/forge/player/TargetSelection.java").read_text()
 
     callbacks = []
     untyped = []
@@ -158,8 +156,6 @@ def main() -> int:
         if not covered:
             unclassified_gui.append(item["name"])
 
-    # These assertions are deliberately about the strict route, not merely the
-    # continued presence of normal Forge UI conveniences in the non-strict branch.
     fallback_assertions = {
         "priority_is_explicit": '"PRIORITY_ACTION"' in controller_source and "chooseExternalPriorityAction" in controller_source,
         "legacy_autopass_disabled": "if (hasExternalDecisionProvider())" in controller_source and "public void autoPassCancel()" in controller_source,
@@ -171,7 +167,7 @@ def main() -> int:
         "combat_damage_gui_bypassed": '"COMBAT_DAMAGE_ASSIGNMENT"' in controller_source,
         "shield_and_mana_combo_gui_bypassed": '"SHIELD_DIVISION"' in controller_source and '"MANA_COMBINATION"' in controller_source,
         "attack_and_block_inputs_driven": '"DECLARE_ATTACKERS"' in controller_source and '"DECLARE_BLOCKERS"' in controller_source,
-        "target_input_driven": '"TARGET_SELECTION"' in controller_source or "driveExternalSelection" in (forge / "forge-gui/src/main/java/forge/gamemodes/match/input/InputSelectTargets.java").read_text(),
+        "target_input_driven": "public void driveExternal()" in target_input_source and "inp.driveExternal();" in target_selection_source,
         "entity_inputs_driven": "InputSelectEntitiesFromList<?> entitySelection" in sync_source and "entitySelection.driveExternal()" in sync_source,
         "mana_input_driven_without_ai_autopay": "InputPayMana manaPayment" in sync_source and "manaPayment.driveExternal()" in sync_source and "AI mana autopay is forbidden in strict external mode" in mana_source,
         "convoke_input_driven": "InputSelectCardsForConvokeOrImprovise convokeSelection" in sync_source and "convokeSelection.driveExternal()" in sync_source,
