@@ -25,10 +25,34 @@ def main() -> None:
         "return viewer != null && card.canBeShownTo(viewer) && card.canFaceDownBeShownTo(viewer);",
     )
 
+    # The stock sampled checksum is computed from the authoritative GameView,
+    # including hidden card properties. Sending that value to a principal whose
+    # delta payload is redacted creates a fingerprint/oracle over backend-only
+    # state and also guarantees checksum divergence. Until Forge has a checksum
+    # over the exact principal projection, fail closed by omitting this debug
+    # checksum from the principal-scoped delta transport.
+    delta = root / "forge-gui/src/main/java/forge/gamemodes/net/server/DeltaSyncManager.java"
+    replace_once(
+        delta,
+        "        if (packetsSinceLastChecksum >= checksumInterval) {",
+        "        if (shouldEmitPrincipalSafeChecksum() && packetsSinceLastChecksum >= checksumInterval) {",
+    )
+    replace_once(
+        delta,
+        "    private int[] selectChecksumProperties() {",
+        "    private boolean shouldEmitPrincipalSafeChecksum() {\n"
+        "        // The current checksum hashes the unredacted backend GameView.\n"
+        "        // Never expose it on principal-scoped transport.\n"
+        "        return false;\n"
+        "    }\n\n"
+        "    private int[] selectChecksumProperties() {",
+    )
+
     client = root / "forge-gui-desktop/src/test/java/forge/net/HeadlessNetworkClient.java"
     replace_once(
         client,
         "            client.onDeltaPacketReceived(packet);",
+        "            Ws05HiddenInfoProbe.observeTransportMetadata(packet);\n"
         "            Ws05HiddenInfoProbe.observe(client.username, getGameView(), \"delta:\" + packet.getSequenceNumber());\n"
         "            client.onDeltaPacketReceived(packet);",
     )
@@ -41,6 +65,7 @@ def main() -> None:
 
     print("WS05_HIDDEN_INFO_OVERLAY_APPLIED=TRUE")
     print("WS05_FACE_DOWN_VISIBILITY_ENFORCED=TRUE")
+    print("WS05_AUTHORITATIVE_CHECKSUM_SIDECHANNEL_DISABLED=TRUE")
 
 
 if __name__ == "__main__":
