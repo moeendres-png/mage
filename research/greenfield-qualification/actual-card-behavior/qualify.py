@@ -144,6 +144,7 @@ def prepare(args: argparse.Namespace) -> int:
     scripts = forge_scripts(args.forge_cards)
     rows: list[dict[str, Any]] = []
     names: list[str] = []
+    mapping_gaps: list[dict[str, Any]] = []
     for oid, mask in members:
         oracle = by_id.get(oid)
         if not oracle:
@@ -152,16 +153,18 @@ def prepare(args: argparse.Namespace) -> int:
         if not isinstance(name, str) or not name:
             raise ValueError(f"missing canonical Oracle name: {oid}")
         exact = scripts.get(name, [])
-        face_candidates = []
+        face_candidates: list[dict[str, Any]] = []
         if not exact:
             for face in oracle.get("face_names") or []:
                 if isinstance(face, str) and face in scripts:
                     face_candidates.extend({"face_name": face, **x} for x in scripts[face])
-        decision = any(x["decision_path"] for x in exact)
-        hidden = any(x["hidden_info_path"] for x in exact)
-        rng = any(x["rng_path"] for x in exact)
-        behavior = any(x["behavior_scripted"] for x in exact)
-        suspicious = sorted({m for x in exact for m in x["suspicious_markers"]})
+        candidates = exact if exact else face_candidates
+        decision = any(x["decision_path"] for x in candidates)
+        hidden = any(x["hidden_info_path"] for x in candidates)
+        rng = any(x["rng_path"] for x in candidates)
+        behavior = any(x["behavior_scripted"] for x in candidates)
+        suspicious = sorted({m for x in candidates for m in x["suspicious_markers"]})
+        source_present = "PASS" if exact else "UNKNOWN" if face_candidates else "FAIL"
         row = {
             "oracle_id": oid,
             "oracle_name": name,
@@ -171,7 +174,7 @@ def prepare(args: argparse.Namespace) -> int:
             "production_required": True,
             "exact_script_matches": exact,
             "face_only_candidates": face_candidates,
-            "present": "PASS" if exact else "UNKNOWN" if face_candidates else "FAIL",
+            "present": source_present,
             "reachability": {
                 "decision_path": decision,
                 "hidden_info_path": hidden,
@@ -182,10 +185,25 @@ def prepare(args: argparse.Namespace) -> int:
             "evidence": {"present": "CODE_DERIVED" if exact else "UNKNOWN"},
         }
         rows.append(row)
-        if exact:
-            names.append(oid + "\t" + name)
+        names.append(oid + "\t" + name)
+        if source_present != "PASS":
+            mapping_gaps.append({
+                "oracle_id": oid,
+                "oracle_name": name,
+                "source_presence": source_present,
+                "face_candidates": [
+                    {"face_name": x.get("face_name"), "path": x.get("path"), "sha256": x.get("sha256")}
+                    for x in face_candidates
+                ],
+            })
     write_jsonl(out / "prepared.jsonl", rows)
     (out / "names.tsv").write_text("\n".join(names) + ("\n" if names else ""), encoding="utf-8")
+    write_json(out / "MAPPING_GAPS.json", {
+        "schema": SCHEMA + ".mapping-gaps",
+        "count": len(mapping_gaps),
+        "rows": mapping_gaps,
+        "note": "Source-name mismatch is not promoted. Every canonical Oracle name is still probed through Forge CardDb.",
+    })
     summary = {
         "schema": SCHEMA + ".prepare",
         "forge_pin": FORGE_PIN,
@@ -239,15 +257,27 @@ def finalize(args: argparse.Namespace) -> int:
     taxonomy = Counter()
     for base in prepared:
         oid = base["oracle_id"]
-        present = base["present"]
+        source_present = base["present"]
         load = by_load.get(oid)
-        if present == "PASS":
-            if load is None:
-                loadable = "UNKNOWN"
-            else:
-                loadable = "PASS" if load.get("loadable") is True else "FAIL"
+        if load is None:
+            loadable = "UNKNOWN"
         else:
-            loadable = "NOT_TESTED"
+            loadable = "PASS" if load.get("loadable") is True else "FAIL"
+        runtime_exact = bool(
+            loadable == "PASS"
+            and isinstance(load, dict)
+            and load.get("resolved_name") == base["oracle_name"]
+        )
+        if source_present == "PASS":
+            present = "PASS"
+            present_ev = base.get("evidence", {}).get("present", "CODE_DERIVED")
+        elif runtime_exact:
+            present = "PASS"
+            present_ev = "TECHNICALLY_CONFORMANT"
+        else:
+            present = source_present
+            present_ev = "UNKNOWN"
+
         reach = base["reachability"]
         decision_required = bool(reach.get("decision_path"))
         hidden_required = bool(reach.get("hidden_info_path"))
@@ -257,7 +287,10 @@ def finalize(args: argparse.Namespace) -> int:
         decision_complete, decision_ev = semantic_status(decision_required, ws01_ok)
         hidden_safe, hidden_ev = semantic_status(hidden_required, ws05_ok)
         replay_safe, replay_ev = semantic_status(replay_required, ws06_ok)
-        # Load/parse and ability construction are not semantic effect resolution.
+        # CardDb load + CardFactory construction are not semantic effect
+        # resolution. Construction failure is recorded, but does not by itself
+        # prove production execution is unsupported because the probe has no
+        # live game/controller.
         executable = "UNKNOWN" if present == "PASS" and loadable == "PASS" else "NOT_TESTED"
         behavior_verified = "UNKNOWN" if behavior_required else "NOT_REQUIRED"
 
@@ -279,6 +312,8 @@ def finalize(args: argparse.Namespace) -> int:
         if present == "FAIL": taxonomy["CARD_PRESENCE_FAILURE"] += 1
         if present == "UNKNOWN": taxonomy["IDENTITY_TO_SCRIPT_MAPPING_UNKNOWN"] += 1
         if loadable == "FAIL": taxonomy["CARD_LOADABILITY_FAILURE"] += 1
+        if loadable == "PASS" and load and load.get("runtime_constructable") is False:
+            taxonomy["ENGINE_CONSTRUCTION_PROBE_FAILURE"] += 1
         if executable == "UNKNOWN": taxonomy["EXECUTION_EVIDENCE_MISSING"] += 1
         if decision_required and decision_complete != "PASS": taxonomy["UNSUPPORTED_DECISION_PATH"] += 1
         if hidden_required and hidden_safe != "PASS": taxonomy["HIDDEN_INFO_PATH_UNVERIFIED"] += 1
@@ -301,6 +336,7 @@ def finalize(args: argparse.Namespace) -> int:
                 "REPLAY_SAFE": replay_safe,
                 "BEHAVIOR_VERIFIED_WHERE_REQUIRED": behavior_verified,
             },
+            "source_presence": source_present,
             "required_paths": {
                 "decision": decision_required,
                 "hidden_info": hidden_required,
@@ -310,7 +346,7 @@ def finalize(args: argparse.Namespace) -> int:
             "reachability": reach,
             "loadability_evidence": load,
             "evidence_class": {
-                "PRESENT": base.get("evidence", {}).get("present", "UNKNOWN"),
+                "PRESENT": present_ev,
                 "LOADABLE": "TECHNICALLY_CONFORMANT" if loadable == "PASS" else "UNKNOWN",
                 "EXECUTABLE": "UNKNOWN",
                 "DECISION_COMPLETE": decision_ev,
@@ -362,6 +398,7 @@ def finalize(args: argparse.Namespace) -> int:
         "evidence_class": ["CODE_DERIVED", "TECHNICALLY_CONFORMANT", "UNKNOWN"],
         "notes": [
             "Exact source presence and Forge CardDb loadability do not prove semantic execution.",
+            "Canonical-name CardDb resolution may establish PRESENT for multi-face source-name mismatches, but does not establish EXECUTABLE.",
             "Dependency conformance is necessary but is not silently promoted into per-identity path execution evidence.",
             "Every WS02 requirement identity is treated as production-required for fail-closed Q6 accounting.",
         ],

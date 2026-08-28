@@ -15,9 +15,9 @@ import java.util.List;
 /**
  * WS10 batch CardDb/ability-construction probe.
  *
- * This proves exact-name CardDb loadability and records whether CardFactory can
- * build the card's runtime object/abilities in a no-game parse context. It does
- * not claim that any spell/ability was legally activated or semantically
+ * This proves canonical-name CardDb loadability and records whether CardFactory
+ * can build the card's runtime object/abilities in a no-game parse context. It
+ * does not claim that any spell/ability was legally activated or semantically
  * resolved; the Python closeout deliberately keeps EXECUTABLE fail-closed.
  */
 public final class Ws10ActualCardLoadabilityTest {
@@ -60,11 +60,15 @@ public final class Ws10ActualCardLoadabilityTest {
                 String name = line.substring(tab + 1);
                 boolean loadable = false;
                 boolean constructable = false;
+                String resolvedName = null;
                 String errorClass = null;
                 String error = null;
                 try {
                     PaperCard pc = CardDatabaseHelper.getCard(name);
                     loadable = pc != null && pc.getRules() != null;
+                    if (pc != null) {
+                        resolvedName = pc.getName();
+                    }
                     if (loadable) {
                         try {
                             CardFactory.getCard(pc, null, null);
@@ -80,7 +84,8 @@ public final class Ws10ActualCardLoadabilityTest {
                 }
                 w.write("{\"oracle_id\":\"" + esc(oid)
                         + "\",\"oracle_name\":\"" + esc(name)
-                        + "\",\"loadable\":" + loadable
+                        + "\",\"resolved_name\":" + (resolvedName == null ? "null" : "\"" + esc(resolvedName) + "\"")
+                        + ",\"loadable\":" + loadable
                         + ",\"runtime_constructable\":" + constructable
                         + ",\"error_class\":" + (errorClass == null ? "null" : "\"" + esc(errorClass) + "\"")
                         + ",\"error\":" + (error == null ? "null" : "\"" + esc(error) + "\"")

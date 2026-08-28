@@ -24,7 +24,7 @@ env:
   WS02_HEAD: 5b0105b5ab0b82a449ab2b232045f67956b579ac
   WS05_HEAD: 554bb06af0dd5e542ff8bbfd5e96054a74642d3a
   WS06_HEAD: e23af2b621f2e318014491b8a84146ed4ad3bed6
-  WS07_HEAD: c0e42fb42c4a603aff4a76b1284f8271c12bfd42
+  WS07_HEAD: ab6886037a6d418647ac0384a9eed875bbbbb814
   WS01_RUN: '33200503101'
   WS05_RUN: '33210994482'
   WS06_RUN: '33209213338'
@@ -110,7 +110,7 @@ jobs:
             'WS02': {'head':os.environ['WS02_HEAD'],'status':'PASS','evidence_class':'DIRECTLY_VERIFIED'},
             'WS05': {'head':os.environ['WS05_HEAD'],'run_id':int(os.environ['WS05_RUN']),'status':'PASS','evidence_class':'TECHNICALLY_CONFORMANT'},
             'WS06': {'head':os.environ['WS06_HEAD'],'run_id':int(os.environ['WS06_RUN']),'status':'PASS','evidence_class':'TECHNICALLY_CONFORMANT'},
-            'WS07': {'head':os.environ['WS07_HEAD'],'status':'NOT_RUN','evidence_class':'UNKNOWN','reason':'required WS07 branch equals AUDIT_BASE_SHA; no new A-T/C01-C22 semantic conformance evidence is committed'},
+            'WS07': {'head':os.environ['WS07_HEAD'],'status':'NOT_RUN','evidence_class':'UNKNOWN','reason':'current WS07 head has no completed qualification run proving the required semantic A-T/C01-C22 conformance gates'},
           }
           Path('artifacts/ws10/DEPENDENCIES.json').write_text(json.dumps({'schema':'commander-simulator-next.ws10.dependencies.v1','dependencies':deps},sort_keys=True,indent=2)+'\n')
           PY
@@ -159,8 +159,9 @@ jobs:
             --oracle-index artifacts/ws10/oracle-index.json \
             --forge-cards forge/forge-gui/res/cardsfolder \
             --out artifacts/ws10
-          jq -e '.requirement_identity_count == 1678 and .loadability_probe_count <= 1678' artifacts/ws10/PREPARE_SUMMARY.json >/dev/null
+          jq -e '.requirement_identity_count == 1678 and .loadability_probe_count == 1678' artifacts/ws10/PREPARE_SUMMARY.json >/dev/null
           cat artifacts/ws10/PREPARE_SUMMARY.json
+          cat artifacts/ws10/MAPPING_GAPS.json
 
       - name: Setup Java 21
         uses: actions/setup-java@v4
@@ -184,17 +185,20 @@ jobs:
              forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws10ActualCardLoadabilityTest.java
           names="$GITHUB_WORKSPACE/artifacts/ws10/names.tsv"
           out="$GITHUB_WORKSPACE/artifacts/ws10/loadability.jsonl"
+          log="$GITHUB_WORKSPACE/artifacts/ws10/forge-loadability.log"
+          exit_file="$GITHUB_WORKSPACE/artifacts/ws10/loadability-probe.exit"
+          cd forge
           set +e
-          /usr/bin/time -v xvfb-run -a mvn -f forge/pom.xml -B \
+          /usr/bin/time -v xvfb-run -a mvn -B \
             -pl forge-gui-desktop -am \
             -Dtest=forge.gamesimulationtests.Ws10ActualCardLoadabilityTest \
             -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false \
             -Dws10.names="$names" -Dws10.out="$out" test \
-            > artifacts/ws10/forge-loadability.log 2>&1
+            > "$log" 2>&1
           rc=$?
           set -e
-          echo "$rc" > artifacts/ws10/loadability-probe.exit
-          cat artifacts/ws10/forge-loadability.log
+          echo "$rc" > "$exit_file"
+          cat "$log"
           if [ "$rc" -ne 0 ]; then exit "$rc"; fi
           test -s "$out"
           test "$(wc -l < "$out")" = "$(wc -l < "$names")"
