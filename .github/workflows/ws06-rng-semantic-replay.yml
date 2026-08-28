@@ -1,0 +1,374 @@
+name: WS06 RNG semantic replay qualification
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - work/ws06-rng-replay-20260828
+    paths:
+      - '.github/workflows/ws06-rng-semantic-replay.yml'
+      - 'research/greenfield-qualification/RNG_INVENTORY.*'
+      - 'research/greenfield-qualification/SEMANTIC_REPLAY_GATE.*'
+      - 'research/greenfield-qualification/semantic_replay.py'
+      - 'research/greenfield-qualification/tape_contract.py'
+      - 'research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py'
+      - 'research/greenfield-qualification/forge-patches/ws06-replay-overlay/**'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      AUDIT_BASE_SHA: c0e42fb42c4a603aff4a76b1284f8271c12bfd42
+      WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+      FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+      WS06_SEED: '989898'
+    steps:
+      - name: Checkout WS06 qualification revision
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+
+      - name: Verify WS06 provenance and audited base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
+          git -C qual merge-base --is-ancestor "$AUDIT_BASE_SHA" HEAD
+          mkdir -p evidence
+          {
+            echo "source_head=$(git -C qual rev-parse HEAD)"
+            echo "source_tree=$(git -C qual rev-parse 'HEAD^{tree}')"
+            echo "audit_base_sha=$AUDIT_BASE_SHA"
+            echo "ws01_head=$WS01_HEAD"
+            echo "forge_pin=$FORGE_PIN"
+          } | tee evidence/provenance.env
+
+      - name: Checkout immutable WS01 dependency
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: bf089ea806f54a9bbb64ede205915729e3629684
+          path: ws01
+          fetch-depth: 1
+
+      - name: Checkout exact Forge research pin
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          path: forge
+          fetch-depth: 1
+
+      - name: Apply WS01 read-only decision overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C ws01 rev-parse HEAD)" = "$WS01_HEAD"
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            > evidence/ws01-overlay.log
+          grep -Fx 'STRICT_DECISION_PATCH_APPLIED=TRUE' evidence/ws01-overlay.log
+
+      - name: Apply WS06 RNG and semantic-state overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 qual/research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py \
+            forge --inventory evidence/RNG_INVENTORY.json | tee evidence/ws06-overlay.log
+          grep -Fx 'WS06_UNCONTROLLED_DECISION_RELEVANT_RNG_PATHS=0' evidence/ws06-overlay.log
+
+      - name: Run semantic replay contract unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$GITHUB_WORKSPACE/qual/research/greenfield-qualification" \
+            python3 -m unittest discover \
+              -s qual/research/greenfield-qualification \
+              -p 'test_semantic_replay.py' -v \
+              2>&1 | tee evidence/semantic-replay-tests.log
+
+      - name: Compile patched Forge qualification target
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          mvn -B '-DskipTests' -pl forge-gui-desktop -am test-compile \
+            | tee ../evidence/forge-test-compile.log
+
+      - name: Process A - record authoritative semantic tapes
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws06SemanticReplayQualificationTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws06.output="$GITHUB_WORKSPACE/evidence/process-A.raw.json" \
+            -Dws06.mode=record \
+            test | tee ../evidence/process-A.log
+          test -s ../evidence/process-A.raw.json
+
+      - name: Materialize immutable replay inputs from A
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$GITHUB_WORKSPACE/qual/research/greenfield-qualification" python3 - <<'PY'
+          import base64
+          import json
+          from pathlib import Path
+
+          from strict_decision import canonical_json_hash, canonical_semantic_state
+          from tape_contract import validate_decision_tape, validate_rng_tape, validate_state_stream
+
+          evidence = Path("evidence")
+          doc = json.loads((evidence / "process-A.raw.json").read_text())
+          if doc.get("failure") is not None or doc.get("game_completed") is not True:
+              raise SystemExit("process A did not complete successfully")
+          validate_state_stream(doc["states"])
+          validate_rng_tape(doc["rng_events"])
+          validate_decision_tape(doc["decision_tape"])
+
+          (evidence / "RNG_TAPE.json").write_text(
+              json.dumps(doc["rng_events"], indent=2, sort_keys=True) + "\n"
+          )
+          (evidence / "DECISION_TAPE.json").write_text(
+              json.dumps(doc["decision_tape"], indent=2, sort_keys=True) + "\n"
+          )
+
+          def b64(value):
+              return base64.b64encode(str(value).encode()).decode()
+
+          with (evidence / "rng-replay.tsv").open("w", encoding="utf-8") as out:
+              for event in doc["rng_events"]:
+                  out.write("\t".join([
+                      str(event["event_id"]),
+                      b64(event["game_id"]),
+                      b64(event["stream"]),
+                      str(event["draw_index"]),
+                      str(event["bits"]),
+                      str(event["value"]),
+                  ]) + "\n")
+
+          with (evidence / "decision-replay.tsv").open("w", encoding="utf-8") as out:
+              for event in doc["decision_tape"]:
+                  selected = event.get("selected_option_ids", [])
+                  out.write("\t".join([
+                      str(event["event_id"]),
+                      str(event["decision_id"]),
+                      str(event["token"]),
+                      b64(event["decision_kind"]),
+                      str(event["actor_id"]),
+                      str(event["principal_id"]),
+                      str(len(selected)),
+                      ",".join(b64(item) for item in selected),
+                  ]) + "\n")
+
+          meta = {
+              "rng_tape_sha256": canonical_json_hash(canonical_semantic_state(doc["rng_events"])),
+              "decision_tape_sha256": canonical_json_hash(canonical_semantic_state(doc["decision_tape"])),
+              "initial_state_id": canonical_json_hash(canonical_semantic_state(doc["states"][0])),
+          }
+          (evidence / "replay-inputs.json").write_text(json.dumps(meta, indent=2, sort_keys=True) + "\n")
+          PY
+
+      - name: Process B - replay A tapes in a fresh process
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws06SemanticReplayQualificationTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws06.output="$GITHUB_WORKSPACE/evidence/process-B.raw.json" \
+            -Dws06.mode=replay \
+            -Dws06.rngReplay="$GITHUB_WORKSPACE/evidence/rng-replay.tsv" \
+            -Dws06.decisionReplay="$GITHUB_WORKSPACE/evidence/decision-replay.tsv" \
+            test | tee ../evidence/process-B.log
+          test -s ../evidence/process-B.raw.json
+
+      - name: Process C - replay A tapes in a fresh process
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws06SemanticReplayQualificationTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws06.output="$GITHUB_WORKSPACE/evidence/process-C.raw.json" \
+            -Dws06.mode=replay \
+            -Dws06.rngReplay="$GITHUB_WORKSPACE/evidence/rng-replay.tsv" \
+            -Dws06.decisionReplay="$GITHUB_WORKSPACE/evidence/decision-replay.tsv" \
+            test | tee ../evidence/process-C.log
+          test -s ../evidence/process-C.raw.json
+
+      - name: Seal A B C process evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$GITHUB_WORKSPACE/qual/research/greenfield-qualification" python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          from strict_decision import canonical_json_hash, canonical_semantic_state
+          from tape_contract import validate_decision_tape, validate_rng_tape, validate_state_stream
+
+          evidence = Path("evidence")
+          provenance = dict(
+              line.split("=", 1)
+              for line in (evidence / "provenance.env").read_text().splitlines()
+              if "=" in line
+          )
+          replay_inputs = json.loads((evidence / "replay-inputs.json").read_text())
+          initial_ids = []
+          for label in ("A", "B", "C"):
+              raw = json.loads((evidence / f"process-{label}.raw.json").read_text())
+              if raw.get("failure") is not None or raw.get("game_completed") is not True:
+                  raise SystemExit(f"process {label} failed")
+              validate_state_stream(raw["states"])
+              validate_rng_tape(raw["rng_events"])
+              validate_decision_tape(raw["decision_tape"])
+              initial_id = canonical_json_hash(canonical_semantic_state(raw["states"][0]))
+              initial_ids.append(initial_id)
+              raw.update({
+                  "source_head": provenance["source_head"],
+                  "source_tree": provenance["source_tree"],
+                  "audit_base_sha": provenance["audit_base_sha"],
+                  "external_pins": {
+                      "forge": provenance["forge_pin"],
+                      "ws01": provenance["ws01_head"],
+                  },
+                  "initial_state_id": initial_id,
+                  "rng_tape_input_sha256": replay_inputs["rng_tape_sha256"],
+                  "decision_tape_input_sha256": replay_inputs["decision_tape_sha256"],
+                  "fresh_process_label": label,
+              })
+              (evidence / f"process-{label}.json").write_text(
+                  json.dumps(raw, indent=2, sort_keys=True) + "\n"
+              )
+          if len(set(initial_ids)) != 1:
+              raise SystemExit(f"initial semantic state mismatch: {initial_ids}")
+          PY
+
+      - name: Compare canonical semantic streams
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$GITHUB_WORKSPACE/qual/research/greenfield-qualification" \
+            python3 qual/research/greenfield-qualification/semantic_replay.py \
+              --input evidence/process-A.json \
+              --input evidence/process-B.json \
+              --input evidence/process-C.json \
+              --out evidence/SEMANTIC_REPLAY_GATE.json
+
+      - name: Adjudicate Q3 fail closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$GITHUB_WORKSPACE/qual/research/greenfield-qualification" python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          evidence = Path("evidence")
+          inventory = json.loads((evidence / "RNG_INVENTORY.json").read_text())
+          replay = json.loads((evidence / "SEMANTIC_REPLAY_GATE.json").read_text())
+          docs = [json.loads((evidence / f"process-{label}.json").read_text()) for label in ("A", "B", "C")]
+
+          rng_nonempty = all(bool(doc.get("rng_events")) for doc in docs)
+          states_nonempty = all(bool(doc.get("states")) for doc in docs)
+          decisions_nonempty = all(bool(doc.get("decision_tape")) for doc in docs)
+          same_rng_input = len({doc.get("rng_tape_input_sha256") for doc in docs}) == 1
+          same_decision_input = len({doc.get("decision_tape_input_sha256") for doc in docs}) == 1
+          same_initial = len({doc.get("initial_state_id") for doc in docs}) == 1
+          all_completed = all(doc.get("game_completed") is True and doc.get("failure") is None for doc in docs)
+          all_named = rng_nonempty and all(
+              event.get("game_id") == "ws06-4p-commander-game"
+              and isinstance(event.get("stream"), str)
+              and bool(event["stream"].strip())
+              for doc in docs for event in doc["rng_events"]
+          )
+          all_decisions_accepted = decisions_nonempty and all(
+              event.get("response_status") == "ACCEPTED"
+              for doc in docs for event in doc["decision_tape"]
+          )
+
+          hard = {
+              "uncontrolled_decision_relevant_rng_paths": inventory["overlay"]["uncontrolled_decision_relevant_rng_paths"] == 0,
+              "named_game_rng_streams": inventory["overlay"]["named_game_rng_streams"] == "PASS" and all_named,
+              "pilot_rng_separation": inventory["overlay"]["pilot_rng_separation"] == "PASS",
+              "rng_event_tape": rng_nonempty,
+              "canonical_state_stream": states_nonempty,
+              "full_game_decision_tape": decisions_nonempty and all_decisions_accepted,
+              "fresh_processes": replay.get("fresh_processes") == 3,
+              "same_initial_state": same_initial,
+              "same_rng_tape_input": same_rng_input,
+              "same_decision_tape_input": same_decision_input,
+              "all_processes_completed": all_completed,
+              "semantic_state_divergences": replay.get("semantic_state_divergences") == 0,
+              "rng_event_divergences": replay.get("rng_event_divergences") == 0,
+              "decision_event_divergences": replay.get("decision_event_divergences") == 0,
+              "stdout_used_as_replay_criterion": replay.get("stdout_used_as_replay_criterion") is False,
+              "semantic_replay_comparator": replay.get("status") == "PASS",
+          }
+          passed = all(hard.values())
+          replay.update({
+              "schema": "commander-simulator-next.semantic-replay-gate.v2",
+              "status": "PASS" if passed else "FAIL",
+              "Q3_SEMANTIC_REPLAY": "PASS" if passed else "FAIL",
+              "gates": hard,
+              "uncontrolled_decision_relevant_rng_paths": inventory["overlay"]["uncontrolled_decision_relevant_rng_paths"],
+              "named_game_rng_streams": "PASS" if hard["named_game_rng_streams"] else "FAIL",
+              "rng_event_tape": "PASS" if hard["rng_event_tape"] else "FAIL",
+              "canonical_state_stream": "PASS" if hard["canonical_state_stream"] else "FAIL",
+              "full_game_decision_tape": "PASS" if hard["full_game_decision_tape"] else "FAIL",
+              "evidence_class": ["DIRECTLY_VERIFIED", "CODE_DERIVED", "TECHNICALLY_CONFORMANT", "CI_EXECUTED"],
+              "failure": None if passed else {
+                  "code": "Q3_SEMANTIC_REPLAY_FAILED",
+                  "failed_gates": sorted(key for key, value in hard.items() if not value),
+                  "first_divergence": replay.get("first_divergence"),
+              },
+          })
+          (evidence / "SEMANTIC_REPLAY_GATE.json").write_text(
+              json.dumps(replay, indent=2, sort_keys=True) + "\n"
+          )
+          (evidence / "SEMANTIC_REPLAY_GATE.md").write_text(
+              "\n".join([
+                  "# WS06 semantic replay gate",
+                  "",
+                  f"- Q3_SEMANTIC_REPLAY: **{replay['Q3_SEMANTIC_REPLAY']}**",
+                  f"- uncontrolled_decision_relevant_rng_paths: **{replay['uncontrolled_decision_relevant_rng_paths']}**",
+                  f"- named_game_rng_streams: **{replay['named_game_rng_streams']}**",
+                  f"- rng_event_tape: **{replay['rng_event_tape']}**",
+                  f"- canonical_state_stream: **{replay['canonical_state_stream']}**",
+                  f"- full_game_decision_tape: **{replay['full_game_decision_tape']}**",
+                  f"- fresh_processes: **{replay['fresh_processes']}**",
+                  f"- semantic_state_divergences: **{replay['semantic_state_divergences']}**",
+                  f"- rng_event_divergences: **{replay['rng_event_divergences']}**",
+                  f"- decision_event_divergences: **{replay['decision_event_divergences']}**",
+                  f"- stdout_used_as_replay_criterion: **{str(replay['stdout_used_as_replay_criterion']).lower()}**",
+              ]) + "\n"
+          )
+          print(json.dumps({"status": replay["status"], "failure": replay["failure"]}, sort_keys=True))
+          if not passed:
+              raise SystemExit(1)
+          PY
+
+      - name: Hash WS06 evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find evidence -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > evidence/hashes.sha256 || true
+
+      - name: Upload WS06 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws06-rng-semantic-replay
+          path: evidence
+          if-no-files-found: error
