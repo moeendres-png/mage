@@ -86,6 +86,7 @@ jobs:
           cd forge
           xvfb-run -a mvn -B -pl forge-gui-desktop -am \
             -Dtest=forge.ws07.WS07CommanderConformanceTest,forge.ws07.WS07StartupConformanceTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
             -DfailIfNoTests=false test
           rc=$?
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
