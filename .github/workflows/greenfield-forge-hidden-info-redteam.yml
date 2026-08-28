@@ -10,6 +10,10 @@ on:
       - 'research/greenfield-qualification/hidden-info/**'
       - 'research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py'
 
+concurrency:
+  group: ws05-hidden-info-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   actions: read
@@ -32,7 +36,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: qual
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Checkout exact qualified WS01 dependency read-only
         uses: actions/checkout@v4
@@ -55,7 +59,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git -C qual merge-base "$AUDIT_BASE_SHA" HEAD)" = "$AUDIT_BASE_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/compare/$AUDIT_BASE_SHA...$GITHUB_SHA" --jq .merge_base_commit.sha)" = "$AUDIT_BASE_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/compare/$AUDIT_BASE_SHA...$GITHUB_SHA" --jq .behind_by)" = 0
           test "$(git -C ws01-dependency rev-parse HEAD)" = "$WS01_HEAD"
           test "$(git -C ws01-dependency rev-parse 'HEAD^{tree}')" = "$WS01_TREE"
           test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
