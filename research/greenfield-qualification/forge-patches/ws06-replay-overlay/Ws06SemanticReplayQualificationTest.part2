@@ -173,6 +173,13 @@
             final List<MyRandom.RngEvent> rngEvents,
             final List<ExternalDecisionTape.Event> decisions,
             final Throwable failure) throws IOException {
+        final List<ExternalDecisionTape.Event> canonicalDecisions = new ArrayList<>(decisions);
+        canonicalDecisions.sort((left, right) -> {
+            final int principal = Long.compare((long) left.getPrincipalId(), (long) right.getPrincipalId());
+            if (principal != 0) return principal;
+            return Long.compare(left.getEventId(), right.getEventId());
+        });
+
         final StringBuilder json = new StringBuilder();
         json.append("{\n  \"schema\":\"commander-simulator-next.ws06-game-run.v1\",")
                 .append("\n  \"mode\":\"").append(escape(mode)).append("\",")
@@ -180,6 +187,7 @@
                 .append("\n  \"seed\":").append(SEED).append(',')
                 .append("\n  \"players\":4,")
                 .append("\n  \"scenario\":\"WS06_4P_COMMANDER_SEMANTIC_REPLAY\",")
+                .append("\n  \"decision_tape_order\":\"PRINCIPAL_EVENT_ID\",")
                 .append("\n  \"game_completed\":").append(result != null && result.gameCompleted).append(',')
                 .append("\n  \"turn_count\":").append(result == null ? -1 : result.turnCount).append(',')
                 .append("\n  \"states\":[");
@@ -199,9 +207,9 @@
                     .append(",\"value\":").append(event.getValue()).append('}');
         }
         json.append("\n  ],\n  \"decision_tape\":[");
-        for (int i = 0; i < decisions.size(); i++) {
+        for (int i = 0; i < canonicalDecisions.size(); i++) {
             if (i != 0) json.append(',');
-            final ExternalDecisionTape.Event event = decisions.get(i);
+            final ExternalDecisionTape.Event event = canonicalDecisions.get(i);
             json.append("\n    {\"event_id\":").append(event.getEventId())
                     .append(",\"decision_id\":").append(event.getDecisionId())
                     .append(",\"token\":").append(event.getToken())
