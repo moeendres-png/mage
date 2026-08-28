@@ -8,7 +8,6 @@ on:
     paths:
       - '.github/workflows/ws10-actual-card-behavior.yml'
       - 'research/greenfield-qualification/actual-card-behavior/**'
-      - 'research/greenfield-qualification/ACTUAL_CARD_COVERAGE.*'
 
 permissions:
   contents: read
@@ -103,9 +102,6 @@ jobs:
             jq -e --arg h "$head" '.head_sha == $h and .status == "completed" and .conclusion == "success"' \
               "artifacts/ws10/${x,,}-run.json" >/dev/null
           done
-          # WS02 is corpus truth and has no branch workflow; its committed PASS
-          # union+Oracle pin are verified below. WS07 is intentionally NOT_RUN:
-          # its required branch is still exactly the audit base.
           python3 - <<'PY'
           import json, os
           from pathlib import Path
@@ -164,6 +160,7 @@ jobs:
             --forge-cards forge/forge-gui/res/cardsfolder \
             --out artifacts/ws10
           jq -e '.requirement_identity_count == 1678 and .loadability_probe_count <= 1678' artifacts/ws10/PREPARE_SUMMARY.json >/dev/null
+          cat artifacts/ws10/PREPARE_SUMMARY.json
 
       - name: Setup Java 21
         uses: actions/setup-java@v4
@@ -178,6 +175,8 @@ jobs:
         run: command -v Xvfb >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y xvfb; }
 
       - name: Batch-probe Forge CardDb loadability and runtime construction
+        id: loadprobe
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -185,17 +184,24 @@ jobs:
              forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws10ActualCardLoadabilityTest.java
           names="$GITHUB_WORKSPACE/artifacts/ws10/names.tsv"
           out="$GITHUB_WORKSPACE/artifacts/ws10/loadability.jsonl"
+          set +e
           /usr/bin/time -v xvfb-run -a mvn -f forge/pom.xml -B \
             -pl forge-gui-desktop -am \
-            -Dtest=Ws10ActualCardLoadabilityTest \
+            -Dtest=forge.gamesimulationtests.Ws10ActualCardLoadabilityTest \
             -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false \
             -Dws10.names="$names" -Dws10.out="$out" test \
             > artifacts/ws10/forge-loadability.log 2>&1
+          rc=$?
+          set -e
+          echo "$rc" > artifacts/ws10/loadability-probe.exit
+          cat artifacts/ws10/forge-loadability.log
+          if [ "$rc" -ne 0 ]; then exit "$rc"; fi
           test -s "$out"
           test "$(wc -l < "$out")" = "$(wc -l < "$names")"
 
       - name: Finalize fail-closed per-identity classification
         id: finalize
+        if: always()
         shell: bash
         run: |
           set +e
