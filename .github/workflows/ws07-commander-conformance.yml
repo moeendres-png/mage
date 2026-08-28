@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: qualification
-          fetch-depth: 10
+          fetch-depth: 20
           filter: blob:none
           sparse-checkout: |
             research/greenfield-qualification/ws07
@@ -66,26 +66,29 @@ jobs:
           cache: maven
           cache-dependency-path: forge/pom.xml
 
-      - name: Inject WS07 semantic tests into Forge test tree
+      - name: Inject main-API-only WS07 semantic test
         shell: bash
         run: |
           set -euo pipefail
+          src=qualification/research/greenfield-qualification/ws07/WS07MainApiConformanceTest.java
+          test -f "$src"
+          if grep -nE 'forge\.gamesimulationtests|CardDatabaseHelper|PlayerControllerForTests|LobbyPlayerForTests|BaseGameSimulationTest' "$src"; then
+            echo 'Forbidden/unavailable Forge test-helper dependency remains in WS07 harness' >&2
+            exit 1
+          fi
           mkdir -p forge/forge-gui-desktop/src/test/java/forge/ws07
-          cp qualification/research/greenfield-qualification/ws07/WS07CommanderConformanceTest.java \
-             forge/forge-gui-desktop/src/test/java/forge/ws07/
-          cp qualification/research/greenfield-qualification/ws07/WS07StartupConformanceTest.java \
-             forge/forge-gui-desktop/src/test/java/forge/ws07/
+          cp "$src" forge/forge-gui-desktop/src/test/java/forge/ws07/
           mkdir -p artifacts/ws07
           : > "$WS07_RESULT_PATH"
 
-      - name: Run only WS07 semantic Forge tests
+      - name: Run exactly the WS07 semantic Forge test
         id: tests
         shell: bash
         run: |
           set +e
           cd forge
           xvfb-run -a mvn -B -pl forge-gui-desktop -am \
-            -Dtest=forge.ws07.WS07CommanderConformanceTest,forge.ws07.WS07StartupConformanceTest \
+            -Dtest=forge.ws07.WS07MainApiConformanceTest \
             -Dsurefire.failIfNoSpecifiedTests=false \
             -DfailIfNoTests=false test
           rc=$?
@@ -101,8 +104,7 @@ jobs:
             --a-matrix qualification/research/greenfield-qualification/RULES_MATRIX_A_T.json \
             --c-matrix qualification/research/greenfield-qualification/RULES_MATRIX_C01_C22.json \
             --raw "$WS07_RESULT_PATH" \
-            --harness qualification/research/greenfield-qualification/ws07/WS07CommanderConformanceTest.java \
-            --harness qualification/research/greenfield-qualification/ws07/WS07StartupConformanceTest.java \
+            --harness qualification/research/greenfield-qualification/ws07/WS07MainApiConformanceTest.java \
             --source-head '${{ steps.source.outputs.head }}' \
             --source-tree '${{ steps.source.outputs.tree }}' \
             --forge-pin "$FORGE_PIN" \
@@ -130,6 +132,21 @@ jobs:
           }
           EOF
 
+      - name: Print generated evidence for direct inspection
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          echo '=== WS07_CONFORMANCE.json ==='
+          cat artifacts/ws07/WS07_CONFORMANCE.json
+          echo '=== RULES_MATRIX_A_T.executed.json ==='
+          cat artifacts/ws07/RULES_MATRIX_A_T.executed.json
+          echo '=== RULES_MATRIX_C01_C22.executed.json ==='
+          cat artifacts/ws07/RULES_MATRIX_C01_C22.executed.json
+          echo '=== EXECUTION.json ==='
+          cat artifacts/ws07/EXECUTION.json
+          exit 0
+
       - name: Upload WS07 evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -149,8 +166,21 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          p = Path('artifacts/ws07/WS07_CONFORMANCE.json')
-          data = json.loads(p.read_text())
-          assert data['status'] == 'PASS', data
-          assert data['gates']['Q5_COMMANDER_MULTIPLAYER'] == 'PASS', data['gates']
+
+          root = Path('artifacts/ws07')
+          conformance = json.loads((root / 'WS07_CONFORMANCE.json').read_text())
+          a = json.loads((root / 'RULES_MATRIX_A_T.executed.json').read_text())
+          c = json.loads((root / 'RULES_MATRIX_C01_C22.executed.json').read_text())
+
+          assert conformance['status'] == 'PASS', conformance
+          gates = conformance['gates']
+          assert gates['Q5_COMMANDER_MULTIPLAYER'] == 'PASS', gates
+          assert gates['authoritative_rows_passed'] == 42, gates
+          assert gates['all_42_authoritative_rows_semantic'] == 'PASS', gates
+          assert gates['A_T_semantic_4P'] == 'PASS', gates
+          assert gates['C01_C22_semantic_4P'] == 'PASS', gates
+          assert len(a['ws07_results']) == 20, len(a['ws07_results'])
+          assert all(r['result'] == 'PASS' and r['player_count'] == 4 for r in a['ws07_results']), a['ws07_results']
+          assert len(c['ws07_results']) == 22, len(c['ws07_results'])
+          assert all(r['result'] == 'PASS' and r['player_count'] == 4 for r in c['ws07_results']), c['ws07_results']
           PY

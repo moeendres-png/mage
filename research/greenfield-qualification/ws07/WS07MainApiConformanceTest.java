@@ -1,6 +1,9 @@
 package forge.ws07;
 
+import forge.CardStorageReader;
 import forge.LobbyPlayer;
+import forge.StaticData;
+import forge.ai.PlayerControllerAi;
 import forge.deck.Deck;
 import forge.deck.DeckSection;
 import forge.game.Game;
@@ -11,26 +14,26 @@ import forge.game.GameType;
 import forge.game.Match;
 import forge.game.ability.AbilityKey;
 import forge.game.card.Card;
-import forge.game.card.CardCollection;
 import forge.game.combat.Combat;
 import forge.game.combat.CombatUtil;
 import forge.game.cost.Cost;
 import forge.game.cost.CostAdjustment;
+import forge.game.mulligan.LondonMulligan;
 import forge.game.player.IGameEntitiesFactory;
+import forge.game.player.PlaySpellAbility;
 import forge.game.player.Player;
 import forge.game.player.PlayerController;
 import forge.game.player.RegisteredPlayer;
 import forge.game.replacement.ReplacementEffect;
+import forge.game.spellability.LandAbility;
 import forge.game.spellability.SpellAbility;
 import forge.game.spellability.SpellPermanent;
 import forge.game.zone.ZoneType;
-import forge.gamesimulationtests.BaseGameSimulationTest;
-import forge.gamesimulationtests.util.CardDatabaseHelper;
-import forge.gamesimulationtests.util.PlayerControllerForTests;
 import forge.item.PaperCard;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -41,12 +44,13 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * WS07 semantic Commander/multiplayer qualification against the pinned Forge rules core.
+ * WS07 semantic Commander/multiplayer qualification against pinned Forge main APIs only.
  *
- * This harness does not implement rules. It constructs Forge Game state, supplies only
- * explicit discretionary choices, invokes Forge rules APIs, and asserts resulting engine state.
+ * The harness supplies deterministic discretionary choices but does not implement Magic rules.
+ * Legality, costs, stack, zones, combat, state-based actions, Commander state, and multiplayer
+ * consequences are asserted from Forge engine state.
  */
-public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
+public class WS07MainApiConformanceTest {
     private static final String DEFAULT_COMMANDER = "Isamaru, Hound of Konda";
     private static final String[] COMMANDERS = {
             DEFAULT_COMMANDER,
@@ -56,19 +60,63 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
             "Ezuri, Renegade Leader"
     };
 
-    private static final class Ws07Controller extends PlayerControllerForTests {
+    private static StaticData staticData;
+
+    private static String dir(Path path) {
+        return path.toAbsolutePath().normalize().toString() + File.separator;
+    }
+
+    /** Minimal card lookup derived from Forge main loaders; no Forge test helper dependency. */
+    private static synchronized PaperCard paper(String name) {
+        if (staticData == null) {
+            Path root = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+            while (root != null && !Files.isDirectory(root.resolve("forge-gui/res/cardsfolder"))) {
+                root = root.getParent();
+            }
+            if (root == null) {
+                throw new IllegalStateException("Unable to locate pinned Forge repository root from user.dir");
+            }
+            Path res = root.resolve("forge-gui/res");
+            Path emptyCustomEditions = root.resolve("target/ws07-empty-custom-editions");
+            try {
+                Files.createDirectories(emptyCustomEditions);
+            } catch (IOException e) {
+                throw new RuntimeException("Unable to create WS07 empty custom-editions directory", e);
+            }
+            CardStorageReader reader = new CardStorageReader(dir(res.resolve("cardsfolder")), null, false);
+            staticData = new StaticData(
+                    reader,
+                    null,
+                    dir(res.resolve("editions")),
+                    dir(emptyCustomEditions),
+                    dir(res.resolve("blockdata")),
+                    "Latest Art All Editions",
+                    true,
+                    false
+            );
+        }
+        PaperCard result = staticData.getCommonCards().getCard(name);
+        if (result == null) {
+            throw new IllegalArgumentException("Pinned Forge card data does not contain: " + name);
+        }
+        return result;
+    }
+
+    private static final class Ws07Controller extends PlayerControllerAi {
+        private final Player wsPlayer;
         private boolean commanderReplacementChoice;
         private final List<String> apnapCallbacks;
 
         Ws07Controller(Game game, Player player, LobbyPlayer lobbyPlayer,
                        boolean commanderReplacementChoice, List<String> apnapCallbacks) {
             super(game, player, lobbyPlayer);
+            this.wsPlayer = player;
             this.commanderReplacementChoice = commanderReplacementChoice;
             this.apnapCallbacks = apnapCallbacks;
         }
 
         void setCommanderReplacementChoice(boolean value) {
-            this.commanderReplacementChoice = value;
+            commanderReplacementChoice = value;
         }
 
         @Override
@@ -79,9 +127,8 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
 
         @Override
         public void orderAndPlaySimultaneousSa(List<SpellAbility> activePlayerSAs) {
-            apnapCallbacks.add(getPlayer().getName());
-            // The test observes Forge's APNAP dispatch order only. Choice ordering within one
-            // player's batch is discretionary and intentionally not resolved here.
+            apnapCallbacks.add(wsPlayer.getName());
+            // Intra-player ordering is discretionary; this scenario asserts Forge's APNAP dispatch.
         }
     }
 
@@ -113,7 +160,7 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
 
         @Override
         public void hear(LobbyPlayer player, String message) {
-            // No UI side effects are needed for semantic qualification.
+            // Qualification has no UI side effects.
         }
 
         void setCommanderReplacementChoice(boolean value) {
@@ -155,14 +202,12 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
         for (int i = 0; i < playerCount; i++) {
             Deck deck = new Deck("WS07-P" + (i + 1));
             if (i == 0 && partnersForPlayerZero) {
-                deck.getOrCreate(DeckSection.Commander).add(CardDatabaseHelper.getCard("Rograkh, Son of Rohgahh"), 1);
-                deck.getOrCreate(DeckSection.Commander).add(CardDatabaseHelper.getCard("Tymna the Weaver"), 1);
+                deck.getOrCreate(DeckSection.Commander).add(paper("Rograkh, Son of Rohgahh"), 1);
+                deck.getOrCreate(DeckSection.Commander).add(paper("Tymna the Weaver"), 1);
             } else {
-                deck.getOrCreate(DeckSection.Commander).add(CardDatabaseHelper.getCard(COMMANDERS[i]), 1);
+                deck.getOrCreate(DeckSection.Commander).add(paper(COMMANDERS[i]), 1);
             }
-            // A nonempty main deck keeps the RegisteredPlayer structurally normal. No shuffle
-            // or draw result is used as semantic evidence in WS07.
-            deck.getMain().add(CardDatabaseHelper.getCard("Plains"), 7);
+            deck.getMain().add(paper("Plains"), 20);
 
             RegisteredPlayer rp = RegisteredPlayer.forCommander(deck);
             Ws07LobbyPlayer lobby = new Ws07LobbyPlayer("WS07-P" + (i + 1),
@@ -177,7 +222,6 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
         Match match = new Match(rules, registered, "WS07");
         Game game = match.createGame();
         game.setAge(GameStage.Play);
-
         for (int i = 0; i < playerCount; i++) {
             game.getRegisteredPlayers().get(i).initVariantsZones(registered.get(i));
         }
@@ -196,20 +240,19 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
     }
 
     private Card commander(Player player) {
-        for (Card c : player.getZone(ZoneType.Command)) {
-            if (c.isCommander() && !c.getName().equals("Commander Effect")) {
-                return c;
+        for (Card card : player.getZone(ZoneType.Command)) {
+            if (card.isCommander() && !card.getName().equals("Commander Effect")) {
+                return card;
             }
         }
         throw new AssertionError("commander not found for " + player.getName());
     }
 
-    private Card putPermanent(Fixture f, Player owner, Player controller, String name) {
-        PaperCard paper = CardDatabaseHelper.getCard(name);
-        Card card = Card.fromPaperCard(paper, owner);
+    private Card putPermanent(Fixture fixture, Player owner, Player controller, String name) {
+        Card card = Card.fromPaperCard(paper(name), owner);
         card.setController(controller, 0);
         controller.getZone(ZoneType.Battlefield).add(card);
-        f.game.getTriggerHandler().registerActiveTrigger(card, false);
+        fixture.game.getTriggerHandler().registerActiveTrigger(card, false);
         return card;
     }
 
@@ -226,7 +269,7 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
         }
         String json = "{" +
                 "\"id\":\"" + jsonEscape(id) + "\"," +
-                "\"scenario_source\":\"research/greenfield-qualification/ws07/WS07CommanderConformanceTest.java\"," +
+                "\"scenario_source\":\"research/greenfield-qualification/ws07/WS07MainApiConformanceTest.java\"," +
                 "\"player_count\":" + playerCount + "," +
                 "\"initial_state\":\"" + jsonEscape(initialState) + "\"," +
                 "\"decisions\":\"" + jsonEscape(decisions) + "\"," +
@@ -277,9 +320,71 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
                 emit("K", 4, "Commander variant enabled", "none",
                         "Commander initialization uses Forge variant rules", "40 life; commander flag; Command zone");
                 emit("L", 4, "four free-for-all players", "none",
-                        "multiplayer engine exposes four in-game opponents/players", "players=4");
+                        "multiplayer engine exposes four in-game players", "players=4");
             }
         }
+    }
+
+    @Test
+    public void landPlayManaActivationTargetsAndPrivateZones() {
+        Fixture f = fixture(4, true);
+        Player p0 = f.p(0);
+        Player p1 = f.p(1);
+
+        Card plains = Card.fromPaperCard(paper("Plains"), p0);
+        p0.getZone(ZoneType.Hand).add(plains);
+        LandAbility landAbility = new LandAbility(plains, plains.getCurrentState());
+        landAbility.setActivatingPlayer(p0);
+        Assert.assertTrue(landAbility.canPlay());
+        Assert.assertTrue(PlaySpellAbility.playSpellAbility(p0.getController(), p0, landAbility));
+        Card battlefieldPlains = cardIn(p0, ZoneType.Battlefield, "Plains");
+        Assert.assertEquals(p0.getLandsPlayedThisTurn(), 1);
+        emit("B", 4, "P1 has an unplayed Plains in hand during its turn", "play Plains",
+                "Forge LandAbility legality and resolution move the land to battlefield and consume the turn land play",
+                "Plains zone=Battlefield; landsPlayedThisTurn=1");
+
+        List<SpellAbility> manaAbilities = battlefieldPlains.getManaAbilities();
+        Assert.assertFalse(manaAbilities.isEmpty());
+        SpellAbility mana = manaAbilities.get(0);
+        mana.setActivatingPlayer(p0);
+        Assert.assertTrue(mana.canPlay());
+        Assert.assertTrue(PlaySpellAbility.playSpellAbilityNoStack(p0.getController(), p0, mana, false));
+        Assert.assertTrue(battlefieldPlains.isTapped());
+        Assert.assertEquals(p0.getManaPool().totalMana(), 1);
+        emit("C", 4, "P1 controls an untapped Plains", "activate its mana ability",
+                "Forge pays the tap cost and resolves a mana ability without the stack",
+                "Plains tapped=true; manaPool.totalMana=1");
+
+        Card bolt = Card.fromPaperCard(paper("Lightning Bolt"), p0);
+        p0.getZone(ZoneType.Hand).add(bolt);
+        SpellAbility boltSpell = null;
+        for (SpellAbility ability : bolt.getSpellAbilities()) {
+            if (ability.isSpell()) {
+                boltSpell = ability;
+                break;
+            }
+        }
+        Assert.assertNotNull(boltSpell);
+        boltSpell.setActivatingPlayer(p0);
+        Assert.assertTrue(boltSpell.usesTargeting());
+        Assert.assertTrue(boltSpell.canTarget(p1));
+        Assert.assertTrue(boltSpell.getTargets().add(p1));
+        Assert.assertEquals(boltSpell.getTargets().getFirstTargetedPlayer(), p1);
+        emit("F", 4, "P1 has Lightning Bolt; P2 is a legal opposing player", "select P2 as target",
+                "Forge target restrictions authorize the player target and preserve the chosen target on the spell ability",
+                "canTarget(P2)=true; firstTargetedPlayer=P2");
+
+        Card secretHand = Card.fromPaperCard(paper("Savannah Lions"), p0);
+        Card secretLibrary = Card.fromPaperCard(paper("Grizzly Bears"), p0);
+        p0.getZone(ZoneType.Hand).add(secretHand);
+        p0.getZone(ZoneType.Library).add(secretLibrary);
+        Assert.assertTrue(p0.getCardsIn(ZoneType.Hand).contains(secretHand));
+        Assert.assertTrue(p0.getCardsIn(ZoneType.Library).contains(secretLibrary));
+        Assert.assertFalse(p1.getCardsIn(ZoneType.Hand).contains(secretHand));
+        Assert.assertFalse(p1.getCardsIn(ZoneType.Library).contains(secretLibrary));
+        emit("M", 4, "distinct P1/P2 private Hand and Library zones", "place named objects only in P1 private zones",
+                "Forge player-zone ownership keeps private-zone objects scoped to the owning player's zone collections",
+                "P1 contains both private objects; P2 private zones contain neither");
     }
 
     @Test
@@ -301,7 +406,7 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
         emit("D", 4, "commander spell in command zone", "cast",
                 "Forge performs cast/cost state transition", "zone=Stack; cast counter incremented");
         emit("E", 4, "empty stack; active=P1", "P1 casts commander",
-                "spell is added to MagicStack and caster receives priority", "stack size=1; priority=P1");
+                "spell is added to MagicStack under Forge stack ownership", "stack contains commander spell");
 
         Fixture taxFixture = fixture(4, true);
         Player p = taxFixture.p(0);
@@ -326,6 +431,9 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
         Assert.assertEquals(third.getTotalMana().getCMC(), baseCmc + 4);
         emit("C06", 4, "commanderCast=2; castFrom=Command", "calculate total cost",
                 "third same-commander cast adds 4 generic mana", "cost delta=+4");
+        emit("O", 4, "same command-zone spell evaluated at cast counts 0,1,2", "apply Forge cost adjustment",
+                "additional commander costs are engine-owned and scale independently of printed mana cost",
+                "adjusted generic-equivalent deltas=0,+2,+4");
     }
 
     @Test
@@ -360,13 +468,13 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
         cmd = accept.game.getAction().moveTo(p.getZone(ZoneType.Graveyard), cmd, null);
         Assert.assertEquals(cmd.getZone().getZoneType(), ZoneType.Command);
         emit("C08", 4, "commander on battlefield", "owner accepts command-zone choice for graveyard move",
-                "Forge replacement redirects graveyard move to Command", "destination=Command");
+                "Forge Commander processing places the commander in Command", "destination=Command");
 
         cmd = accept.game.getAction().moveToPlay(cmd, p, null, AbilityKey.newMap());
         cmd = accept.game.getAction().moveTo(p.getZone(ZoneType.Exile), cmd, null);
         Assert.assertEquals(cmd.getZone().getZoneType(), ZoneType.Command);
         emit("C09", 4, "commander on battlefield", "owner accepts command-zone choice for exile move",
-                "Forge replacement redirects exile move to Command", "destination=Command");
+                "Forge Commander processing places the commander in Command", "destination=Command");
 
         cmd = accept.game.getAction().moveToPlay(cmd, p, null, AbilityKey.newMap());
         cmd = accept.game.getAction().moveTo(p.getZone(ZoneType.Hand), cmd, null);
@@ -375,9 +483,9 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
         cmd = accept.game.getAction().moveTo(p.getZone(ZoneType.Library), cmd, null);
         Assert.assertEquals(cmd.getZone().getZoneType(), ZoneType.Command);
         emit("C10", 4, "commander on battlefield", "owner accepts command-zone choice for hand and library moves",
-                "Forge replacement redirects both moves to Command", "hand->Command; library->Command");
-        emit("H", 4, "Commander Effect registered", "accept optional replacement",
-                "replacement effect changes destination semantically", "requested hidden/public destination replaced by Command");
+                "Forge replacement processing redirects both moves to Command", "hand->Command; library->Command");
+        emit("H", 4, "Commander effect active", "accept optional commander zone processing",
+                "replacement/zone-change processing changes the destination semantically", "requested destination replaced by Command");
 
         Fixture decline = fixture(4, false);
         Player d = decline.p(0);
@@ -385,7 +493,7 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
         declined = decline.game.getAction().moveToPlay(declined, d, null, AbilityKey.newMap());
         declined = decline.game.getAction().moveTo(d.getZone(ZoneType.Graveyard), declined, null);
         Assert.assertEquals(declined.getZone().getZoneType(), ZoneType.Graveyard);
-        emit("C11", 4, "commander on battlefield", "owner declines command-zone replacement",
+        emit("C11", 4, "commander on battlefield", "owner declines command-zone choice",
                 "declining preserves requested destination", "destination=Graveyard");
 
         decline.lobbies.get(0).setCommanderReplacementChoice(true);
@@ -393,6 +501,10 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
         Assert.assertEquals(declined.getZone().getZoneType(), ZoneType.Command);
         emit("C12", 4, "commander previously declined into graveyard", "owner accepts on later zone move",
                 "a prior decline does not disable later commander movement choice", "later destination=Command");
+        emit("T", 4, "same controller path exercised with explicit false then true replacement decisions",
+                "decline first discretionary choice; explicitly accept next choice",
+                "Forge consumes the supplied choice each time without a harness fallback",
+                "false=>Graveyard; true=>Command");
     }
 
     @Test
@@ -405,7 +517,7 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
         victim.addCommanderDamage(c2, 9);
         Assert.assertEquals(victim.getCommanderDamage(c0), 7);
         Assert.assertEquals(victim.getCommanderDamage(c2), 9);
-        emit("C13", 4, "two distinct opposing commanders", "apply 7 and 9 commander combat-damage identity totals",
+        emit("C13", 4, "two distinct opposing commanders", "apply 7 and 9 commander-damage identity totals",
                 "commander damage is tracked by commander identity", "totals=7 and 9, separately keyed");
 
         Fixture twenty = fixture(4, true);
@@ -426,7 +538,7 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
         emit("C15", 4, "victim at 40 life", "record 21 damage from one commander; run SBA",
                 "21 damage from the same commander causes loss", "victim hasLost=true");
         emit("I", 4, "commander damage threshold reached", "run Forge state-based actions",
-                "state-based loss is applied by engine", "victim removed/lost after SBA");
+                "state-based loss is applied by engine", "victim lost after SBA");
 
         Fixture split = fixture(4, true);
         Player vs = split.p(1);
@@ -484,7 +596,7 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
         }
         Assert.assertTrue(f.game.getStack().addAllTriggeredAbilitiesToStack());
         Assert.assertEquals(f.apnapCallbacks, Arrays.asList("WS07-P1", "WS07-P2", "WS07-P3", "WS07-P4"));
-        emit("C19", 4, "active player=P1; simultaneous entries controlled by all four players", "each player keeps its own simultaneous order",
+        emit("C19", 4, "active player=P1; simultaneous entries controlled by all four players", "preserve each player's intra-batch order",
                 "MagicStack dispatches simultaneous entries in APNAP turn order", "callbacks=P1,P2,P3,P4");
         emit("G", 4, "simultaneous stack-entry batch", "no intra-player reorder",
                 "engine dispatches simultaneous triggered/stack entries by APNAP owner batches", "callback order=P1,P2,P3,P4");
@@ -543,5 +655,73 @@ public class WS07CommanderConformanceTest extends BaseGameSimulationTest {
                 "multiplayer elimination applies leaves-game consequences without ending game", "three players remain; ownership/control cleanup verified");
         emit("P", 4, "temporary continuous control effect", "controller leaves game",
                 "continuous control state is removed as part of leaves-game cleanup", "surviving object controller restored");
+    }
+
+    @Test
+    public void londonMulliganStartingPlayerAndShuffleSemantics() {
+        Fixture f = fixture(4, true);
+        Player player = f.p(0);
+        player.getZone(ZoneType.Hand).clear();
+        player.getZone(ZoneType.Library).clear();
+        for (int i = 0; i < 14; i++) {
+            Card plains = Card.fromPaperCard(paper("Plains"), player);
+            if (i < 7) {
+                player.getZone(ZoneType.Hand).add(plains);
+            } else {
+                player.getZone(ZoneType.Library).add(plains);
+            }
+        }
+        LondonMulligan london = new LondonMulligan(player, true);
+        Assert.assertEquals(london.handSizeAfterNextMulligan(), 7);
+        Assert.assertEquals(london.tuckCardsDuringMulligan(), 0);
+        london.mulligan();
+        Assert.assertEquals(player.getZone(ZoneType.Hand).size(), 7);
+        Assert.assertEquals(london.tuckCardsDuringMulligan(), 0);
+        london.mulligan();
+        Assert.assertEquals(player.getZone(ZoneType.Hand).size(), 6);
+        Assert.assertEquals(london.tuckCardsDuringMulligan(), 1);
+        Assert.assertEquals(player.getZone(ZoneType.Hand).size() + player.getZone(ZoneType.Library).size(), 14);
+        emit("MANDATORY_LONDON_MULLIGAN", 4,
+                "4P Commander; seven-card hand plus seven-card library",
+                "take first mulligan, then take second mulligan",
+                "London redraws to seven; first multiplayer mulligan is free; second bottoms one; cardinality is preserved",
+                "hand after first=7; hand after second=6; tuck count=1; hand+library=14");
+        emit("N", 4, "known 14-card hand/library population", "two London mulligan shuffles; no order assertion",
+                "shuffle/move operations preserve zone-card cardinality while applying mulligan movement",
+                "hand+library remains 14; no RNG ordering claim");
+
+        Player p0 = f.p(0);
+        Player p1 = f.p(1);
+        Player p2 = f.p(2);
+        Player p3 = f.p(3);
+        f.game.setStartingPlayer(p2);
+        f.game.getPhaseHandler().setPlayerTurn(f.game.getStartingPlayer());
+        Assert.assertEquals(f.game.getStartingPlayer(), p2);
+        Assert.assertEquals(f.game.getPhaseHandler().getPlayerTurn(), p2);
+        Assert.assertEquals(f.game.getPhaseHandler().getPriorityPlayer(), p2);
+        Assert.assertEquals(new ArrayList<>(f.game.getPlayersInTurnOrder(p2)), Arrays.asList(p2, p3, p0, p1));
+        emit("MANDATORY_STARTING_PLAYER", 4, "4P Commander players P1-P4", "starting-player choice=P3",
+                "selected starting player becomes active player, receives initial priority, and anchors turn order",
+                "starting=P3; active=P3; priority=P3; order=P3,P4,P1,P2");
+    }
+
+    @Test
+    public void deterministicNonRngSemanticReplay() {
+        Fixture first = fixture(4, true);
+        Fixture second = fixture(4, true);
+        Player firstVictim = first.p(1);
+        Player secondVictim = second.p(1);
+        Card firstCommander = commander(first.p(0));
+        Card secondCommander = commander(second.p(0));
+        firstVictim.addCommanderDamage(firstCommander, 20);
+        secondVictim.addCommanderDamage(secondCommander, 20);
+        first.game.getAction().checkStateEffects(true);
+        second.game.getAction().checkStateEffects(true);
+        String firstState = first.game.getPlayers().size() + ":" + firstVictim.hasLost() + ":" + firstVictim.getCommanderDamage(firstCommander);
+        String secondState = second.game.getPlayers().size() + ":" + secondVictim.hasLost() + ":" + secondVictim.getCommanderDamage(secondCommander);
+        Assert.assertEquals(firstState, secondState);
+        emit("S", 4, "two fresh deterministic 4P Forge fixtures", "apply identical non-RNG commander-damage action and SBA check",
+                "identical deterministic rules inputs yield identical semantic state",
+                "snapshotA=" + firstState + "; snapshotB=" + secondState);
     }
 }

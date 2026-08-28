@@ -15,6 +15,8 @@ AUXILIARY_IDS = {
 FORBIDDEN_UNRECOVERED_REGRESSIONS = {
     "Hedron Archive", "Glissa Sunslayer", "Slip Out the Back", "Void Rend"
 }
+EXPECTED_A = [chr(ord("A") + i) for i in range(20)]
+EXPECTED_C = [f"C{i:02d}" for i in range(1, 23)]
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -48,12 +50,14 @@ def merge_rows(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         if current is None:
             by_id[rid] = dict(row)
             continue
-        # Multiple semantic scenarios may substantiate one broad A-T class.
         if current.get("result") != "PASS" or row.get("result") != "PASS":
             raise ValueError(f"duplicate non-PASS semantic rows for {rid}")
+        if current.get("player_count") != row.get("player_count"):
+            raise ValueError(f"duplicate semantic rows for {rid} disagree on player_count")
         current.setdefault("semantic_assertions", []).extend(row.get("semantic_assertions", []))
         current["observed_state"] = str(current.get("observed_state", "")) + " | " + str(row.get("observed_state", ""))
         current["scenario_source"] = str(current.get("scenario_source", "")) + ";" + str(row.get("scenario_source", ""))
+        current["decisions"] = str(current.get("decisions", "")) + " | " + str(row.get("decisions", ""))
     return by_id
 
 
@@ -77,9 +81,24 @@ def normalized_requirement(definition: dict[str, Any], row: dict[str, Any] | Non
             "observed_state": None,
             "result": "NOT_EXECUTED_IN_WS07",
             "evidence_class": "UNKNOWN",
-            "blocker": "No WS07-owned semantic scenario emitted for this broad A-T class; no PASS inferred from source presence or process exit.",
+            "blocker": "No WS07-owned semantic scenario emitted for this authoritative row; no PASS inferred from source presence or process exit.",
         }
     return {**base, **row}
+
+
+def semantic_pass(by_id: dict[str, dict[str, Any]], rid: str, players: int = 4) -> bool:
+    row = by_id.get(rid)
+    return bool(
+        row
+        and row.get("result") == "PASS"
+        and row.get("player_count") == players
+        and isinstance(row.get("semantic_assertions"), list)
+        and row.get("semantic_assertions")
+        and isinstance(row.get("observed_state"), str)
+        and row.get("observed_state", "").strip()
+        and row.get("evidence_class") in ALLOWED_EVIDENCE
+        and row.get("assertion_kind") != "PROCESS_EXIT"
+    )
 
 
 def main() -> int:
@@ -105,14 +124,12 @@ def main() -> int:
 
     a_ids = [row.get("id") for row in a_defs]
     c_ids = [row.get("id") for row in c_defs]
-    expected_a = [chr(ord("A") + i) for i in range(20)]
-    expected_c = [f"C{i:02d}" for i in range(1, 23)]
-    a_defined = len(a_defs) == 20 and a_ids == expected_a
-    c_defined = len(c_defs) == 22 and c_ids == expected_c
+    a_defined = len(a_defs) == 20 and a_ids == EXPECTED_A
+    c_defined = len(c_defs) == 22 and c_ids == EXPECTED_C
 
     raw_rows = load_jsonl(args.raw)
     by_id = merge_rows(raw_rows)
-    allowed_ids = set(expected_a) | set(expected_c) | AUXILIARY_IDS
+    allowed_ids = set(EXPECTED_A) | set(EXPECTED_C) | AUXILIARY_IDS
     invented_ids = sorted(set(by_id) - allowed_ids)
 
     row_errors: list[str] = []
@@ -124,8 +141,14 @@ def main() -> int:
         assertions = row.get("semantic_assertions")
         if not isinstance(assertions, list) or not assertions or not all(isinstance(x, str) and x.strip() for x in assertions):
             row_errors.append(f"{rid}: PASS lacks semantic assertions")
+        if not isinstance(row.get("initial_state"), str) or not row["initial_state"].strip():
+            row_errors.append(f"{rid}: PASS lacks initial state")
+        if not isinstance(row.get("decisions"), str) or not row["decisions"].strip():
+            row_errors.append(f"{rid}: PASS lacks decisions")
         if not isinstance(row.get("observed_state"), str) or not row["observed_state"].strip():
             row_errors.append(f"{rid}: PASS lacks observed engine state")
+        if not isinstance(row.get("scenario_source"), str) or not row["scenario_source"].strip():
+            row_errors.append(f"{rid}: PASS lacks scenario source")
         if row.get("evidence_class") not in ALLOWED_EVIDENCE:
             row_errors.append(f"{rid}: invalid semantic evidence class")
         if row.get("assertion_kind") == "PROCESS_EXIT":
@@ -138,29 +161,25 @@ def main() -> int:
             if name in text:
                 forbidden_mentions.append(f"{harness}:{name}")
 
-    c_pass_4p = all(
-        cid in by_id
-        and by_id[cid].get("result") == "PASS"
-        and by_id[cid].get("player_count") == 4
-        for cid in expected_c
-    )
+    a_pass_4p = all(semantic_pass(by_id, rid, 4) for rid in EXPECTED_A)
+    c_pass_4p = all(semantic_pass(by_id, rid, 4) for rid in EXPECTED_C)
+    authoritative_rows_passed = sum(1 for rid in EXPECTED_A + EXPECTED_C if semantic_pass(by_id, rid, 4))
+    all_42 = a_pass_4p and c_pass_4p and authoritative_rows_passed == 42
+
     mandatory_aux = ["MANDATORY_LONDON_MULLIGAN", "MANDATORY_STARTING_PLAYER", "J", "C19", "P", "R"]
-    mandatory_4p = c_pass_4p and all(
-        mid in by_id and by_id[mid].get("result") == "PASS" and by_id[mid].get("player_count") == 4
-        for mid in mandatory_aux
-    )
+    mandatory_4p = c_pass_4p and all(semantic_pass(by_id, rid, 4) for rid in mandatory_aux)
     subset_gates = {
-        f"{count}P_conformance_required_subset": (
-            f"SUBSET_{count}P" in by_id
-            and by_id[f"SUBSET_{count}P"].get("result") == "PASS"
-            and by_id[f"SUBSET_{count}P"].get("player_count") == count
-        )
+        f"{count}P_conformance_required_subset": semantic_pass(by_id, f"SUBSET_{count}P", count)
         for count in (2, 3, 4, 5)
     }
 
     gates: dict[str, Any] = {
         "A_T_defined": 20 if a_defined else len(a_defs),
         "C01_C22_defined": 22 if c_defined else len(c_defs),
+        "A_T_semantic_4P": "PASS" if a_pass_4p else "FAIL",
+        "C01_C22_semantic_4P": "PASS" if c_pass_4p else "FAIL",
+        "authoritative_rows_passed": authoritative_rows_passed,
+        "all_42_authoritative_rows_semantic": "PASS" if all_42 else "FAIL",
         "source_authority_missing_tests_invented": len(invented_ids) + len(forbidden_mentions),
         "all_mandatory_4P_commander_scenarios": "PASS" if mandatory_4p else "FAIL",
         **{k: "PASS" if v else "FAIL" for k, v in subset_gates.items()},
@@ -168,9 +187,11 @@ def main() -> int:
         "raw_semantic_row_errors": len(row_errors),
         "forge_pin_matches": args.forge_pin == "8c7e9afb8e6caee88644b94e25da5852e36f8928",
     }
+
     q5 = (
         a_defined
         and c_defined
+        and all_42
         and gates["source_authority_missing_tests_invented"] == 0
         and mandatory_4p
         and all(subset_gates.values())
@@ -189,9 +210,9 @@ def main() -> int:
         "qualification_source_tree": args.source_tree,
         "forge_pin": args.forge_pin,
         "ws07_results": a_results,
-        "production_qualified": all(r["result"] == "PASS" for r in a_results),
-        "qualification_status": "PASS" if all(r["result"] == "PASS" for r in a_results) else "PARTIAL",
-        "note": "Broad A-T status is not promoted by Q5 unless that A-T class has its own semantic row.",
+        "production_qualified": a_pass_4p,
+        "qualification_status": "PASS" if a_pass_4p else "FAIL",
+        "semantic_rows_passed": sum(1 for rid in EXPECTED_A if semantic_pass(by_id, rid, 4)),
     }
     c_executed = {
         **c_matrix,
@@ -199,11 +220,12 @@ def main() -> int:
         "qualification_source_tree": args.source_tree,
         "forge_pin": args.forge_pin,
         "ws07_results": c_results,
-        "production_qualified": q5,
-        "qualification_status": "PASS" if q5 else "FAIL",
+        "production_qualified": c_pass_4p,
+        "qualification_status": "PASS" if c_pass_4p else "FAIL",
+        "semantic_rows_passed": sum(1 for rid in EXPECTED_C if semantic_pass(by_id, rid, 4)),
     }
     result = {
-        "schema": "commander-simulator-next.ws07-rules-commander-conformance.v1",
+        "schema": "commander-simulator-next.ws07-rules-commander-conformance.v2",
         "status": "PASS" if q5 else "FAIL",
         "workstream_complete": q5,
         "source_head": args.source_head,
