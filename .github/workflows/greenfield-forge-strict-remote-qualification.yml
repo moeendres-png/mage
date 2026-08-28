@@ -101,7 +101,7 @@ jobs:
         working-directory: forge
         run: |
           set -euo pipefail
-          mvn -B -pl forge-gui-desktop -am \
+          xvfb-run -a mvn -B -pl forge-gui-desktop -am \
             -Dtest=forge.net.ExternalDecisionFullGameQualificationTest \
             -Dsurefire.failIfNoSpecifiedTests=false \
             -Dws01.decisionTapePath="$GITHUB_WORKSPACE/evidence/FULL_GAME_DECISION_TAPE.json" \
