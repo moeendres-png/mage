@@ -1,0 +1,169 @@
+{
+  "schema": "commander-simulator-next.regression-source-inventory.v1",
+  "generated_at": "2026-08-28",
+  "repository": "moeendres-png/mage",
+  "branch": "work/ws04-test-corpus-20260828",
+  "audit_base": {
+    "sha": "c0e42fb42c4a603aff4a76b1284f8271c12bfd42",
+    "tree": "fb06c61dd87b4b742722925cd7374d8f037e1f47"
+  },
+  "scope": "historical test-definition provenance only; no rules campaign and no invented semantics",
+  "authoritative_manifest": {
+    "path": "research/greenfield-qualification/scenarios.json",
+    "definition_origin_commit": "0af75ca2593b3f81c320095d2279678756ff663c",
+    "definition_origin_blob": "7b9d0a55a0b5838cf6db588e51876b917eb1ecf5",
+    "manifest_blob_at_audit_base": "55284819ab042aa7ad5e80a533d91c50f4f88694",
+    "finding": "The manifest contains exactly the four requested regression identifiers as names only.",
+    "evidence_class": "DIRECTLY_VERIFIED"
+  },
+  "named_regressions": [
+    {
+      "id": "R01",
+      "display_name": "Hedron Archive",
+      "manifest_identifier": "HEDRON_ARCHIVE",
+      "source_identifier": "research/greenfield-qualification/scenarios.json#/regressions/0",
+      "source_sha_or_artifact": {
+        "definition_origin_commit": "0af75ca2593b3f81c320095d2279678756ff663c",
+        "definition_origin_blob": "7b9d0a55a0b5838cf6db588e51876b917eb1ecf5",
+        "audit_base_sha": "c0e42fb42c4a603aff4a76b1284f8271c12bfd42",
+        "manifest_blob_at_audit_base": "55284819ab042aa7ad5e80a533d91c50f4f88694"
+      },
+      "requirement_source_status": "AVAILABLE",
+      "exact_scenario_definition_status": "SOURCE_DEFINITION_UNAVAILABLE",
+      "semantic_precondition": null,
+      "action_decision_sequence": null,
+      "expected_semantic_outcome": null,
+      "historical_definition_search_status": "NO_MACHINE_READABLE_DEFINITION_FOUND_IN_AUDITED_SOURCES",
+      "evidence_class": "DIRECTLY_VERIFIED",
+      "semantic_evidence_class": "UNKNOWN",
+      "notes": "The source manifests name the regression but provide no setup, action/decision sequence, or expected semantic outcome. No outcome is reconstructed from the card name or project memory."
+    },
+    {
+      "id": "R02",
+      "display_name": "Glissa Sunslayer",
+      "manifest_identifier": "GLISSA_SUNSLAYER",
+      "source_identifier": "research/greenfield-qualification/scenarios.json#/regressions/1",
+      "source_sha_or_artifact": {
+        "definition_origin_commit": "0af75ca2593b3f81c320095d2279678756ff663c",
+        "definition_origin_blob": "7b9d0a55a0b5838cf6db588e51876b917eb1ecf5",
+        "audit_base_sha": "c0e42fb42c4a603aff4a76b1284f8271c12bfd42",
+        "manifest_blob_at_audit_base": "55284819ab042aa7ad5e80a533d91c50f4f88694"
+      },
+      "requirement_source_status": "AVAILABLE",
+      "exact_scenario_definition_status": "SOURCE_DEFINITION_UNAVAILABLE",
+      "semantic_precondition": null,
+      "action_decision_sequence": null,
+      "expected_semantic_outcome": null,
+      "historical_definition_search_status": "NO_MACHINE_READABLE_DEFINITION_FOUND_IN_AUDITED_SOURCES",
+      "evidence_class": "DIRECTLY_VERIFIED",
+      "semantic_evidence_class": "UNKNOWN",
+      "notes": "The source manifests name the regression but provide no setup, action/decision sequence, or expected semantic outcome. No outcome is reconstructed from the card name or project memory."
+    },
+    {
+      "id": "R03",
+      "display_name": "Slip Out the Back",
+      "manifest_identifier": "SLIP_OUT_THE_BACK",
+      "source_identifier": "research/greenfield-qualification/scenarios.json#/regressions/2",
+      "source_sha_or_artifact": {
+        "definition_origin_commit": "0af75ca2593b3f81c320095d2279678756ff663c",
+        "definition_origin_blob": "7b9d0a55a0b5838cf6db588e51876b917eb1ecf5",
+        "audit_base_sha": "c0e42fb42c4a603aff4a76b1284f8271c12bfd42",
+        "manifest_blob_at_audit_base": "55284819ab042aa7ad5e80a533d91c50f4f88694"
+      },
+      "requirement_source_status": "AVAILABLE",
+      "exact_scenario_definition_status": "SOURCE_DEFINITION_UNAVAILABLE",
+      "semantic_precondition": null,
+      "action_decision_sequence": null,
+      "expected_semantic_outcome": null,
+      "historical_definition_search_status": "NO_MACHINE_READABLE_DEFINITION_FOUND_IN_AUDITED_SOURCES",
+      "evidence_class": "DIRECTLY_VERIFIED",
+      "semantic_evidence_class": "UNKNOWN",
+      "notes": "The source manifests name the regression but provide no setup, action/decision sequence, or expected semantic outcome. No outcome is reconstructed from the card name or project memory."
+    },
+    {
+      "id": "R04",
+      "display_name": "Void Rend",
+      "manifest_identifier": "VOID_REND",
+      "source_identifier": "research/greenfield-qualification/scenarios.json#/regressions/3",
+      "source_sha_or_artifact": {
+        "definition_origin_commit": "0af75ca2593b3f81c320095d2279678756ff663c",
+        "definition_origin_blob": "7b9d0a55a0b5838cf6db588e51876b917eb1ecf5",
+        "audit_base_sha": "c0e42fb42c4a603aff4a76b1284f8271c12bfd42",
+        "manifest_blob_at_audit_base": "55284819ab042aa7ad5e80a533d91c50f4f88694"
+      },
+      "requirement_source_status": "AVAILABLE",
+      "exact_scenario_definition_status": "SOURCE_DEFINITION_UNAVAILABLE",
+      "semantic_precondition": null,
+      "action_decision_sequence": null,
+      "expected_semantic_outcome": null,
+      "historical_definition_search_status": "NO_MACHINE_READABLE_DEFINITION_FOUND_IN_AUDITED_SOURCES",
+      "evidence_class": "DIRECTLY_VERIFIED",
+      "semantic_evidence_class": "UNKNOWN",
+      "notes": "The source manifests name the regression but provide no setup, action/decision sequence, or expected semantic outcome. No outcome is reconstructed from the card name or project memory."
+    }
+  ],
+  "audited_searches": [
+    {
+      "source": "live Greenfield scenario manifest at AUDIT_BASE_SHA",
+      "result": "R01-R04 names present; no machine-readable semantic definition body",
+      "evidence_class": "DIRECTLY_VERIFIED"
+    },
+    {
+      "source": "scenario-manifest origin commit",
+      "source_sha": "0af75ca2593b3f81c320095d2279678756ff663c",
+      "result": "same four regression names present; no machine-readable semantic definition body",
+      "evidence_class": "DIRECTLY_VERIFIED"
+    },
+    {
+      "source": "Git commit-message search",
+      "queries": [
+        "HEDRON_ARCHIVE",
+        "GLISSA_SUNSLAYER",
+        "SLIP_OUT_THE_BACK",
+        "VOID_REND"
+      ],
+      "result": "NO_MATCHES",
+      "scope_note": "This is commit-message search only and is not treated as proof that no historical external scenario ever existed.",
+      "evidence_class": "DIRECTLY_VERIFIED"
+    },
+    {
+      "source": "research/commander-playtest-lab at AUDIT_BASE_SHA",
+      "result": "PATH_NOT_PRESENT_IN_AUDIT_BASE_TREE",
+      "scope_note": "Absence at the audit base is not retroactively converted into a definition.",
+      "evidence_class": "DIRECTLY_VERIFIED"
+    },
+    {
+      "source": ".github/workflows/greenfield-xmage-targeted.yml at AUDIT_BASE_SHA",
+      "source_blob": "aadfc7862635d9b7fe5157bf91fcc6839d972184",
+      "result": "Targeted XMage workflow contains Commander/source-audit qualification logic but no exact Hedron Archive, Glissa Sunslayer, Slip Out the Back, or Void Rend semantic scenario definition.",
+      "evidence_class": "DIRECTLY_VERIFIED"
+    },
+    {
+      "source": "GitHub Actions retained run/artifact lookup",
+      "result": "NO_RESOLVABLE_NAMED_DEFINITION_EVIDENCE_OBTAINED",
+      "scope_note": "The connector lookup did not yield a usable retained run/artifact payload tying any of the four names to an exact machine-readable semantic definition. No new workflow was run. Global absence is not claimed.",
+      "evidence_class": "UNKNOWN"
+    }
+  ],
+  "newly_discovered_regression_definitions": [],
+  "retained_run_ids": [],
+  "retained_artifact_ids": [],
+  "summary": {
+    "named_regression_inventory_count": 4,
+    "named_regression_inventory_complete": true,
+    "exact_definition_available_count": 0,
+    "source_definition_unavailable_count": 4,
+    "newly_discovered_complete_regression_definition_count": 0,
+    "unproven_invented_definitions": 0
+  },
+  "gates": {
+    "named_regression_inventory_complete": "PASS",
+    "unproven_invented_definitions_0": "PASS",
+    "every_missing_definition_classified_SOURCE_DEFINITION_UNAVAILABLE": "PASS",
+    "overall": "PASS"
+  },
+  "qualification_effect": {
+    "production_qualification": "NOT_RUN",
+    "rule": "This inventory supplies provenance only and does not qualify card behavior or rules semantics."
+  }
+}
