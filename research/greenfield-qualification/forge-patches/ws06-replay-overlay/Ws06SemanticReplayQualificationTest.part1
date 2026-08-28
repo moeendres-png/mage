@@ -1,0 +1,260 @@
+package forge.net;
+
+import forge.deck.Deck;
+import forge.deck.DeckSection;
+import forge.game.Game;
+import forge.game.card.Card;
+import forge.game.phase.PhaseType;
+import forge.game.player.Player;
+import forge.game.zone.ZoneType;
+import forge.gamemodes.match.input.ExternalDecisionRequest;
+import forge.gamemodes.match.input.ExternalDecisionResponse;
+import forge.gamemodes.match.input.ExternalDecisionTape;
+import forge.gamemodes.match.input.ExternalDecisionValidationException;
+import forge.item.PaperCard;
+import forge.model.FModel;
+import forge.player.PlayerControllerHuman;
+import forge.util.MyRandom;
+import org.testng.annotations.Test;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Comparator;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * WS06 qualification: one process executes one real 4P Commander game.
+ * Process A records the authoritative Decision/RNG tapes; B/C consume flat
+ * replay scripts derived byte-for-byte from A's semantic tapes and emit fresh
+ * semantic evidence for cross-process comparison.
+ */
+public final class Ws06SemanticReplayQualificationTest {
+    private static final String GAME_ID = "ws06-4p-commander-game";
+    private static final long SEED = 989898L;
+
+    @Test(timeOut = 360_000)
+    public void semanticReplayProcess() throws Exception {
+        final Path output = requiredPath("ws06.output");
+        final String mode = System.getProperty("ws06.mode", "record");
+        final boolean replay = "replay".equals(mode);
+        if (!replay && !"record".equals(mode)) {
+            throw new IllegalArgumentException("ws06.mode must be record or replay");
+        }
+
+        TestUtils.ensureFModelInitialized();
+
+        final RngReplay rngReplay = replay ? RngReplay.load(requiredPath("ws06.rngReplay")) : null;
+        final DecisionSource decisionsSource = replay
+                ? DecisionReplay.load(requiredPath("ws06.decisionReplay"))
+                : new PolicyDecisionSource();
+
+        final CopyOnWriteArrayList<MyRandom.RngEvent> rngEvents = new CopyOnWriteArrayList<>();
+        final CopyOnWriteArrayList<ExternalDecisionTape.Event> decisionEvents = new CopyOnWriteArrayList<>();
+        final CopyOnWriteArrayList<String> states = new CopyOnWriteArrayList<>();
+        final AtomicLong stateSequence = new AtomicLong();
+        final AtomicReference<Game> gameRef = new AtomicReference<>();
+
+        System.setProperty("forge.ws01.externalHumanHost", "true");
+        System.setProperty("forge.ws06.strictGameRng", "true");
+        MyRandom.beginGameScope(GAME_ID, SEED, rngEvents::add, rngReplay);
+        Game.setSemanticStateObserver((game, checkpoint) -> {
+            gameRef.compareAndSet(null, game);
+            states.add(stateJson(game, stateSequence.getAndIncrement(), checkpoint));
+        });
+        ExternalDecisionTape.setEventObserver(decisionEvents::add);
+        PlayerControllerHuman.setExternalDecisionProviderFactory((Player player) -> {
+            gameRef.compareAndSet(null, player.getGame());
+            return request -> decisionsSource.decide(player, request);
+        });
+
+        UnifiedNetworkHarness.GameResult result = null;
+        Throwable failure = null;
+        try {
+            result = new UnifiedNetworkHarness()
+                    .playerCount(4)
+                    .remoteClients(3)
+                    .useAiForRemotePlayers(false)
+                    .commander(true)
+                    .decks(createQualificationDecks())
+                    .gameTimeout(120000)
+                    .execute();
+
+            final Game game = gameRef.get();
+            if (game != null) {
+                states.add(stateJson(game, stateSequence.getAndIncrement(), "RUN_COMPLETE"));
+            }
+            if (!result.passed()) {
+                throw new IllegalStateException("WS06 4P game failed: " + result.toSummary());
+            }
+            if (!result.gameCompleted) {
+                throw new IllegalStateException("WS06 game did not reach a terminal state");
+            }
+            if (rngEvents.isEmpty() || decisionEvents.isEmpty() || states.isEmpty()) {
+                throw new IllegalStateException("WS06 semantic streams must all be non-empty");
+            }
+            if (replay) {
+                rngReplay.assertConsumed();
+                ((DecisionReplay) decisionsSource).assertConsumed();
+            }
+        } catch (Throwable thrown) {
+            failure = thrown;
+        } finally {
+            try {
+                writeEvidence(output, mode, result, states, rngEvents, decisionEvents, failure);
+            } finally {
+                PlayerControllerHuman.setExternalDecisionProviderFactory(null);
+                ExternalDecisionTape.setEventObserver(null);
+                Game.setSemanticStateObserver(null);
+                MyRandom.endGameScope();
+                System.clearProperty("forge.ws06.strictGameRng");
+                System.clearProperty("forge.ws01.externalHumanHost");
+            }
+        }
+
+        if (failure != null) {
+            if (failure instanceof Exception) {
+                throw (Exception) failure;
+            }
+            throw new RuntimeException(failure);
+        }
+        System.out.println("WS06_PROCESS=PASS");
+        System.out.println("WS06_MODE=" + mode);
+        System.out.println("WS06_STATES=" + states.size());
+        System.out.println("WS06_RNG_EVENTS=" + rngEvents.size());
+        System.out.println("WS06_DECISIONS=" + decisionEvents.size());
+    }
+
+    private interface DecisionSource {
+        ExternalDecisionResponse decide(Player player, ExternalDecisionRequest request);
+    }
+
+    private static final class PolicyDecisionSource implements DecisionSource {
+        @Override
+        public ExternalDecisionResponse decide(final Player player, final ExternalDecisionRequest request) {
+            final List<String> selected = new ArrayList<>();
+            switch (request.getDecisionKind()) {
+                case "MULLIGAN" -> selected.add(requireSemantic(request, "true"));
+                case "PRIORITY_ACTION" -> selected.add(requireSemantic(request, "PASS_PRIORITY"));
+                case "STARTING_PLAYER", "STARTING_HAND" -> selected.add(lowestOptionId(request));
+                case "MAX_HAND_SIZE_DISCARD" -> selectLowestExact(request, selected);
+                default -> throw new ExternalDecisionValidationException(
+                        ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
+                        "WS06 qualification pilot has no explicit policy for " + request.getDecisionKind());
+            }
+            return response(request, selected);
+        }
+    }
+
+    private static final class DecisionReplay implements DecisionSource {
+        private final List<DecisionLine> lines;
+        private int index;
+
+        private DecisionReplay(final List<DecisionLine> lines) {
+            this.lines = lines;
+        }
+
+        static DecisionReplay load(final Path path) throws IOException {
+            final List<DecisionLine> result = new ArrayList<>();
+            for (final String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
+                if (line.isBlank()) continue;
+                final String[] fields = line.split("\\t", -1);
+                if (fields.length != 8) {
+                    throw new IllegalArgumentException("malformed WS06 decision replay line: " + line);
+                }
+                final int count = Integer.parseInt(fields[6]);
+                final List<String> selected = new ArrayList<>();
+                if (count > 0) {
+                    final String[] encoded = fields[7].split(",", -1);
+                    if (encoded.length != count) {
+                        throw new IllegalArgumentException("decision replay selection count mismatch");
+                    }
+                    for (final String value : encoded) {
+                        selected.add(new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8));
+                    }
+                }
+                result.add(new DecisionLine(
+                        Long.parseLong(fields[0]),
+                        Long.parseLong(fields[1]),
+                        Long.parseLong(fields[2]),
+                        new String(Base64.getDecoder().decode(fields[3]), StandardCharsets.UTF_8),
+                        fields[4],
+                        fields[5],
+                        selected));
+            }
+            if (result.isEmpty()) {
+                throw new IllegalArgumentException("WS06 Decision Tape replay input is empty");
+            }
+            return new DecisionReplay(result);
+        }
+
+        @Override
+        public ExternalDecisionResponse decide(final Player player, final ExternalDecisionRequest request) {
+            if (index >= lines.size()) {
+                throw new IllegalStateException("WS06 Decision Tape exhausted at " + request.getDecisionKind());
+            }
+            final DecisionLine expected = lines.get(index++);
+            requireEqual("decision_id", Long.toString(expected.decisionId), Long.toString(request.getDecisionId()));
+            requireEqual("token", Long.toString(expected.token), Long.toString(request.getToken()));
+            requireEqual("decision_kind", expected.kind, request.getDecisionKind());
+            requireEqual("actor_id", expected.actor, String.valueOf(request.getActorId()));
+            requireEqual("principal_id", expected.principal, String.valueOf(request.getPrincipalId()));
+            return response(request, expected.selected);
+        }
+
+        void assertConsumed() {
+            if (index != lines.size()) {
+                throw new IllegalStateException("WS06 Decision Tape replay left " + (lines.size() - index) + " events unconsumed");
+            }
+        }
+    }
+
+    private static final class DecisionLine {
+        final long eventId;
+        final long decisionId;
+        final long token;
+        final String kind;
+        final String actor;
+        final String principal;
+        final List<String> selected;
+
+        DecisionLine(long eventId, long decisionId, long token, String kind, String actor, String principal, List<String> selected) {
+            this.eventId = eventId;
+            this.decisionId = decisionId;
+            this.token = token;
+            this.kind = kind;
+            this.actor = actor;
+            this.principal = principal;
+            this.selected = selected;
+        }
+    }
+
+    private static final class RngReplay implements MyRandom.ReplayProvider {
+        private final List<RngLine> lines;
+        private int index;
+
+        private RngReplay(final List<RngLine> lines) {
+            this.lines = lines;
+        }
+
+        static RngReplay load(final Path path) throws IOException {
+            final List<RngLine> result = new ArrayList<>();
+            for (final String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
+                if (line.isBlank()) continue;
+                final String[] fields = line.split("\\t", -1);
+                if (fields.length != 6) {
+                    throw new IllegalArgumentException("malformed WS06 RNG replay line: " + line);
+                }
+                result.add(new RngLine(
+                        Long.parseLong(fields[0]),
+                        new String(Base64.getDecoder().decode(fields[1]), StandardCharsets.UTF_8),
+                        new String(Base64.getDecoder().decode(fields[2]), StandardCharsets.UTF_8),
+                        Long.parseLong(fields[3]),
+                        Integer.parseInt(fields[4]),
+                        Integer.parseInt(fields[5])));
