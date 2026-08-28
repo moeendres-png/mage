@@ -2,8 +2,8 @@
   "schema": "commander-simulator-next.actual-card-requirement-manifest.closeout-v1",
   "status": "INCOMPLETE_FAIL_CLOSED",
   "current_assessment_revision": {
-    "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
-    "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
+    "source_head": "5897a196405e6fc1743f41b4d5f9bf6367884930",
+    "source_tree": "7d2ed2c97fc3579561c9166110f61a757cd88ca9"
   },
   "qualification_input": {
     "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
@@ -51,6 +51,27 @@
     "actual-card-manifest/OWN_OPERATIONAL_1007.json",
     "actual-card-manifest/KAERVEK_EXACT_100.json"
   ],
+  "live_read_only_source_recheck": {
+    "checked_at": "2026-08-28",
+    "own_workbook": {
+      "drive_id": "1_HlokwIebhVKCeQuDvVOpr3BZWYwgKBd",
+      "modified_at": "2026-08-20T08:10:51.737Z",
+      "identity_rows": 1338,
+      "distinct_oracle_names": 1338,
+      "commander_legal_rows": 1337,
+      "nonempty_oracle_id_rows": 0
+    },
+    "kaervek_deck": {
+      "drive_id": "1n4wUDx7jMheUps8tkqRSa64QSV1DFdI1",
+      "modified_at": "2026-08-07T21:18:34.077Z",
+      "raw_bytes": 6256,
+      "card_slots": 100,
+      "distinct_names": 77,
+      "oracle_id_values": 0
+    },
+    "access_mode": "READ_ONLY",
+    "name_to_oracle_promotion_performed": false
+  },
   "missing_for_complete_manifest": [
     "deduplicated Oracle-identity union for every required source class",
     "per-identity source-class flags and behavior priority",

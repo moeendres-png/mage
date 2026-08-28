@@ -1,44 +1,44 @@
 {
   "schema": "commander-simulator-next.evidence-bundle-manifest.v1",
-  "source_head": "34036a2d6704c0b70c0a59d071bc938870db0c2b",
-  "source_tree": "33e3968b35fc5cd2967f12d8f57c4b7ebab2d21f",
+  "source_head": "5897a196405e6fc1743f41b4d5f9bf6367884930",
+  "source_tree": "7d2ed2c97fc3579561c9166110f61a757cd88ca9",
   "external_pins": {
     "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
   },
-  "strict_patch_sha256": "42ff6d7301287af90b3c5b1ba9d809d78f19018d80f4a8ba5b0eeacad0d1e581",
+  "strict_patch_sha256": "190e2fdacfc24903589164d031072daf87573111b0f8a738e31a6005a71ce476",
   "remote_artifacts": [
     {
       "boundary": "strict_typed_decision_boundary",
-      "run": 33152614647,
-      "artifact_id": 9678342430,
-      "sha256": "1cf3fb821bae89ebc4761c412a7609862179698c1de2d862ad2219c9d49fbe67",
+      "run": 33155888019,
+      "artifact_id": 9679614525,
+      "sha256": "7e7158b43da45691faeefd13547e7113e268642d11a2fe27d8af61685e2ac96b",
       "status": "FAIL"
     },
     {
       "boundary": "hidden_information_decoded_transport",
-      "run": 33152614611,
-      "artifact_id": 9678348191,
-      "sha256": "126f4062334510582b7fc9eaace074e3568b3805397334a1d8fc88f0d1ca23c8",
+      "run": 33155887970,
+      "artifact_id": 9679616053,
+      "sha256": "161dd60187f5135580a18117a25585c22bc7af3fea7b550ab398bd176c9b9180",
       "status": "PASS_SCOPED"
     },
     {
       "boundary": "decision_census_and_rng_inventory",
-      "run": 33152614624,
-      "artifact_id": 9678318483,
-      "sha256": "bf9be7008c4f14764ec04c624d5451d7147b61296fe7f27a02f863ed7b630f2f",
-      "status": "FAIL"
+      "run": 33155888005,
+      "artifact_id": 9679578243,
+      "sha256": "cf9f8f0db9edd85926990e07a5f89646ef006656cff32a9e2a87885faf20296d",
+      "status": "PASS_STATIC_FAIL_RUNTIME"
     },
     {
       "boundary": "runtime_probe_and_semantic_replay",
-      "run": 33152614679,
-      "artifact_id": 9678412031,
-      "sha256": "6798a2841e45e8b9aada2411d1739280dba507ad769d075a84598cf3e189a8de",
+      "run": 33155888017,
+      "artifact_id": 9679680835,
+      "sha256": "f4f39d4855b62d3c5378f98333989d8991b297d056cf1744deb7f1c083e44b83",
       "status": "NOT_RUN"
     }
   ],
   "required_local_artifacts": [
     "CURRENT_EVIDENCE_BUNDLE.md",
-    "EVIDENCE_REQUALIFICATION_34036a2d.md",
+    "EVIDENCE_REQUALIFICATION_5897a196.md",
     "REMOTE_QUALIFICATION_EVIDENCE.json",
     "EVIDENCE_BUNDLE_MANIFEST.json",
     "CURRENT_STATUS.md",

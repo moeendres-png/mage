@@ -3,8 +3,8 @@
 Status: **INSUFFICIENT EVIDENCE**.
 
 The data ingest is retained at its own exact materialization provenance; the
-current assessment revision is `0ea93d09d80e5c126eccb3323b17f14542e5559a` /
-`64c97a207ad270fa398682c84d8dd238811a8b79`. It does not convert the prior
+current assessment revision is `5897a196405e6fc1743f41b4d5f9bf6367884930` /
+`7d2ed2c97fc3579561c9166110f61a757cd88ca9`. It does not convert the prior
 data input into current behavioral evidence.
 
 The current Scryfall Oracle Cards gzip/JSONL ingest passed independently:
@@ -18,6 +18,12 @@ union target is **1,721**, but the available own-inventory and Kaervek
 research files are descriptors without materialized `oracle_id` rows. The
 union therefore remains `NOT_RUN` at **0/1,721**. No card-name join, synthetic
 promotion, or inferred Oracle identity is accepted.
+
+A current read-only Drive recheck confirms the underlying limitation rather
+than merely inheriting it from the descriptors: the canonical workbook exposes
+1,338 identity rows and 1,338 distinct Oracle names but zero non-empty
+`oracle_id` cells; the exact 100-slot Kaervek JSON contains 77 distinct names
+and zero Oracle-ID values. No Drive write or name-to-ID promotion occurred.
 
 The required per-identity fields remain separate:
 

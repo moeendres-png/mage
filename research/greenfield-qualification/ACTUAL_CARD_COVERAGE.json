@@ -2,8 +2,8 @@
   "schema": "commander-simulator-next.actual-card-coverage.closeout-v2",
   "status": "INSUFFICIENT_EVIDENCE",
   "current_assessment_revision": {
-    "source_head": "0ea93d09d80e5c126eccb3323b17f14542e5559a",
-    "source_tree": "64c97a207ad270fa398682c84d8dd238811a8b79"
+    "source_head": "5897a196405e6fc1743f41b4d5f9bf6367884930",
+    "source_tree": "7d2ed2c97fc3579561c9166110f61a757cd88ca9"
   },
   "data_materialization_provenance": {
     "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
@@ -24,6 +24,14 @@
     "computed_oracle_id_count": 0,
     "artifact": "ACTUAL_CARD_REQUIREMENT_UNION.json",
     "reason": "Available source files are descriptor-only and contain no materialized oracle_id rows."
+  },
+  "live_read_only_drive_recheck": {
+    "own_workbook_identity_rows": 1338,
+    "own_workbook_nonempty_oracle_id_rows": 0,
+    "kaervek_card_slots": 100,
+    "kaervek_distinct_names": 77,
+    "kaervek_oracle_id_values": 0,
+    "name_based_resolution_performed": false
   },
   "per_identity_flags": ["PRESENT", "LOADABLE", "EXECUTABLE", "DECISION_COMPLETE", "HIDDEN_INFO_SAFE", "REPLAY_SAFE", "behavioral_evidence"],
   "coverage_counts": {"full": "NOT_COMPUTABLE", "partial": "NOT_COMPUTABLE", "unknown": "NOT_COMPUTABLE", "unsupported": "NOT_COMPUTABLE"},

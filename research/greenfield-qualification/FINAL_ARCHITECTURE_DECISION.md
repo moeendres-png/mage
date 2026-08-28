@@ -18,17 +18,18 @@ Forge remains the current Rules Core hypothesis. At exact pin
 `8c7e9afb…`, the research patch establishes a server-side typed entity
 selection boundary with authoritative Player/Card/entity options, typed
 response validation, monotonic tokens, principal scope, and no GUI/AI/default
-fallback. The same patch now redacts hidden CardViews per client across full
+fallback. A Java-executed validator and metadata-only Decision-Tape contract
+also pass at the exact pin. The same patch now redacts hidden CardViews per client across full
 state, deltas, events, and visibility transitions; current decoded 2P transport
 testing saw zero hidden card names.
 
 ## Why this is not a freeze
 
-The exact current strict run (`33152614647`) proves the entity seam and a
-server-mapped discrete facade at static/compile level, but only three directly
-routed controller entry points. The remaining 106 of 109 callbacks and all 15
-blocking GUI decision paths lack a runtime-qualified typed request/response
-contract. The current runtime run (`33152614679`) also contains no canonical
+The exact current strict run (`33155888019`) proves the entity seam, a
+server-mapped discrete facade, the validator, and the metadata-only tape. The
+static census classifies all 109 controller callbacks and all 15 blocking GUI
+methods, but the remaining 106 callback paths still lack full runtime-qualified
+typed request/response coverage. The current runtime run (`33155888017`) also contains no canonical
 state, RNG, or Decision-Tape streams, and the 1,721 actual-card requirement
 union is still missing materialized Oracle IDs.
 

@@ -6,15 +6,15 @@ Status: **FAIL — no architecture freeze**.
 
 ## Current qualification revision
 
-- Research revision: `34036a2d6704c0b70c0a59d071bc938870db0c2b`
-- Research tree: `33e3968b35fc5cd2967f12d8f57c4b7ebab2d21f`
+- Research revision: `5897a196405e6fc1743f41b4d5f9bf6367884930`
+- Research tree: `7d2ed2c97fc3579561c9166110f61a757cd88ca9`
 - Forge pin: `8c7e9afb8e6caee88644b94e25da5852e36f8928`
 - Forge unpatched head tree: `c634b817e037c4531051859f7d00805ffd74931e`
-- Patch SHA-256: `42ff6d7301287af90b3c5b1ba9d809d78f19018d80f4a8ba5b0eeacad0d1e581`
+- Patch SHA-256: `190e2fdacfc24903589164d031072daf87573111b0f8a738e31a6005a71ce476`
 
-The current remote strict-boundary qualification is run `33152614647`,
-artifact `9678342430`, SHA-256
-`1cf3fb821bae89ebc4761c412a7609862179698c1de2d862ad2219c9d49fbe67`.
+The current remote strict-boundary qualification is run `33155888019`,
+artifact `9679614525`, SHA-256
+`7e7158b43da45691faeefd13547e7113e268642d11a2fe27d8af61685e2ac96b`.
 Its workflow completed successfully while the qualification gate correctly
 reported `FAIL`.
 

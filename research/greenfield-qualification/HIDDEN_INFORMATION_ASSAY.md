@@ -6,8 +6,8 @@ At current research revision `34036a2d…` the Forge transport red-team
 completed successfully at the exact Forge pin. The remote client decoded zero
 hidden card names while receiving a full `GameView` and subsequent
 `DeltaPacket`s for distinct Mountain/Forest decks. The evidence is GitHub run
-`33152614611`, artifact `9678348191`, SHA-256
-`126f4062334510582b7fc9eaace074e3568b3805397334a1d8fc88f0d1ca23c8`.
+`33155887970`, artifact `9679616053`, SHA-256
+`161dd60187f5135580a18117a25585c22bc7af3fea7b550ab398bd176c9b9180`.
 
 The correction is server-side and per-client: the initial full-state object
 stream, delta property maps, and wrapped game events are all redacted using

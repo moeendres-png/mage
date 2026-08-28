@@ -15,14 +15,14 @@ Commander-Lab checkout as a Rules Core source.
 
 ## Exact current evidence
 
-- Qualification revision/tree: `34036a2d6704c0b70c0a59d071bc938870db0c2b` /
-  `33e3968b35fc5cd2967f12d8f57c4b7ebab2d21f`.
+- Qualification revision/tree: `5897a196405e6fc1743f41b4d5f9bf6367884930` /
+  `7d2ed2c97fc3579561c9166110f61a757cd88ca9`.
 - Forge pin: `8c7e9afb8e6caee88644b94e25da5852e36f8928`.
-- Strict patch SHA-256: `42ff6d7301287af90b3c5b1ba9d809d78f19018d80f4a8ba5b0eeacad0d1e581`.
-- Current strict gate: run `33152614647`, artifact `9678342430`, gate `FAIL`.
-- Current hidden-transport assay: run `33152614611`, artifact `9678348191`,
+- Strict patch SHA-256: `190e2fdacfc24903589164d031072daf87573111b0f8a738e31a6005a71ce476`.
+- Current strict gate: run `33155888019`, artifact `9679614525`, gate `FAIL`.
+- Current hidden-transport assay: run `33155887970`, artifact `9679616053`,
   0 decoded identity leaks in the scoped 2P test.
-- Current replay failure: run `33152614679`, artifact `9678412031`, missing
+- Current replay failure: run `33155888017`, artifact `9679680835`, missing
   canonical state/RNG/decision streams in all three fresh processes.
 
 ## Completed without repeating historical work
@@ -35,19 +35,23 @@ Commander-Lab checkout as a Rules Core source.
    facade, with explicit negative-response validation and no
    GUI/AI/first/random/default/pass/cancel fallback. The facade remains
    static/compile-only and is not runtime-qualified.
-4. Current static census: 109 controller callbacks, 15 blocking GUI decisions,
-   3 directly exported, 106 remaining.
-5. Versioned Decision/RNG/State/Tape schemas, semantic replay validator, A–T,
+4. Current static census: all 109 controller callbacks and all 15 blocking GUI
+   decisions classified. The direct authoritative entity seam covers 3 entry
+   points; 106 remain outside full runtime externalization.
+5. Java-executed validator contract and metadata-only server Decision-Tape
+   contract, including accepted, stale, foreign actor/principal, malformed,
+   missing, timeout, illegal-option, and consumed-token rejection evidence.
+6. Versioned Decision/RNG/State/Tape schemas, semantic replay validator, A–T,
    C01–C22, card-coverage, differential, isolation, and license artifacts.
-6. Per-client hidden-card redaction in full state, deltas, events, and
+7. Per-client hidden-card redaction in full state, deltas, events, and
    visibility transitions; current raw decoded transport name-leak count is 0.
-7. Current 2P–5P CLI probe executions, including a successful 4P CLI probe;
+8. Current 2P–5P CLI probe executions, including a successful 4P CLI probe;
    these are not semantic replay or Decision-Tape evidence.
 
 ## Required next work — no substitutions allowed
 
-1. Replace the remaining 106 callback paths and 15 blocking GUI decision
-   paths with typed server-owned requests, or prove a path is structurally
+1. Replace the remaining runtime-unqualified callback paths with typed
+   server-owned requests, or prove a path is structurally
    non-discretionary and unreachable in the bounded 2P–5P Commander scope.
    A generic `UNSUPPORTED_DECISION_PATH` is a fail-closed diagnostic, not
    production coverage.

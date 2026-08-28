@@ -4,35 +4,37 @@
   "qualification_revision": {
     "repository": "moeendres-png/mage",
     "branch": "research/greenfield-engine-shootout-20260827",
-    "source_head": "34036a2d6704c0b70c0a59d071bc938870db0c2b",
-    "source_tree": "33e3968b35fc5cd2967f12d8f57c4b7ebab2d21f",
+    "source_head": "5897a196405e6fc1743f41b4d5f9bf6367884930",
+    "source_tree": "7d2ed2c97fc3579561c9166110f61a757cd88ca9",
     "starting_research_input_head": "7f843a29808c086f960128585b49bb18a7ec381a",
     "starting_research_input_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
   },
   "external_pins": {
     "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
     "forge_head_tree": "c634b817e037c4531051859f7d00805ffd74931e",
-    "strict_patch_sha256": "42ff6d7301287af90b3c5b1ba9d809d78f19018d80f4a8ba5b0eeacad0d1e581"
+    "strict_patch_sha256": "190e2fdacfc24903589164d031072daf87573111b0f8a738e31a6005a71ce476"
   },
   "runs": {
     "strict_decision_boundary": {
-      "run": 33152614647,
+      "run": 33155888019,
       "workflow_conclusion": "success",
       "artifact": {
-        "id": 9678342430,
+        "id": 9679614525,
         "name": "greenfield-forge-strict-typed-decision-boundary",
-        "sha256": "1cf3fb821bae89ebc4761c412a7609862179698c1de2d862ad2219c9d49fbe67"
+        "sha256": "7e7158b43da45691faeefd13547e7113e268642d11a2fe27d8af61685e2ac96b"
       },
       "qualification_gate": "FAIL",
-      "reason": "The entity seam and server-mapped discrete facade pass static/compile qualification, but only 3 of 109 controller callbacks are directly routed through the authoritative entity seam; all 15 blocking GUI paths and the runtime Decision-Tape remain unqualified."
+      "java_runtime_validator_contract": "PASS",
+      "decision_tape_contract": "PASS",
+      "reason": "The validator and metadata-only Decision-Tape contracts execute successfully and all 109 controller plus 15 blocking GUI methods have static classifications, but 106 controller paths and the full-game Decision-Tape remain runtime-unqualified."
     },
     "hidden_information_raw_transport": {
-      "run": 33152614611,
+      "run": 33155887970,
       "workflow_conclusion": "success",
       "artifact": {
-        "id": 9678348191,
+        "id": 9679616053,
         "name": "greenfield-forge-hidden-info-redteam",
-        "sha256": "126f4062334510582b7fc9eaace074e3568b3805397334a1d8fc88f0d1ca23c8"
+        "sha256": "161dd60187f5135580a18117a25585c22bc7af3fea7b550ab398bd176c9b9180"
       },
       "scenario": "2P host/remote decoded GameView and DeltaPacket transport with distinct Mountain/Forest decks",
       "raw_hidden_identity_leak_count": 0,
@@ -41,26 +43,42 @@
       "qualification_gate": "PARTIAL_PASS"
     },
     "decision_census_and_rng_inventory": {
-      "run": 33152614624,
+      "run": 33155888005,
       "workflow_conclusion": "success",
       "artifact": {
-        "id": 9678318483,
+        "id": 9679578243,
         "name": "greenfield-forge-census-rng",
-        "sha256": "bf9be7008c4f14764ec04c624d5451d7147b61296fe7f27a02f863ed7b630f2f"
+        "sha256": "cf9f8f0db9edd85926990e07a5f89646ef006656cff32a9e2a87885faf20296d"
       },
       "controller_callbacks": 109,
       "blocking_gui_decisions": 15,
       "stock_forbidden_fallbacks": 10,
       "rules_game_direct_rng_bypasses": 8,
-      "qualification_gate": "FAIL"
+      "controller_static_census_complete": true,
+      "blocking_gui_static_census_complete": true,
+      "controller_static_classification_counts": {
+        "TYPED_EXTERNALIZED_STATIC": 37,
+        "DELEGATES_TO_TYPED_EXTERNAL_STATIC": 5,
+        "EXPLICITLY_REJECTED_STATIC": 12,
+        "GUI_ADAPTER_DEPENDENT_STATIC": 27,
+        "STRICT_GUARD_UNCLASSIFIED": 4,
+        "LEGACY_PATH_UNCLASSIFIED": 24
+      },
+      "blocking_gui_static_classification_counts": {
+        "TYPED_EXTERNALIZED_STATIC": 8,
+        "EXPLICITLY_REJECTED_STATIC": 6,
+        "FAIL_CLOSED_DEFAULT_STATIC": 1
+      },
+      "static_census_gate": "PASS",
+      "runtime_gate": "FAIL"
     },
     "runtime_probe_and_semantic_replay": {
-      "run": 33152614679,
+      "run": 33155888017,
       "workflow_conclusion": "failure",
       "artifact": {
-        "id": 9678412031,
+        "id": 9679680835,
         "name": "greenfield-forge-runtime-rerun",
-        "sha256": "6798a2841e45e8b9aada2411d1739280dba507ad769d075a84598cf3e189a8de"
+        "sha256": "f4f39d4855b62d3c5378f98333989d8991b297d056cf1744deb7f1c083e44b83"
       },
       "cli_probe_results": {
         "2P": "PASS",
