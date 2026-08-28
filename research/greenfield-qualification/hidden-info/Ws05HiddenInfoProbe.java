@@ -37,6 +37,7 @@ public final class Ws05HiddenInfoProbe {
     private static final AtomicLong crossPrincipalDecisionLeaks = new AtomicLong();
     private static final AtomicLong decisionPayloadLeaks = new AtomicLong();
     private static final AtomicLong replayLeaks = new AtomicLong();
+    private static final AtomicLong logLeaks = new AtomicLong();
     private static final AtomicLong exceptionLeaks = new AtomicLong();
     private static final AtomicLong debugLeaks = new AtomicLong();
     private static final AtomicLong identityBearingIdHashLeaks = new AtomicLong();
@@ -61,8 +62,9 @@ public final class Ws05HiddenInfoProbe {
 
     public static void reset() {
         transportLeaks.set(0); crossPrincipalDecisionLeaks.set(0); decisionPayloadLeaks.set(0);
-        replayLeaks.set(0); exceptionLeaks.set(0); debugLeaks.set(0); identityBearingIdHashLeaks.set(0);
-        faceDownHiddenSamples.set(0); decodedTransportSamples.set(0); decisionRequests.set(0); replayEvents.set(0);
+        replayLeaks.set(0); logLeaks.set(0); exceptionLeaks.set(0); debugLeaks.set(0);
+        identityBearingIdHashLeaks.set(0); faceDownHiddenSamples.set(0); decodedTransportSamples.set(0);
+        decisionRequests.set(0); replayEvents.set(0);
         seenClients.clear(); principalRequestCounts.clear(); phaseSamples.clear(); phaseMismatches.clear();
         bufferedDecisionPayloads.clear(); bufferedReplayPayloads.clear(); leakExamples.clear();
         phase = "BOOT"; phaseTargetId = -1; expectedVisibleClients = Collections.emptySet();
@@ -167,9 +169,18 @@ public final class Ws05HiddenInfoProbe {
                             example("transport:" + source + ":client=" + clientName + ":zone=" + zone + ":phase=" + phase);
                         }
                         if (card.isFaceDown() && !authorized) faceDownHiddenSamples.incrementAndGet();
-                        if (!authorized && containsSecret(card.toString())) {
-                            debugLeaks.incrementAndGet();
-                            example("debug-string:" + source + ":client=" + clientName + ":phase=" + phase);
+                        if (!authorized) {
+                            String rendered = String.valueOf(card);
+                            if (containsSecret(rendered)) {
+                                debugLeaks.incrementAndGet();
+                                example("debug-string:" + source + ":client=" + clientName + ":phase=" + phase);
+                            }
+                            String logPayload = source + "|client=" + clientName + "|owner=" + owner.getName()
+                                    + "|zone=" + zone + "|card=" + rendered;
+                            if (containsSecret(logPayload)) {
+                                logLeaks.incrementAndGet();
+                                example("principal-log:" + source + ":client=" + clientName + ":phase=" + phase);
+                            }
                         }
                         if (card.getId() == phaseTargetId) {
                             String key = phase + "|" + clientName;
@@ -267,7 +278,7 @@ public final class Ws05HiddenInfoProbe {
     }
 
     public static long pilotVisibleLeaks() {
-        return transportLeaks.get() + decisionPayloadLeaks.get() + replayLeaks.get()
+        return transportLeaks.get() + decisionPayloadLeaks.get() + replayLeaks.get() + logLeaks.get()
                 + exceptionLeaks.get() + debugLeaks.get() + identityBearingIdHashLeaks.get();
     }
 
@@ -293,7 +304,8 @@ public final class Ws05HiddenInfoProbe {
                 && fullSyncs > 0 && deltas > 0 && lifecycleComplete
                 && pilotVisibleLeaks() == 0 && crossPrincipalLeaks() == 0
                 && phaseMismatchCount() == 0 && faceDownSamples() > 0
-                && transportSamples() > 0 && requestCount() > 0 && replayCount() > 0;
+                && transportSamples() > 0 && requestCount() > 0 && replayCount() > 0
+                && principalCounts.size() == 4 && principalCounts.values().stream().allMatch(v -> v > 0);
 
         String json = "{\n"
                 + "  \"schema\": \"commander-simulator-next.ws05-hidden-info-runtime.v1\",\n"
@@ -312,6 +324,7 @@ public final class Ws05HiddenInfoProbe {
                 + "  \"transport_leaks\": " + transportLeaks.get() + ",\n"
                 + "  \"decision_payload_leaks\": " + decisionPayloadLeaks.get() + ",\n"
                 + "  \"replay_surface_leaks\": " + replayLeaks.get() + ",\n"
+                + "  \"log_surface_leaks\": " + logLeaks.get() + ",\n"
                 + "  \"exception_surface_leaks\": " + exceptionLeaks.get() + ",\n"
                 + "  \"debug_surface_leaks\": " + debugLeaks.get() + ",\n"
                 + "  \"identity_bearing_id_hash_leaks\": " + identityBearingIdHashLeaks.get() + ",\n"
