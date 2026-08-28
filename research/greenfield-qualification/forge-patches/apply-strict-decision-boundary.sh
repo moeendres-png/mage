@@ -22,6 +22,10 @@ ws01_patcher="$patch_dir/apply-ws01-full-decision-boundary.py"
 if [[ -f "$ws01_patcher" ]]; then
   python3 "$ws01_patcher" "$forge_root"
 fi
+ws01_compile_fixes="$patch_dir/apply-ws01-compile-fixes.py"
+if [[ -f "$ws01_compile_fixes" ]]; then
+  python3 "$ws01_compile_fixes" "$forge_root"
+fi
 ws01_test_patcher="$patch_dir/apply-ws01-full-game-test.py"
 if [[ -f "$ws01_test_patcher" ]]; then
   python3 "$ws01_test_patcher" "$forge_root"
