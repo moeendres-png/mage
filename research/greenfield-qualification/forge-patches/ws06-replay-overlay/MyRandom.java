@@ -9,8 +9,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Forge random wrapper plus WS06 process-isolated game-scoped deterministic
- * streams. Legacy callers retain the stock provider. Rules/game callers in
- * the WS06 overlay are rewritten to the named-stream overload.
+ * streams. Legacy callers retain the stock provider only outside an active
+ * strict WS06 game scope. Decision-relevant in-game callers must use an
+ * explicit named-stream overload.
  */
 public class MyRandom {
     private static Random random = new SecureRandom();
@@ -175,6 +176,9 @@ public class MyRandom {
     }
 
     public static Random getRandom() {
+        if (Boolean.getBoolean("forge.ws06.strictGameRng") && activeScope() != null) {
+            throw new IllegalStateException("WS06 unnamed RNG used while a strict game RNG scope is active");
+        }
         return random;
     }
 
