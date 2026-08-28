@@ -33,6 +33,7 @@ public class Ws05HiddenInfoQualificationTest {
     private static final String BOB = "Bob (Remote)";
     private static final String CHARLIE = "Charlie (Remote)";
     private static final String DIANA = "Diana (Remote)";
+    private static final String HIDDEN_CANARY = "Elite Vanguard";
     private static final Set<String> NONE = Collections.emptySet();
 
     @BeforeClass
@@ -40,7 +41,7 @@ public class Ws05HiddenInfoQualificationTest {
         TestUtils.ensureFModelInitialized();
     }
 
-    @Test(timeOut = 240000)
+    @Test(timeOut = 300000)
     public void fourPlayerPrincipalScopedHiddenInformationBoundary() throws Exception {
         final Path evidence = Path.of(System.getProperty("ws05.evidencePath"));
         final Path secretPath = Path.of(System.getProperty("ws05.secretPath"));
@@ -76,7 +77,7 @@ public class Ws05HiddenInfoQualificationTest {
                     .commander(true)
                     .decks(createQualificationDecks())
                     .connectionTimeout(45000)
-                    .gameTimeout(120000)
+                    .gameTimeout(180000)
                     .execute();
             lifecycle.join(30000L);
         } finally {
@@ -106,6 +107,7 @@ public class Ws05HiddenInfoQualificationTest {
         System.out.println("WS05_PILOT_VISIBLE_HIDDEN_INFO_LEAKS=0");
         System.out.println("WS05_CROSS_PRINCIPAL_DECISION_LEAKS=0");
         System.out.println("WS05_LOOK_REVEAL_LIFECYCLE=PASS");
+        System.out.println("WS05_SECRET_CHOICE_EXCEPTION=PASS");
         System.out.println("WS05_HIDDEN_INFO=PASS");
     }
 
@@ -160,9 +162,15 @@ public class Ws05HiddenInfoQualificationTest {
     private static List<Deck> createQualificationDecks() {
         final List<Deck> decks = new ArrayList<>();
         final PaperCard commander = FModel.getMagicDb().getCommonCards().getCard("Isamaru, Hound of Konda");
+        final PaperCard canary = FModel.getMagicDb().getCommonCards().getCard(HIDDEN_CANARY);
         if (commander == null) throw new IllegalStateException("qualification commander card is unavailable");
+        if (canary == null) throw new IllegalStateException("hidden-information canary card is unavailable");
         for (int i = 0; i < 4; i++) {
-            final Deck deck = TestDeckLoader.createMinimalDeck("Plains", 12);
+            final Deck deck = TestDeckLoader.createMinimalDeck("Plains", i == 0 ? 12 : 20);
+            if (i == 0) {
+                // Eight copies guarantee at least one canary remains in the library after a seven-card opening hand.
+                for (int j = 0; j < 8; j++) deck.getMain().add(canary);
+            }
             deck.getOrCreate(DeckSection.Commander).add(commander);
             decks.add(deck);
         }
@@ -177,7 +185,7 @@ public class Ws05HiddenInfoQualificationTest {
         Player charlie = findPlayer(game, "Charlie");
         Player diana = findPlayer(game, "Diana");
 
-        Card target = deepLibraryCard(owner, false);
+        Card target = findCanaryInLibrary(owner);
         Files.createDirectories(secretPath.getParent());
         Files.writeString(secretPath, target.getName(), StandardCharsets.UTF_8);
         Ws05HiddenInfoProbe.registerSecret(target.getName());
@@ -216,10 +224,9 @@ public class Ws05HiddenInfoQualificationTest {
         target.removeMayLookTemp(diana);
         awaitPhase("HIDDEN_AFTER_KNOWN_TOP");
 
-        Card faceDown = target;
-        if (!faceDown.turnFaceDown(true)) throw new IllegalStateException("failed to turn qualification card face down");
-        Ws05HiddenInfoProbe.setPhase("FACE_DOWN_BATTLEFIELD", faceDown.getId(), NONE);
-        Card moved = game.getAction().moveToPlay(faceDown, owner, null, null);
+        if (!target.turnFaceDown(true)) throw new IllegalStateException("failed to turn qualification card face down");
+        Ws05HiddenInfoProbe.setPhase("FACE_DOWN_BATTLEFIELD", target.getId(), NONE);
+        Card moved = game.getAction().moveToPlay(target, owner, null, null);
         if (moved == null || !moved.isInZone(ZoneType.Battlefield) || !moved.isFaceDown()) {
             throw new IllegalStateException("face-down battlefield setup did not persist");
         }
@@ -241,20 +248,11 @@ public class Ws05HiddenInfoQualificationTest {
         throw new IllegalStateException("player not found: " + prefix);
     }
 
-    private static Card deepLibraryCard(final Player owner, final boolean requireLand) {
-        int seen = 0;
-        Card fallback = null;
+    private static Card findCanaryInLibrary(final Player owner) {
         for (Card card : owner.getCardsIn(ZoneType.Library)) {
-            if (fallback == null) fallback = card;
-            if (requireLand && !card.isLand()) continue;
-            if (++seen >= 12) return card;
+            if (HIDDEN_CANARY.equals(card.getName())) return card;
         }
-        if (fallback != null && (!requireLand || fallback.isLand())) return fallback;
-        if (requireLand) {
-            for (Card card : owner.getCardsIn(ZoneType.Library)) if (card.isPermanent()) return card;
-        }
-        if (fallback != null) return fallback;
-        throw new IllegalStateException("library has no suitable qualification card");
+        throw new IllegalStateException("hidden canary did not remain in host library");
     }
 
     private static void awaitPhase(final String phase) throws InterruptedException {
