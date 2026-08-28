@@ -11,6 +11,8 @@ import forge.gamemodes.match.input.ExternalDecisionRequest;
 import forge.gamemodes.match.input.ExternalDecisionResponse;
 import forge.gamemodes.match.input.ExternalDecisionTape;
 import forge.gamemodes.match.input.ExternalDecisionValidationException;
+import forge.gamemodes.net.server.FServerManager;
+import forge.gamemodes.net.server.RemoteClient;
 import forge.item.PaperCard;
 import forge.model.FModel;
 import forge.player.PlayerControllerHuman;
@@ -292,6 +294,22 @@ public class Ws05HiddenInfoQualificationTest {
 
         private void establish(final String phase, final Set<String> visibleClients) {
             Ws05HiddenInfoProbe.setPhase(phase, target.getId(), visibleClients);
+            flushPrincipalViews();
+        }
+
+        /**
+         * RemoteClientGuiGame.updateGameView() is explicitly the game-thread-only server-side projection sync.
+         * Calling it at the authoritative decision boundary makes each lifecycle state observable immediately
+         * without sleeps, client-side filtering, or mutation from a second thread.
+         */
+        private void flushPrincipalViews() {
+            final FServerManager server = FServerManager.getInstance();
+            for (int slot = 1; slot <= 3; slot++) {
+                final RemoteClient client = server.getClientBySlotIndex(slot);
+                if (client != null && client.getGui() != null) {
+                    client.getGui().updateGameView();
+                }
+            }
         }
 
         private Throwable failure() {
