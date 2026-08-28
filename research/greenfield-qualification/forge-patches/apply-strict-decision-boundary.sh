@@ -22,6 +22,10 @@ ws01_patcher="$patch_dir/apply-ws01-full-decision-boundary.py"
 if [[ -f "$ws01_patcher" ]]; then
   python3 "$ws01_patcher" "$forge_root"
 fi
+ws01_test_patcher="$patch_dir/apply-ws01-full-game-test.py"
+if [[ -f "$ws01_test_patcher" ]]; then
+  python3 "$ws01_test_patcher" "$forge_root"
+fi
 
 echo "STRICT_DECISION_PATCH_APPLIED=TRUE"
 echo "FORGE_PIN=$actual_pin"
