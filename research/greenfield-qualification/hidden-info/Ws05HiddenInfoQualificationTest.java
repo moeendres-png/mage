@@ -1,5 +1,7 @@
 package forge.net;
 
+import forge.deck.Deck;
+import forge.deck.DeckSection;
 import forge.game.Game;
 import forge.game.card.Card;
 import forge.game.player.Player;
@@ -9,6 +11,8 @@ import forge.gamemodes.match.input.ExternalDecisionRequest;
 import forge.gamemodes.match.input.ExternalDecisionResponse;
 import forge.gamemodes.match.input.ExternalDecisionTape;
 import forge.gamemodes.match.input.ExternalDecisionValidationException;
+import forge.item.PaperCard;
+import forge.model.FModel;
 import forge.player.PlayerControllerHuman;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
@@ -36,7 +40,7 @@ public class Ws05HiddenInfoQualificationTest {
         TestUtils.ensureFModelInitialized();
     }
 
-    @Test(timeOut = 360000)
+    @Test(timeOut = 240000)
     public void fourPlayerPrincipalScopedHiddenInformationBoundary() throws Exception {
         final Path evidence = Path.of(System.getProperty("ws05.evidencePath"));
         final Path secretPath = Path.of(System.getProperty("ws05.secretPath"));
@@ -70,8 +74,9 @@ public class Ws05HiddenInfoQualificationTest {
                     .remoteClients(3)
                     .useAiForRemotePlayers(false)
                     .commander(true)
+                    .decks(createQualificationDecks())
                     .connectionTimeout(45000)
-                    .gameTimeout(300000)
+                    .gameTimeout(120000)
                     .execute();
             lifecycle.join(30000L);
         } finally {
@@ -110,6 +115,7 @@ public class Ws05HiddenInfoQualificationTest {
             case "MULLIGAN" -> selected.add(requireSemantic(request, "true"));
             case "PRIORITY_ACTION" -> selected.add(requireSemantic(request, "PASS_PRIORITY"));
             case "STARTING_PLAYER", "STARTING_HAND" -> selected.add(lowestOptionId(request));
+            case "MAX_HAND_SIZE_DISCARD" -> selectLowestExact(request, selected);
             default -> throw new ExternalDecisionValidationException(
                     ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
                     "WS05 pilot has no explicit policy for " + request.getDecisionKind());
@@ -139,6 +145,30 @@ public class Ws05HiddenInfoQualificationTest {
         return best;
     }
 
+    private static void selectLowestExact(final ExternalDecisionRequest request, final List<String> selected) {
+        final List<ExternalDecisionRequest.Option> ordered = new ArrayList<>(request.getOptions());
+        ordered.sort(java.util.Comparator.comparing(ExternalDecisionRequest.Option::getOptionId));
+        final int count = request.getMinimumSelection();
+        if (count < 0 || count > ordered.size() || count != request.getMaximumSelection()) {
+            throw new ExternalDecisionValidationException(
+                    ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
+                    "WS05 qualification policy requires exact cardinality for " + request.getDecisionKind());
+        }
+        for (int i = 0; i < count; i++) selected.add(ordered.get(i).getOptionId());
+    }
+
+    private static List<Deck> createQualificationDecks() {
+        final List<Deck> decks = new ArrayList<>();
+        final PaperCard commander = FModel.getMagicDb().getCommonCards().getCard("Isamaru, Hound of Konda");
+        if (commander == null) throw new IllegalStateException("qualification commander card is unavailable");
+        for (int i = 0; i < 4; i++) {
+            final Deck deck = TestDeckLoader.createMinimalDeck("Plains", 12);
+            deck.getOrCreate(DeckSection.Commander).add(commander);
+            decks.add(deck);
+        }
+        return decks;
+    }
+
     private static void exerciseVisibilityLifecycle(final Path secretPath) throws Exception {
         Assert.assertTrue(Ws05HiddenInfoProbe.awaitRemoteClients(3, 45000), "three remote principal views required");
         Game game = awaitGame(45000L);
@@ -152,54 +182,48 @@ public class Ws05HiddenInfoQualificationTest {
         Files.writeString(secretPath, target.getName(), StandardCharsets.UTF_8);
         Ws05HiddenInfoProbe.registerSecret(target.getName());
 
-        // Baseline hidden library state. Toggling host-only look permission forces a delta to all clients.
         Ws05HiddenInfoProbe.setPhase("HIDDEN_BASE", target.getId(), NONE);
         target.addMayLookTemp(owner);
+        awaitPhase("HIDDEN_BASE");
         target.removeMayLookTemp(owner);
-        pause();
 
-        // Private look: exactly one remote principal is entitled.
         Ws05HiddenInfoProbe.setPhase("PRIVATE_LOOK", target.getId(), Set.of(BOB));
         target.addMayLookTemp(bob);
-        pause();
+        awaitPhase("PRIVATE_LOOK");
         Ws05HiddenInfoProbe.setPhase("HIDDEN_AFTER_LOOK", target.getId(), NONE);
         target.removeMayLookTemp(bob);
-        pause();
+        awaitPhase("HIDDEN_AFTER_LOOK");
 
-        // Reveal: all remote principals receive identity, then server-side re-hide replaces it.
         long revealTimestamp = game.getNextTimestamp();
         Ws05HiddenInfoProbe.setPhase("PUBLIC_REVEAL", target.getId(), Set.of(BOB, CHARLIE, DIANA));
         target.addMayLookAt(revealTimestamp, game.getPlayers());
-        pause();
+        awaitPhase("PUBLIC_REVEAL");
         Ws05HiddenInfoProbe.setPhase("HIDDEN_AFTER_REVEAL", target.getId(), NONE);
         target.removeMayLookAt(revealTimestamp);
-        pause();
+        awaitPhase("HIDDEN_AFTER_REVEAL");
 
-        // Private-search visibility uses the same authoritative Card visibility primitive, but another principal.
         Ws05HiddenInfoProbe.setPhase("PRIVATE_SEARCH", target.getId(), Set.of(CHARLIE));
         target.addMayLookTemp(charlie);
-        pause();
+        awaitPhase("PRIVATE_SEARCH");
         Ws05HiddenInfoProbe.setPhase("HIDDEN_AFTER_SEARCH", target.getId(), NONE);
         target.removeMayLookTemp(charlie);
-        pause();
+        awaitPhase("HIDDEN_AFTER_SEARCH");
 
-        // Known-top/look permission to a third principal, followed by revocation.
         Ws05HiddenInfoProbe.setPhase("KNOWN_TOP", target.getId(), Set.of(DIANA));
         target.addMayLookTemp(diana);
-        pause();
+        awaitPhase("KNOWN_TOP");
         Ws05HiddenInfoProbe.setPhase("HIDDEN_AFTER_KNOWN_TOP", target.getId(), NONE);
         target.removeMayLookTemp(diana);
-        pause();
+        awaitPhase("HIDDEN_AFTER_KNOWN_TOP");
 
-        // Face-down battlefield object: turn it face down while still hidden, then move it to play.
-        Card faceDown = deepLibraryCard(owner, true);
+        Card faceDown = target;
         if (!faceDown.turnFaceDown(true)) throw new IllegalStateException("failed to turn qualification card face down");
         Ws05HiddenInfoProbe.setPhase("FACE_DOWN_BATTLEFIELD", faceDown.getId(), NONE);
         Card moved = game.getAction().moveToPlay(faceDown, owner, null, null);
         if (moved == null || !moved.isInZone(ZoneType.Battlefield) || !moved.isFaceDown()) {
             throw new IllegalStateException("face-down battlefield setup did not persist");
         }
-        pause();
+        awaitPhase("FACE_DOWN_BATTLEFIELD");
     }
 
     private static Game awaitGame(final long timeoutMs) throws Exception {
@@ -233,7 +257,16 @@ public class Ws05HiddenInfoQualificationTest {
         throw new IllegalStateException("library has no suitable qualification card");
     }
 
-    private static void pause() throws InterruptedException { Thread.sleep(1200L); }
+    private static void awaitPhase(final String phase) throws InterruptedException {
+        final long deadline = System.currentTimeMillis() + 5000L;
+        while (System.currentTimeMillis() < deadline) {
+            if (Ws05HiddenInfoProbe.phaseSampleCount(phase, BOB) > 0
+                    && Ws05HiddenInfoProbe.phaseSampleCount(phase, CHARLIE) > 0
+                    && Ws05HiddenInfoProbe.phaseSampleCount(phase, DIANA) > 0) return;
+            Thread.sleep(50L);
+        }
+        throw new IllegalStateException("missing decoded client observation for phase " + phase);
+    }
 
     private static boolean requiredLifecycleCoverage() {
         String[] phases = {
