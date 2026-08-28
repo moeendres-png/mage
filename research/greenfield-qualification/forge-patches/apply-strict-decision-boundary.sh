@@ -30,6 +30,10 @@ ws01_bridge="$patch_dir/apply-ws01-production-decision-bridge.py"
 if [[ -f "$ws01_bridge" ]]; then
   python3 "$ws01_bridge" "$forge_root"
 fi
+ws01_target_bridge="$patch_dir/apply-ws01-target-decision-bridge.py"
+if [[ -f "$ws01_target_bridge" ]]; then
+  python3 "$ws01_target_bridge" "$forge_root"
+fi
 ws01_closeout="$patch_dir/apply-ws01-full-game-closeout.py"
 if [[ -f "$ws01_closeout" ]]; then
   python3 "$ws01_closeout" "$forge_root"
