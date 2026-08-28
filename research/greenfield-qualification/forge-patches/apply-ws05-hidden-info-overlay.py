@@ -52,7 +52,9 @@ def main() -> None:
     replace_once(
         client,
         "            client.onDeltaPacketReceived(packet);",
-        "            Ws05HiddenInfoProbe.observeTransportMetadata(packet);\n"
+        "            if (packet.hasChecksum() || packet.getChecksum() != 0) {\n"
+        "                throw new AssertionError(\"WS05 principal transport exposed backend-derived checksum metadata\");\n"
+        "            }\n"
         "            Ws05HiddenInfoProbe.observe(client.username, getGameView(), \"delta:\" + packet.getSequenceNumber());\n"
         "            client.onDeltaPacketReceived(packet);",
     )
@@ -66,6 +68,7 @@ def main() -> None:
     print("WS05_HIDDEN_INFO_OVERLAY_APPLIED=TRUE")
     print("WS05_FACE_DOWN_VISIBILITY_ENFORCED=TRUE")
     print("WS05_AUTHORITATIVE_CHECKSUM_SIDECHANNEL_DISABLED=TRUE")
+    print("WS05_TRANSPORT_METADATA_ASSERTION=TRUE")
 
 
 if __name__ == "__main__":
