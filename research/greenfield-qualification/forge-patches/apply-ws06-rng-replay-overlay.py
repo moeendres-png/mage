@@ -181,6 +181,10 @@ def patch_rules_rng(root: Path) -> list[dict[str, object]]:
         text = "".join(lines)
         if text == original:
             continue
+        # Normalize pre-existing fully-qualified calls in any rewritten source.
+        # This makes the generated import decision reflect actual source usage
+        # rather than the substring "MyRandom." inside forge.util.MyRandom.
+        text = text.replace("forge.util.MyRandom.", "MyRandom.")
         if "MyRandom." in text and "import forge.util.MyRandom;" not in text and "import forge.util.*;" not in text:
             package_end = text.find("\n", text.find("package "))
             if package_end < 0:
