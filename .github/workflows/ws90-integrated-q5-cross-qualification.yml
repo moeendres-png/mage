@@ -1,0 +1,215 @@
+name: WS90 integrated Q5 cross-qualification
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - work/90-integration-cross-qualification-20260828
+    paths:
+      - '.github/workflows/ws90-integrated-q5-cross-qualification.yml'
+
+permissions:
+  contents: read
+
+env:
+  AUDIT_BASE_SHA: c0e42fb42c4a603aff4a76b1284f8271c12bfd42
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  WS07_RESULT_PATH: ${{ github.workspace }}/artifacts/ws90/raw-semantic.jsonl
+
+jobs:
+  integrated-q5:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout integrated WS90 source
+        uses: actions/checkout@v4
+        with:
+          path: qualification
+          fetch-depth: 0
+
+      - name: Record integrated source identity
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd qualification
+          git merge-base --is-ancestor "$AUDIT_BASE_SHA" HEAD
+          echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tree=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
+          mkdir -p "$GITHUB_WORKSPACE/artifacts/ws90"
+          printf 'source_head=%s\nsource_tree=%s\naudit_base_sha=%s\nforge_pin=%s\n' \
+            "$(git rev-parse HEAD)" "$(git rev-parse HEAD^{tree})" "$AUDIT_BASE_SHA" "$FORGE_PIN" \
+            > "$GITHUB_WORKSPACE/artifacts/ws90/provenance.env"
+
+      - name: Checkout exact Forge candidate pin
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Verify Forge pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+
+      - name: Apply integrated WS01 decision boundary overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash qualification/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge qualification/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee artifacts/ws90/ws01-overlay.log
+          grep -Fx 'STRICT_DECISION_PATCH_APPLIED=TRUE' artifacts/ws90/ws01-overlay.log
+
+      - name: Apply integrated WS05 hidden-information overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 qualification/research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge \
+            | tee artifacts/ws90/ws05-overlay.log
+          cp qualification/research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java \
+            forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          grep -Fx 'WS05_HIDDEN_INFO_OVERLAY_APPLIED=TRUE' artifacts/ws90/ws05-overlay.log
+
+      - name: Apply integrated WS06 RNG and semantic replay overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 qualification/research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py \
+            forge --inventory artifacts/ws90/RNG_INVENTORY.json \
+            | tee artifacts/ws90/ws06-overlay.log
+          grep -Fx 'WS06_UNCONTROLLED_DECISION_RELEVANT_RNG_PATHS=0' artifacts/ws90/ws06-overlay.log
+          git -C forge diff --stat | tee artifacts/ws90/forge-overlay-diff.stat
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: forge/pom.xml
+
+      - name: Ensure virtual display
+        shell: bash
+        run: command -v Xvfb >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y xvfb; }
+
+      - name: Inject WS07 semantic test on integrated overlay stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          src=qualification/research/greenfield-qualification/ws07/WS07MainApiConformanceTest.java
+          test -f "$src"
+          if grep -nE 'forge\.gamesimulationtests|CardDatabaseHelper|PlayerControllerForTests|LobbyPlayerForTests|BaseGameSimulationTest' "$src"; then
+            echo 'Forbidden/unavailable Forge test-helper dependency remains in WS07 harness' >&2
+            exit 1
+          fi
+          mkdir -p forge/forge-gui-desktop/src/test/java/forge/ws07
+          cp "$src" forge/forge-gui-desktop/src/test/java/forge/ws07/
+          : > "$WS07_RESULT_PATH"
+
+      - name: Run WS07 semantic conformance on integrated overlay stack
+        id: tests
+        shell: bash
+        run: |
+          set +e
+          cd forge
+          xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.ws07.WS07MainApiConformanceTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -DfailIfNoTests=false test \
+            2>&1 | tee "$GITHUB_WORKSPACE/artifacts/ws90/ws07-integrated-maven.log"
+          rc=${PIPESTATUS[0]}
+          if [ -d forge-gui-desktop/target/surefire-reports ]; then
+            cp -R forge-gui-desktop/target/surefire-reports "$GITHUB_WORKSPACE/artifacts/ws90/surefire-reports"
+          fi
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Collect fail-closed integrated semantic evidence
+        id: collect
+        shell: bash
+        run: |
+          set +e
+          python3 qualification/research/greenfield-qualification/ws07/collect_ws07_results.py \
+            --a-matrix qualification/research/greenfield-qualification/RULES_MATRIX_A_T.json \
+            --c-matrix qualification/research/greenfield-qualification/RULES_MATRIX_C01_C22.json \
+            --raw "$WS07_RESULT_PATH" \
+            --harness qualification/research/greenfield-qualification/ws07/WS07MainApiConformanceTest.java \
+            --source-head '${{ steps.source.outputs.head }}' \
+            --source-tree '${{ steps.source.outputs.tree }}' \
+            --forge-pin "$FORGE_PIN" \
+            --output artifacts/ws90/WS07_CONFORMANCE.integrated.json \
+            --a-output artifacts/ws90/RULES_MATRIX_A_T.integrated.json \
+            --c-output artifacts/ws90/RULES_MATRIX_C01_C22.integrated.json
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Adjudicate integrated Q5 and WS09 Forge-side facts
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path('artifacts/ws90')
+          result={
+            'schema':'commander-simulator-next.ws90.integrated-q5.v1',
+            'source_head':os.environ.get('GITHUB_SHA'),
+            'forge_pin':os.environ['FORGE_PIN'],
+            'Q5_COMMANDER_MULTIPLAYER':'NON_PASS',
+            'WS09_FORGE_SIDE_3P_PLAYER_COUNT':'NON_PASS',
+            'WS09_FORGE_SIDE_3P_STARTING_LIFE':'NON_PASS',
+          }
+          try:
+            d=json.loads((root/'WS07_CONFORMANCE.integrated.json').read_text())
+            g=d.get('gates',{})
+            q5=(d.get('status')=='PASS' and g.get('Q5_COMMANDER_MULTIPLAYER')=='PASS' and
+                g.get('all_42_authoritative_rows_semantic')=='PASS' and
+                g.get('4P_conformance_required_subset')=='PASS')
+            subset=next((r for r in d.get('auxiliary',[]) if r.get('id')=='SUBSET_3P'),None)
+            result['Q5_COMMANDER_MULTIPLAYER']='PASS' if q5 else 'NON_PASS'
+            if subset and subset.get('result')=='PASS' and subset.get('player_count')==3:
+              observed=subset.get('observed_state','')
+              result['WS09_FORGE_SIDE_3P_PLAYER_COUNT']='PASS' if 'players=3' in observed else 'NON_PASS'
+              result['WS09_FORGE_SIDE_3P_STARTING_LIFE']='PASS' if 'life=40' in observed else 'NON_PASS'
+            result['ws07_status']=d.get('status')
+            result['ws07_gates']=g
+            result['subset_3p']=subset
+          except Exception as exc:
+            result['error']=repr(exc)
+          (root/'WS90_INTEGRATED_RERUN_GATE.json').write_text(json.dumps(result,sort_keys=True,indent=2)+'\n')
+          print(json.dumps(result,sort_keys=True,indent=2))
+          PY
+          exit 0
+
+      - name: Hash integrated rerun evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd artifacts/ws90
+          find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256
+
+      - name: Upload WS90 integrated rerun evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws90-integrated-q5-${{ github.run_id }}
+          path: artifacts/ws90
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce targeted integrated rerun gate
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.tests.outputs.exit_code || '999' }}" = "0"
+          test "${{ steps.collect.outputs.exit_code || '999' }}" = "0"
+          jq -e '.Q5_COMMANDER_MULTIPLAYER == "PASS" and .WS09_FORGE_SIDE_3P_PLAYER_COUNT == "PASS" and .WS09_FORGE_SIDE_3P_STARTING_LIFE == "PASS"' \
+            artifacts/ws90/WS90_INTEGRATED_RERUN_GATE.json >/dev/null
