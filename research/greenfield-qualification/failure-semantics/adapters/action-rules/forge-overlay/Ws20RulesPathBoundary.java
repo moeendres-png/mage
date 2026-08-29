@@ -8,13 +8,16 @@ public final class Ws20RulesPathBoundary {
     private Ws20RulesPathBoundary() { }
 
     /**
-     * The caller uses this only inside the Astrotorium merged-object TODO path.
-     * The generic return type lets the Rules Core replace the old heuristic
-     * return expression without inventing a substitute game object.
+     * Exact guard called from GameAction.changeZone inside the Astrotorium
+     * zone-change branch. The Rules Core supplies the live merged-object
+     * condition; no adapter or pilot chooses a substitute resolution.
      */
-    public static <T> T unsupportedAstrotoriumMergedZoneChange(final String gameId,
-                                                               final int principalId) {
-        throw new Ws20FailureException(
-                Ws20FailureSignal.unsupportedRulesPath(gameId, principalId));
+    public static void requireSupportedAstrotoriumMergedZoneChange(final String gameId,
+                                                                   final int principalId,
+                                                                   final boolean mergedObject) {
+        if (mergedObject) {
+            throw new Ws20FailureException(
+                    Ws20FailureSignal.unsupportedRulesPath(gameId, principalId));
+        }
     }
 }
