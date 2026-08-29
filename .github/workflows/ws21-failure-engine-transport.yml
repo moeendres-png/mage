@@ -1,0 +1,197 @@
+name: WS21 engine and transport failure adapters
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - work/ws21-failure-engine-transport-20260829
+    paths:
+      - '.github/workflows/ws21-failure-engine-transport.yml'
+      - 'research/greenfield-qualification/failure-semantics/adapters/engine-transport/**'
+
+concurrency:
+  group: ws21-engine-transport-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      AUDIT_BASE_SHA: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+      AUDIT_BASE_TREE: 9a2a52932a0d69dcf06c2392cddcf40b47e810cc
+      FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+
+    steps:
+      - name: Checkout exact WS21 revision
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+
+      - name: Verify immutable base and WS21 ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual rev-parse "$AUDIT_BASE_SHA^{tree}")" = "$AUDIT_BASE_TREE"
+          test "$(git -C qual merge-base "$AUDIT_BASE_SHA" "$GITHUB_SHA")" = "$AUDIT_BASE_SHA"
+          mkdir -p evidence
+          git -C qual diff --name-only "$AUDIT_BASE_SHA...$GITHUB_SHA" | tee evidence/changed-paths.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          allowed_exact = {
+              '.github/workflows/ws21-failure-engine-transport.yml',
+              'WS21_HANDOFF.md',
+          }
+          prefix = 'research/greenfield-qualification/failure-semantics/adapters/engine-transport/'
+          bad = [p for p in Path('evidence/changed-paths.txt').read_text().splitlines()
+                 if p not in allowed_exact and not p.startswith(prefix)]
+          if bad:
+              raise SystemExit('WS21 ownership violation: ' + ', '.join(bad))
+          PY
+          {
+            echo "source_head=$(git -C qual rev-parse HEAD)"
+            echo "source_tree=$(git -C qual rev-parse 'HEAD^{tree}')"
+            echo "audit_base_sha=$AUDIT_BASE_SHA"
+            echo "audit_base_tree=$AUDIT_BASE_TREE"
+            echo "forge_pin=$FORGE_PIN"
+          } | tee evidence/provenance.env
+
+      - name: Checkout exact Forge candidate pin
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          path: forge
+          fetch-depth: 1
+
+      - name: Apply retained authoritative decision boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          bash qual/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge qual/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee evidence/ws01-overlay.log
+          grep -Fx 'STRICT_DECISION_PATCH_APPLIED=TRUE' evidence/ws01-overlay.log
+
+      - name: Apply WS12 unified outcome ABI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 qual/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py \
+            --forge-root forge | tee evidence/ws12-overlay.log
+          grep -Fx 'WS12_FORGE_OVERLAY_APPLIED=TRUE' evidence/ws12-overlay.log
+
+      - name: Apply WS21 actual-path adapters
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            qual/research/greenfield-qualification/failure-semantics/adapters/engine-transport/apply-ws21-engine-transport-overlay.py \
+            qual/research/greenfield-qualification/failure-semantics/adapters/engine-transport/qualify_ws21.py
+          python3 qual/research/greenfield-qualification/failure-semantics/adapters/engine-transport/apply-ws21-engine-transport-overlay.py \
+            forge qual | tee evidence/ws21-overlay.log
+          grep -Fx 'WS21_ENGINE_TRANSPORT_OVERLAY_APPLIED=TRUE' evidence/ws21-overlay.log
+          grep -Fx 'WS21_TRANSPORT_EXCEPTION_PRESERVED=TRUE' evidence/ws21-overlay.log
+          grep -Fx 'WS21_PROCESS_MODEL=ONE_GAME_PER_OS_PROCESS' evidence/ws21-overlay.log
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: forge/pom.xml
+
+      - name: Ensure virtual display
+        shell: bash
+        run: command -v Xvfb >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y xvfb; }
+
+      - name: Compile exact-pin Forge plus WS21 overlays
+        shell: bash
+        working-directory: forge
+        run: |
+          set -o pipefail
+          mvn -B -ntp -T 1C -pl forge-gui-desktop -am -DskipTests test-compile \
+            2>&1 | tee ../evidence/compile.log
+
+      - name: Preserve Q1 and WS12 outcome regressions
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          CP='forge-gui/target/test-classes:forge-gui/target/classes:forge-game/target/classes:forge-core/target/classes:forge-ai/target/classes'
+          java -cp "$CP" forge.gamemodes.match.input.ExternalDecisionValidatorContractTest \
+            | tee ../evidence/q1-regression.log
+          grep -Fx 'JAVA_EXTERNAL_DECISION_CONTRACT=PASS' ../evidence/q1-regression.log
+          java -cp "$CP" forge.gamemodes.match.input.Ws12FailureSemanticsContractTest \
+            | tee ../evidence/ws12-regression.log
+          grep -Fx 'WS12_JAVA_FAILURE_SEMANTICS=PASS' ../evidence/ws12-regression.log
+
+      - name: Run actual 4P process-per-game failure witnesses
+        shell: bash
+        run: |
+          set -uo pipefail
+          cd forge
+          set +e
+          xvfb-run -a mvn -B -ntp -T 1C -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws21FailureQualificationTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws21.evidenceDir="$GITHUB_WORKSPACE/evidence" \
+            test 2>&1 | tee ../evidence/runtime.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$rc" > ../evidence/test.exit
+          grep -E '^WS21_' ../evidence/runtime.log > ../evidence/runtime-markers.txt || true
+          test "$rc" -eq 0
+          grep -Fx 'WS21_ENGINE_FAILURE=PASS' ../evidence/runtime-markers.txt
+          grep -Fx 'WS21_TRANSPORT_FAILURE=PASS' ../evidence/runtime-markers.txt
+          grep -Fx 'WS21_MALFORMED_RESPONSE_DISTINCTION=PASS' ../evidence/runtime-markers.txt
+          grep -Fx 'WS21_HIDDEN_DIAGNOSTIC_LEAKS=0' ../evidence/runtime-markers.txt
+          grep -Fx 'WS21_PROCESS_PER_GAME=PASS' ../evidence/runtime-markers.txt
+
+      - name: Adjudicate WS21 only, without overall promotion
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          source evidence/provenance.env
+          python3 qual/research/greenfield-qualification/failure-semantics/adapters/engine-transport/qualify_ws21.py \
+            --evidence-root evidence \
+            --source-head "$source_head" \
+            --source-tree "$source_tree" \
+            --out-json evidence/WS21_ENGINE_TRANSPORT_GATE.json \
+            --out-md evidence/WS21_ENGINE_TRANSPORT_GATE.md \
+            | tee evidence/gate.log
+          grep -Fx 'WS21_ENGINE_FAILURE=PASS' evidence/gate.log
+          grep -Fx 'WS21_TRANSPORT_FAILURE=PASS' evidence/gate.log
+          grep -Fx 'WS21_FAILURE_SEMANTICS_PROMOTED=FALSE' evidence/gate.log
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          gate = json.loads(Path('evidence/WS21_ENGINE_TRANSPORT_GATE.json').read_text())
+          assert gate['status'] == 'PASS'
+          assert gate['ENGINE_FAILURE'] == 'PASS'
+          assert gate['TRANSPORT_FAILURE'] == 'PASS'
+          assert gate['FAILURE_SEMANTICS'] == 'NOT_PROMOTED'
+          assert gate['overall_promotion_performed'] is False
+          PY
+
+      - name: Hash WS21 evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find evidence -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > evidence/hashes.sha256 || true
+
+      - name: Upload WS21 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws21-failure-engine-transport
+          path: evidence
+          if-no-files-found: error
