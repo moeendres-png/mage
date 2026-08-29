@@ -82,37 +82,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f artifacts/ws17/WS17_WITNESSES.jsonl
-          test -f artifacts/ws17/WS17_HASHES.sha256
+          mapfile -t witness_hits < <(find artifacts/ws17 -type f -name WS17_WITNESSES.jsonl -print)
+          mapfile -t hash_hits < <(find artifacts/ws17 -type f -name WS17_HASHES.sha256 -print)
+          test "${#witness_hits[@]}" = 1
+          test "${#hash_hits[@]}" = 1
+          export WS17_WITNESSES="${witness_hits[0]}"
+          export WS17_HASHES="${hash_hits[0]}"
           python3 - <<'PY'
           from pathlib import Path
-          import hashlib
+          import hashlib, os
           root = Path('artifacts/ws17')
-          for raw in (root / 'WS17_HASHES.sha256').read_text().splitlines():
+          hash_file = Path(os.environ['WS17_HASHES'])
+          for raw in hash_file.read_text().splitlines():
               if not raw.strip():
                   continue
               expected, original = raw.split(None, 1)
               original = original.strip().lstrip('*')
-              p = Path(original)
-              candidates = [p, root / p.name]
-              marker = 'artifacts/ws17/'
-              if marker in original:
-                  candidates.append(root / original.split(marker, 1)[1])
-              existing = []
-              for candidate in candidates:
-                  if candidate.exists() and candidate not in existing:
-                      existing.append(candidate)
-              if len(existing) != 1:
-                  raise SystemExit(f'ambiguous/missing WS17 hashed file {original}: {existing}')
-              actual = hashlib.sha256(existing[0].read_bytes()).hexdigest()
+              name = Path(original).name
+              hits = sorted(p for p in root.rglob(name) if p.is_file())
+              if len(hits) != 1:
+                  raise SystemExit(f'ambiguous/missing WS17 hashed file {original}: {hits}')
+              actual = hashlib.sha256(hits[0].read_bytes()).hexdigest()
               if actual != expected:
                   raise SystemExit(f'WS17 internal hash mismatch: {original}')
-              print(f'{existing[0]}: OK')
+              print(f'{hits[0]}: OK')
           PY
           mkdir -p artifacts/ws23
           python3 qual/research/greenfield-qualification/failure-semantics/adapters/card-behavior/qualify_ws23.py \
             --contract ws12/research/greenfield-qualification/failure-semantics/outcome-contract.schema.json \
-            --witnesses artifacts/ws17/WS17_WITNESSES.jsonl \
+            --witnesses "$WS17_WITNESSES" \
             --source-head "$(git -C qual rev-parse HEAD)" \
             --source-tree "$(git -C qual rev-parse 'HEAD^{tree}')" \
             --out artifacts/ws23 | tee artifacts/ws23/qualify.log
