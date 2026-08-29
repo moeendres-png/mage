@@ -1,0 +1,262 @@
+name: WS09 Differential Rules Adjudication
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - work/ws09-differential-20260828
+    paths:
+      - '.github/workflows/ws09-differential-adjudication.yml'
+      - 'research/greenfield-qualification/ws09/**'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  differential-adjudication:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      AUDIT_BASE_SHA: c0e42fb42c4a603aff4a76b1284f8271c12bfd42
+      XMAGE_PIN: 86d86b580cd7e1f30b51110d70cecae18c1ce452
+      WS07_RUN_ID: '33244368567'
+      WS07_ARTIFACT_ID: '9712369379'
+      WS07_ARTIFACT_NAME: ws07-commander-conformance-33244368567
+    steps:
+      - name: Checkout WS09 qualification source
+        uses: actions/checkout@v4
+        with:
+          path: qualification
+          fetch-depth: 20
+
+      - name: Record qualification source identity
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd qualification
+          echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tree=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
+          git merge-base --is-ancestor "$AUDIT_BASE_SHA" HEAD
+
+      - name: Reuse and verify completed WS07 Forge evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ws07-source artifacts/ws09
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${WS07_RUN_ID}/artifacts" > artifacts/ws09/ws07-artifact-index.json
+          python3 - <<'PY'
+          import json, os
+          data=json.load(open('artifacts/ws09/ws07-artifact-index.json'))
+          rows=[a for a in data.get('artifacts',[]) if a.get('id')==int(os.environ['WS07_ARTIFACT_ID'])]
+          assert len(rows)==1, rows
+          row=rows[0]
+          assert row['name']==os.environ['WS07_ARTIFACT_NAME'], row
+          assert not row.get('expired', False), row
+          print(json.dumps({'id':row['id'],'name':row['name'],'digest':row.get('digest'),'expired':row.get('expired')},sort_keys=True))
+          PY
+          gh run download "$WS07_RUN_ID" -R "$GITHUB_REPOSITORY" -n "$WS07_ARTIFACT_NAME" -D artifacts/ws07-source
+          find artifacts/ws07-source -type f -maxdepth 3 -print | sort
+          test -n "$(find artifacts/ws07-source -name raw-semantic.jsonl -print -quit)"
+          test -n "$(find artifacts/ws07-source -name EXECUTION.json -print -quit)"
+          test -n "$(find artifacts/ws07-source -name WS07_CONFORMANCE.json -print -quit)"
+
+      - name: Checkout exact pinned XMage
+        uses: actions/checkout@v4
+        with:
+          repository: magefree/mage
+          ref: ${{ env.XMAGE_PIN }}
+          path: xmage
+          fetch-depth: 1
+
+      - name: Verify XMage pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C xmage rev-parse HEAD)" = "$XMAGE_PIN"
+
+      - name: Set up Java 17 for XMage
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: xmage/pom.xml
+
+      - name: Inject WS09 common-state XMage witness
+        shell: bash
+        run: |
+          set -euo pipefail
+          src=qualification/research/greenfield-qualification/ws09/WS09XMageSharedScenarioTest.java
+          test -f "$src"
+          mkdir -p xmage/Mage.Tests/src/test/java/org/mage/test/ws09
+          cp "$src" xmage/Mage.Tests/src/test/java/org/mage/test/ws09/
+
+      - name: Execute exactly the missing XMage state witness
+        id: xmage
+        shell: bash
+        run: |
+          set +e
+          mkdir -p artifacts/ws09
+          (cd xmage && mvn -T 1C -B -pl Mage.Tests -am \
+             -Dtest=org.mage.test.ws09.WS09XMageSharedScenarioTest \
+             -Dsurefire.failIfNoSpecifiedTests=false \
+             -Dxmage.dataCollectors.printGameLogs=false \
+             -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/xmage/.travis/log4j.properties \
+             test) > artifacts/ws09/xmage.log 2>&1
+          rc=$?
+          echo "$rc" > artifacts/ws09/xmage.exit
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          set -e
+          python3 - <<'PY'
+          import json, pathlib, xml.etree.ElementTree as ET
+          rc=int(pathlib.Path('artifacts/ws09/xmage.exit').read_text().strip())
+          report=pathlib.Path('xmage/Mage.Tests/target/surefire-reports/TEST-org.mage.test.ws09.WS09XMageSharedScenarioTest.xml')
+          tests=failures=errors=0
+          if report.exists():
+              root=ET.parse(report).getroot()
+              tests=int(root.attrib.get('tests','0'))
+              failures=int(root.attrib.get('failures','0'))
+              errors=int(root.attrib.get('errors','0'))
+          out={
+              'engine':'xmage',
+              'pin':'86d86b580cd7e1f30b51110d70cecae18c1ce452',
+              'test_class':'org.mage.test.ws09.WS09XMageSharedScenarioTest',
+              'maven_exit':rc,
+              'tests':tests,
+              'failures':failures,
+              'errors':errors,
+              'fixture_boundary':'constructed engine state before execute(); no gameplay, decisions, shuffles, or RNG',
+              'player_count':3 if rc==0 and tests==1 and failures==0 and errors==0 else None,
+              'life_totals':[40,40,40] if rc==0 and tests==1 and failures==0 and errors==0 else None
+          }
+          pathlib.Path('artifacts/ws09/xmage-witness.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+          test "$rc" -eq 0
+
+      - name: Verify current official Commander adjudication source
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --silent --show-error \
+            https://magic.wizards.com/en/formats/commander \
+            -o artifacts/ws09/official-commander.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, re
+          p=Path('artifacts/ws09/official-commander.html')
+          text=p.read_text(errors='replace')
+          normalized=re.sub(r'\s+',' ',text)
+          player_count=('3 - 5' in normalized or '3-5' in normalized or 'three or more people' in normalized)
+          starting_life=('Each player starts with 40 life' in normalized)
+          assert player_count, 'official Commander page does not expose the 3-player support witness'
+          assert starting_life, 'official Commander page does not expose the 40-life witness'
+          out={
+            'authority':'Wizards of the Coast',
+            'url':'https://magic.wizards.com/en/formats/commander',
+            'checked_date':'2026-08-29',
+            'player_count_rule_verified':player_count,
+            'starting_life_rule_verified':starting_life,
+            'sha256':hashlib.sha256(p.read_bytes()).hexdigest()
+          }
+          Path('artifacts/ws09/OFFICIAL_RULES_WITNESS.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Normalize traces and adjudicate fail closed
+        id: adjudicate
+        shell: bash
+        run: |
+          set +e
+          forge_raw=$(find artifacts/ws07-source -name raw-semantic.jsonl -print -quit)
+          forge_exec=$(find artifacts/ws07-source -name EXECUTION.json -print -quit)
+          forge_gate=$(find artifacts/ws07-source -name WS07_CONFORMANCE.json -print -quit)
+          python3 qualification/research/greenfield-qualification/ws09/differential_adjudication.py \
+            --scenarios qualification/research/greenfield-qualification/ws09/scenarios.json \
+            --forge-raw "$forge_raw" \
+            --forge-execution "$forge_exec" \
+            --forge-gate "$forge_gate" \
+            --xmage-witness artifacts/ws09/xmage-witness.json \
+            --source-head '${{ steps.source.outputs.head }}' \
+            --source-tree '${{ steps.source.outputs.tree }}' \
+            --workflow-run-id '${{ github.run_id }}' \
+            --output artifacts/ws09/DIFFERENTIAL_ADJUDICATION.json \
+            --trace-output artifacts/ws09/CANONICAL_TRACES.jsonl
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Record execution metadata
+        if: always()
+        shell: bash
+        run: |
+          cat > artifacts/ws09/EXECUTION.json <<EOF
+          {
+            "qualification_head": "${{ steps.source.outputs.head }}",
+            "qualification_tree": "${{ steps.source.outputs.tree }}",
+            "audit_base_sha": "$AUDIT_BASE_SHA",
+            "workflow_run_id": "${{ github.run_id }}",
+            "workflow_run_attempt": "${{ github.run_attempt }}",
+            "ws07_reused_run_id": "$WS07_RUN_ID",
+            "ws07_reused_artifact_id": "$WS07_ARTIFACT_ID",
+            "xmage_pin": "$XMAGE_PIN",
+            "xmage_exit_code": ${{ steps.xmage.outputs.exit_code || '999' }},
+            "adjudication_exit_code": ${{ steps.adjudicate.outputs.exit_code || '999' }}
+          }
+          EOF
+
+      - name: Print WS09 evidence
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          echo '=== DIFFERENTIAL_ADJUDICATION.json ==='
+          cat artifacts/ws09/DIFFERENTIAL_ADJUDICATION.json
+          echo '=== CANONICAL_TRACES.jsonl ==='
+          cat artifacts/ws09/CANONICAL_TRACES.jsonl
+          echo '=== OFFICIAL_RULES_WITNESS.json ==='
+          cat artifacts/ws09/OFFICIAL_RULES_WITNESS.json
+          echo '=== EXECUTION.json ==='
+          cat artifacts/ws09/EXECUTION.json
+          exit 0
+
+      - name: Upload WS09 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws09-differential-adjudication-${{ github.run_id }}
+          path: artifacts/ws09
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce Q7 hard gate
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.xmage.outputs.exit_code || '999' }}" = "0"
+          test "${{ steps.adjudicate.outputs.exit_code || '999' }}" = "0"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          out=json.loads(Path('artifacts/ws09/DIFFERENTIAL_ADJUDICATION.json').read_text())
+          assert out['status']=='PASS', out
+          assert out['workstream_complete'] is True, out
+          g=out['gates']
+          assert g['common_initial_state_contract']=='PASS', g
+          assert g['common_decision_contract']=='PASS', g
+          assert g['common_rng_contract']=='PASS', g
+          assert g['canonical_trace_contract']=='PASS', g
+          assert g['selected_shared_scenarios_executed'] is True, g
+          assert g['selected_shared_scenario_count'] >= 2, g
+          assert g['unadjudicated_meaningful_divergences']==0, g
+          assert g['majority_vote_used_as_rules_authority'] is False, g
+          assert g['Q7_DIFFERENTIAL']=='PASS', g
+          official=json.loads(Path('artifacts/ws09/OFFICIAL_RULES_WITNESS.json').read_text())
+          assert official['player_count_rule_verified'] is True, official
+          assert official['starting_life_rule_verified'] is True, official
+          PY
