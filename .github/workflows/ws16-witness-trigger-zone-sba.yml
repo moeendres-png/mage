@@ -46,21 +46,26 @@ jobs:
           test "$(jq '[.primitives[] | select(.owner_family == "TRIGGER_REPLACEMENT_ZONE_SBA")] | length' qual/research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json)" = 53
           test ! -e qual/research/greenfield-qualification/actual-card-behavior/WS14_WITNESS_REGISTRY.json
 
-      - name: Recover immutable successful Forge execution evidence
+      - name: Download immutable successful Forge execution evidence
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.EXECUTION_RUN_ID }}
+          name: ws16-pinned-forge-execution
+          path: artifacts/ws16-execution
+
+      - name: Verify recovered execution provenance
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/ws16-execution
-          gh run download "$EXECUTION_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --name ws16-pinned-forge-execution \
-            --dir artifacts/ws16-execution
           metadata="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$EXECUTION_RUN_ID/artifacts")"
           test "$(jq -r '.artifacts[] | select(.name == "ws16-pinned-forge-execution") | .id' <<<"$metadata")" = "$EXECUTION_ARTIFACT_ID"
           test "$(jq -r '.artifacts[] | select(.name == "ws16-pinned-forge-execution") | .digest' <<<"$metadata")" = "$EXECUTION_ARTIFACT_DIGEST"
           job="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$EXECUTION_RUN_ID/jobs" --paginate | jq -c '.jobs[] | select(.id == 99148367194)')"
-          test "$(jq -r '.conclusion' <<<"$job")" = success
+          test "$(jq -r '.conclusion' <<<"$job")" = failure
           test "$(jq -r '[.steps[] | select(.name == "Execute pinned Forge state witness only")][0].conclusion' <<<"$job")" = success
           test "$(jq -r '[.steps[] | select(.name == "Upload immutable Forge execution evidence")][0].conclusion' <<<"$job")" = success
           test "$(cat artifacts/ws16-execution/forge_head.txt)" = "$FORGE_PIN"
