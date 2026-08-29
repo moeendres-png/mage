@@ -36,9 +36,16 @@ public class Ws16JwarIsleRefugeWitnessTest extends AITest {
         Assert.assertTrue(refuge.isTapped(), "Moved replacement must make refuge enter tapped");
         Assert.assertEquals(player.getLife(), lifeBefore,
                 "ETB trigger must be pending, rather than resolve during zone movement");
-        Assert.assertFalse(game.getStack().isEmpty(), "ETB trigger must be placed on the stack");
+        Assert.assertTrue(game.getStack().isEmpty(), "zone movement queues the trigger before the engine collects it");
         System.out.println("WS16_TRACE event=after_move zone=Battlefield tapped=true life=" + player.getLife()
-                + " stack_nonempty=true");
+                + " stack_empty=true");
+
+        // GameAction has authoritatively detected the trigger.  As in the
+        // normal phase loop, the TriggerHandler transfers the queued trigger
+        // to the stack before priority/resolution is processed.
+        Assert.assertTrue(game.getTriggerHandler().runWaitingTriggers(), "ETB trigger must be collected by Forge");
+        Assert.assertFalse(game.getStack().isEmpty(), "collected ETB trigger must be placed on the stack");
+        System.out.println("WS16_TRACE event=trigger_collected stack_nonempty=true life=" + player.getLife());
 
         playUntilStackClear(game);
 

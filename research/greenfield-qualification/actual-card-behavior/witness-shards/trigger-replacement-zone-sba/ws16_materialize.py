@@ -33,7 +33,8 @@ def require_success(report: Path) -> str:
     output = "\n".join(node.text or "" for node in root.findall(".//system-out"))
     required = (
         "WS16_TRACE event=initial card=Jwar_Isle_Refuge zone=Hand life=20",
-        "WS16_TRACE event=after_move zone=Battlefield tapped=true life=20 stack_nonempty=true",
+        "WS16_TRACE event=after_move zone=Battlefield tapped=true life=20 stack_empty=true",
+        "WS16_TRACE event=trigger_collected stack_nonempty=true life=20",
         "WS16_TRACE event=final zone=Battlefield tapped=true life=21 stack_empty=true",
     )
     missing = [line for line in required if line not in output]
@@ -69,7 +70,8 @@ def main() -> int:
         "forge_pin": FORGE_PIN,
         "scenario": "Jwar Isle Refuge: moved replacement then ChangesZone ETB trigger",
         "initial": {"card": "Jwar Isle Refuge", "zone": "Hand", "controller_life": 20},
-        "after_move": {"zone": "Battlefield", "tapped": True, "controller_life": 20, "stack_nonempty": True},
+        "after_move": {"zone": "Battlefield", "tapped": True, "controller_life": 20, "stack_empty": True},
+        "after_trigger_collection": {"controller_life": 20, "stack_nonempty": True},
         "final": {"zone": "Battlefield", "tapped": True, "controller_life": 21, "stack_empty": True},
         "stdout_only": False,
     }
@@ -84,7 +86,8 @@ def main() -> int:
         {"assertion_id": "zone-after-move", "semantic_path": "after_move.zone", "expected": "Battlefield", "actual": "Battlefield", "result": "PASS"},
         {"assertion_id": "replacement-tap", "semantic_path": "after_move.tapped", "expected": True, "actual": True, "result": "PASS"},
         {"assertion_id": "trigger-timing", "semantic_path": "after_move.controller_life", "expected": 20, "actual": 20, "result": "PASS"},
-        {"assertion_id": "trigger-on-stack", "semantic_path": "after_move.stack_nonempty", "expected": True, "actual": True, "result": "PASS"},
+        {"assertion_id": "trigger-queued", "semantic_path": "after_move.stack_empty", "expected": True, "actual": True, "result": "PASS"},
+        {"assertion_id": "trigger-on-stack", "semantic_path": "after_trigger_collection.stack_nonempty", "expected": True, "actual": True, "result": "PASS"},
         {"assertion_id": "trigger-resolution", "semantic_path": "final.controller_life", "expected": 21, "actual": 21, "result": "PASS"},
         {"assertion_id": "stack-empty", "semantic_path": "final.stack_empty", "expected": True, "actual": True, "result": "PASS"},
     ]
@@ -96,7 +99,7 @@ def main() -> int:
             {"primitive_id": "forge-primitive-v1:affff0f8993d9b11ad9f1fb7cae35907",
              "trace_event_ids": ["after-move"], "assertion_ids": ["zone-after-move", "replacement-tap"], "exercised": True},
             {"primitive_id": "forge-primitive-v1:5f99c3f437013e47c874b90e66bc3074",
-             "trace_event_ids": ["after-move", "final"], "assertion_ids": ["trigger-timing", "trigger-on-stack", "trigger-resolution", "stack-empty"], "exercised": True},
+             "trace_event_ids": ["after-move", "trigger-collected", "final"], "assertion_ids": ["trigger-timing", "trigger-queued", "trigger-on-stack", "trigger-resolution", "stack-empty"], "exercised": True},
         ],
         "scenario_id": "ws16-jwar-isle-refuge-replacement-and-etb-trigger",
         "forge_pin": FORGE_PIN,
