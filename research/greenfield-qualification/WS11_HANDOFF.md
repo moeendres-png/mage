@@ -6,9 +6,9 @@ BRANCH: `work/ws11-actual-card-semantic-closure-20260829`
 
 BASE_SHA: `624c0a652de775dcdf9d641438b5c18ef4ce50d2`
 
-QUALIFIED_HEAD: `0a4151adfc3a0434644acc8a56741744323b5c6b`
+QUALIFIED_HEAD: `a604db2f8ebedfa9fad32fe71425ea2bfd031ec4`
 
-QUALIFIED_TREE: `7460c90e3f0f4fa061cd7ca253da5aba743b4c27`
+QUALIFIED_TREE: `3c5d1337a30f14fc9cf61e708c0178bd24179102`
 
 FILES_CHANGED:
 
@@ -29,19 +29,20 @@ DEPENDENCY_HEADS:
 
 TESTS:
 
-- `py -3 -m unittest discover -s research/greenfield-qualification/actual-card-behavior -p 'test_ws11_*.py' -v`: PASS, 4/4
+- `py -3 -m unittest discover -s research/greenfield-qualification/actual-card-behavior -p 'test_ws11_*.py' -v`: PASS, 5/5
 - exact local materialization from the WS10 artifact and pinned Forge: completed with expected fail-closed exit 3
 - per-identity rows: 1678
-- workflow `33251282186`: PASS (the green run proves evidence materialization and honest fail-closed enforcement, not Q6 PASS)
-- per-identity artifact SHA-256: `9bada161034a35024c880c9a3e4142874313715172348c39c9c3b708f6d791ab`
+- workflow `33251464459`: PASS (the green run proves evidence materialization and honest fail-closed enforcement, not Q6 PASS)
+- per-identity artifact SHA-256: `1f46fc66d2049d65c7ede91700c0e76e38b3fb7c49c13bb394dd20aa6ea8ced7`
+- per-identity concrete evidence refs: `33251282186 / 99097271546 / 9714450822 / sha256:a9505ece9e893a51c535a2674626a59d9c78be7a5cee3c31b4bd5239964f1f42`; null-reference rows: `0`
 
-RUN_IDS: `33251282186`
+RUN_IDS: `33251282186`, `33251464459`
 
-JOB_IDS: `99097271546`
+JOB_IDS: `99097271546`, `99097754070`
 
-ARTIFACT_IDS: `9714450822`
+ARTIFACT_IDS: `9714450822`, `9714505392`
 
-ARTIFACT_DIGESTS: `sha256:a9505ece9e893a51c535a2674626a59d9c78be7a5cee3c31b4bd5239964f1f42`
+ARTIFACT_DIGESTS: `sha256:a9505ece9e893a51c535a2674626a59d9c78be7a5cee3c31b4bd5239964f1f42`, `sha256:74be5debf765e76d3aa8ab8a868795193b8f5dc6b4856d95bf9e94b087a7d581`
 
 EVIDENCE_CLASSES: `CODE_DERIVED`, `TECHNICALLY_CONFORMANT`, `UNKNOWN`
 

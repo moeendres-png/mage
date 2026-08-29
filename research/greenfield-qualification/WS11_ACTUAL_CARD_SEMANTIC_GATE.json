@@ -21,12 +21,19 @@
   "cross_rule_divergences": [],
   "evidence_classes": ["CODE_DERIVED", "TECHNICALLY_CONFORMANT", "UNKNOWN"],
   "local_reproduction": {
-    "unit_tests": "PASS (4/4)",
-    "per_identity_sha256": "9bada161034a35024c880c9a3e4142874313715172348c39c9c3b708f6d791ab",
-    "run_id": 33251282186,
-    "job_id": 99097271546,
-    "artifact_id": 9714450822,
-    "artifact_digest": "sha256:a9505ece9e893a51c535a2674626a59d9c78be7a5cee3c31b4bd5239964f1f42"
+    "unit_tests": "PASS (5/5)",
+    "per_identity_sha256": "1f46fc66d2049d65c7ede91700c0e76e38b3fb7c49c13bb394dd20aa6ea8ced7",
+    "run_id": 33251464459,
+    "job_id": 99097754070,
+    "artifact_id": 9714505392,
+    "artifact_digest": "sha256:74be5debf765e76d3aa8ab8a868795193b8f5dc6b4856d95bf9e94b087a7d581",
+    "per_identity_evidence_binding": {
+      "run_id": 33251282186,
+      "job_id": 99097271546,
+      "artifact_id": 9714450822,
+      "artifact_digest": "sha256:a9505ece9e893a51c535a2674626a59d9c78be7a5cee3c31b4bd5239964f1f42",
+      "rows_with_null_refs": 0
+    }
   },
   "smallest_remaining_blocker": "All 1,677 exact Forge behavior-path signatures used by the 1,678 identities lack executable, state-asserting semantic witnesses bound to those signatures. Until those witnesses exist, all 1,678 identities remain PARTIAL."
 }
