@@ -6,10 +6,10 @@ BRANCH: `work/ws14-behavior-primitive-model-20260829`
 
 BASE_SHA: `6828c7175345d3193d814406428c8ee6b54c1136`
 
-HEAD: `4efe061bcf917ff9a9d7a93759799d109c4f64da`  
-TREE: `4dab9c8ff0993d503c685c74a766da8bb8ee5530`
+HEAD: `1a80c05bb24608fd2b3b508f6feb32606bf1f01f`  
+TREE: `520db3ba7cb7597df4d2eb246a918f395ad2984d`
 
-The HEAD/TREE above are the exact WS14 implementation/workflow revision qualified by the final Actions run. The generated-manifest commit is recorded separately below; the handoff commit itself is metadata-only and CI-skipped.
+The HEAD/TREE above are the exact WS14 implementation/workflow/manifest-pin revision qualified by the final Actions run. The generated-manifest commit is recorded separately below; the handoff commit itself is metadata-only and CI-skipped.
 
 MANIFEST_RECORD_HEAD: `f4ddbb11bcdcd5ac6efd4191111942fa118c80cb`  
 MANIFEST_RECORD_TREE: `57864999ee672127a106f7d0acbde278ae9a255b`
@@ -75,10 +75,10 @@ The workflow additionally validates both witness fixtures against `WS14_WITNESS_
 
 ## GitHub Actions evidence
 
-RUN_ID: `33255259594`  
-JOB_ID: `99107725174`  
-ARTIFACT_ID: `9715621217`  
-ARTIFACT_DIGEST: `sha256:03b833c86ab2518886624add8f1723bd6e5ffff9a98631a7f060db42f46aefaf`
+RUN_ID: `33255369528`  
+JOB_ID: `99108011389`  
+ARTIFACT_ID: `9715652489`  
+ARTIFACT_DIGEST: `sha256:f87f9320703665ad5139140cb24299f9b9abb8f5f16ac5003747f9f9545e8e61`
 
 Artifact: `ws14-behavior-primitive-model`
 
@@ -91,7 +91,7 @@ Artifact contents:
 - `WS14_HASHES.sha256`
 - `unit-tests.log`
 
-The workflow also copied the exact generated `WS14_PRIMITIVE_MANIFEST.json` onto the branch and verified its SHA-256 before committing it.
+The workflow also verifies that the repository-bound `WS14_PRIMITIVE_MANIFEST.json` is byte-identical to the regenerated manifest, and `WS14_MANIFEST_PIN.json` binds the stable manifest/per-identity/unresolved hashes across generation runs.
 
 ## Evidence classes
 
