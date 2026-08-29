@@ -2,6 +2,9 @@ name: WS16 recover trigger replacement zone SBA witness shard
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - work/ws16-witness-trigger-zone-sba-20260829
 
 permissions:
   contents: read
