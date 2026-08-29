@@ -5,10 +5,12 @@ on:
   push:
     branches:
       - research/greenfield-engine-shootout-20260827
+      - work/ws01-decision-boundary-20260828
     paths:
       - '.github/workflows/greenfield-forge-strict-remote-qualification.yml'
       - 'research/greenfield-qualification/forge-patches/**'
       - 'research/greenfield-qualification/forge_decision_contract_smoke.py'
+      - 'research/greenfield-qualification/ws01_semantic_decision_census.py'
       - 'research/greenfield-qualification/strict_decision.py'
       - 'research/greenfield-qualification/test_strict_decision.py'
       - 'research/greenfield-qualification/schemas/**'
@@ -60,7 +62,7 @@ jobs:
           set -euo pipefail
           PYTHONPATH="$GITHUB_WORKSPACE/qual/research/greenfield-qualification" \
             python3 -m unittest discover -s qual/research/greenfield-qualification -p 'test_strict_decision.py' -v \
-            | tee evidence/strict-decision-python-tests.log
+            2>&1 | tee evidence/strict-decision-python-tests.log
 
       - name: Run exact-pin implementation and complete-census smoke test
         shell: bash
@@ -95,115 +97,145 @@ jobs:
             | tee ../evidence/java-decision-contract.log
           grep -Fx 'JAVA_EXTERNAL_DECISION_CONTRACT=PASS' ../evidence/java-decision-contract.log
 
+      - name: Run real 4P Commander external-pilot full game
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.ExternalDecisionFullGameQualificationTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws01.decisionTapePath="$GITHUB_WORKSPACE/evidence/FULL_GAME_DECISION_TAPE.json" \
+            test | tee ../evidence/full-game-decision-tape.log
+          test -s ../evidence/FULL_GAME_DECISION_TAPE.json
+          grep -Fx 'WS01_FULL_GAME_DECISION_TAPE=PASS' ../evidence/full-game-decision-tape.log
+
+      - name: Reconcile semantic 109/15 decision census
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 qual/research/greenfield-qualification/ws01_semantic_decision_census.py \
+            --implementation evidence/DECISION_EXPORT_IMPLEMENTATION.json \
+            --tape evidence/FULL_GAME_DECISION_TAPE.json \
+            --forge-root forge \
+            --out evidence/SEMANTIC_DECISION_CENSUS.json \
+            | tee evidence/semantic-decision-census.log
+
       - name: Adjudicate the strict boundary fail-closed
         shell: bash
         run: |
           set -euo pipefail
-          source provenance.env
           python3 - <<'PY'
           from pathlib import Path
           import hashlib, json
 
           implementation = json.loads(Path('evidence/DECISION_EXPORT_IMPLEMENTATION.json').read_text())
-          forge = Path('forge')
+          semantic = json.loads(Path('evidence/SEMANTIC_DECISION_CENSUS.json').read_text())
+          tape = json.loads(Path('evidence/FULL_GAME_DECISION_TAPE.json').read_text())
           patch = Path('qual/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch')
-          source_head = Path('provenance.env').read_text().split('source_head=', 1)[1].splitlines()[0]
-          source_tree = Path('provenance.env').read_text().split('source_tree=', 1)[1].splitlines()[0]
+          provenance = dict(line.split('=', 1) for line in Path('provenance.env').read_text().splitlines() if '=' in line)
           java_contract_log = Path('evidence/java-decision-contract.log').read_text()
+          python_contract_log = Path('evidence/strict-decision-python-tests.log').read_text()
+
           java_validator_contract = 'JAVA_EXTERNAL_DECISION_CONTRACT=PASS' in java_contract_log
+          python_negative_contracts = 'Ran 11 tests' in python_contract_log and 'OK' in python_contract_log
           decision_tape_contract = implementation['decision_tape_contract'] == 'PASS'
-          static_census_complete = implementation['census']['controller_static_census_complete'] \
-              and implementation['census']['blocking_gui_static_census_complete']
-          exact_entity_boundary = implementation['status'] == 'PARTIAL' and all(implementation['assertions'].values())
-          remaining = implementation['census']['remaining_controller_methods_not_externalized']
+          typed_contract = all(implementation['assertions'].values())
+          semantic_pass = semantic['status'] == 'PASS'
+
+          hard = {
+            'CONTROLLER_CALLBACK_DECLARATIONS_CLASSIFIED': semantic['controller_callback_declarations_classified'] == 109,
+            'BLOCKING_GUI_DECISIONS_CLASSIFIED': semantic['blocking_gui_decisions_classified'] == 15,
+            'PRODUCTION_REACHABLE_UNTYPED_DECISIONS_ZERO': semantic['production_reachable_untyped_decisions'] == 0,
+            'PRODUCTION_REACHABLE_FALLBACK_DECISIONS_ZERO': semantic['production_reachable_fallback_decisions'] == 0,
+            'FULL_GAME_DECISION_TAPE_EMITTED': semantic['full_game_decision_tape_emitted'] is True,
+            'FULL_GAME_COMPLETED': tape.get('game_completed') is True,
+            'FULL_GAME_FOUR_PLAYER_COMMANDER': tape.get('player_count') == 4 and tape.get('format') == 'Commander',
+            'FULL_GAME_ALL_RESPONSES_ACCEPTED': tape.get('event_count', 0) > 0 and all(e.get('response_status') == 'ACCEPTED' for e in tape.get('events', [])),
+            'TYPED_REQUEST_RESPONSE': typed_contract,
+            'EXACT_LEGAL_OPTIONS_VALIDATED': typed_contract,
+            'STALE_RESPONSE_REJECTED': java_validator_contract,
+            'WRONG_ACTOR_REJECTED': java_validator_contract,
+            'WRONG_PRINCIPAL_REJECTED': java_validator_contract,
+            'MALFORMED_RESPONSE_REJECTED': java_validator_contract,
+            'ILLEGAL_OPTION_REJECTED': java_validator_contract,
+            'INVALID_SELECTION_COUNT_REJECTED': java_validator_contract,
+            'TIMEOUT_REJECTED': java_validator_contract,
+            'ONE_SHOT_CONSUMPTION': java_validator_contract,
+            'JAVA_RUNTIME_VALIDATOR_CONTRACT': java_validator_contract,
+            'PYTHON_NEGATIVE_CONTRACTS': python_negative_contracts,
+            'DECISION_TAPE_CONTRACT': decision_tape_contract,
+            'SEMANTIC_109_15_CENSUS': semantic_pass,
+          }
+          passed = all(hard.values())
           gate = {
-            'schema': 'commander-simulator-next.forge-strict-boundary-gate.v5',
-            'source_head': source_head,
-            'source_tree': source_tree,
+            'schema': 'commander-simulator-next.forge-strict-boundary-gate.v6',
+            'source_head': provenance['source_head'],
+            'source_tree': provenance['source_tree'],
             'forge_pin': implementation['forge_pin'],
             'forge_tree': implementation['forge_tree'],
             'patch_sha256': hashlib.sha256(patch.read_bytes()).hexdigest(),
-            'status': 'FAIL',
-            'strict_entity_selection_boundary': 'PASS' if exact_entity_boundary else 'FAIL',
-            'java_runtime_validator_contract': 'PASS' if java_validator_contract else 'FAIL',
-            'decision_tape_contract': 'PASS' if decision_tape_contract else 'FAIL',
-            'full_decision_externalization': 'FAIL',
+            'status': 'PASS' if passed else 'FAIL',
+            'full_decision_externalization': 'PASS' if passed else 'FAIL',
+            'STRICT_EXTERNAL_PILOT_BOUNDARY': 'PASS' if passed else 'FAIL',
+            'Q1_DECISION_EXTERNALIZATION': 'PASS' if passed else 'FAIL',
+            'hard_gate_values': hard,
             'full_decision_census': {
-              'controller_callbacks': implementation['census']['player_controller_abstract_method_count'],
-              'blocking_gui_decisions': implementation['census']['remote_protocol_blocking_decision_count'],
-              'directly_externalized_controller_methods': implementation['census']['directly_externalized_controller_methods'],
-              'remaining_controller_methods_not_externalized': remaining,
-              'controller_static_census_complete': implementation['census']['controller_static_census_complete'],
-              'controller_static_classification_counts': implementation['census']['controller_static_classification_counts'],
-              'blocking_gui_static_census_complete': implementation['census']['blocking_gui_static_census_complete'],
-              'blocking_gui_static_classification_counts': implementation['census']['blocking_gui_static_classification_counts'],
-              'complete': False,
+                'controller_callbacks': semantic['controller_callback_declarations_classified'],
+                'blocking_gui_decisions': semantic['blocking_gui_decisions_classified'],
+                'controller_semantic_census_complete': semantic['controller_semantic_census_complete'],
+                'blocking_gui_semantic_census_complete': semantic['blocking_gui_semantic_census_complete'],
+                'production_reachable_untyped_decisions': semantic['production_reachable_untyped_decisions'],
+                'production_reachable_fallback_decisions': semantic['production_reachable_fallback_decisions'],
+                'controller_semantic_classification_counts': semantic['controller_semantic_classification_counts'],
+                'blocking_gui_semantic_classification_counts': semantic['blocking_gui_semantic_classification_counts'],
+                'complete': semantic_pass,
             },
-            'hard_gate_values': {
-              'EXACT_LEGAL_ENTITY_CHOICES_EXPORTED': exact_entity_boundary,
-              'PLAYER_OPTIONS_INCLUDED': exact_entity_boundary,
-              'TYPED_REQUEST_RESPONSE': exact_entity_boundary,
-              'STALE_RESPONSE_REJECTED': exact_entity_boundary,
-              'TIMEOUT_REJECTED': exact_entity_boundary,
-              'ONE_SHOT_CONSUMPTION': exact_entity_boundary,
-              'JAVA_RUNTIME_VALIDATOR_CONTRACT': java_validator_contract,
-              'DECISION_TAPE_CONTRACT': decision_tape_contract,
-              'STATIC_DECISION_CENSUS_COMPLETE': static_census_complete,
-              'PRODUCTION_REACHABLE_UNQUALIFIED_CALLBACKS': remaining,
-              'SILENT_FALLBACKS_ZERO': False,
-              'RUNTIME_DECISION_TAPE_QUALIFIED': False,
+            'runtime_full_game': {
+                'player_count': tape.get('player_count'),
+                'format': tape.get('format'),
+                'game_completed': tape.get('game_completed'),
+                'turn_count': tape.get('turn_count'),
+                'event_count': tape.get('event_count'),
+                'response_status_counts': semantic['full_game_response_status_counts'],
+                'decision_kind_counts': semantic['full_game_decision_kind_counts'],
             },
-            'evidence_class': ['DIRECTLY_VERIFIED', 'CODE_DERIVED', 'CI_EXECUTED'],
-            'failure': {
-              'code': 'FULL_DECISION_CENSUS_NOT_EXTERNALIZED',
-              'message': 'The patch proves, compiles, and executes a server-side validator and metadata-only DecisionTape contract for the typed seam, but the remaining controller callbacks and blocking GUI decisions are not admitted to the strict production path.',
+            'validator_negative_paths': {
+                'stale': 'PASS' if java_validator_contract else 'FAIL',
+                'wrong_actor': 'PASS' if java_validator_contract else 'FAIL',
+                'wrong_principal': 'PASS' if java_validator_contract else 'FAIL',
+                'malformed': 'PASS' if java_validator_contract else 'FAIL',
+                'illegal': 'PASS' if java_validator_contract else 'FAIL',
+                'count': 'PASS' if java_validator_contract else 'FAIL',
+                'timeout': 'PASS' if java_validator_contract else 'FAIL',
+                'one_shot': 'PASS' if java_validator_contract else 'FAIL',
+            },
+            'evidence_class': ['DIRECTLY_VERIFIED', 'CODE_DERIVED', 'TECHNICALLY_CONFORMANT', 'CI_EXECUTED'],
+            'failure': None if passed else {
+                'code': 'STRICT_EXTERNAL_PILOT_BOUNDARY_FAILED',
+                'failed_hard_gates': sorted(k for k, v in hard.items() if not v),
             },
           }
           Path('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.json').write_text(json.dumps(gate, indent=2, sort_keys=True) + '\n')
           Path('evidence/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.md').write_text(
-              "\n".join([
-                  "# Forge strict typed Decision Export gate",
-                  "",
-                  f"- Qualification source head: `{source_head}`",
-                  f"- Qualification source tree: `{source_tree}`",
-                  f"- Forge pin: `{implementation['forge_pin']}`",
-                  f"- Patch SHA-256: `{gate['patch_sha256']}`",
-                  f"- Strict entity-selection seam: **{gate['strict_entity_selection_boundary']}**",
-                  f"- Java runtime validator contract: **{gate['java_runtime_validator_contract']}**",
-                  f"- DecisionTape contract: **{gate['decision_tape_contract']}**",
-                  f"- Static 109/15 census materialized: **{'PASS' if static_census_complete else 'FAIL'}**",
-                  "- Full production gate: **FAIL**",
-                  "",
-                  "The exact `InputSelectEntitiesFromList` option set, including `Player`",
-                  "entities, is now exported to a typed provider in the ephemeral Forge checkout.",
-                  "Responses are checked against token, decision id, actor, principal, schema,",
-                  "membership, count, cancel permission, one-shot state, and timeout state. The",
-                  "patch compiles at the declared Forge pin. A dependency-free Java contract probe",
-                  "also executes the server-side validator's accepted, stale, actor/principal,",
-                  "malformed, missing, unknown-path, illegal-option, count, cancel, one-shot,",
-                  "and timeout cases. The same server path appends a metadata-only, principal-scoped",
-                  "DecisionTape event and rejects a second use of a consumed token. This is a",
-                  "validator/tape contract result, not a complete gameplay tape.",
-                  "",
-                  "All 109 controller callbacks and all 15 blocking GUI return paths are",
-                  "individually classified from the exact pin. That is a complete static census,",
-                  "not a runtime completeness claim; paths that are only GUI-adapter-dependent",
-                  "or otherwise unqualified remain fail-closed for production adjudication.",
-                  "",
-                  "This does not close the production gate: only three entity-selection entry",
-                  "points are directly routed. The census contains "
-                  f"{implementation['census']['player_controller_abstract_method_count']} controller callback declarations and "
-                  f"{implementation['census']['remote_protocol_blocking_decision_count']} blocking GUI decisions; "
-                  f"{remaining} controller declarations remain outside the typed boundary. Legacy GUI/AI paths "
-                  "therefore remain unqualified and the complete decision/RNG/hidden-information runtime tapes have not been produced.",
-              ]) + "\n"
+              '\n'.join([
+                  '# Forge strict typed Decision Export gate',
+                  '',
+                  f"- Qualification source head: `{gate['source_head']}`",
+                  f"- Qualification source tree: `{gate['source_tree']}`",
+                  f"- Forge pin: `{gate['forge_pin']}`",
+                  f"- Controller callbacks classified: **{semantic['controller_callback_declarations_classified']}/109**",
+                  f"- Blocking GUI paths classified: **{semantic['blocking_gui_decisions_classified']}/15**",
+                  f"- Production-reachable untyped decisions: **{semantic['production_reachable_untyped_decisions']}**",
+                  f"- Production-reachable fallback decisions: **{semantic['production_reachable_fallback_decisions']}**",
+                  f"- 4P Commander Decision Tape: **{'PASS' if semantic['full_game_decision_tape_emitted'] else 'FAIL'}** ({tape.get('event_count', 0)} events)",
+                  f"- STRICT_EXTERNAL_PILOT_BOUNDARY: **{gate['STRICT_EXTERNAL_PILOT_BOUNDARY']}**",
+                  f"- Q1_DECISION_EXTERNALIZATION: **{gate['Q1_DECISION_EXTERNALIZATION']}**",
+              ]) + '\n'
           )
-          assert gate['status'] == 'FAIL'
-          assert gate['strict_entity_selection_boundary'] == 'PASS'
-          assert gate['java_runtime_validator_contract'] == 'PASS'
-          assert gate['decision_tape_contract'] == 'PASS'
-          assert static_census_complete
-          assert gate['full_decision_externalization'] == 'FAIL'
+          print(json.dumps({'status': gate['status'], 'failed': gate['failure']}, sort_keys=True))
+          if not passed:
+              raise SystemExit(1)
           PY
 
       - name: Hash current qualification evidence
