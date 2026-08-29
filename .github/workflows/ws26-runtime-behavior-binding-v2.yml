@@ -1,0 +1,219 @@
+name: WS26 systemic runtime binding behavior model V2
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - work/ws26-runtime-behavior-binding-v2-20260830
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  WS91_BASE: 98ec89a2d506908cdcf9c405bc0b239c70a83f12
+  WS91_TREE: cd06b6ed8da43850a7ea7ec4d596d5f5d0f5cc79
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  QUAL_RUNTIME_HEAD: 55820618e7243bd5ba8cfa33c3148cea8c166c73
+  QUAL_RUNTIME_TREE: 3706900d49c6ef61690c227bb7b4c0067fbcfb44
+  WS11_ARTIFACT: '9714505392'
+  WS11_DIGEST: sha256:74be5debf765e76d3aa8ab8a868795193b8f5dc6b4856d95bf9e94b087a7d581
+  WS14_ARTIFACT: '9715652489'
+  WS14_DIGEST: sha256:f87f9320703665ad5139140cb24299f9b9abb8f5f16ac5003747f9f9545e8e61
+  WS24_ARTIFACT: '9720751546'
+  WS24_DIGEST: sha256:512c4d9f1fdae11aab8bb6145af2df02e3d2c42205ac42c17d521fcd34e267b9
+  WS16_ARTIFACT: '9720648943'
+  WS16_DIGEST: sha256:10457ba3256fe00948876903883cc0df07084b1ab60226c4a9eb10118953dc97
+  WS17_ARTIFACT: '9718189371'
+  WS17_DIGEST: sha256:4ecc3642090cd05a71b46ddd82291b3538236bbddba234a8adffbfb4f6ea2578
+  WS17_HEAD: a5f68f9ec49d19d900e92e505654871d2267ba93
+  WS17_TEST_BLOB: 94258bc21a3855faafe21e236417aca4a9710f10
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws26
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact WS26 source
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+
+      - name: Verify exact base, runtime dependency and file ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
+          git -C qual merge-base --is-ancestor "$WS91_BASE" HEAD
+          test "$(git -C qual rev-parse "$WS91_BASE^{tree}")" = "$WS91_TREE"
+          git -C qual cat-file -e "$QUAL_RUNTIME_HEAD^{commit}"
+          test "$(git -C qual rev-parse "$QUAL_RUNTIME_HEAD^{tree}")" = "$QUAL_RUNTIME_TREE"
+          bad="$(git -C qual diff --name-only "$WS91_BASE"...HEAD | grep -Ev '^(research/greenfield-qualification/actual-card-behavior/ws26/|research/greenfield-qualification/WS26_HANDOFF\.md$|\.github/workflows/ws26-runtime-behavior-binding-v2\.yml$)' || true)"
+          test -z "$bad" || { echo "out-of-scope WS26 changes:" >&2; echo "$bad" >&2; exit 1; }
+          mkdir -p inputs generated-a generated-b evidence
+
+      - name: Checkout exact pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Verify exact Forge pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+
+      - name: Download and verify immutable predecessor artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          fetch_artifact() {
+            id="$1" expected="$2" dest="$3"
+            actual="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" --jq '.digest')"
+            test "$actual" = "$expected"
+            gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "/tmp/$id.zip"
+            mkdir -p "$dest"
+            unzip -q "/tmp/$id.zip" -d "$dest"
+          }
+          fetch_artifact "$WS11_ARTIFACT" "$WS11_DIGEST" inputs/ws11
+          fetch_artifact "$WS14_ARTIFACT" "$WS14_DIGEST" inputs/ws14
+          fetch_artifact "$WS24_ARTIFACT" "$WS24_DIGEST" inputs/ws24
+          fetch_artifact "$WS16_ARTIFACT" "$WS16_DIGEST" inputs/ws16
+          fetch_artifact "$WS17_ARTIFACT" "$WS17_DIGEST" inputs/ws17
+          test "$(sha256sum inputs/ws11/PER_IDENTITY.semantic.jsonl | cut -d' ' -f1)" = 1f46fc66d2049d65c7ede91700c0e76e38b3fb7c49c13bb394dd20aa6ea8ced7
+          test "$(sha256sum inputs/ws14/WS14_PRIMITIVE_MANIFEST.json | cut -d' ' -f1)" = 1137335dd7101df44940a2b0c8cacc5740e2aef0a24eceb541449dd10a5e6f7b
+          test "$(sha256sum inputs/ws14/UNRESOLVED_BINDINGS.jsonl | cut -d' ' -f1)" = d35b3f2772b7638768e9d66d5e00eed8bc3488530be99e064be44c82e1cb5704
+          test "$(sha256sum inputs/ws24/Q6_ACTUAL_CARD_BEHAVIOR_GATE.json | cut -d' ' -f1)" = 44faecad77f96c84e1654141b323a1197dbed084aa8c46d70304dbf29b042756
+          test "$(wc -l < inputs/ws14/UNRESOLVED_BINDINGS.jsonl)" = 1800
+          test "$(jq -r '.atomic_primitive_count' inputs/ws14/WS14_PRIMITIVE_MANIFEST.json)" = 174
+          test "$(jq -r '.identity_count' inputs/ws14/WS14_PRIMITIVE_MANIFEST.json)" = 1678
+
+      - name: Verify exact WS17 compatibility source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C qual cat-file -e "$WS17_HEAD^{commit}" || git -C qual fetch origin "$WS17_HEAD"
+          test "$(git -C qual rev-parse "$WS17_HEAD:research/greenfield-qualification/actual-card-behavior/witness-shards/continuous-copy-control/overlay/src/test/java/forge/ai/ability/Ws17ContinuousCopyControlWitnessTest.java")" = "$WS17_TEST_BLOB"
+          git -C qual show "$WS17_HEAD:research/greenfield-qualification/actual-card-behavior/witness-shards/continuous-copy-control/overlay/src/test/java/forge/ai/ability/Ws17ContinuousCopyControlWitnessTest.java" > inputs/ws17-test.java
+
+      - name: Materialize exact keyword runtime trace input
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "qual/$ROOT/ws26_prepare_runtime_trace.py" \
+            --unresolved inputs/ws14/UNRESOLVED_BINDINGS.jsonl \
+            --forge-root forge \
+            --out inputs/ws26-keywords.tsv
+
+      - name: Apply qualification-only runtime binding tracer
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -D -m 0644 "qual/$ROOT/forge-overlay/Ws26RuntimeBindingTracerTest.java" \
+            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws26RuntimeBindingTracerTest.java
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+
+      - name: Execute pinned Forge keyword construction trace
+        shell: bash
+        run: |
+          set -euo pipefail
+          xvfb-run -a mvn -B -f forge/pom.xml -pl forge-gui-desktop -am \
+            -Dtest=forge.gamesimulationtests.Ws26RuntimeBindingTracerTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws26.bindingInput="$GITHUB_WORKSPACE/inputs/ws26-keywords.tsv" \
+            -Dws26.bindingOut="$GITHUB_WORKSPACE/inputs/ws26-keyword-runtime.jsonl" \
+            test 2>&1 | tee evidence/ws26-keyword-runtime.log
+          test "$(wc -l < inputs/ws26-keyword-runtime.jsonl)" = 888
+          ! grep -q '<failure\|<error' forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws26RuntimeBindingTracerTest.xml
+          cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws26RuntimeBindingTracerTest.xml evidence/
+
+      - name: Install V2 schema validator dependency
+        run: python3 -m pip install --disable-pip-version-check --quiet jsonschema==4.23.0
+
+      - name: Materialize V2 twice from identical immutable inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_head="$(git -C qual rev-parse HEAD)"
+          source_tree="$(git -C qual rev-parse 'HEAD^{tree}')"
+          for dest in generated-a generated-b; do
+            python3 "qual/$ROOT/ws26_model.py" \
+              --ws11-dir inputs/ws11 --ws14-dir inputs/ws14 --ws24-dir inputs/ws24 \
+              --ws16-dir inputs/ws16 --ws17-dir inputs/ws17 --forge-root forge \
+              --keyword-runtime-trace inputs/ws26-keyword-runtime.jsonl \
+              --ws17-test-source inputs/ws17-test.java \
+              --source-head "$source_head" --source-tree "$source_tree" --out "$dest"
+            cp "qual/$ROOT/WS26_WITNESS_ABI_V2.schema.json" "$dest/"
+            cp "qual/$ROOT/WS26_WITNESS_SEMANTIC_VALIDATOR.py" "$dest/"
+            cp "qual/$ROOT/WS26_HARNESS_CONTRACT.json" "$dest/"
+            python3 "qual/$ROOT/ws26_validate_fixtures.py" --out "$dest" \
+              --validator "qual/$ROOT/WS26_WITNESS_SEMANTIC_VALIDATOR.py" \
+              --schema "qual/$ROOT/WS26_WITNESS_ABI_V2.schema.json"
+          done
+          diff -qr generated-a generated-b
+
+      - name: Verify positive V2 witness explicitly
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "qual/$ROOT/WS26_WITNESS_SEMANTIC_VALIDATOR.py" generated-a/WS26_POSITIVE_WITNESS.json \
+            --manifest generated-a/WS26_BEHAVIOR_PATH_MANIFEST_V2.json \
+            --schema "qual/$ROOT/WS26_WITNESS_ABI_V2.schema.json" --base generated-a
+
+      - name: Materialize provenance hard-gate input
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > evidence/WS26_PROVENANCE_VERIFICATION.json <<'JSON'
+          {"exact_ws91_base_verified":true,"exact_forge_pin_verified":true,"ws11_input_hash_verified":true,"ws14_manifest_verified":true,"ws24_current_gate_verified":true,"ws11_artifact_id":9714505392,"ws14_artifact_id":9715652489,"ws24_artifact_id":9720751546,"ws16_artifact_id":9720648943,"ws17_artifact_id":9718189371}
+          JSON
+          cp evidence/WS26_PROVENANCE_VERIFICATION.json generated-a/
+          cp evidence/WS26_PROVENANCE_VERIFICATION.json generated-b/
+
+      - name: Run WS26 hard gate on both deterministic materializations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "qual/$ROOT/ws26_gate.py" --out generated-a --provenance evidence/WS26_PROVENANCE_VERIFICATION.json --deterministic
+          python3 "qual/$ROOT/ws26_gate.py" --out generated-b --provenance evidence/WS26_PROVENANCE_VERIFICATION.json --deterministic
+          diff -qr generated-a generated-b
+          jq -e '.WS26_MODEL_V2=="PASS" and .WS26_SHARED_HARNESS=="PASS" and .WS27_WS31_ELIGIBLE==true and .Q6_ACTUAL_CARD_BEHAVIOR=="NOT_ADJUDICATED_BY_WS26" and .FAILURE_SEMANTICS_OVERALL_CLAIMED==false and .CARD_BEHAVIOR_FAILURE_PRODUCTION_BINDING_CLAIMED==false' generated-a/WS26_GATE.json >/dev/null
+
+      - name: Hash canonical WS26 machine evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -d generated-a; then
+            (cd generated-a && find . -type f ! -name WS26_HASHES.sha256 -print0 | sort -z | xargs -0 sha256sum) > generated-a/WS26_HASHES.sha256 || true
+          fi
+
+      - name: Package immutable WS26 artifact
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifact/research/greenfield-qualification/actual-card-behavior/ws26
+          cp -a generated-a/. artifact/research/greenfield-qualification/actual-card-behavior/ws26/ || true
+          cp -a evidence artifact/workflow-evidence
+          cp inputs/ws26-keyword-runtime.jsonl artifact/workflow-evidence/ 2>/dev/null || true
+          cp inputs/ws17-test.java artifact/workflow-evidence/ 2>/dev/null || true
+          printf '%s\n' "$GITHUB_SHA" > artifact/workflow-evidence/tested_source_head.txt
+          git -C qual rev-parse 'HEAD^{tree}' > artifact/workflow-evidence/tested_source_tree.txt
+          printf '%s\n' "$FORGE_PIN" > artifact/workflow-evidence/forge_pin.txt
+
+      - name: Upload immutable WS26 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws26-runtime-behavior-binding-v2
+          path: artifact
+          if-no-files-found: error
+          retention-days: 90
