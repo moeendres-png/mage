@@ -91,7 +91,7 @@ jobs:
             --schema qual/research/greenfield-qualification/actual-card-behavior/WS14_WITNESS_ABI.schema.json \
             --witness artifacts/ws16/ws16-jwar-isle-refuge.witness.json
           jq -e '.primitive_count == 53 and .pass_count == 2 and .partial_count == 51 and .unknown_count == 0 and .unsupported_count == 0 and .q6_actual_card_behavior == "NOT_ADJUDICATED"' artifacts/ws16/WS16_PRIMITIVE_COVERAGE.json >/dev/null
-          jq -e '[.rows[].primitive_id] | length == 53 and unique | length == 53' artifacts/ws16/WS16_PRIMITIVE_COVERAGE.json >/dev/null
+          jq -e '([.rows[].primitive_id] | length) == 53 and ([.rows[].primitive_id] | unique | length) == 53' artifacts/ws16/WS16_PRIMITIVE_COVERAGE.json >/dev/null
           sha256sum artifacts/ws16/ws16-jwar-isle-refuge.trace.json artifacts/ws16/ws16-jwar-isle-refuge.witness.json artifacts/ws16/WS16_PRIMITIVE_COVERAGE.json > artifacts/ws16/WS16_HASHES.sha256
 
       - name: Upload recovered WS16 witness shard
