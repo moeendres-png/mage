@@ -1,0 +1,74 @@
+{
+  "audit_base_sha": "c0e42fb42c4a603aff4a76b1284f8271c12bfd42",
+  "dependency_reuse": {
+    "WS07_artifact_id": 9712369379,
+    "WS07_qualified_head": "87834da73f22e62a1803733be812d3b22b9f485b",
+    "WS07_rerun": false,
+    "WS07_run_id": 33244368567
+  },
+  "engine_pins": {
+    "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+    "manabrew": "754ec2aeec495d67d7bb9b89d0fd67ee22281b46",
+    "phase_rs": "fae406c4603f450797014f3ac8e8818b3d36c2a4",
+    "xmage": "86d86b580cd7e1f30b51110d70cecae18c1ce452"
+  },
+  "evidence_classes": [
+    "DIRECTLY_VERIFIED",
+    "TECHNICALLY_CONFORMANT",
+    "EXTERNALLY_RULE_VALIDATED"
+  ],
+  "gates": {
+    "Q7_DIFFERENTIAL": "PASS",
+    "canonical_trace_contract": "PASS",
+    "common_decision_contract": "PASS",
+    "common_initial_state_contract": "PASS",
+    "common_rng_contract": "PASS",
+    "majority_vote_used_as_rules_authority": false,
+    "selected_shared_scenario_count": 2,
+    "selected_shared_scenarios_executed": true,
+    "unadjudicated_meaningful_divergences": 0
+  },
+  "meaningful_divergences": [],
+  "qualification_head": "636e0b558d9b1a3c4ea5495c2b489c032960c430",
+  "qualification_tree": "619f465211b355a48ba0e67b2c6d628c4c596253",
+  "rules_authority": {
+    "authority": "Wizards of the Coast",
+    "checked_date": "2026-08-29",
+    "engine_majority": false,
+    "evidence_class": "EXTERNALLY_RULE_VALIDATED",
+    "source": "https://magic.wizards.com/en/formats/commander"
+  },
+  "scenario_results": [
+    {
+      "canonical_trace_equal_for_supported_engines": true,
+      "engines": {
+        "forge": {"classification": "PASS", "evidence_class": "TECHNICALLY_CONFORMANT"},
+        "manabrew": {"classification": "UNSUPPORTED", "evidence_class": "UNKNOWN", "reason": "NO_WS09_COMMON_CONSTRUCTED_STATE_ADAPTER_AT_PIN; no equivalence manufactured"},
+        "phase_rs": {"classification": "UNSUPPORTED", "evidence_class": "UNKNOWN", "reason": "NO_WS09_COMMON_CONSTRUCTED_STATE_ADAPTER_AT_PIN; no equivalence manufactured"},
+        "xmage": {"classification": "PASS", "evidence_class": "TECHNICALLY_CONFORMANT"}
+      },
+      "first_meaningful_divergence": null,
+      "id": "S01_3P_PLAYER_COUNT",
+      "official_adjudication": {"authority": "Wizards of the Coast", "checked_date": "2026-08-29", "evidence_class": "EXTERNALLY_RULE_VALIDATED", "status": "PASS"},
+      "supported_engines": ["forge", "xmage"]
+    },
+    {
+      "canonical_trace_equal_for_supported_engines": true,
+      "engines": {
+        "forge": {"classification": "PASS", "evidence_class": "TECHNICALLY_CONFORMANT"},
+        "manabrew": {"classification": "UNSUPPORTED", "evidence_class": "UNKNOWN", "reason": "NO_WS09_COMMON_CONSTRUCTED_STATE_ADAPTER_AT_PIN; no equivalence manufactured"},
+        "phase_rs": {"classification": "UNSUPPORTED", "evidence_class": "UNKNOWN", "reason": "NO_WS09_COMMON_CONSTRUCTED_STATE_ADAPTER_AT_PIN; no equivalence manufactured"},
+        "xmage": {"classification": "PASS", "evidence_class": "TECHNICALLY_CONFORMANT"}
+      },
+      "first_meaningful_divergence": null,
+      "id": "S02_3P_STARTING_LIFE",
+      "official_adjudication": {"authority": "Wizards of the Coast", "checked_date": "2026-08-29", "evidence_class": "EXTERNALLY_RULE_VALIDATED", "status": "PASS"},
+      "supported_engines": ["forge", "xmage"]
+    }
+  ],
+  "schema": "commander-simulator-next.differential-adjudication.v2",
+  "status": "PASS",
+  "unadjudicated_meaningful_divergences": 0,
+  "workflow_run_id": 33246123537,
+  "workstream_complete": true
+}
