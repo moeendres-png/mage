@@ -1,0 +1,37 @@
+name: WS15 action cost decision witness shard
+
+on:
+  push:
+    branches: [work/ws15-witness-action-cost-decision-20260829]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fail-closed-shard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact WS14 base provenance
+        run: |
+          test "$(git merge-base HEAD d8c1ee0c08c7e7f0bc2bc86c70166ebc198e30d5)" = "d8c1ee0c08c7e7f0bc2bc86c70166ebc198e30d5"
+          test "$(git rev-parse d8c1ee0c08c7e7f0bc2bc86c70166ebc198e30d5^{tree})" = "5725f47951938bc71af181cf1617e6b3be158804"
+      - name: Checkout pinned Forge source for execution target provenance
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          path: forge
+      - name: Verify Forge pin
+        run: test "$(git -C forge rev-parse HEAD)" = "8c7e9afb8e6caee88644b94e25da5852e36f8928"
+      - name: Materialize and validate non-promoting status evidence
+        run: |
+          python3 research/greenfield-qualification/actual-card-behavior/witness-shards/action-cost-decision/test_ws15_contract.py
+          mkdir -p artifacts/ws15-action-cost-decision
+          python3 research/greenfield-qualification/actual-card-behavior/witness-shards/action-cost-decision/ws15_materialize.py --manifest research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json --output artifacts/ws15-action-cost-decision/primitive-status.json --source-head "$GITHUB_SHA" --source-tree "$(git show -s --format=%T HEAD)"
+          sha256sum artifacts/ws15-action-cost-decision/primitive-status.json | tee artifacts/ws15-action-cost-decision/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ws15-action-cost-decision-evidence
+          path: artifacts/ws15-action-cost-decision
