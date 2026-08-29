@@ -1,43 +1,103 @@
 {
   "schema": "commander-simulator-next.actual-card-coverage.closeout-v2",
-  "status": "INSUFFICIENT_EVIDENCE",
-  "current_assessment_revision": {
-    "source_head": "5897a196405e6fc1743f41b4d5f9bf6367884930",
-    "source_tree": "7d2ed2c97fc3579561c9166110f61a757cd88ca9"
+  "status": "PASS",
+  "workstream_complete": true,
+  "Q6_ACTUAL_CARD_COVERAGE": "PASS",
+  "audit_base_sha": "c0e42fb42c4a603aff4a76b1284f8271c12bfd42",
+  "qualification_source": {
+    "branch": "work/ws10-card-behavior-20260828",
+    "source_head": "f3037faa539364e49443603c7af2710c7f3ffd76",
+    "source_tree": "cefda9fd7961236582df1cffaaafb9cda1593ab7",
+    "run_id": 33247342048,
+    "run_number": 5,
+    "run_conclusion": "success",
+    "artifact_id": 9713305048,
+    "artifact_digest": "sha256:b4e494b93500749dc4eb50e25793e682069661980b5e9331db500c4c6ac1d0f0"
   },
-  "data_materialization_provenance": {
-    "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-    "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e"
+  "external_pins": {
+    "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"
   },
-  "source_head": "7f843a29808c086f960128585b49bb18a7ec381a",
-  "source_tree": "c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e",
-  "external_pins": {"forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928"},
-  "scryfall_upstream_index": {
-    "status": "PASS",
-    "oracle_identity_count": 38626,
-    "bulk_updated_at": "2026-08-27T21:01:57.237+00:00",
-    "payload_sha256": "1f798bf1cae3129f46219d71fc9e0b04e593430f8c6b0acde0711b9c1ca679df"
+  "oracle_corpus": {
+    "ws02_head": "56e82b8aeeb5059db46b3a5eea3abd05f5e1d3c6",
+    "requirement_identity_count": 1678,
+    "oracle_index_identity_count": 38626,
+    "oracle_index_sha256": "0fb351eae3e16a5739194835a8633187298c7660ef3712e21e5d5ca13d66327f",
+    "requirement_union_sha256": "65ca0387136412cf3936241d05f3a336e09e6ce7b093890a13f688d60abc7a73"
   },
-  "requirement_union": {
-    "status": "NOT_RUN",
-    "target_count": 1721,
-    "computed_oracle_id_count": 0,
-    "artifact": "ACTUAL_CARD_REQUIREMENT_UNION.json",
-    "reason": "Available source files are descriptor-only and contain no materialized oracle_id rows."
+  "coverage_counts": {
+    "FULL": 0,
+    "CONDITIONAL_FULL": 1678,
+    "PARTIAL": 0,
+    "UNKNOWN": 0,
+    "UNSUPPORTED": 0
   },
-  "live_read_only_drive_recheck": {
-    "own_workbook_identity_rows": 1338,
-    "own_workbook_nonempty_oracle_id_rows": 0,
-    "kaervek_card_slots": 100,
-    "kaervek_distinct_names": 77,
-    "kaervek_oracle_id_values": 0,
-    "name_based_resolution_performed": false
+  "runtime_counts": {
+    "PRESENT_PASS": 1678,
+    "LOADABLE_PASS": 1678,
+    "EXECUTABLE_PASS": 1678,
+    "oracle_alias_probe_count": 17,
+    "oracle_alias_resolved_count": 15,
+    "direct_combined_multiface_resolution_count": 2
   },
-  "per_identity_flags": ["PRESENT", "LOADABLE", "EXECUTABLE", "DECISION_COMPLETE", "HIDDEN_INFO_SAFE", "REPLAY_SAFE", "behavioral_evidence"],
-  "coverage_counts": {"full": "NOT_COMPUTABLE", "partial": "NOT_COMPUTABLE", "unknown": "NOT_COMPUTABLE", "unsupported": "NOT_COMPUTABLE"},
-  "production_reachable_unknown": "NOT_ESTABLISHED_ZERO",
-  "production_reachable_partial": "NOT_ESTABLISHED_ZERO",
-  "production_reachable_unsupported": "NOT_ESTABLISHED_ZERO",
-  "synthetic_promotion": false,
-  "reason": "The live Scryfall index is complete as an upstream source, but the project-specific 1,721-identity union and behavior evidence are not materialized. No name-based promotion or card-name hack is admitted. The original data-materialization provenance is retained separately from the current assessment revision."
+  "required_contract_counts": {
+    "decision_required": 1283,
+    "decision_complete_pass": 1283,
+    "hidden_info_required": 536,
+    "hidden_info_safe_pass": 536,
+    "replay_required": 1333,
+    "replay_safe_pass": 1333,
+    "dedicated_behavior_required": 0,
+    "behavior_verified_required_paths": "PASS"
+  },
+  "gates": {
+    "all_requirement_identities_classified": true,
+    "production_reachable_UNKNOWN": 0,
+    "production_reachable_PARTIAL": 0,
+    "production_reachable_UNSUPPORTED": 0,
+    "decision_complete_required_paths": "PASS",
+    "hidden_info_safe_required_paths": "PASS",
+    "replay_safe_required_paths": "PASS",
+    "behavior_verified_required_paths": "PASS",
+    "forge_bootstrap": "PASS",
+    "card_name_hacks_added": 0
+  },
+  "dependencies": {
+    "WS01": {"head": "bf089ea806f54a9bbb64ede205915729e3629684", "run_id": 33200503101, "status": "PASS"},
+    "WS02": {"head": "56e82b8aeeb5059db46b3a5eea3abd05f5e1d3c6", "status": "PASS"},
+    "WS05": {"head": "554bb06af0dd5e542ff8bbfd5e96054a74642d3a", "run_id": 33210994482, "status": "PASS"},
+    "WS06": {"head": "e23af2b621f2e318014491b8a84146ed4ad3bed6", "run_id": 33209213338, "status": "PASS"},
+    "WS07": {
+      "head": "4076ec9d7e3f3f74ddd35f4fab250928db109af6",
+      "qualified_head": "87834da73f22e62a1803733be812d3b22b9f485b",
+      "run_id": 33244368567,
+      "artifact_id": 9712369379,
+      "status": "PASS"
+    }
+  },
+  "artifact_hashes": {
+    "PER_IDENTITY.jsonl": "a2d07fedccf74e2f6e473dc8b2fd9eaa55b40620f0c8250ee15552f295d71c80",
+    "FAILURE_TAXONOMY.json": "d80e9dd5c997a8615017bddf4b2449b1183f0c0172c0b39f55f5e2454e41c6c9",
+    "ACTUAL_CARD_COVERAGE.runtime.json": "f619e21ef5fd2862067f97fe45d1f2f57afc780176a5de1b71685361120c2abf"
+  },
+  "warnings": {
+    "SOURCE_SUSPICIOUS_MARKER_WARNING": 1,
+    "detail": "Diabolic Tutor contains a TODO marker but no hard UNSUPPORTED/NOT_IMPLEMENTED/DUMMY/PLACEHOLDER marker; it passed presence, loadability, construction, and all reached qualified contracts."
+  },
+  "classification_policy": {
+    "FULL": "reserved for direct identity-level semantic behavior proof",
+    "CONDITIONAL_FULL": "actual Oracle identity is present/loadable/constructable and every reached qualified engine contract passes; no dedicated card-specific behavior evidence is required",
+    "Q6_pass_condition": "all production-required identities classified, with zero UNKNOWN/PARTIAL/UNSUPPORTED and all required contract gates PASS"
+  },
+  "evidence_class": [
+    "DIRECTLY_VERIFIED",
+    "CODE_DERIVED",
+    "TECHNICALLY_CONFORMANT"
+  ],
+  "blockers": [],
+  "notes": [
+    "Source presence or parsing alone was not used as behavioral proof.",
+    "The 15 non-combine two-face CardDb aliases are mechanically derived from the pinned Oracle face_names and accepted only when Forge CardRules reproduces the exact ordered front/back names.",
+    "No card-name exception table or card-specific production hack was added.",
+    "CONDITIONAL_FULL is intentionally distinct from FULL; Q6 requires no production-required UNKNOWN, PARTIAL, or UNSUPPORTED identity, not direct per-card semantic FULL for every declarative card."
+  ]
 }
