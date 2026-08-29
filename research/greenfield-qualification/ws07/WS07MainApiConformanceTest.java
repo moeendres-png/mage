@@ -99,7 +99,7 @@ public class WS07MainApiConformanceTest {
                     false
             );
         }
-        PaperCard result = staticData.getCommonCards().getCard(name);
+        PaperCard result = staticData.getCommonCards().getUniqueByNameNoAlt(name);
         if (result == null) {
             throw new IllegalArgumentException("Pinned Forge card data does not contain: " + name);
         }
