@@ -13,6 +13,10 @@ permissions:
 env:
   FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
   WS10_RUN_ID: '33247342048'
+  WS11_EVIDENCE_RUN_ID: '33251282186'
+  WS11_EVIDENCE_JOB_ID: '99097271546'
+  WS11_EVIDENCE_ARTIFACT_ID: '9714450822'
+  WS11_EVIDENCE_ARTIFACT_DIGEST: 'sha256:a9505ece9e893a51c535a2674626a59d9c78be7a5cee3c31b4bd5239964f1f42'
 
 jobs:
   qualify:
@@ -68,7 +72,11 @@ jobs:
             --loadability artifacts/ws10/loadability.jsonl \
             --forge-cards forge/forge-gui/res/cardsfolder \
             --witness-registry qual/research/greenfield-qualification/actual-card-behavior/WS11_WITNESS_REGISTRY.json \
-            --out artifacts/ws11
+            --out artifacts/ws11 \
+            --evidence-run-id "$WS11_EVIDENCE_RUN_ID" \
+            --evidence-job-id "$WS11_EVIDENCE_JOB_ID" \
+            --evidence-artifact-id "$WS11_EVIDENCE_ARTIFACT_ID" \
+            --evidence-artifact-digest "$WS11_EVIDENCE_ARTIFACT_DIGEST"
           rc=$?
           set -e
           echo "$rc" > artifacts/ws11/classifier.exit
@@ -91,6 +99,10 @@ jobs:
               has("production_reachability") and has("flags") and has("evidence_class") and
               has("concrete_semantic_scenario_ids") and has("run_job_artifact_refs") and
               has("trace_hashes") and has("classification") and has("failure_reason") and
+              (.run_job_artifact_refs.run_id | type == "number") and
+              (.run_job_artifact_refs.job_id | type == "number") and
+              (.run_job_artifact_refs.artifact_id | type == "number") and
+              (.run_job_artifact_refs.artifact_digest | test("^sha256:[0-9a-f]{64}$")) and
               .global_pass_inheritance_used == false)' artifacts/ws11/PER_IDENTITY.semantic.jsonl >/dev/null
           cat artifacts/ws11/WS11_GATE.runtime.json
 

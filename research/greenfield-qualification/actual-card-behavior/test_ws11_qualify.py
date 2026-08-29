@@ -41,6 +41,15 @@ class Ws11PolicyTest(unittest.TestCase):
         row = ws11.make_row(base, load, Path("missing"), {}, {})
         self.assertEqual("UNKNOWN", row["classification"])
 
+    def test_per_identity_refs_are_concrete_and_immutable(self):
+        refs = {"run_id": 33251282186, "job_id": 99097271546, "artifact_id": 9714450822,
+                "artifact_digest": "sha256:a9505ece9e893a51c535a2674626a59d9c78be7a5cee3c31b4bd5239964f1f42"}
+        base = {"oracle_id": "id", "oracle_name": "Missing", "source_mask": 1, "present": "PASS", "exact_script_matches": []}
+        load = {"loadable": True, "identity_match": True, "runtime_constructable": True}
+        row = ws11.make_row(base, load, Path("missing"), {}, refs)
+        self.assertTrue(all(value is not None for value in row["run_job_artifact_refs"].values()))
+        self.assertRegex(row["run_job_artifact_refs"]["artifact_digest"], r"^sha256:[0-9a-f]{64}$")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -208,11 +208,19 @@ def run(args: argparse.Namespace) -> int:
     registry = read_json(args.witness_registry)
     witnesses = validated_witnesses(registry)
     refs = {
-        "run_id": os.environ.get("GITHUB_RUN_ID"),
-        "job_id": os.environ.get("WS11_JOB_ID"),
-        "artifact_id": os.environ.get("WS11_ARTIFACT_ID"),
-        "artifact_digest": os.environ.get("WS11_ARTIFACT_DIGEST"),
+        "run_id": args.evidence_run_id,
+        "job_id": args.evidence_job_id,
+        "artifact_id": args.evidence_artifact_id,
+        "artifact_digest": args.evidence_artifact_digest,
     }
+    if not (
+        isinstance(refs["run_id"], int) and refs["run_id"] > 0
+        and isinstance(refs["job_id"], int) and refs["job_id"] > 0
+        and isinstance(refs["artifact_id"], int) and refs["artifact_id"] > 0
+        and isinstance(refs["artifact_digest"], str)
+        and re.fullmatch(r"sha256:[0-9a-f]{64}", refs["artifact_digest"])
+    ):
+        raise ValueError("concrete immutable run/job/artifact evidence references are required")
     rows = [make_row(x, loadability.get(x["oracle_id"]), args.forge_cards, witnesses, refs) for x in prepared]
     args.out.mkdir(parents=True, exist_ok=True)
     per_identity = args.out / "PER_IDENTITY.semantic.jsonl"
@@ -258,6 +266,10 @@ def main() -> int:
     parser.add_argument("--forge-cards", type=Path, required=True)
     parser.add_argument("--witness-registry", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--evidence-run-id", type=int, required=True)
+    parser.add_argument("--evidence-job-id", type=int, required=True)
+    parser.add_argument("--evidence-artifact-id", type=int, required=True)
+    parser.add_argument("--evidence-artifact-digest", required=True)
     return run(parser.parse_args())
 
 
