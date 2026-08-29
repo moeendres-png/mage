@@ -87,8 +87,9 @@ jobs:
       - name: Materialize and validate ABI witnesses
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           RUNTIME_ARTIFACT_ID: ${{ steps.runtime.outputs.artifact-id }}
-          RUNTIME_ARTIFACT_DIGEST: ${{ steps.runtime.outputs.artifact-digest }}
+          RUNTIME_ARTIFACT_DIGEST: sha256:${{ steps.runtime.outputs.artifact-digest }}
         run: |
           set -euo pipefail
           job_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" --jq '.jobs[] | select(.name == "qualify") | .id')"
