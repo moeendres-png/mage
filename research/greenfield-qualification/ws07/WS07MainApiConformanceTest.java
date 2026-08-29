@@ -19,9 +19,11 @@ import forge.game.combat.CombatUtil;
 import forge.game.cost.Cost;
 import forge.game.cost.CostAdjustment;
 import forge.game.mulligan.LondonMulligan;
+import forge.game.phase.PhaseType;
 import forge.game.player.IGameEntitiesFactory;
 import forge.game.player.PlaySpellAbility;
 import forge.game.player.Player;
+import forge.game.player.PlayerActionConfirmMode;
 import forge.game.player.PlayerController;
 import forge.game.player.RegisteredPlayer;
 import forge.game.replacement.ReplacementEffect;
@@ -44,6 +46,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 /**
  * WS07 semantic Commander/multiplayer qualification against pinned Forge main APIs only.
@@ -127,6 +130,15 @@ public class WS07MainApiConformanceTest {
         public boolean confirmReplacementEffect(ReplacementEffect replacementEffect, SpellAbility effectSA,
                                                 GameEntity affected, String question) {
             return commanderReplacementChoice;
+        }
+
+        @Override
+        public boolean confirmAction(SpellAbility sa, PlayerActionConfirmMode mode, String message,
+                                     List<String> options, Card cardToShow, Map<String, Object> params) {
+            if (mode == PlayerActionConfirmMode.ChangeZoneToAltDestination) {
+                return commanderReplacementChoice;
+            }
+            return super.confirmAction(sa, mode, message, options, cardToShow, params);
         }
 
         @Override
@@ -230,7 +242,7 @@ public class WS07MainApiConformanceTest {
             game.getRegisteredPlayers().get(i).initVariantsZones(registered.get(i));
         }
         game.getTriggerHandler().resetActiveTriggers();
-        game.getPhaseHandler().setPlayerTurn(game.getRegisteredPlayers().get(0));
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getRegisteredPlayers().get(0));
         return new Fixture(game, registered, lobbies, apnapCallbacks);
     }
 
@@ -319,8 +331,6 @@ public class WS07MainApiConformanceTest {
                         "each commander starts in its owner's command zone", "all commanders zone=Command");
                 emit("C18", 4, "4P Commander initialization", "none",
                         "four independent Commander players initialize", "players=4; four command zones initialized");
-                emit("A", 4, "4P turn structure initialized", "starting player=P1",
-                        "active player and turn order are engine state", "active=P1; players=4");
                 emit("K", 4, "Commander variant enabled", "none",
                         "Commander initialization uses Forge variant rules", "40 life; commander flag; Command zone");
                 emit("L", 4, "four free-for-all players", "none",
@@ -401,7 +411,9 @@ public class WS07MainApiConformanceTest {
         spell.setActivatingPlayer(caster);
         cmd.setCastFrom(caster.getZone(ZoneType.Command));
         castFixture.game.getStack().addAndUnfreeze(spell);
-        Card stackCommander = cardIn(caster, ZoneType.Stack, DEFAULT_COMMANDER);
+        Card stackCommander = castFixture.game.getCardState(cmd);
+        Assert.assertNotNull(stackCommander);
+        Assert.assertEquals(stackCommander.getZone().getZoneType(), ZoneType.Stack);
         Assert.assertTrue(stackCommander.isCommander());
         Assert.assertEquals(caster.getCommanderCast(stackCommander), 1);
         Assert.assertEquals(stackCommander.getCastFrom().getZoneType(), ZoneType.Command);
@@ -409,8 +421,6 @@ public class WS07MainApiConformanceTest {
                 "casting moves commander to stack and records a command-zone cast", "zone=Stack; commanderCast=1");
         emit("D", 4, "commander spell in command zone", "cast",
                 "Forge performs cast/cost state transition", "zone=Stack; cast counter incremented");
-        emit("E", 4, "empty stack; active=P1", "P1 casts commander",
-                "spell is added to MagicStack under Forge stack ownership", "stack contains commander spell");
 
         Fixture taxFixture = fixture(4, true);
         Player p = taxFixture.p(0);
@@ -470,15 +480,23 @@ public class WS07MainApiConformanceTest {
         cmd = accept.game.getAction().moveToPlay(cmd, p, null, AbilityKey.newMap());
         Assert.assertEquals(cmd.getZone().getZoneType(), ZoneType.Battlefield);
         cmd = accept.game.getAction().moveTo(p.getZone(ZoneType.Graveyard), cmd, null);
+        Assert.assertEquals(cmd.getZone().getZoneType(), ZoneType.Graveyard);
+        accept.game.getAction().checkStateEffects(true);
+        cmd = accept.game.getCardState(cmd);
+        Assert.assertNotNull(cmd);
         Assert.assertEquals(cmd.getZone().getZoneType(), ZoneType.Command);
-        emit("C08", 4, "commander on battlefield", "owner accepts command-zone choice for graveyard move",
-                "Forge Commander processing places the commander in Command", "destination=Command");
+        emit("C08", 4, "commander on battlefield", "move to graveyard; owner accepts command-zone SBA choice",
+                "Forge Commander SBA processing places the commander in Command", "Graveyard then SBA=>Command");
 
         cmd = accept.game.getAction().moveToPlay(cmd, p, null, AbilityKey.newMap());
         cmd = accept.game.getAction().moveTo(p.getZone(ZoneType.Exile), cmd, null);
+        Assert.assertEquals(cmd.getZone().getZoneType(), ZoneType.Exile);
+        accept.game.getAction().checkStateEffects(true);
+        cmd = accept.game.getCardState(cmd);
+        Assert.assertNotNull(cmd);
         Assert.assertEquals(cmd.getZone().getZoneType(), ZoneType.Command);
-        emit("C09", 4, "commander on battlefield", "owner accepts command-zone choice for exile move",
-                "Forge Commander processing places the commander in Command", "destination=Command");
+        emit("C09", 4, "commander on battlefield", "move to exile; owner accepts command-zone SBA choice",
+                "Forge Commander SBA processing places the commander in Command", "Exile then SBA=>Command");
 
         cmd = accept.game.getAction().moveToPlay(cmd, p, null, AbilityKey.newMap());
         cmd = accept.game.getAction().moveTo(p.getZone(ZoneType.Hand), cmd, null);
@@ -488,8 +506,9 @@ public class WS07MainApiConformanceTest {
         Assert.assertEquals(cmd.getZone().getZoneType(), ZoneType.Command);
         emit("C10", 4, "commander on battlefield", "owner accepts command-zone choice for hand and library moves",
                 "Forge replacement processing redirects both moves to Command", "hand->Command; library->Command");
-        emit("H", 4, "Commander effect active", "accept optional commander zone processing",
-                "replacement/zone-change processing changes the destination semantically", "requested destination replaced by Command");
+        emit("H", 4, "Commander movement rules active", "exercise accepted hand/library replacement choices",
+                "Forge replacement processing changes requested hidden-zone destinations to Command",
+                "hand->Command; library->Command");
 
         Fixture decline = fixture(4, false);
         Player d = decline.p(0);
@@ -497,16 +516,24 @@ public class WS07MainApiConformanceTest {
         declined = decline.game.getAction().moveToPlay(declined, d, null, AbilityKey.newMap());
         declined = decline.game.getAction().moveTo(d.getZone(ZoneType.Graveyard), declined, null);
         Assert.assertEquals(declined.getZone().getZoneType(), ZoneType.Graveyard);
-        emit("C11", 4, "commander on battlefield", "owner declines command-zone choice",
-                "declining preserves requested destination", "destination=Graveyard");
+        decline.game.getAction().checkStateEffects(true);
+        declined = decline.game.getCardState(declined);
+        Assert.assertNotNull(declined);
+        Assert.assertEquals(declined.getZone().getZoneType(), ZoneType.Graveyard);
+        emit("C11", 4, "commander moved into graveyard", "owner explicitly declines command-zone SBA choice",
+                "declining preserves requested destination", "after SBA destination=Graveyard");
 
         decline.lobbies.get(0).setCommanderReplacementChoice(true);
         declined = decline.game.getAction().moveTo(d.getZone(ZoneType.Exile), declined, null);
+        Assert.assertEquals(declined.getZone().getZoneType(), ZoneType.Exile);
+        decline.game.getAction().checkStateEffects(true);
+        declined = decline.game.getCardState(declined);
+        Assert.assertNotNull(declined);
         Assert.assertEquals(declined.getZone().getZoneType(), ZoneType.Command);
-        emit("C12", 4, "commander previously declined into graveyard", "owner accepts on later zone move",
-                "a prior decline does not disable later commander movement choice", "later destination=Command");
-        emit("T", 4, "same controller path exercised with explicit false then true replacement decisions",
-                "decline first discretionary choice; explicitly accept next choice",
+        emit("C12", 4, "commander previously declined into graveyard", "owner accepts on later exile SBA choice",
+                "a prior decline does not disable later commander movement choice", "later Exile then SBA=>Command");
+        emit("T", 4, "same controller path exercised with explicit false then true commander-zone decisions",
+                "decline first SBA choice; explicitly accept next SBA choice",
                 "Forge consumes the supplied choice each time without a harness fallback",
                 "false=>Graveyard; true=>Command");
     }
@@ -619,9 +646,9 @@ public class WS07MainApiConformanceTest {
         Assert.assertTrue(combat.getAttackersOf(p2).contains(a2));
         emit("J", 4, "P1 controls two attack-capable creatures; P2/P3 are separate defenders", "declare one attacker at each defender",
                 "Forge combat validates multiple defender assignments", "P2 attacked by Bear; P3 attacked by Lion");
-        emit("A", 4, "active=P1", "inspect engine turn order",
-                "turn order is P1->P2->P3->P4 and priority initially belongs to active player", "turn-order and priority state verified");
-        emit("E", 4, "active=P1", "inspect priority and simultaneous stack dispatch",
+        emit("A", 4, "active=P1 in MAIN1", "inspect engine turn order and priority",
+                "turn order is P1->P2->P3->P4 and priority belongs to active player", "turn-order=P1,P2,P3,P4; priority=P1");
+        emit("E", 4, "active=P1 with simultaneous stack entries", "inspect priority and APNAP stack dispatch",
                 "priority/APNAP stack semantics are engine-owned", "priority=P1; APNAP=P1,P2,P3,P4");
     }
 
