@@ -1,0 +1,2710 @@
+{
+  "ambiguous_binding_count": 0,
+  "atomic_primitive_count": 174,
+  "base_sha": "6828c7175345d3193d814406428c8ee6b54c1136",
+  "behavior_pass_issued_from_parsing": false,
+  "card_name_production_hacks": 0,
+  "deterministic_materialization_contract": "canonical-json/sorted-primitives/sorted-occurrences/no-runtime-time-or-rng",
+  "evidence_classes": [
+    "CODE_DERIVED",
+    "UNKNOWN"
+  ],
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "identity_count": 1678,
+  "model": "forge-atomic-path-v1",
+  "old_full_script_signature_count": 1677,
+  "per_identity_sha256": "1e824702ed0dcd4af7d91e66b02ec37fc88dd9ace51ab20bf0abf1f53b605703",
+  "primitive_count_by_owner_family": {
+    "ACTION_COST_DECISION": 76,
+    "COMBAT_COMMANDER": 10,
+    "CONTINUOUS_COPY_CONTROL": 21,
+    "HIDDEN_RNG_REPLAY": 14,
+    "TRIGGER_REPLACEMENT_ZONE_SBA": 53
+  },
+  "primitives": [
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "AttackerBlockedByCreature",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerAttackerBlockedByCreature",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:03265c083642502fcc587bd094877d36"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "SacrificeAll",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.SacrificeAllEffect",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:041914e9075a382e1067f95a0af6ee69"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "RemoveFromCombat",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.RemoveFromCombatEffect",
+      "owner_family": "COMBAT_COMMANDER",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:04d296f24dde08895a70e7d54d5bc4d7"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "TokenCreatedOnce",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerTokenCreatedOnce",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:04f2e3d46b2a6846311c2a15c8033f18"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Animate",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.AnimateEffect",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:08424e768e141eda321218cb0567c839"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "COST",
+      "dispatch_token": "AbilityFactory.parseAbilityCost",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "evidence": [
+          "return ApiType.smartValueOf(abParams.get(getPrefix()))",
+          "return new Cost(cost, type == AbilityRecordType.Ability)",
+          "return new Cost(state.getManaCost(), false)",
+          "mapParams.containsKey(\"ValidTgts\") ? readTarget(mapParams) : null"
+        ],
+        "path": "forge-game/src/main/java/forge/game/ability/AbilityFactory.java",
+        "sha256_bytes": "d15af9e4b376c0d053ec6e57c392b0deea32397d8f3853f3852e4ab9401b219e"
+      },
+      "implementation_target": "forge.game.cost.Cost",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "COST_IMPLEMENTATION",
+      "primitive_id": "forge-primitive-v1:08656c287e3f504ce0135d482eb1fe83"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "CounterAdded",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerCounterAdded",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:090100367f2dcc25923798dd83eac560"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "TapAll",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.TapAllEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:09223b664b95df87a12abac62b317e24"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ExchangeLifeVariant",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.LifeExchangeVariantEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:0d19226ea89c2f416e468b41d47b4089"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "AttackerBlocked",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerAttackerBlocked",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:0fd278603dde72ac39de9a9713d1d2b9"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "AddPhase",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.AddPhaseEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:10aeb401e03a26039632f2b20a52bd98"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Repeat",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.RepeatEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:129f0bc348ae5297ac481eaef7381118"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "AttackersDeclared",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerAttackersDeclared",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:15b119d50530256381691b2a2f0ebc92"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Branch",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.BranchEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:1640a2f3521be9766f83b9e06a26f040"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "Phase",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerPhase",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:174e95c9c28363a1ac61e78976fc8a63"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "LoseLife",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.LifeLoseEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:198fd31b9e0ac560c85c956a59852506"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Dig",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DigEffect",
+      "owner_family": "HIDDEN_RNG_REPLAY",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:1af578dfe4497e08dfe2939d9255d1a0"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Attach",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.AttachEffect",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:1c0e884ced56b34cd296eb0c096cdcd0"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Investigate",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.InvestigateEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:1c8e2f528775b71b55651f40e117fe8d"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "RaiseCost",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#RaiseCost",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:1ed4f9e41f988cbbb60d1db6bde86af6"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ChooseSource",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ChooseSourceEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:21fb13093afdd8b44fc347927bdb2273"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "TapOrUntap",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.TapOrUntapEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:222e0678a7302342e719eeccb3f30cae"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "PeekAndReveal",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.PeekAndRevealEffect",
+      "owner_family": "HIDDEN_RNG_REPLAY",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:226fa6e9b7b0d63d6cc6dd2d2476a33d"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "ReduceCost",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#ReduceCost",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:22a2745847d36b577441f9e55e7d979a"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Tap",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.TapEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:23e862d6eb13a6fda8e43e6c22bda013"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "Blocks",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerBlocks",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:271b81dfef90a42c9fd6f127b4ea4207"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Sacrifice",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.SacrificeEffect",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:283ca7b83f3ed2e216d1bf51c86b0e7b"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "RemoveCounter",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.CountersRemoveEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:28a34f43e9f541db31b935f89abd0408"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "REPLACEMENT",
+      "dispatch_token": "Untap",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 40,
+        "path": "forge-game/src/main/java/forge/game/replacement/ReplacementType.java",
+        "sha256_bytes": "c1dac7921122ab22fcf4fbc28ee9a7f5b7eeb28267eb55faf91040242875fb00"
+      },
+      "implementation_target": "forge.game.replacement.ReplaceUntap",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "REPLACEMENT",
+      "primitive_id": "forge-primitive-v1:29b54694ab39f7b1dabc753e56161b50"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "COST",
+      "dispatch_token": "CardState.ManaCost",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "evidence": [
+          "return ApiType.smartValueOf(abParams.get(getPrefix()))",
+          "return new Cost(cost, type == AbilityRecordType.Ability)",
+          "return new Cost(state.getManaCost(), false)",
+          "mapParams.containsKey(\"ValidTgts\") ? readTarget(mapParams) : null"
+        ],
+        "path": "forge-game/src/main/java/forge/game/ability/AbilityFactory.java",
+        "sha256_bytes": "d15af9e4b376c0d053ec6e57c392b0deea32397d8f3853f3852e4ab9401b219e"
+      },
+      "implementation_target": "forge.game.cost.Cost",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "COST_IMPLEMENTATION",
+      "primitive_id": "forge-primitive-v1:2a10cb2d68ee5586e016ba7910693256"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "MustAttack",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#MustAttack",
+      "owner_family": "COMBAT_COMMANDER",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:2a4930a1472af6b30be25eba27574bcd"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "BecomesTarget",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerBecomesTarget",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:2acdba85f0c72ad14de71af6c80a2282"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Reveal",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.RevealEffect",
+      "owner_family": "HIDDEN_RNG_REPLAY",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:2f2d89998203c56addfd1a7101c0451e"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Cleanup",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.CleanUpEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:2fd3453dd458b64a6dab1bcf388b200e"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "CounterAddedOnce",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerCounterAddedOnce",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:306b9b4eb603db62ba4e97830bf47d28"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Pump",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.PumpEffect",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:3126d017fe3342b01e782181bcdc5321"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "GainLife",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.LifeGainEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:336f092f6f84a1ba3f916857091b3734"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "DamageResolve",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DamageResolveEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:35bc6bcf8155d07929a501f18a1cff35"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ReplaceCounter",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ReplaceCounterEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:3871e99203943547f130d828529aa374"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "PermanentCreature",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.PermanentCreatureEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:3dfe2178334e9520e10c4eda28cb6e46"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "Discarded",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerDiscarded",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:3ede24a2602c6bdcd61f98ab59faff79"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Mill",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.MillEffect",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:3f6e61cec27a982714ace1a0c94bf274"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "CopyPermanent",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.CopyPermanentEffect",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:447081d46292da4e992bbb87fbb05bc0"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "Taps",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerTaps",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:46eaba23506f6e6b3c75587bf7132152"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Clone",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.CloneEffect",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:4c0f82de9018c96620bc5544355fbe7b"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Clash",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ClashEffect",
+      "owner_family": "HIDDEN_RNG_REPLAY",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:4c4fe5c81ac8ed964406738c06a730d5"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Incubate",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.IncubateEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:4c6658db427a8bb6e55048bad6503edd"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Discover",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DiscoverEffect",
+      "owner_family": "HIDDEN_RNG_REPLAY",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:4f16a56f434c6729b6ece4ef96f1bed3"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Proliferate",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.CountersProliferateEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:4f67015d5c2e89100e2ef5b0aafd567d"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "CantBeCast",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#CantBeCast",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:4fa2c51d221c3bae343a6b5cc56ea3ca"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Regenerate",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.RegenerateEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:501ca276115cdc1f7d5124853259fc8c"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "PutCounter",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.CountersPutEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:514eb2f9a69bb915f9bd4e672c565a20"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Explore",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ExploreEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:5229718140c8111afca97f56fb95bbe7"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "CantPreventDamage",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#CantPreventDamage",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:52fb8c5e9c36e45a729bc15ec16588ae"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Destroy",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DestroyEffect",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:5766ec0792b91cd7653fb91670419245"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ReplaceDamage",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ReplaceDamageEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:588563b710e71358eee0869320c62032"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Protection",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ProtectEffect",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:5ad93650ea66a8c2da22ff23486e5a8c"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Surveil",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.SurveilEffect",
+      "owner_family": "HIDDEN_RNG_REPLAY",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:5b8dc389fee68dfe40bdb177efc57142"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "LifeLostAll",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerLifeLostAll",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:5ca05f7075958f243c8a4c116654884f"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "WinsGame",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.GameWinEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:5f0b71ee5698b4046efb34428acd5198"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "ChangesZone",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerChangesZone",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:5f99c3f437013e47c874b90e66bc3074"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "IgnoreLegendRule",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#IgnoreLegendRule",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:603c8aedfe69639d6058fe1c76e0021a"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "CantBlock",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#CantBlock",
+      "owner_family": "COMBAT_COMMANDER",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:641a5a38a035abfef6d8329af3d321fc"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "DigUntil",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DigUntilEffect",
+      "owner_family": "HIDDEN_RNG_REPLAY",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:64bc2f793686b1e70d0e8a00852a0623"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Discard",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DiscardEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:65f498a84b48d08b718781bd60714c5b"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "REPLACEMENT",
+      "dispatch_token": "Proliferate",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 40,
+        "path": "forge-game/src/main/java/forge/game/replacement/ReplacementType.java",
+        "sha256_bytes": "c1dac7921122ab22fcf4fbc28ee9a7f5b7eeb28267eb55faf91040242875fb00"
+      },
+      "implementation_target": "forge.game.replacement.ReplaceProliferate",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "REPLACEMENT",
+      "primitive_id": "forge-primitive-v1:6602b0477fd1333f679bb976cee4291f"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "MoveCounter",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.CountersMoveEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:667dee2bd2358a44ce28a57a713952b3"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "CopySpellAbility",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.CopySpellAbilityEffect",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:67d8cbe2b1051ca357f4350a895ca4c8"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ReplaceToken",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ReplaceTokenEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:67fb100dcfd0b3f76d257b9985de199b"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "REPLACEMENT",
+      "dispatch_token": "Counter",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 40,
+        "path": "forge-game/src/main/java/forge/game/replacement/ReplacementType.java",
+        "sha256_bytes": "c1dac7921122ab22fcf4fbc28ee9a7f5b7eeb28267eb55faf91040242875fb00"
+      },
+      "implementation_target": "forge.game.replacement.ReplaceCounter",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "REPLACEMENT",
+      "primitive_id": "forge-primitive-v1:6b35ab77a961488c5c4b5fd3777b58d0"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "CounterPlayerAddedAll",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerCounterPlayerAddedAll",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:6b41939c2a58a8c12ab2f315cd7dd768"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "AnimateAll",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.AnimateAllEffect",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:6bd2cce628a9be72e542ddba5488c1fd"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "AttackersDeclaredOneTarget",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerAttackersDeclared",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:6cb7f64aac6b710ee97e1cb712442fa0"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Blight",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.BlightEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:6d5c646849759a0a7d7b11811b2bf934"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "WitherDamage",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#WitherDamage",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:6d77e11ae4a34d4164e4f398464bbeec"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "CantBeActivated",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#CantBeActivated",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:6e3bb31e584cdb09078f4307e3fb564c"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "CanAttackDefender",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#CanAttackDefender",
+      "owner_family": "COMBAT_COMMANDER",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:70bb44436c50afdb1eb07bb13a07ce8d"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "DelayedTrigger",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DelayedTriggerEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:716be9bf9064f7edbb833a0ba15f4502"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "SkipPhase",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.SkipPhaseEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:724bfe74005f485099a129170a8cf53b"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Connive",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ConniveEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:742227f2c14eab1732ac85f1474a2fb5"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "GenericChoice",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ChooseGenericEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:759ef994eb9b4dcf8c6d8725d659d1f5"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "GainControlVariant",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ControlGainVariantEffect",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:760a97962673030b6d8646e6183bfc92"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "LosesGame",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.GameLossEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:789d99704350831e9ecafec8d9fb8dc9"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "Investigated",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerInvestigated",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:79951dde7015d40d1629b874e9244f28"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "UntapAll",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.UntapAllEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:7c6edc97366fe2f470f16b02290ba31a"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ManaReflected",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ManaReflectedEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:809b3fc2252839ab85d5eac39a370669"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "REPLACEMENT",
+      "dispatch_token": "GainLife",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 40,
+        "path": "forge-game/src/main/java/forge/game/replacement/ReplacementType.java",
+        "sha256_bytes": "c1dac7921122ab22fcf4fbc28ee9a7f5b7eeb28267eb55faf91040242875fb00"
+      },
+      "implementation_target": "forge.game.replacement.ReplaceGainLife",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "REPLACEMENT",
+      "primitive_id": "forge-primitive-v1:82ddbd2f9cdf5f2fb1a48d07967c4f95"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TARGETING",
+      "dispatch_token": "ValidTgts",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "evidence": [
+          "return ApiType.smartValueOf(abParams.get(getPrefix()))",
+          "return new Cost(cost, type == AbilityRecordType.Ability)",
+          "return new Cost(state.getManaCost(), false)",
+          "mapParams.containsKey(\"ValidTgts\") ? readTarget(mapParams) : null"
+        ],
+        "path": "forge-game/src/main/java/forge/game/ability/AbilityFactory.java",
+        "sha256_bytes": "d15af9e4b376c0d053ec6e57c392b0deea32397d8f3853f3852e4ab9401b219e"
+      },
+      "implementation_target": "forge.game.spellability.TargetRestrictions",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "TARGETING_IMPLEMENTATION",
+      "primitive_id": "forge-primitive-v1:833983466a96fff1143a17a1a8abb7a9"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Play",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.PlayEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:83bc6a95157c7dfde6db347a06585b71"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "REPLACEMENT",
+      "dispatch_token": "AddCounter",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 40,
+        "path": "forge-game/src/main/java/forge/game/replacement/ReplacementType.java",
+        "sha256_bytes": "c1dac7921122ab22fcf4fbc28ee9a7f5b7eeb28267eb55faf91040242875fb00"
+      },
+      "implementation_target": "forge.game.replacement.ReplaceAddCounter",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "REPLACEMENT",
+      "primitive_id": "forge-primitive-v1:8487420e7c6118d38fa6b4a9de9c6d01"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "PreventDamage",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DamagePreventEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:86c37e1a1be4ca2f5af4e21721b64477"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "CantBlockBy",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#CantBlockBy",
+      "owner_family": "COMBAT_COMMANDER",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:8ad02e4d548da410a98ee865fe2863e7"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Vote",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.VoteEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:8c1a1e8230e4f9d732ed3d6d953e7131"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "DestroyAll",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DestroyAllEffect",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:8cf9ac6fb957c2d6d5ce893052037222"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Poison",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.PoisonEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:8e93bcc37919b4244f0017d83d7535ce"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "DealDamage",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DamageDealEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:91d9116c8d24ca667018c647cf747a31"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "Connives",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerConnives",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:935c26078898c7ba9ddc8207c50d2894"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_RECORD",
+      "dispatch_token": "SP",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "evidence": [
+          "return ApiType.smartValueOf(abParams.get(getPrefix()))",
+          "return new Cost(cost, type == AbilityRecordType.Ability)",
+          "return new Cost(state.getManaCost(), false)",
+          "mapParams.containsKey(\"ValidTgts\") ? readTarget(mapParams) : null"
+        ],
+        "path": "forge-game/src/main/java/forge/game/ability/AbilityFactory.java",
+        "sha256_bytes": "d15af9e4b376c0d053ec6e57c392b0deea32397d8f3853f3852e4ab9401b219e"
+      },
+      "implementation_target": "forge.game.spellability.SpellApiBased",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_RECORD",
+      "primitive_id": "forge-primitive-v1:951eb33164ffd56dde59b1fe69353889"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Scry",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ScryEffect",
+      "owner_family": "HIDDEN_RNG_REPLAY",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:956ffbd2eb0157a5e1cdf4f9e1b85234"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "REPLACEMENT",
+      "dispatch_token": "Draw",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 40,
+        "path": "forge-game/src/main/java/forge/game/replacement/ReplacementType.java",
+        "sha256_bytes": "c1dac7921122ab22fcf4fbc28ee9a7f5b7eeb28267eb55faf91040242875fb00"
+      },
+      "implementation_target": "forge.game.replacement.ReplaceDraw",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "REPLACEMENT",
+      "primitive_id": "forge-primitive-v1:95b2059d3725d083fa6d281763afcbcf"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ChooseCard",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ChooseCardEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:966624fce64bda9dcec031d778dfe34f"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "MultiplyCounter",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.CountersMultiplyEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:9892ab9d85496f57e67da1474d2b9ad0"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "TokenCreated",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerTokenCreated",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:98cf313407746dad3875285713d7f249"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "GainControl",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ControlGainEffect",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:9b511df4b453a3c484754ff1e8246b48"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "SpellCastOrCopy",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerSpellAbilityCastOrCopy",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:9bff5d7aedac0a7cd1894e627104f766"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "REPLACEMENT",
+      "dispatch_token": "CreateToken",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 40,
+        "path": "forge-game/src/main/java/forge/game/replacement/ReplacementType.java",
+        "sha256_bytes": "c1dac7921122ab22fcf4fbc28ee9a7f5b7eeb28267eb55faf91040242875fb00"
+      },
+      "implementation_target": "forge.game.replacement.ReplaceToken",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "REPLACEMENT",
+      "primitive_id": "forge-primitive-v1:9efe2f054fa977b84b63b82c88695091"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "UntapOtherPlayer",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#UntapOtherPlayer",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:9f95064edf65852db3afe8f61087d4d8"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "TapsForMana",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerTapsForMana",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:a0b9309fe0be6383bdfd3aefb2b64350"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "SetLife",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.LifeSetEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:a1b3e1ea9cf442139b8f9f8d12b1edd3"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "DiscardedAll",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerDiscardedAll",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:a1be69d3f2be90357625707583e9c256"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Cloak",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.CloakEffect",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:a563411c5984b3b7cc567cb6d423de14"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Shuffle",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ShuffleEffect",
+      "owner_family": "HIDDEN_RNG_REPLAY",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:a64e9262ef709ba93ce92660c3e8cc24"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "SpellCast",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerSpellAbilityCastOrCopy",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:a77914b68fcf2191d8de4673e4b1c893"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "AttackerUnblockedOnce",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerAttackerUnblockedOnce",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:a8bf1b2e93aeec04c075c0ec2e811899"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "StoreSVar",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.StoreSVarEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:a973d92f9f7fb9a5dda40405233c5d2b"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "CantDraw",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#CantDraw",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:aa1349bf19f4774275887c2818762488"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Phases",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.PhasesEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:abd2a8b6d37af438b810ed11a70c67b9"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Untap",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.UntapEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:ae2c601781a8977e88245f71d951d1e8"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "DamageDoneOnce",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerDamageDoneOnce",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:ae5155215106e46d8c576d6e12242ecf"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "REPLACEMENT",
+      "dispatch_token": "Moved",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 40,
+        "path": "forge-game/src/main/java/forge/game/replacement/ReplacementType.java",
+        "sha256_bytes": "c1dac7921122ab22fcf4fbc28ee9a7f5b7eeb28267eb55faf91040242875fb00"
+      },
+      "implementation_target": "forge.game.replacement.ReplaceMoved",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "REPLACEMENT",
+      "primitive_id": "forge-primitive-v1:affff0f8993d9b11ad9f1fb7cae35907"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "Sacrificed",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerSacrificed",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:b0636763b90fc5f63e96d2a5e047ed8f"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "ChangesZoneAll",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerChangesZoneAll",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:b22fb592937c97506d83f21c3ff311f3"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ChangeZoneAll",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ChangeZoneAllEffect",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:b38f3f027696ef48534d76c240c6b295"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "CantGainLife",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#CantGainLife",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:b4234878b4dfc66d71b7c09bca34103a"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "REPLACEMENT",
+      "dispatch_token": "DamageDone",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 40,
+        "path": "forge-game/src/main/java/forge/game/replacement/ReplacementType.java",
+        "sha256_bytes": "c1dac7921122ab22fcf4fbc28ee9a7f5b7eeb28267eb55faf91040242875fb00"
+      },
+      "implementation_target": "forge.game.replacement.ReplaceDamage",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "REPLACEMENT",
+      "primitive_id": "forge-primitive-v1:b5d8f4ed56f28759f8d09084f5ce19ed"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "NameCard",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ChooseCardNameEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:b7105d9710b032d3b4c0aa81abdd6de6"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "FlipCoin",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.FlipCoinEffect",
+      "owner_family": "HIDDEN_RNG_REPLAY",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:b844b962e4b9193c8f2165257630ebb7"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "Continuous",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#Continuous",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:b885ed6f5df2929844ca4e1f69ebfaad"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_RECORD",
+      "dispatch_token": "AB",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "evidence": [
+          "return ApiType.smartValueOf(abParams.get(getPrefix()))",
+          "return new Cost(cost, type == AbilityRecordType.Ability)",
+          "return new Cost(state.getManaCost(), false)",
+          "mapParams.containsKey(\"ValidTgts\") ? readTarget(mapParams) : null"
+        ],
+        "path": "forge-game/src/main/java/forge/game/ability/AbilityFactory.java",
+        "sha256_bytes": "d15af9e4b376c0d053ec6e57c392b0deea32397d8f3853f3852e4ab9401b219e"
+      },
+      "implementation_target": "forge.game.spellability.AbilityApiBased",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_RECORD",
+      "primitive_id": "forge-primitive-v1:bc6d4f3de4f660a54c693767404f3811"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ChangeZone",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ChangeZoneEffect",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:bc713dd56e4fc5a872ada09676c29d78"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "RearrangeTopOfLibrary",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.RearrangeTopOfLibraryEffect",
+      "owner_family": "HIDDEN_RNG_REPLAY",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:bdc400efacf3b7fc01e29f443ac255d4"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "TwoPiles",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.TwoPilesEffect",
+      "owner_family": "HIDDEN_RNG_REPLAY",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:bddb30779cdc7ee1bf4ded9159c5fa2d"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "EachDamage",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DamageEachEffect",
+      "owner_family": "COMBAT_COMMANDER",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:bfcb323d8748b51592bf91a79fc9a1c3"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ChooseColor",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ChooseColorEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:c0629083ee46d3df0af458d6d8a8530c"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ImmediateTrigger",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ImmediateTriggerEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:c22e03b754fa362e5518bada080f2c3c"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "OptionalCost",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#OptionalCost",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:c4dc373efa632dbb1081374aa2425093"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "Attacks",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerAttacks",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:ce4649458c6453d1f6b2ff4700268f19"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "PutCounterAll",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.CountersPutAllEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:cf282b79fd63d2cb8a956f44c236e38b"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "AlternativeCost",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#AlternativeCost",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:d0b5e7a42cddaf2a9f03a0e2e252fde0"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "LifeGained",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerLifeGained",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:d5dbcf123d2b69835f7181f82704700c"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Token",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.TokenEffect",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:d79eac8810a1beb5f90ad506670212ba"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "CantAttackUnless",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#CantAttackUnless",
+      "owner_family": "COMBAT_COMMANDER",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:dbcc51c71260926d12fc0a00aa4c97da"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Fight",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.FightEffect",
+      "owner_family": "COMBAT_COMMANDER",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:dc35e2bbd58c498a632c29ae87b85f05"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "RepeatEach",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.RepeatEachEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:dc7b2a5cbcf429d2ef29c46056198bf5"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "DamageAll",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DamageAllEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:df0687a8138ff532308759b08f75baa6"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Effect",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.EffectEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:e0f5bef3c6a397bbdf79d5df78db0ae1"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ChooseType",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ChooseTypeEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:e1b864c2e2e8b22a478bc9dc3831385f"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "Always",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerAlways",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:e3764125a2b3e7e606ad6d62e72853ca"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "Cycled",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerCycled",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:e61c7c39cf7132eb4ed242b824976aee"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Goad",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.GoadEffect",
+      "owner_family": "COMBAT_COMMANDER",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:e621981cf74488166593a3c3bbc272a4"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Mana",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ManaEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:e65afe956e32b9104c319086bd0bb119"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "VillainousChoice",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.VillainousChoiceEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:e8fce2b1d0e1aaafc52079808489af53"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "Drawn",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerDrawn",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:e94e113a5650ceb498e48e53f6994c87"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "LandPlayed",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerLandPlayed",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:ec9c82f2e5fd1205c68bd8ddb1cdb2b1"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "BecomeMonarch",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.BecomeMonarchEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:eca070a6a868d5ee43da93e82de3e63e"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ChoosePlayer",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ChoosePlayerEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:edc55dfb1fe3c643c7712e1fb4b05f15"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "AlterAttribute",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.AlterAttributeEffect",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:edd3340993f0e721a30ba4524a9eab76"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Detain",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DetainEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:eed92c789c76437228c3bf0e24da24c0"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "CantAttack",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#CantAttack",
+      "owner_family": "COMBAT_COMMANDER",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:eeda5aab43b0b322aae13465b65d0a10"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Charm",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.CharmEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:efb0678864cc889da0643bc7efe81e8e"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "Panharmonicon",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#Panharmonicon",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:f156878aa02c04085097954e4624e824"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Counter",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.CounterEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:f25a0f225ef2a4df510a0851a756c6ff"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_RECORD",
+      "dispatch_token": "DB",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "evidence": [
+          "return ApiType.smartValueOf(abParams.get(getPrefix()))",
+          "return new Cost(cost, type == AbilityRecordType.Ability)",
+          "return new Cost(state.getManaCost(), false)",
+          "mapParams.containsKey(\"ValidTgts\") ? readTarget(mapParams) : null"
+        ],
+        "path": "forge-game/src/main/java/forge/game/ability/AbilityFactory.java",
+        "sha256_bytes": "d15af9e4b376c0d053ec6e57c392b0deea32397d8f3853f3852e4ab9401b219e"
+      },
+      "implementation_target": "forge.game.spellability.AbilitySub",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_RECORD",
+      "primitive_id": "forge-primitive-v1:f29840dfc7a66f9953e41aef71962789"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "PumpAll",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.PumpAllEffect",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:f36f56f508ff41c3e2cce08420d518a1"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Manifest",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ManifestEffect",
+      "owner_family": "HIDDEN_RNG_REPLAY",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:f6f08c4954b68118901277a828ae0e3e"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "CommitCrime",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerCommitCrime",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:f787a77a788dad2a10e15b3e65e8bb25"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "SetState",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.SetStateEffect",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:f82456491a192bf8c75c2174a572a2bc"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ControlPlayer",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ControlPlayerEffect",
+      "owner_family": "CONTINUOUS_COPY_CONTROL",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:f89ea42249379a8c4453adb8e48a0f99"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "TRIGGER",
+      "dispatch_token": "DamageDone",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 147,
+        "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+        "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+      },
+      "implementation_target": "forge.game.trigger.TriggerDamageDone",
+      "owner_family": "TRIGGER_REPLACEMENT_ZONE_SBA",
+      "primitive_family": "TRIGGER",
+      "primitive_id": "forge-primitive-v1:fab6d3ca866cf1f5e6be5ede526dd655"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "RevealHand",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.RevealHandEffect",
+      "owner_family": "HIDDEN_RNG_REPLAY",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:fac941257271245f0344d824a7fbcc79"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "STATIC_MODE",
+      "dispatch_token": "CastWithFlash",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 84,
+        "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+        "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+      },
+      "implementation_target": "forge.game.staticability.StaticAbilityMode#CastWithFlash",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "STATIC_MODE",
+      "primitive_id": "forge-primitive-v1:fae02890ad4579d7739533f513330df5"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ReplaceEffect",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ReplaceEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:fb9ae4a12fcde5450e5c81ed2427078c"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "ChangeTargets",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ChangeTargetsEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:fc7acfc453d78f19eafdbb5bb566a884"
+    },
+    {
+      "cross_family_dependencies": [],
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Draw",
+      "evidence_class": "CODE_DERIVED",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DrawEffect",
+      "owner_family": "ACTION_COST_DECISION",
+      "primitive_family": "ABILITY_API",
+      "primitive_id": "forge-primitive-v1:ff4819531b19c5a2ab8427c786ca205d"
+    }
+  ],
+  "registry_sources": {
+    "ABILITY_API": {
+      "entry_count": 201,
+      "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+      "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+    },
+    "ABILITY_FACTORY": {
+      "evidence": [
+        "return ApiType.smartValueOf(abParams.get(getPrefix()))",
+        "return new Cost(cost, type == AbilityRecordType.Ability)",
+        "return new Cost(state.getManaCost(), false)",
+        "mapParams.containsKey(\"ValidTgts\") ? readTarget(mapParams) : null"
+      ],
+      "path": "forge-game/src/main/java/forge/game/ability/AbilityFactory.java",
+      "sha256_bytes": "d15af9e4b376c0d053ec6e57c392b0deea32397d8f3853f3852e4ab9401b219e"
+    },
+    "REPLACEMENT": {
+      "entry_count": 40,
+      "path": "forge-game/src/main/java/forge/game/replacement/ReplacementType.java",
+      "sha256_bytes": "c1dac7921122ab22fcf4fbc28ee9a7f5b7eeb28267eb55faf91040242875fb00"
+    },
+    "STATIC_MODE": {
+      "entry_count": 84,
+      "path": "forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java",
+      "sha256_bytes": "629ec92f1b504331bbb2c6e3e7bead182b3d6373f4c171a4cf93b9bde8ee0d31"
+    },
+    "TRIGGER": {
+      "entry_count": 147,
+      "path": "forge-game/src/main/java/forge/game/trigger/TriggerType.java",
+      "sha256_bytes": "e8ee579077b432a93e040e34a8a61072a64b0236d07db42dd4ba35ef39b259d9"
+    }
+  },
+  "schema": "commander-simulator-next.atomic-behavior-path.v1.manifest",
+  "synthetic_behavior_promotion": false,
+  "unresolved_binding_count": 1800,
+  "unresolved_bindings_sha256": "d35b3f2772b7638768e9d66d5e00eed8bc3488530be99e064be44c82e1cb5704",
+  "ws11_input": {
+    "artifact_digest": "sha256:74be5debf765e76d3aa8ab8a868795193b8f5dc6b4856d95bf9e94b087a7d581",
+    "artifact_id": 9714505392,
+    "job_id": 99097754070,
+    "per_identity_sha256": "1f46fc66d2049d65c7ede91700c0e76e38b3fb7c49c13bb394dd20aa6ea8ced7",
+    "qualified_head": "a604db2f8ebedfa9fad32fe71425ea2bfd031ec4",
+    "run_id": 33251464459
+  }
+}
