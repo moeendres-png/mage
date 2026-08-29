@@ -1,10 +1,7 @@
-name: WS16 pinned Forge trigger replacement zone SBA witnesses
+name: WS16 recover trigger replacement zone SBA witness shard
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - work/ws16-witness-trigger-zone-sba-20260829
 
 permissions:
   contents: read
@@ -15,97 +12,56 @@ env:
   WS14_TREE: 5725f47951938bc71af181cf1617e6b3be158804
   FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
   MANIFEST_SHA256: 1137335dd7101df44940a2b0c8cacc5740e2aef0a24eceb541449dd10a5e6f7b
+  TESTED_SOURCE_HEAD: b6927c63f2dfcbc45b6357351be2828917db1a2c
+  TESTED_SOURCE_TREE: 17c90ee714d5b2512df1c1fe2872b7c236fe0078
+  EXECUTION_RUN_ID: '33270636779'
+  EXECUTION_JOB_ID: '99148367194'
+  EXECUTION_ARTIFACT_ID: '9720024348'
+  EXECUTION_ARTIFACT_DIGEST: sha256:9d231f95ca45b84f170a3b7eb370a7f4aef821f7a06807840f0cb95ad41e0fd7
 
 jobs:
-  qualify:
+  recover:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 15
     steps:
-      - name: Checkout isolated WS16 source
+      - name: Checkout exact tested WS16 source
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.TESTED_SOURCE_HEAD }}
           path: qual
           fetch-depth: 0
 
-      - name: Verify WS14 base and immutable primitive ABI
+      - name: Verify tested source, WS14 base and immutable primitive ABI
         shell: bash
         run: |
           set -euo pipefail
-          git -C qual merge-base --is-ancestor "$WS14_HEAD" HEAD
+          test "$(git -C qual rev-parse HEAD)" = "$TESTED_SOURCE_HEAD"
+          test "$(git -C qual rev-parse 'HEAD^{tree}')" = "$TESTED_SOURCE_TREE"
+          git -C qual merge-base --is-ancestor "$WS14_HEAD" "$TESTED_SOURCE_HEAD"
           test "$(git -C qual rev-parse "$WS14_HEAD^{tree}")" = "$WS14_TREE"
           echo "$MANIFEST_SHA256  qual/research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json" | sha256sum -c -
           test "$(jq '[.primitives[] | select(.owner_family == "TRIGGER_REPLACEMENT_ZONE_SBA")] | length' qual/research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json)" = 53
           test ! -e qual/research/greenfield-qualification/actual-card-behavior/WS14_WITNESS_REGISTRY.json
 
-      - name: Checkout exact Forge pin
-        uses: actions/checkout@v4
-        with:
-          repository: Card-Forge/forge
-          ref: ${{ env.FORGE_PIN }}
-          path: forge
-          fetch-depth: 1
-
-      - name: Install isolated actual-card test overlay
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
-          cp qual/research/greenfield-qualification/actual-card-behavior/witness-shards/trigger-replacement-zone-sba/forge-overlay/Ws16JwarIsleRefugeWitnessTest.java \
-            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws16JwarIsleRefugeWitnessTest.java
-
-      - name: Execute pinned Forge state witness only
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts/ws16-execution
-          (
-            cd forge
-            # AITest deliberately initializes Forge's desktop implementation.
-            # The isolated witness is engine-state based, but needs a virtual
-            # display in CI; xvfb supplies that harness dependency only.
-            xvfb-run -a mvn -pl forge-gui-desktop -am \
-              '-Dtest=forge.gamesimulationtests.Ws16JwarIsleRefugeWitnessTest' \
-              '-Dsurefire.failIfNoSpecifiedTests=false' test
-          ) 2>&1 | tee artifacts/ws16-execution/maven.log
-          cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws16JwarIsleRefugeWitnessTest.xml \
-            artifacts/ws16-execution/testng-report.xml
-          printf '%s\n' "$(git -C forge rev-parse HEAD)" > artifacts/ws16-execution/forge_head.txt
-          sha256sum artifacts/ws16-execution/maven.log artifacts/ws16-execution/testng-report.xml artifacts/ws16-execution/forge_head.txt > artifacts/ws16-execution/EXECUTION_HASHES.sha256
-
-      - name: Upload immutable Forge execution evidence
-        id: execution_artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ws16-pinned-forge-execution
-          path: artifacts/ws16-execution
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Resolve execution artifact identity
-        id: execution_identity
+      - name: Recover immutable successful Forge execution evidence
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          for attempt in 1 2 3 4 5 6; do
-            payload="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts")"
-            artifact_id="$(jq -r '.artifacts[] | select(.name == "ws16-pinned-forge-execution") | .id' <<<"$payload" | head -n1)"
-            digest="$(jq -r '.artifacts[] | select(.name == "ws16-pinned-forge-execution") | .digest' <<<"$payload" | head -n1)"
-            if [[ "$artifact_id" =~ ^[0-9]+$ && "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-              break
-            fi
-            sleep 5
-          done
-          test "${artifact_id:-}" =~ ^[0-9]+$
-          test "${digest:-}" =~ ^sha256:[0-9a-f]{64}$
-          job_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" --paginate | jq -r '.jobs[] | select(.name == "qualify") | .id' | head -n1)"
-          test "$job_id" =~ ^[0-9]+$
-          {
-            echo "artifact_id=$artifact_id"
-            echo "artifact_digest=$digest"
-            echo "job_id=$job_id"
-          } >> "$GITHUB_OUTPUT"
+          mkdir -p artifacts/ws16-execution
+          gh run download "$EXECUTION_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name ws16-pinned-forge-execution \
+            --dir artifacts/ws16-execution
+          metadata="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$EXECUTION_RUN_ID/artifacts")"
+          test "$(jq -r '.artifacts[] | select(.name == "ws16-pinned-forge-execution") | .id' <<<"$metadata")" = "$EXECUTION_ARTIFACT_ID"
+          test "$(jq -r '.artifacts[] | select(.name == "ws16-pinned-forge-execution") | .digest' <<<"$metadata")" = "$EXECUTION_ARTIFACT_DIGEST"
+          job="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$EXECUTION_RUN_ID/jobs" --paginate | jq -c '.jobs[] | select(.id == 99148367194)')"
+          test "$(jq -r '.conclusion' <<<"$job")" = success
+          test "$(jq -r '[.steps[] | select(.name == "Execute pinned Forge state witness only")][0].conclusion' <<<"$job")" = success
+          test "$(jq -r '[.steps[] | select(.name == "Upload immutable Forge execution evidence")][0].conclusion' <<<"$job")" = success
+          test "$(cat artifacts/ws16-execution/forge_head.txt)" = "$FORGE_PIN"
+          (cd artifacts/ws16-execution && sha256sum -c EXECUTION_HASHES.sha256)
 
       - name: Materialize and ABI-validate WS16 witness shard
         shell: bash
@@ -116,12 +72,12 @@ jobs:
           python3 qual/research/greenfield-qualification/actual-card-behavior/witness-shards/trigger-replacement-zone-sba/ws16_materialize.py \
             --manifest qual/research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json \
             --report artifacts/ws16-execution/testng-report.xml \
-            --source-head "$(git -C qual rev-parse HEAD)" \
-            --source-tree "$(git -C qual rev-parse 'HEAD^{tree}')" \
-            --run-id "$GITHUB_RUN_ID" \
-            --job-id '${{ steps.execution_identity.outputs.job_id }}' \
-            --artifact-id '${{ steps.execution_identity.outputs.artifact_id }}' \
-            --artifact-digest '${{ steps.execution_identity.outputs.artifact_digest }}' \
+            --source-head "$TESTED_SOURCE_HEAD" \
+            --source-tree "$TESTED_SOURCE_TREE" \
+            --run-id "$EXECUTION_RUN_ID" \
+            --job-id "$EXECUTION_JOB_ID" \
+            --artifact-id "$EXECUTION_ARTIFACT_ID" \
+            --artifact-digest "$EXECUTION_ARTIFACT_DIGEST" \
             --out artifacts/ws16
           python3 qual/research/greenfield-qualification/actual-card-behavior/ws14/ws14_validate_witness.py \
             --schema qual/research/greenfield-qualification/actual-card-behavior/WS14_WITNESS_ABI.schema.json \
@@ -130,7 +86,7 @@ jobs:
           jq -e '[.rows[].primitive_id] | length == 53 and unique | length == 53' artifacts/ws16/WS16_PRIMITIVE_COVERAGE.json >/dev/null
           sha256sum artifacts/ws16/ws16-jwar-isle-refuge.trace.json artifacts/ws16/ws16-jwar-isle-refuge.witness.json artifacts/ws16/WS16_PRIMITIVE_COVERAGE.json > artifacts/ws16/WS16_HASHES.sha256
 
-      - name: Upload WS16 witness shard
+      - name: Upload recovered WS16 witness shard
         uses: actions/upload-artifact@v4
         with:
           name: ws16-trigger-replacement-zone-sba-witness-shard
