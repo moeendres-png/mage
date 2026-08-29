@@ -1,177 +1,272 @@
-name: Greenfield Forge raw transport hidden-info red-team
+name: Greenfield Forge WS05 principal hidden-info qualification
 
 on:
   workflow_dispatch: {}
   push:
     branches:
-      - research/greenfield-engine-shootout-20260827
+      - work/ws05-hidden-info-20260828
     paths:
       - '.github/workflows/greenfield-forge-hidden-info-redteam.yml'
-      - '.github/workflows/greenfield-forge-strict-remote-qualification.yml'
-      - 'research/greenfield-qualification/forge-patches/**'
-      - 'research/greenfield-qualification/STRICT_EXTERNAL_PILOT_BOUNDARY_GATE.json'
+      - 'research/greenfield-qualification/hidden-info/**'
+      - 'research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py'
+
+concurrency:
+  group: ws05-hidden-info-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
-  redteam:
+  qualify:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      AUDIT_BASE_SHA: c0e42fb42c4a603aff4a76b1284f8271c12bfd42
+      FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+      WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+      WS01_TREE: 8d8d4587e3cf2cb3c375b8039c0d9d08c6e41f84
+      WS01_RUN_ID: '33200503101'
+      EXISTING_2P_RUN_ID: '33155887970'
+      EXISTING_2P_ARTIFACT_ID: '9679616053'
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Checkout the exact qualification revision
+      - name: Checkout exact WS05 revision
         uses: actions/checkout@v4
         with:
           path: qual
           fetch-depth: 1
-      - name: Checkout the exact Forge research pin
+
+      - name: Checkout exact qualified WS01 dependency read-only
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: bf089ea806f54a9bbb64ede205915729e3629684
+          path: ws01-dependency
+          fetch-depth: 1
+
+      - name: Checkout exact Forge pin
         uses: actions/checkout@v4
         with:
           repository: Card-Forge/forge
           ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
           path: forge
           fetch-depth: 1
-      - name: Materialize provenance and apply the research boundary patch
+
+      - name: Verify dependency and materialize provenance
         shell: bash
         run: |
           set -euo pipefail
           test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git -C forge rev-parse HEAD)" = 8c7e9afb8e6caee88644b94e25da5852e36f8928
-          mkdir -p artifacts/forge-hidden-info
-          printf '%s\n' "$(git -C qual rev-parse HEAD)" > artifacts/forge-hidden-info/source_head.txt
-          printf '%s\n' "$(git -C qual rev-parse 'HEAD^{tree}')" > artifacts/forge-hidden-info/source_tree.txt
-          bash qual/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
-            forge qual/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
-            | tee artifacts/forge-hidden-info/patch-apply.log
+          test "$(gh api "repos/$GITHUB_REPOSITORY/compare/$AUDIT_BASE_SHA...$GITHUB_SHA" --jq .merge_base_commit.sha)" = "$AUDIT_BASE_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/compare/$AUDIT_BASE_SHA...$GITHUB_SHA" --jq .behind_by)" = 0
+          test "$(git -C ws01-dependency rev-parse HEAD)" = "$WS01_HEAD"
+          test "$(git -C ws01-dependency rev-parse 'HEAD^{tree}')" = "$WS01_TREE"
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WS01_RUN_ID" --jq .head_sha)" = "$WS01_HEAD"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WS01_RUN_ID" --jq .conclusion)" = success
+          mkdir -p artifacts/forge-ws05-hidden-info
+          git -C qual rev-parse HEAD > artifacts/forge-ws05-hidden-info/source_head.txt
+          git -C qual rev-parse 'HEAD^{tree}' > artifacts/forge-ws05-hidden-info/source_tree.txt
+          printf '%s\n' "$AUDIT_BASE_SHA" > artifacts/forge-ws05-hidden-info/audit_base_sha.txt
+          printf '%s\n' "$WS01_HEAD" > artifacts/forge-ws05-hidden-info/ws01_dependency_head.txt
+          printf '%s\n' "$WS01_TREE" > artifacts/forge-ws05-hidden-info/ws01_dependency_tree.txt
+          printf '%s\n' "$WS01_RUN_ID" > artifacts/forge-ws05-hidden-info/ws01_dependency_run.txt
+          printf '%s\n' "$FORGE_PIN" > artifacts/forge-ws05-hidden-info/forge_pin.txt
+
+      - name: Apply exact WS01 overlay without merging dependency branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C ws01-dependency rev-parse HEAD)" = "$WS01_HEAD"
+          bash ws01-dependency/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge ws01-dependency/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee artifacts/forge-ws05-hidden-info/ws01-overlay.log
+          test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Apply WS05 principal visibility overlay and install probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 qual/research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge \
+            | tee artifacts/forge-ws05-hidden-info/ws05-overlay.log
+          cp qual/research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java \
+            forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          cp qual/research/greenfield-qualification/hidden-info/Ws05HiddenInfoQualificationTest.java \
+            forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoQualificationTest.java
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
           cache-dependency-path: forge/pom.xml
+
       - name: Ensure virtual display
         shell: bash
         run: command -v Xvfb >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y xvfb; }
-      - name: Instrument decoded raw transport before rendering
+
+      - name: Run static fail-closed boundary audit
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C forge rev-parse HEAD)" = 8c7e9afb8e6caee88644b94e25da5852e36f8928
-          mkdir -p artifacts/forge-hidden-info
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('forge/forge-gui-desktop/src/test/java/forge/net/HeadlessNetworkClient.java')
-          s=p.read_text()
-          needle='''    private final AtomicLong eventStateMismatches = new AtomicLong(0);'''
-          repl='''    private final AtomicLong eventStateMismatches = new AtomicLong(0);\n    private final AtomicLong hiddenIdentityLeaks = new AtomicLong(0);\n    private final java.util.List<String> hiddenIdentityLeakExamples = java.util.Collections.synchronizedList(new java.util.ArrayList<>());'''
-          if needle not in s: raise SystemExit('metrics insertion point missing')
-          s=s.replace(needle,repl,1)
-          needle='''    public long getEventStateMismatches() {\n        return eventStateMismatches.get();\n    }'''
-          repl='''    public long getEventStateMismatches() {\n        return eventStateMismatches.get();\n    }\n\n    public long getHiddenIdentityLeaks() { return hiddenIdentityLeaks.get(); }\n    public java.util.List<String> getHiddenIdentityLeakExamples() {\n        synchronized (hiddenIdentityLeakExamples) { return new java.util.ArrayList<>(hiddenIdentityLeakExamples); }\n    }\n\n    private void scanDecodedRawTransport(final GameView gv, final String transportPhase) {\n        if (gv == null || gv.isGameOver()) return;\n        for (forge.game.player.PlayerView pv : gv.getPlayers()) {\n            final boolean self = username.equals(pv.getName());\n            if (!self) scanHiddenZone(pv, forge.game.zone.ZoneType.Hand, transportPhase);\n            scanHiddenZone(pv, forge.game.zone.ZoneType.Library, transportPhase);\n        }\n    }\n\n    private void scanHiddenZone(final forge.game.player.PlayerView owner, final forge.game.zone.ZoneType zone, final String transportPhase) {\n        final forge.util.collect.FCollectionView<forge.game.card.CardView> cards = owner.getCards(zone);\n        if (cards == null) return;\n        for (forge.game.card.CardView cv : cards) {\n            final String n = cv == null ? null : cv.getName();\n            if (n == null || n.isBlank() || "Card".equals(n) || "Face Down Card".equals(n)) continue;\n            hiddenIdentityLeaks.incrementAndGet();\n            if (hiddenIdentityLeakExamples.size() < 50) {\n                hiddenIdentityLeakExamples.add(transportPhase + ":owner=" + owner.getName() + ":zone=" + zone + ":id=" + cv.getId() + ":name=" + n);\n            }\n        }\n    }'''
-          if needle not in s: raise SystemExit('getter insertion point missing')
-          s=s.replace(needle,repl,1)
-          needle='''            client.onDeltaPacketReceived(packet);'''
-          repl='''            client.scanDecodedRawTransport(getGameView(), "applyDelta:" + packet.getSequenceNumber());\n            client.onDeltaPacketReceived(packet);'''
-          if needle not in s: raise SystemExit('delta hook missing')
-          s=s.replace(needle,repl,1)
-          needle='''                client.onFullStateSyncReceived(sequenceNumber);'''
-          repl='''                client.onFullStateSyncReceived(sequenceNumber);\n                client.scanDecodedRawTransport(getGameView(), "setGameView:" + sequenceNumber);'''
-          if needle not in s: raise SystemExit('full-state hook missing')
-          s=s.replace(needle,repl,1)
-          p.write_text(s)
+          python3 qual/research/greenfield-qualification/hidden-info/ws05_hidden_info_static_audit.py \
+            --forge-root forge \
+            --source-head "$(cat artifacts/forge-ws05-hidden-info/source_head.txt)" \
+            --source-tree "$(cat artifacts/forge-ws05-hidden-info/source_tree.txt)" \
+            --ws01-head "$WS01_HEAD" \
+            --out artifacts/forge-ws05-hidden-info/WS05_STATIC_AUDIT.json \
+            | tee artifacts/forge-ws05-hidden-info/static-audit.log
 
-          h=Path('forge/forge-gui-desktop/src/test/java/forge/net/UnifiedNetworkHarness.java')
-          t=h.read_text()
-          needle='''                result.eventStateMismatches += client.getEventStateMismatches();'''
-          repl='''                result.eventStateMismatches += client.getEventStateMismatches();\n                result.hiddenIdentityLeaks += client.getHiddenIdentityLeaks();\n                result.hiddenIdentityLeakExamples.addAll(client.getHiddenIdentityLeakExamples());'''
-          if needle not in t: raise SystemExit('collect metrics hook missing')
-          t=t.replace(needle,repl,1)
-          needle='''        public long eventStateMismatches;'''
-          repl='''        public long eventStateMismatches;\n        public long hiddenIdentityLeaks;\n        public List<String> hiddenIdentityLeakExamples = new ArrayList<>();'''
-          if needle not in t: raise SystemExit('GameResult field hook missing')
-          t=t.replace(needle,repl,1)
-          h.write_text(t)
-          PY
-          cp forge/forge-gui-desktop/src/test/java/forge/net/HeadlessNetworkClient.java artifacts/forge-hidden-info/
-      - name: Add raw transport red-team test
-        shell: bash
-        run: |
-          cat > forge/forge-gui-desktop/src/test/java/forge/net/RawHiddenInfoTransportRedTeamTest.java <<'JAVA'
-          package forge.net;
-          import forge.deck.Deck;
-          import org.testng.Assert;
-          import org.testng.annotations.BeforeClass;
-          import org.testng.annotations.Test;
-          public class RawHiddenInfoTransportRedTeamTest {
-              @BeforeClass public static void setUp(){ TestUtils.ensureFModelInitialized(); }
-              @Test(timeOut=120000)
-              public void opponentHandAndLibrariesCarryNoIdentityInDecodedTransport(){
-                  Deck host=TestDeckLoader.createMinimalDeck("Mountain",10);
-                  Deck remote=TestDeckLoader.createMinimalDeck("Forest",10);
-                  UnifiedNetworkHarness.GameResult r=new UnifiedNetworkHarness()
-                          .playerCount(2).remoteClients(1).useAiForRemotePlayers(true)
-                          .decks(host,remote).connectionTimeout(30000).gameTimeout(90000).execute();
-                  System.out.println("RAW_HIDDEN_INFO_LEAK_COUNT="+r.hiddenIdentityLeaks);
-                  for(String x:r.hiddenIdentityLeakExamples) System.out.println("RAW_HIDDEN_INFO_LEAK_EXAMPLE="+x);
-                  Assert.assertTrue(r.gameStarted,"network game must start");
-                  Assert.assertTrue(r.fullStateSyncsReceived>0,"must observe a full raw transport state");
-                  Assert.assertEquals(r.hiddenIdentityLeaks,0L,"decoded transport exposed hidden card identity: "+r.hiddenIdentityLeakExamples);
-              }
-          }
-          JAVA
-          cp forge/forge-gui-desktop/src/test/java/forge/net/RawHiddenInfoTransportRedTeamTest.java artifacts/forge-hidden-info/
-      - name: Run red-team through reactor
+      - name: Compile exact-pin WS01 plus WS05 overlay
         shell: bash
         run: |
           set -o pipefail
           cd forge
-          set +e
-          xvfb-run -a mvn -B -ntp -T 1C -pl forge-gui-desktop -am -Dtest=forge.net.RawHiddenInfoTransportRedTeamTest -Dsurefire.failIfNoSpecifiedTests=false test 2>&1 | tee ../artifacts/forge-hidden-info/test.log
-          rc=${PIPESTATUS[0]}; set -e; echo "$rc" > ../artifacts/forge-hidden-info/test.exit
-          grep -E 'RAW_HIDDEN_INFO_' ../artifacts/forge-hidden-info/test.log > ../artifacts/forge-hidden-info/redteam-summary.txt || true
-          test "$rc" -eq 0
-      - name: Hash evidence
-        if: always()
+          mvn -B -ntp -T 1C -pl forge-gui-desktop -am -DskipTests test-compile 2>&1 \
+            | tee ../artifacts/forge-ws05-hidden-info/compile.log
+
+      - name: Run real 4P Commander multi-principal hidden-info campaign
         shell: bash
         run: |
-          cd artifacts/forge-hidden-info
-          find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true
-      - name: Materialize fail-closed hidden-information result
+          set -uo pipefail
+          secret="$RUNNER_TEMP/ws05-hidden-canary.txt"
+          rm -f "$secret"
+          cd forge
+          set +e
+          xvfb-run -a mvn -B -ntp -T 1C -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws05HiddenInfoQualificationTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws05.evidencePath="$GITHUB_WORKSPACE/artifacts/forge-ws05-hidden-info/WS05_RUNTIME.json" \
+            -Dws05.secretPath="$secret" \
+            test 2>&1 | tee ../artifacts/forge-ws05-hidden-info/runtime.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$rc" > ../artifacts/forge-ws05-hidden-info/test.exit
+          grep -E '^WS05_' ../artifacts/forge-ws05-hidden-info/runtime.log \
+            > ../artifacts/forge-ws05-hidden-info/runtime-markers.txt || true
+          rm -f "$secret"
+          test "$rc" -eq 0
+          grep -q '^WS05_PILOT_VISIBLE_HIDDEN_INFO_LEAKS=0$' ../artifacts/forge-ws05-hidden-info/runtime-markers.txt
+          grep -q '^WS05_CROSS_PRINCIPAL_DECISION_LEAKS=0$' ../artifacts/forge-ws05-hidden-info/runtime-markers.txt
+          grep -q '^WS05_LOOK_REVEAL_LIFECYCLE=PASS$' ../artifacts/forge-ws05-hidden-info/runtime-markers.txt
+          grep -q '^WS05_SECRET_CHOICE_EXCEPTION=PASS$' ../artifacts/forge-ws05-hidden-info/runtime-markers.txt
+          grep -q '^WS05_HIDDEN_INFO=PASS$' ../artifacts/forge-ws05-hidden-info/runtime-markers.txt
+
+      - name: Adjudicate Q2 fail-closed
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, re
+          import json
           from pathlib import Path
-          root=Path('artifacts/forge-hidden-info')
-          log=(root/'test.log').read_text(errors='replace') if (root/'test.log').exists() else ''
-          match=re.findall(r'RAW_HIDDEN_INFO_LEAK_COUNT=(\d+)', log)
-          count=int(match[-1]) if match else None
-          exit_code=(root/'test.exit').read_text().strip() if (root/'test.exit').exists() else None
-          result={
-            'schema':'commander-simulator-next.hidden-information-assay.v2',
-            'source_head':(root/'source_head.txt').read_text().strip() if (root/'source_head.txt').exists() else None,
-            'source_tree':(root/'source_tree.txt').read_text().strip() if (root/'source_tree.txt').exists() else None,
-            'forge_pin':'8c7e9afb8e6caee88644b94e25da5852e36f8928',
-            'raw_hidden_identity_leak_count':count,
-            'test_exit':exit_code,
-            'status':'PASS' if count == 0 and exit_code == '0' else ('FAIL' if count is not None else 'NOT_RUN'),
-            'raw_stdout_stderr_as_replay_criterion':False,
+
+          root = Path('artifacts/forge-ws05-hidden-info')
+          def load(name):
+              p = root / name
+              return json.loads(p.read_text()) if p.exists() else None
+          def text(name):
+              p = root / name
+              return p.read_text(errors='replace') if p.exists() else ''
+
+          static = load('WS05_STATIC_AUDIT.json')
+          runtime = load('WS05_RUNTIME.json')
+          test_exit = text('test.exit').strip() or None
+          markers = text('runtime-markers.txt')
+          source_head = text('source_head.txt').strip() or None
+          source_tree = text('source_tree.txt').strip() or None
+
+          marker_ok = all(x in markers for x in (
+              'WS05_PILOT_VISIBLE_HIDDEN_INFO_LEAKS=0',
+              'WS05_CROSS_PRINCIPAL_DECISION_LEAKS=0',
+              'WS05_LOOK_REVEAL_LIFECYCLE=PASS',
+              'WS05_SECRET_CHOICE_EXCEPTION=PASS',
+              'WS05_HIDDEN_INFO=PASS',
+          ))
+
+          def rz(key, default=10**9):
+              return runtime.get(key, default) if runtime else default
+          def rp(key, default=0):
+              return runtime.get(key, default) if runtime else default
+
+          runtime_core = bool(runtime) and runtime.get('status') == 'PASS' and test_exit == '0' and marker_ok
+          static_core = bool(static) and static.get('status') == 'PASS'
+          principals = runtime.get('principal_request_counts', {}) if runtime else {}
+          four_principals = len(principals) == 4 and all(int(v) > 0 for v in principals.values())
+
+          surfaces = {
+              'decoded_transport': 'PASS' if runtime_core and rz('transport_leaks') == 0 and rp('decoded_transport_samples') > 0 else 'FAIL',
+              'principal_observations': 'PASS' if runtime_core and four_principals else 'FAIL',
+              'private_hands_libraries': 'PASS' if runtime_core and rz('transport_leaks') == 0 else 'FAIL',
+              'face_down_objects': 'PASS' if runtime_core and rp('face_down_hidden_samples') > 0 and rz('transport_leaks') == 0 else 'FAIL',
+              'private_searches': 'PASS' if runtime_core and runtime.get('lifecycle_complete') else 'FAIL',
+              'look_at_effects': 'PASS' if runtime_core and runtime.get('lifecycle_complete') else 'FAIL',
+              'secret_choices': 'PASS' if runtime_core and 'WS05_SECRET_CHOICE_EXCEPTION=PASS' in markers else 'FAIL',
+              'reveal_lifecycle': 'PASS' if runtime_core and runtime.get('lifecycle_complete') and rz('lifecycle_mismatches') == 0 else 'FAIL',
+              'known_top_information': 'PASS' if runtime_core and runtime.get('lifecycle_complete') else 'FAIL',
+              'decision_request_payloads': 'PASS' if runtime_core and rz('decision_payload_leaks') == 0 and four_principals else 'FAIL',
+              'ids_hashes': 'PASS' if runtime_core and static_core and rz('identity_bearing_id_hash_leaks') == 0 else 'FAIL',
+              'serialized_transport': 'PASS' if runtime_core and static_core and rz('transport_leaks') == 0 else 'FAIL',
+              'logs': 'PASS' if runtime_core and rz('log_surface_leaks') == 0 else 'FAIL',
+              'exceptions': 'PASS' if runtime_core and rz('exception_surface_leaks') == 0 and 'WS05_SECRET_CHOICE_EXCEPTION=PASS' in markers else 'FAIL',
+              'debug_surface': 'PASS' if runtime_core and rz('debug_surface_leaks') == 0 else 'FAIL',
+              'replay_surface': 'PASS' if runtime_core and rp('replay_events') > 0 and rz('replay_surface_leaks') == 0 else 'FAIL',
           }
-          (root/'HIDDEN_INFORMATION_GATE.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+
+          pass_all = static_core and runtime_core and all(v == 'PASS' for v in surfaces.values()) \
+              and rz('pilot_visible_hidden_info_leaks') == 0 \
+              and rz('cross_principal_decision_leaks') == 0
+
+          result = {
+              'schema': 'commander-simulator-next.ws05-hidden-information-gate.v1',
+              'workstream': 'WS05',
+              'source_head': source_head,
+              'source_tree': source_tree,
+              'audit_base_sha': 'c0e42fb42c4a603aff4a76b1284f8271c12bfd42',
+              'forge_pin': '8c7e9afb8e6caee88644b94e25da5852e36f8928',
+              'ws01_dependency': {
+                  'head': 'bf089ea806f54a9bbb64ede205915729e3629684',
+                  'tree': '8d8d4587e3cf2cb3c375b8039c0d9d08c6e41f84',
+                  'qualified_run_id': 33200503101,
+                  'merged': False,
+                  'overlay_only': True,
+              },
+              'existing_2p_regression_baseline': {
+                  'run_id': 33155887970,
+                  'artifact_id': 9679616053,
+                  'decoded_hidden_name_leaks': 0,
+                  'rerun': False,
+                  'reason': 'Superseded by broader fresh 4P decoded-transport campaign after visibility change.',
+              },
+              'pilot_visible_hidden_info_leaks': rz('pilot_visible_hidden_info_leaks'),
+              'cross_principal_decision_leaks': rz('cross_principal_decision_leaks'),
+              'surfaces': surfaces,
+              'static_audit': static.get('status') if static else 'NOT_RUN',
+              'runtime_campaign': runtime.get('status') if runtime else 'NOT_RUN',
+              'Q2_HIDDEN_INFORMATION': 'PASS' if pass_all else 'FAIL',
+              'status': 'PASS' if pass_all else 'FAIL',
+              'evidence_class': ['DIRECTLY_VERIFIED', 'CODE_DERIVED', 'TECHNICALLY_CONFORMANT', 'CI_EXECUTED'],
+          }
+          (root / 'HIDDEN_INFORMATION_GATE.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          print(json.dumps({'status': result['status'], 'surfaces': surfaces}, sort_keys=True))
+          if not pass_all:
+              raise SystemExit(1)
           PY
-      - name: Rehash evidence including the machine-readable gate
+
+      - name: Hash current evidence
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          cd artifacts/forge-hidden-info
+          cd artifacts/forge-ws05-hidden-info
           find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true
-      - name: Upload
+
+      - name: Upload WS05 evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: greenfield-forge-hidden-info-redteam
-          path: artifacts/forge-hidden-info
+          name: greenfield-forge-ws05-hidden-info
+          path: artifacts/forge-ws05-hidden-info
           if-no-files-found: error
