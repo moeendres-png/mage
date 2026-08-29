@@ -1,0 +1,280 @@
+name: WS08 process isolation qualification
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - work/ws08-process-isolation-20260828
+    paths:
+      - '.github/workflows/ws08-process-isolation.yml'
+      - 'research/greenfield-qualification/process-isolation/**'
+
+concurrency:
+  group: ws08-process-isolation-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      AUDIT_BASE_SHA: c0e42fb42c4a603aff4a76b1284f8271c12bfd42
+      FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+      WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+      WS01_RUN_ID: '33200503101'
+      WS05_HEAD: 554bb06af0dd5e542ff8bbfd5e96054a74642d3a
+      WS05_RUN_ID: '33210994482'
+      WS05_ARTIFACT_ID: '9701653278'
+      WS06_HEAD: e23af2b621f2e318014491b8a84146ed4ad3bed6
+      WS06_RUN_ID: '33209213338'
+      WS06_ARTIFACT_ID: '9701086657'
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout exact WS08 revision
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 1
+
+      - name: Checkout exact qualified WS01 dependency read-only
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: bf089ea806f54a9bbb64ede205915729e3629684
+          path: ws01
+          fetch-depth: 1
+
+      - name: Checkout exact qualified WS05 dependency read-only
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: 554bb06af0dd5e542ff8bbfd5e96054a74642d3a
+          path: ws05
+          fetch-depth: 1
+
+      - name: Checkout exact qualified WS06 dependency read-only
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: e23af2b621f2e318014491b8a84146ed4ad3bed6
+          path: ws06
+          fetch-depth: 1
+
+      - name: Checkout exact Forge candidate pin
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          path: forge
+          fetch-depth: 1
+
+      - name: Verify source and dependency run provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/compare/$AUDIT_BASE_SHA...$GITHUB_SHA" --jq .merge_base_commit.sha)" = "$AUDIT_BASE_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/compare/$AUDIT_BASE_SHA...$GITHUB_SHA" --jq .behind_by)" = 0
+          test "$(git -C ws01 rev-parse HEAD)" = "$WS01_HEAD"
+          test "$(git -C ws05 rev-parse HEAD)" = "$WS05_HEAD"
+          test "$(git -C ws06 rev-parse HEAD)" = "$WS06_HEAD"
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+
+          ws01_run_head=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WS01_RUN_ID" --jq .head_sha)
+          ws01_run_conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WS01_RUN_ID" --jq .conclusion)
+          ws05_run_head=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WS05_RUN_ID" --jq .head_sha)
+          ws05_run_conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WS05_RUN_ID" --jq .conclusion)
+          ws06_run_head=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WS06_RUN_ID" --jq .head_sha)
+          ws06_run_conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WS06_RUN_ID" --jq .conclusion)
+          test "$ws01_run_head" = "$WS01_HEAD"
+          test "$ws05_run_head" = "$WS05_HEAD"
+          test "$ws06_run_head" = "$WS06_HEAD"
+          test "$ws01_run_conclusion" = success
+          test "$ws05_run_conclusion" = success
+          test "$ws06_run_conclusion" = success
+
+          mkdir -p evidence/dependencies
+          {
+            echo "source_head=$(git -C qual rev-parse HEAD)"
+            echo "source_tree=$(git -C qual rev-parse 'HEAD^{tree}')"
+            echo "audit_base_sha=$AUDIT_BASE_SHA"
+            echo "forge_pin=$FORGE_PIN"
+            echo "ws01_head=$WS01_HEAD"
+            echo "ws01_run_id=$WS01_RUN_ID"
+            echo "ws01_run_conclusion=$ws01_run_conclusion"
+            echo "ws05_head=$WS05_HEAD"
+            echo "ws05_run_id=$WS05_RUN_ID"
+            echo "ws05_artifact_id=$WS05_ARTIFACT_ID"
+            echo "ws05_run_conclusion=$ws05_run_conclusion"
+            echo "ws06_head=$WS06_HEAD"
+            echo "ws06_run_id=$WS06_RUN_ID"
+            echo "ws06_artifact_id=$WS06_ARTIFACT_ID"
+            echo "ws06_run_conclusion=$ws06_run_conclusion"
+          } | tee evidence/provenance.env
+
+      - name: Download exact WS05 qualification artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: greenfield-forge-ws05-hidden-info
+          path: evidence/dependencies/ws05
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 33210994482
+
+      - name: Download exact WS06 qualification artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ws06-rng-semantic-replay
+          path: evidence/dependencies/ws06
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 33209213338
+
+      - name: Verify dependency gates fail closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          p = Path('evidence/provenance.env')
+          env = dict(line.split('=', 1) for line in p.read_text().splitlines() if '=' in line)
+          ws05 = json.loads(Path('evidence/dependencies/ws05/HIDDEN_INFORMATION_GATE.json').read_text())
+          ws06 = json.loads(Path('evidence/dependencies/ws06/SEMANTIC_REPLAY_GATE.json').read_text())
+          if ws05.get('status') != 'PASS' or ws05.get('Q2_HIDDEN_INFORMATION') != 'PASS':
+              raise SystemExit('WS05 dependency gate is not PASS')
+          if ws05.get('source_head') != env['ws05_head']:
+              raise SystemExit('WS05 dependency gate source head mismatch')
+          if ws06.get('status') != 'PASS' or ws06.get('Q3_SEMANTIC_REPLAY') != 'PASS':
+              raise SystemExit('WS06 dependency gate is not PASS')
+          if ws06.get('fresh_processes') != 3:
+              raise SystemExit('WS06 dependency does not contain three fresh processes')
+          if any(ws06.get(k) != 0 for k in (
+              'semantic_state_divergences', 'rng_event_divergences', 'decision_event_divergences')):
+              raise SystemExit('WS06 dependency contains semantic/RNG/decision divergence')
+          with p.open('a', encoding='utf-8') as out:
+              out.write('ws05_gate=PASS\n')
+              out.write('ws06_gate=PASS\n')
+          print('WS08_WS05_DEPENDENCY_GATE=PASS')
+          print('WS08_WS06_DEPENDENCY_GATE=PASS')
+          PY
+
+      - name: Apply exact WS01 decision boundary overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee evidence/ws01-overlay.log
+          grep -Fx 'STRICT_DECISION_PATCH_APPLIED=TRUE' evidence/ws01-overlay.log
+
+      - name: Apply exact WS05 principal observation overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ws05/research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge \
+            | tee evidence/ws05-overlay.log
+          cp ws05/research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java \
+            forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          grep -Fx 'WS05_HIDDEN_INFO_OVERLAY_APPLIED=TRUE' evidence/ws05-overlay.log
+
+      - name: Apply exact WS06 RNG and semantic-state overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ws06/research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py \
+            forge --inventory evidence/RNG_INVENTORY.json | tee evidence/ws06-overlay.log
+          grep -Fx 'WS06_UNCONTROLLED_DECISION_RELEVANT_RNG_PATHS=0' evidence/ws06-overlay.log
+
+      - name: Apply WS08 process-isolation overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 qual/research/greenfield-qualification/process-isolation/apply-ws08-isolation-overlay.py \
+            forge qual | tee evidence/ws08-overlay.log
+          grep -Fx 'WS08_ISOLATION_OVERLAY_APPLIED=TRUE' evidence/ws08-overlay.log
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: forge/pom.xml
+
+      - name: Ensure virtual display
+        shell: bash
+        run: command -v Xvfb >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y xvfb; }
+
+      - name: Audit decision-relevant mutable singleton containment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 qual/research/greenfield-qualification/process-isolation/ws08_static_isolation_audit.py \
+            forge --out evidence/STATIC_MUTABLE_STATE_AUDIT.json | tee evidence/static-audit.log
+          grep -Fx 'WS08_STATIC_MUTABLE_AUDIT=PASS' evidence/static-audit.log
+
+      - name: Compile combined WS01 plus WS05 plus WS06 plus WS08 candidate
+        shell: bash
+        working-directory: forge
+        run: |
+          set -o pipefail
+          mvn -B -ntp -T 1C -pl forge-gui-desktop -am -DskipTests test-compile 2>&1 \
+            | tee ../evidence/compile.log
+
+      - name: Run concurrent 4P process isolation and worker fault injection
+        shell: bash
+        run: |
+          set -uo pipefail
+          cd forge
+          set +e
+          xvfb-run -a mvn -B -ntp -T 1C -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws08ProcessIsolationQualificationTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws08.evidenceDir="$GITHUB_WORKSPACE/evidence" \
+            test 2>&1 | tee ../evidence/runtime.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$rc" > ../evidence/test.exit
+          grep -E '^WS08_' ../evidence/runtime.log > ../evidence/runtime-markers.txt || true
+          test "$rc" -eq 0
+          grep -q '^WS08_PARALLEL_4P_GAMES=2$' ../evidence/runtime-markers.txt
+          grep -q '^WS08_CROSS_GAME_STATE_LEAKS=0$' ../evidence/runtime-markers.txt
+          grep -q '^WS08_CROSS_GAME_RNG_LEAKS=0$' ../evidence/runtime-markers.txt
+          grep -q '^WS08_CROSS_GAME_DECISION_QUEUE_LEAKS=0$' ../evidence/runtime-markers.txt
+          grep -q '^WS08_CROSS_GAME_REQUEST_ID_COLLISIONS=0$' ../evidence/runtime-markers.txt
+          grep -q '^WS08_CROSS_GAME_OBSERVATION_LEAKS=0$' ../evidence/runtime-markers.txt
+          grep -q '^WS08_CROSS_GAME_CONTROLLER_STATE_LEAKS=0$' ../evidence/runtime-markers.txt
+          grep -q '^WS08_SINGLE_WORKER_FAILURE_CORRUPTS_OTHER_GAME=false$' ../evidence/runtime-markers.txt
+
+      - name: Adjudicate Q4 process isolation fail closed
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 qual/research/greenfield-qualification/process-isolation/ws08_process_isolation_gate.py \
+            --evidence-root evidence \
+            --out-json evidence/PROCESS_ISOLATION_GATE.json \
+            --out-md evidence/PROCESS_ISOLATION_GATE.md \
+            | tee evidence/gate.log
+          grep -Fx 'WS08_Q4_PROCESS_ISOLATION=PASS' evidence/gate.log
+
+      - name: Hash WS08 evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find evidence -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > evidence/hashes.sha256 || true
+
+      - name: Upload WS08 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws08-process-isolation
+          path: evidence
+          if-no-files-found: error
