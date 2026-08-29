@@ -14,7 +14,7 @@ import json
 import sys
 from pathlib import Path
 
-from adapter import bind_replay_divergence, load_contract
+from adapter import bind_replay_divergence, canonical_hash, load_contract
 
 
 def unique(root: Path, name: str) -> Path:
@@ -83,6 +83,8 @@ def main() -> int:
         "rng_stream_modified": False,
         "decision_stream_modified": False,
     }
+    trace.pop("trace_sha256", None)
+    trace["trace_sha256"] = canonical_hash(trace)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(trace, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print("WS22_REPLAY_DIVERGENCE=PASS")
