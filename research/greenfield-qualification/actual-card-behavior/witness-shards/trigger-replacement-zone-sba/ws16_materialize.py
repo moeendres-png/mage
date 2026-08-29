@@ -28,7 +28,7 @@ def load(path: Path) -> Any:
 
 def require_success(report: Path) -> str:
     root = ET.parse(report).getroot()
-    if root.attrib.get("failures") != "0" or root.attrib.get("errors") != "0" or root.attrib.get("tests") != "1":
+    if root.attrib.get("failures") != "0" or root.attrib.get("errors") != "0" or int(root.attrib.get("tests", "0")) < 1:
         raise ValueError(f"unexpected TestNG report: {root.attrib}")
     output = "\n".join(node.text or "" for node in root.findall(".//system-out"))
     required = (
@@ -111,7 +111,7 @@ def main() -> int:
         "stdout_only": False,
         "official_rules_adjudication": {
             "status": "EXTERNALLY_RULE_VALIDATED",
-            "rules_refs": ["Magic Comprehensive Rules (current), 614.1", "Magic Comprehensive Rules (current), 603.3"],
+            "rules_refs": ["https://magic.wizards.com/en/rules (current Comprehensive Rules), 614.1", "https://magic.wizards.com/en/rules (current Comprehensive Rules), 603.3"],
             "adjudication": "The Moved replacement changes entry before the permanent enters; the enters trigger is put on the stack after the event and resolves later."
         },
         "evidence_class": "EXTERNALLY_RULE_VALIDATED",

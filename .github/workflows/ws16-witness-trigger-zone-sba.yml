@@ -60,7 +60,10 @@ jobs:
           mkdir -p artifacts/ws16-execution
           (
             cd forge
-            mvn -pl forge-gui-desktop -am \
+            # AITest deliberately initializes Forge's desktop implementation.
+            # The isolated witness is engine-state based, but needs a virtual
+            # display in CI; xvfb supplies that harness dependency only.
+            xvfb-run -a mvn -pl forge-gui-desktop -am \
               '-Dtest=forge.gamesimulationtests.Ws16JwarIsleRefugeWitnessTest' \
               '-Dsurefire.failIfNoSpecifiedTests=false' test
           ) 2>&1 | tee artifacts/ws16-execution/maven.log
