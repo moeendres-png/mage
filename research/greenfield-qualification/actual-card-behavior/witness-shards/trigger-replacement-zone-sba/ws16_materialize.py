@@ -34,8 +34,9 @@ def require_success(report: Path) -> str:
     required = (
         "WS16_TRACE event=initial card=Jwar_Isle_Refuge zone=Hand life=20",
         "WS16_TRACE event=after_move zone=Battlefield tapped=true life=20 stack_empty=true",
-        "WS16_TRACE event=trigger_collected stack_nonempty=true life=20",
-        "WS16_TRACE event=final zone=Battlefield tapped=true life=21 stack_empty=true",
+        "WS16_TRACE event=trigger_queued simultaneous=true stack_empty=true life=20",
+        "WS16_TRACE event=trigger_stacked stack_nonempty=true life=20",
+        "WS16_TRACE event=final zone=Battlefield tapped=true life=21 stack_empty=true simultaneous=false",
     )
     missing = [line for line in required if line not in output]
     if missing:
@@ -71,8 +72,19 @@ def main() -> int:
         "scenario": "Jwar Isle Refuge: moved replacement then ChangesZone ETB trigger",
         "initial": {"card": "Jwar Isle Refuge", "zone": "Hand", "controller_life": 20},
         "after_move": {"zone": "Battlefield", "tapped": True, "controller_life": 20, "stack_empty": True},
-        "after_trigger_collection": {"controller_life": 20, "stack_nonempty": True},
-        "final": {"zone": "Battlefield", "tapped": True, "controller_life": 21, "stack_empty": True},
+        "after_trigger_collection": {
+            "controller_life": 20,
+            "simultaneous_stack_entry": True,
+            "regular_stack_empty": True,
+        },
+        "after_stack_ordering": {"controller_life": 20, "regular_stack_nonempty": True},
+        "final": {
+            "zone": "Battlefield",
+            "tapped": True,
+            "controller_life": 21,
+            "stack_empty": True,
+            "simultaneous_stack_entries": False,
+        },
         "stdout_only": False,
     }
     trace_hash = hashlib.sha256(canonical(trace)).hexdigest()
@@ -80,26 +92,48 @@ def main() -> int:
     out.mkdir(parents=True, exist_ok=True)
     (out / "ws16-jwar-isle-refuge.trace.json").write_bytes(canonical(trace))
 
-    refs = {"run_id": args.run_id, "job_id": args.job_id, "artifact_id": args.artifact_id,
-            "artifact_digest": args.artifact_digest}
+    refs = {
+        "run_id": args.run_id,
+        "job_id": args.job_id,
+        "artifact_id": args.artifact_id,
+        "artifact_digest": args.artifact_digest,
+    }
     assertions = [
         {"assertion_id": "zone-after-move", "semantic_path": "after_move.zone", "expected": "Battlefield", "actual": "Battlefield", "result": "PASS"},
         {"assertion_id": "replacement-tap", "semantic_path": "after_move.tapped", "expected": True, "actual": True, "result": "PASS"},
         {"assertion_id": "trigger-timing", "semantic_path": "after_move.controller_life", "expected": 20, "actual": 20, "result": "PASS"},
-        {"assertion_id": "trigger-queued", "semantic_path": "after_move.stack_empty", "expected": True, "actual": True, "result": "PASS"},
-        {"assertion_id": "trigger-on-stack", "semantic_path": "after_trigger_collection.stack_nonempty", "expected": True, "actual": True, "result": "PASS"},
+        {"assertion_id": "trigger-queued-simultaneous", "semantic_path": "after_trigger_collection.simultaneous_stack_entry", "expected": True, "actual": True, "result": "PASS"},
+        {"assertion_id": "trigger-not-regular-early", "semantic_path": "after_trigger_collection.regular_stack_empty", "expected": True, "actual": True, "result": "PASS"},
+        {"assertion_id": "trigger-on-regular-stack", "semantic_path": "after_stack_ordering.regular_stack_nonempty", "expected": True, "actual": True, "result": "PASS"},
         {"assertion_id": "trigger-resolution", "semantic_path": "final.controller_life", "expected": 21, "actual": 21, "result": "PASS"},
         {"assertion_id": "stack-empty", "semantic_path": "final.stack_empty", "expected": True, "actual": True, "result": "PASS"},
+        {"assertion_id": "simultaneous-empty", "semantic_path": "final.simultaneous_stack_entries", "expected": False, "actual": False, "result": "PASS"},
     ]
     witness = {
         "schema": "commander-simulator-next.atomic-primitive-witness.v1",
         "witness_id": "ws16-jwar-isle-refuge-moved-changeszone",
         "primitive_ids": sorted(PASS_IDS),
         "primitive_exercise": [
-            {"primitive_id": "forge-primitive-v1:affff0f8993d9b11ad9f1fb7cae35907",
-             "trace_event_ids": ["after-move"], "assertion_ids": ["zone-after-move", "replacement-tap"], "exercised": True},
-            {"primitive_id": "forge-primitive-v1:5f99c3f437013e47c874b90e66bc3074",
-             "trace_event_ids": ["after-move", "trigger-collected", "final"], "assertion_ids": ["trigger-timing", "trigger-queued", "trigger-on-stack", "trigger-resolution", "stack-empty"], "exercised": True},
+            {
+                "primitive_id": "forge-primitive-v1:affff0f8993d9b11ad9f1fb7cae35907",
+                "trace_event_ids": ["after-move"],
+                "assertion_ids": ["zone-after-move", "replacement-tap"],
+                "exercised": True,
+            },
+            {
+                "primitive_id": "forge-primitive-v1:5f99c3f437013e47c874b90e66bc3074",
+                "trace_event_ids": ["after-move", "trigger-collected", "trigger-stacked", "final"],
+                "assertion_ids": [
+                    "trigger-timing",
+                    "trigger-queued-simultaneous",
+                    "trigger-not-regular-early",
+                    "trigger-on-regular-stack",
+                    "trigger-resolution",
+                    "stack-empty",
+                    "simultaneous-empty",
+                ],
+                "exercised": True,
+            },
         ],
         "scenario_id": "ws16-jwar-isle-refuge-replacement-and-etb-trigger",
         "forge_pin": FORGE_PIN,
@@ -114,8 +148,11 @@ def main() -> int:
         "stdout_only": False,
         "official_rules_adjudication": {
             "status": "EXTERNALLY_RULE_VALIDATED",
-            "rules_refs": ["https://magic.wizards.com/en/rules (current Comprehensive Rules), 614.1", "https://magic.wizards.com/en/rules (current Comprehensive Rules), 603.3"],
-            "adjudication": "The Moved replacement changes entry before the permanent enters; the enters trigger is put on the stack after the event and resolves later."
+            "rules_refs": [
+                "https://magic.wizards.com/en/rules (current Comprehensive Rules), 614.1",
+                "https://magic.wizards.com/en/rules (current Comprehensive Rules), 603.3",
+            ],
+            "adjudication": "The Moved replacement changes entry before the permanent enters; the enters trigger is queued, ordered onto the stack at the priority boundary, and resolves later.",
         },
         "evidence_class": "EXTERNALLY_RULE_VALIDATED",
         "run_job_artifact_refs": refs,
@@ -126,17 +163,32 @@ def main() -> int:
     for primitive in owned:
         primitive_id = primitive["primitive_id"]
         if primitive_id in PASS_IDS:
-            rows.append({"primitive_id": primitive_id, "dispatch_token": primitive["dispatch_token"], "status": "PASS",
-                         "witness": "ws16-jwar-isle-refuge.witness.json", "evidence_class": "EXTERNALLY_RULE_VALIDATED"})
+            rows.append({
+                "primitive_id": primitive_id,
+                "dispatch_token": primitive["dispatch_token"],
+                "status": "PASS",
+                "witness": "ws16-jwar-isle-refuge.witness.json",
+                "evidence_class": "EXTERNALLY_RULE_VALIDATED",
+            })
         else:
-            rows.append({"primitive_id": primitive_id, "dispatch_token": primitive["dispatch_token"], "status": "PARTIAL",
-                         "failure_reason": "No pinned-Forge, actual-card, state-asserting WS16 witness executed for this exact primitive; no shared-path inference is permitted.",
-                         "evidence_class": "UNKNOWN"})
+            rows.append({
+                "primitive_id": primitive_id,
+                "dispatch_token": primitive["dispatch_token"],
+                "status": "PARTIAL",
+                "failure_reason": "No pinned-Forge, actual-card, state-asserting WS16 witness executed for this exact primitive; no shared-path inference is permitted.",
+                "evidence_class": "UNKNOWN",
+            })
     (out / "WS16_PRIMITIVE_COVERAGE.json").write_bytes(canonical({
-        "schema": "commander-simulator-next.ws16.primitive-coverage.v1", "owner_family": OWNER,
-        "forge_pin": FORGE_PIN, "primitive_count": len(rows), "pass_count": len(PASS_IDS),
-        "partial_count": len(rows) - len(PASS_IDS), "unknown_count": 0, "unsupported_count": 0,
-        "q6_actual_card_behavior": "NOT_ADJUDICATED", "rows": rows,
+        "schema": "commander-simulator-next.ws16.primitive-coverage.v1",
+        "owner_family": OWNER,
+        "forge_pin": FORGE_PIN,
+        "primitive_count": len(rows),
+        "pass_count": len(PASS_IDS),
+        "partial_count": len(rows) - len(PASS_IDS),
+        "unknown_count": 0,
+        "unsupported_count": 0,
+        "q6_actual_card_behavior": "NOT_ADJUDICATED",
+        "rows": rows,
     }))
     return 0
 
