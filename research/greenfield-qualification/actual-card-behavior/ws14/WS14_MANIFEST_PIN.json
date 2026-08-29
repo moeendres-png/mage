@@ -1,0 +1,11 @@
+{
+  "schema": "commander-simulator-next.atomic-behavior-path.v1.manifest-pin",
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "manifest_sha256": "1137335dd7101df44940a2b0c8cacc5740e2aef0a24eceb541449dd10a5e6f7b",
+  "per_identity_sha256": "1e824702ed0dcd4af7d91e66b02ec37fc88dd9ace51ab20bf0abf1f53b605703",
+  "unresolved_bindings_sha256": "d35b3f2772b7638768e9d66d5e00eed8bc3488530be99e064be44c82e1cb5704",
+  "generation_runs": [33255106500, 33255259594],
+  "generation_artifacts": [9715578665, 9715621217],
+  "cross_run_byte_identity": true,
+  "q6_behavior_pass": false
+}
