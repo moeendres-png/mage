@@ -30,6 +30,7 @@ import forge.game.spellability.SpellAbility;
 import forge.game.spellability.SpellPermanent;
 import forge.game.zone.ZoneType;
 import forge.item.PaperCard;
+import forge.util.Localizer;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -83,6 +84,7 @@ public class WS07MainApiConformanceTest {
             } catch (IOException e) {
                 throw new RuntimeException("Unable to create WS07 empty custom-editions directory", e);
             }
+            Localizer.getInstance().initialize("en-US", dir(res.resolve("languages")));
             CardStorageReader reader = new CardStorageReader(dir(res.resolve("cardsfolder")), null, false);
             staticData = new StaticData(
                     reader,
