@@ -1,0 +1,190 @@
+name: WS07 Commander Conformance
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - work/ws07-commander-conformance-20260828
+    paths:
+      - '.github/workflows/ws07-commander-conformance.yml'
+      - 'research/greenfield-qualification/ws07/**'
+      - 'research/greenfield-qualification/RULES_MATRIX_A_T.json'
+      - 'research/greenfield-qualification/RULES_MATRIX_C01_C22.json'
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      AUDIT_BASE_SHA: c0e42fb42c4a603aff4a76b1284f8271c12bfd42
+      FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+      WS07_RESULT_PATH: ${{ github.workspace }}/artifacts/ws07/raw-semantic.jsonl
+    steps:
+      - name: Checkout qualification inputs
+        uses: actions/checkout@v4
+        with:
+          path: qualification
+          fetch-depth: 20
+          filter: blob:none
+          sparse-checkout: |
+            research/greenfield-qualification/ws07
+            research/greenfield-qualification/RULES_MATRIX_A_T.json
+            research/greenfield-qualification/RULES_MATRIX_C01_C22.json
+
+      - name: Record qualification source identity
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd qualification
+          echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tree=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
+          git merge-base --is-ancestor "$AUDIT_BASE_SHA" HEAD
+
+      - name: Checkout pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Verify Forge pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: forge/pom.xml
+
+      - name: Inject main-API-only WS07 semantic test
+        shell: bash
+        run: |
+          set -euo pipefail
+          src=qualification/research/greenfield-qualification/ws07/WS07MainApiConformanceTest.java
+          test -f "$src"
+          if grep -nE 'forge\.gamesimulationtests|CardDatabaseHelper|PlayerControllerForTests|LobbyPlayerForTests|BaseGameSimulationTest' "$src"; then
+            echo 'Forbidden/unavailable Forge test-helper dependency remains in WS07 harness' >&2
+            exit 1
+          fi
+          mkdir -p forge/forge-gui-desktop/src/test/java/forge/ws07
+          cp "$src" forge/forge-gui-desktop/src/test/java/forge/ws07/
+          mkdir -p artifacts/ws07
+          : > "$WS07_RESULT_PATH"
+
+      - name: Run exactly the WS07 semantic Forge test
+        id: tests
+        shell: bash
+        run: |
+          set +e
+          cd forge
+          xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.ws07.WS07MainApiConformanceTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -DfailIfNoTests=false test \
+            2>&1 | tee "$GITHUB_WORKSPACE/artifacts/ws07/ws07-maven.log"
+          rc=${PIPESTATUS[0]}
+          if [ -d forge-gui-desktop/target/surefire-reports ]; then
+            cp -R forge-gui-desktop/target/surefire-reports "$GITHUB_WORKSPACE/artifacts/ws07/surefire-reports"
+          fi
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Collect fail-closed semantic evidence
+        id: collect
+        shell: bash
+        run: |
+          set +e
+          python3 qualification/research/greenfield-qualification/ws07/collect_ws07_results.py \
+            --a-matrix qualification/research/greenfield-qualification/RULES_MATRIX_A_T.json \
+            --c-matrix qualification/research/greenfield-qualification/RULES_MATRIX_C01_C22.json \
+            --raw "$WS07_RESULT_PATH" \
+            --harness qualification/research/greenfield-qualification/ws07/WS07MainApiConformanceTest.java \
+            --source-head '${{ steps.source.outputs.head }}' \
+            --source-tree '${{ steps.source.outputs.tree }}' \
+            --forge-pin "$FORGE_PIN" \
+            --output artifacts/ws07/WS07_CONFORMANCE.json \
+            --a-output artifacts/ws07/RULES_MATRIX_A_T.executed.json \
+            --c-output artifacts/ws07/RULES_MATRIX_C01_C22.executed.json
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Record execution metadata
+        if: always()
+        shell: bash
+        run: |
+          cat > artifacts/ws07/EXECUTION.json <<EOF
+          {
+            "qualification_head": "${{ steps.source.outputs.head }}",
+            "qualification_tree": "${{ steps.source.outputs.tree }}",
+            "audit_base_sha": "$AUDIT_BASE_SHA",
+            "forge_pin": "$FORGE_PIN",
+            "test_exit_code": ${{ steps.tests.outputs.exit_code || '999' }},
+            "collector_exit_code": ${{ steps.collect.outputs.exit_code || '999' }},
+            "workflow_run_id": "${{ github.run_id }}",
+            "workflow_run_attempt": "${{ github.run_attempt }}"
+          }
+          EOF
+
+      - name: Print generated evidence for direct inspection
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          echo '=== WS07_CONFORMANCE.json ==='
+          cat artifacts/ws07/WS07_CONFORMANCE.json
+          echo '=== RULES_MATRIX_A_T.executed.json ==='
+          cat artifacts/ws07/RULES_MATRIX_A_T.executed.json
+          echo '=== RULES_MATRIX_C01_C22.executed.json ==='
+          cat artifacts/ws07/RULES_MATRIX_C01_C22.executed.json
+          echo '=== EXECUTION.json ==='
+          cat artifacts/ws07/EXECUTION.json
+          exit 0
+
+      - name: Upload WS07 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws07-commander-conformance-${{ github.run_id }}
+          path: artifacts/ws07
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce semantic qualification gate
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.tests.outputs.exit_code || '999' }}" = "0"
+          test "${{ steps.collect.outputs.exit_code || '999' }}" = "0"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('artifacts/ws07')
+          conformance = json.loads((root / 'WS07_CONFORMANCE.json').read_text())
+          a = json.loads((root / 'RULES_MATRIX_A_T.executed.json').read_text())
+          c = json.loads((root / 'RULES_MATRIX_C01_C22.executed.json').read_text())
+
+          assert conformance['status'] == 'PASS', conformance
+          gates = conformance['gates']
+          assert gates['Q5_COMMANDER_MULTIPLAYER'] == 'PASS', gates
+          assert gates['authoritative_rows_passed'] == 42, gates
+          assert gates['all_42_authoritative_rows_semantic'] == 'PASS', gates
+          assert gates['A_T_semantic_4P'] == 'PASS', gates
+          assert gates['C01_C22_semantic_4P'] == 'PASS', gates
+          assert len(a['ws07_results']) == 20, len(a['ws07_results'])
+          assert all(r['result'] == 'PASS' and r['player_count'] == 4 for r in a['ws07_results']), a['ws07_results']
+          assert len(c['ws07_results']) == 22, len(c['ws07_results'])
+          assert all(r['result'] == 'PASS' and r['player_count'] == 4 for r in c['ws07_results']), c['ws07_results']
+          PY
