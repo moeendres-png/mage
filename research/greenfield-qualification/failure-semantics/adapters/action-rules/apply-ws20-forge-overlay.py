@@ -69,11 +69,9 @@ def main() -> int:
     return_index = action.find(return_line, todo_index)
     if return_index < 0 or return_index - todo_index > 800:
         raise SystemExit("exact-pin Astrotorium junkyard boundary not found near TODO")
-    guard = """            if (c.hasMergedCard()) {
-                final Player ws20Principal = c.getController() != null ? c.getController() : c.getOwner();
-                return Ws20RulesPathBoundary.unsupportedAstrotoriumMergedZoneChange(
-                        "forge-game:" + game.getId(), ws20Principal.getId());
-            }
+    guard = """            final Player ws20Principal = c.getController() != null ? c.getController() : c.getOwner();
+            Ws20RulesPathBoundary.requireSupportedAstrotoriumMergedZoneChange(
+                    "forge-game:" + game.getId(), ws20Principal.getId(), c.hasMergedCard());
 """
     action = action[:return_index] + guard + action[return_index:]
     game_action.write_text(action, encoding="utf-8")
