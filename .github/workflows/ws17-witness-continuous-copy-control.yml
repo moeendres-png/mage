@@ -65,7 +65,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/ws17
-          (cd forge && mvn -pl forge-gui-desktop -am -Dtest=Ws17ContinuousCopyControlWitnessTest test) \
+          # AITest initializes Forge's desktop card database.  The pinned engine requires a
+          # display-backed desktop bootstrap even though this witness has no visible UI.
+          (cd forge && xvfb-run -a mvn -pl forge-gui-desktop -am -Dtest=Ws17ContinuousCopyControlWitnessTest test) \
             2>&1 | tee artifacts/ws17/pinned-forge-test.log
           cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.ai.ability.Ws17ContinuousCopyControlWitnessTest.xml artifacts/ws17/
           test "$(wc -l < artifacts/ws17/ws17-runtime-trace.tsv)" = 11
