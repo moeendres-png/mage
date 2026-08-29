@@ -1,0 +1,6 @@
+{
+  "schema": "commander-simulator-next.actual-card-semantic-witness-registry.v1",
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "witnesses": [],
+  "policy": "Only executable witnesses with engine-state assertions, an immutable trace hash, exact path-signature bindings, and official-rules adjudication where required can qualify a behavior path. Global WS01/WS05/WS06 PASS values are prerequisites only and are prohibited as per-identity evidence."
+}

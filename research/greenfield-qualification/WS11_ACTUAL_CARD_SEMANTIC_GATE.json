@@ -1,0 +1,28 @@
+{
+  "schema": "commander-simulator-next.actual-card-semantic-closure.v1.gate",
+  "status": "FAIL",
+  "Q6_ACTUAL_CARD_BEHAVIOR": "FAIL",
+  "base_sha": "624c0a652de775dcdf9d641438b5c18ef4ce50d2",
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "exact_known_oracle_identities": 1678,
+  "explicit_unknown_real_opponent_slots": 142,
+  "synthetic_promotion": false,
+  "coverage_counts": {
+    "FULL": 0,
+    "CONDITIONAL_FULL": 0,
+    "PARTIAL": 1678,
+    "UNKNOWN": 0,
+    "UNSUPPORTED": 0
+  },
+  "behavior_signature_count": 1677,
+  "dedicated_scenario_count": 0,
+  "global_pass_inheritance_rows": 0,
+  "card_name_production_hacks": 0,
+  "cross_rule_divergences": [],
+  "evidence_classes": ["CODE_DERIVED", "TECHNICALLY_CONFORMANT", "UNKNOWN"],
+  "local_reproduction": {
+    "unit_tests": "PASS (4/4)",
+    "per_identity_sha256": "d51e8112f5d4e4072f1e773199fcc5cf20572ce99f84869045a1654daac067a9"
+  },
+  "smallest_remaining_blocker": "All 1,677 exact Forge behavior-path signatures used by the 1,678 identities lack executable, state-asserting semantic witnesses bound to those signatures. Until those witnesses exist, all 1,678 identities remain PARTIAL."
+}

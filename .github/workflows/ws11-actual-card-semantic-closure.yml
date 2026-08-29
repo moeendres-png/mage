@@ -1,0 +1,106 @@
+name: WS11 Actual-card semantic closure
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  WS10_RUN_ID: '33247342048'
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: qual
+
+      - name: Verify exact WS90 ancestry and corpus constants
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C qual merge-base --is-ancestor 624c0a652de775dcdf9d641438b5c18ef4ce50d2 HEAD
+          jq -e '.target_count == 1678 and .synthetic_promotion == false' qual/research/greenfield-qualification/ACTUAL_CARD_REQUIREMENT_UNION.json >/dev/null
+          jq -e '.summary.slot_count == 142 and .summary.status == "PASS"' qual/research/greenfield-qualification/actual-card-manifest/UNKNOWN_REAL_OPPONENTS.json >/dev/null
+
+      - name: Download exact rejected WS10 evidence inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ws10 artifacts/ws11
+          gh run download "$WS10_RUN_ID" --repo "$GITHUB_REPOSITORY" --name ws10-actual-card-behavior --dir artifacts/ws10
+          test "$(wc -l < artifacts/ws10/prepared.jsonl)" = 1678
+          test "$(wc -l < artifacts/ws10/loadability.jsonl)" = 1678
+          sha256sum artifacts/ws10/prepared.jsonl artifacts/ws10/loadability.jsonl > artifacts/ws11/WS10_INPUT_HASHES.sha256
+
+      - name: Checkout exact Forge implementation pin
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Test strict successor classifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s qual/research/greenfield-qualification/actual-card-behavior -p 'test_ws11_*.py' -v | tee artifacts/ws11/unit-tests.log
+
+      - name: Materialize exact identity-to-path frontier
+        shell: bash
+        run: |
+          set +e
+          python3 qual/research/greenfield-qualification/actual-card-behavior/ws11_qualify.py \
+            --prepared artifacts/ws10/prepared.jsonl \
+            --loadability artifacts/ws10/loadability.jsonl \
+            --forge-cards forge/forge-gui/res/cardsfolder \
+            --witness-registry qual/research/greenfield-qualification/actual-card-behavior/WS11_WITNESS_REGISTRY.json \
+            --out artifacts/ws11
+          rc=$?
+          set -e
+          echo "$rc" > artifacts/ws11/classifier.exit
+          if [ "$rc" != 0 ] && [ "$rc" != 3 ]; then exit "$rc"; fi
+
+      - name: Enforce evidence structure and fail-closed adjudication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(wc -l < artifacts/ws11/PER_IDENTITY.semantic.jsonl)" = 1678
+          jq -e '.exact_known_oracle_identities == 1678 and
+                 .explicit_unknown_real_opponent_slots == 142 and
+                 .synthetic_promotion == false and
+                 .global_pass_inheritance_rows == 0 and
+                 .card_name_production_hacks == 0 and
+                 .Q6_ACTUAL_CARD_BEHAVIOR == "FAIL"' artifacts/ws11/WS11_GATE.runtime.json >/dev/null
+          jq -cs -e 'length == 1678 and
+            all(.[]; has("oracle_id") and has("oracle_name") and has("source_provenance") and
+              has("forge_implementation_binding") and has("behavior_path_signature_ids") and
+              has("production_reachability") and has("flags") and has("evidence_class") and
+              has("concrete_semantic_scenario_ids") and has("run_job_artifact_refs") and
+              has("trace_hashes") and has("classification") and has("failure_reason") and
+              .global_pass_inheritance_used == false)' artifacts/ws11/PER_IDENTITY.semantic.jsonl >/dev/null
+          cat artifacts/ws11/WS11_GATE.runtime.json
+
+      - name: Hash and upload complete WS11 evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd artifacts/ws11
+          find . -type f ! -name ALL_HASHES.sha256 -print0 | sort -z | xargs -0 sha256sum > ALL_HASHES.sha256
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ws11-actual-card-semantic-closure
+          path: artifacts/ws11
+          if-no-files-found: error
+          retention-days: 90
