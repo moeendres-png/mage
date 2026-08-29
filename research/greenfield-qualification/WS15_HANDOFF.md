@@ -5,6 +5,8 @@
 - `BRANCH`: `work/ws15-witness-action-cost-decision-20260829`
 - `BASE_SHA`: `d8c1ee0c08c7e7f0bc2bc86c70166ebc198e30d5`
 - `BASE_TREE`: `5725f47951938bc71af181cf1617e6b3be158804`
+- `HEAD`: `c11f7963a21ba29cece936679788e93343b54bf1` (superseded by the handoff-evidence commit below)
+- `TREE`: `a7374d165226ab6a8bd7b3feeddcc80615abf11f` (superseded by the handoff-evidence commit below)
 - `FORGE_PIN`: `8c7e9afb8e6caee88644b94e25da5852e36f8928`
 - `OWNER_FAMILY`: `ACTION_COST_DECISION`
 - `OWNED_PRIMITIVES`: `76`
@@ -26,9 +28,11 @@ missing proof: an actual-card pinned-Forge execution through a legal,
 authoritatively supplied decision path with state assertions and a trace.
 
 The workflow verifies the WS14 base/tree and exact Forge pin, materializes the
-machine-readable artifact and publishes its SHA-256. `RUN_IDS`, `JOB_IDS`,
-`ARTIFACT_IDS`, and `ARTIFACT_DIGESTS` must be filled only from the completed
-workflow run; no synthetic identifiers are recorded here.
+machine-readable artifact and publishes its SHA-256. Directly verified first
+successful run: `33263641859` / `99129711412` / `9717987956` /
+`sha256:53415e799f8ae0a4a542453b486f90310cc14eb1dc89e0f0b03ac16b7dddbb37`.
+It validates only the fail-closed materialization and Forge-pin provenance; it
+does not constitute semantic behavior evidence.
 
 ## Tests
 
