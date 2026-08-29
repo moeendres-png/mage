@@ -1,0 +1,278 @@
+name: WS22 actual-path replay and hidden failure adapters
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - work/ws22-failure-replay-hidden-20260829
+    paths:
+      - '.github/workflows/ws22-failure-replay-hidden.yml'
+      - 'research/greenfield-qualification/failure-semantics/adapters/replay-hidden/**'
+
+concurrency:
+  group: ws22-failure-replay-hidden-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  BASE_SHA: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+  WS05_SHA: 554bb06af0dd5e542ff8bbfd5e96054a74642d3a
+  WS06_SHA: e23af2b621f2e318014491b8a84146ed4ad3bed6
+  WS90_SHA: 55820618e7243bd5ba8cfa33c3148cea8c166c73
+  WS01_SHA: bf089ea806f54a9bbb64ede205915729e3629684
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  WS05_RUN_ID: '33210994482'
+  WS05_ARTIFACT_ID: '9701653278'
+  WS06_RUN_ID: '33209213338'
+  WS06_ARTIFACT_ID: '9701086657'
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout WS22 source
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+
+      - name: Checkout exact read-only dependencies
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS05_SHA }}
+          path: ws05
+          fetch-depth: 1
+
+      - uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS06_SHA }}
+          path: ws06
+          fetch-depth: 1
+
+      - uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS90_SHA }}
+          path: ws90
+          fetch-depth: 1
+
+      - uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS01_SHA }}
+          path: ws01
+          fetch-depth: 1
+
+      - name: Checkout exact Forge pin
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Verify provenance, ownership, and immutable baselines
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ws22
+          test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
+          git -C qual merge-base --is-ancestor "$BASE_SHA" HEAD
+          test "$(git -C ws05 rev-parse HEAD)" = "$WS05_SHA"
+          test "$(git -C ws06 rev-parse HEAD)" = "$WS06_SHA"
+          test "$(git -C ws90 rev-parse HEAD)" = "$WS90_SHA"
+          test "$(git -C ws01 rev-parse HEAD)" = "$WS01_SHA"
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+
+          changed="$(git -C qual diff --name-only "$BASE_SHA...HEAD")"
+          printf '%s\n' "$changed" > artifacts/ws22/changed-files.txt
+          bad="$(printf '%s\n' "$changed" | grep -Ev '^(\.github/workflows/ws22-failure-replay-hidden\.yml|WS22_HANDOFF\.md|research/greenfield-qualification/failure-semantics/adapters/replay-hidden/)' || true)"
+          if [ -n "$bad" ]; then
+            echo "WS22 ownership violation:" >&2
+            printf '%s\n' "$bad" >&2
+            exit 1
+          fi
+          git -C qual diff --quiet "$BASE_SHA...HEAD" -- \
+            research/greenfield-qualification/failure-semantics/outcome-contract.schema.json \
+            research/greenfield-qualification/failure-semantics/qualify.py
+
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WS05_RUN_ID" --jq .head_sha)" = "$WS05_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WS05_RUN_ID" --jq .conclusion)" = success
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS05_ARTIFACT_ID" --jq .name)" = greenfield-forge-ws05-hidden-info
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS05_ARTIFACT_ID" --jq .expired)" = false
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS05_ARTIFACT_ID" --jq .workflow_run.head_sha)" = "$WS05_SHA"
+
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WS06_RUN_ID" --jq .head_sha)" = "$WS06_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WS06_RUN_ID" --jq .conclusion)" = success
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS06_ARTIFACT_ID" --jq .name)" = ws06-rng-semantic-replay
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS06_ARTIFACT_ID" --jq .expired)" = false
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS06_ARTIFACT_ID" --jq .workflow_run.head_sha)" = "$WS06_SHA"
+
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          def rev(path, spec):
+              return subprocess.check_output(['git','-C',path,'rev-parse',spec], text=True).strip()
+          result = {
+              'schema': 'commander-simulator-next.ws22-provenance.v1',
+              'source_head': rev('qual','HEAD'),
+              'source_tree': rev('qual','HEAD^{tree}'),
+              'base_sha': os.environ['BASE_SHA'],
+              'dependencies': {
+                  'WS05': {'sha': rev('ws05','HEAD'), 'tree': rev('ws05','HEAD^{tree}'), 'mode':'READ_ONLY', 'run_id': int(os.environ['WS05_RUN_ID']), 'artifact_id': int(os.environ['WS05_ARTIFACT_ID'])},
+                  'WS06': {'sha': rev('ws06','HEAD'), 'tree': rev('ws06','HEAD^{tree}'), 'mode':'READ_ONLY', 'run_id': int(os.environ['WS06_RUN_ID']), 'artifact_id': int(os.environ['WS06_ARTIFACT_ID'])},
+                  'WS90': {'sha': rev('ws90','HEAD'), 'tree': rev('ws90','HEAD^{tree}'), 'mode':'READ_ONLY'},
+                  'WS01': {'sha': rev('ws01','HEAD'), 'tree': rev('ws01','HEAD^{tree}'), 'mode':'READ_ONLY'},
+                  'Forge': {'sha': rev('forge','HEAD'), 'mode':'READ_ONLY'},
+              },
+              'shared_ws12_schema_or_gate_modified': False,
+          }
+          Path('artifacts/ws22/provenance.json').write_text(json.dumps(result, indent=2, sort_keys=True)+'\n')
+          PY
+
+      - name: Download exact qualified WS06 replay evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ws22/ws06-qualified
+          gh run download "$WS06_RUN_ID" -R "$GITHUB_REPOSITORY" \
+            -n ws06-rng-semantic-replay \
+            -D artifacts/ws22/ws06-qualified
+
+      - name: Exercise actual WS06 semantic comparator divergence boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$GITHUB_WORKSPACE/qual/research/greenfield-qualification/failure-semantics/adapters/replay-hidden" \
+            python3 qual/research/greenfield-qualification/failure-semantics/adapters/replay-hidden/inject_replay_divergence.py \
+              --artifact-root artifacts/ws22/ws06-qualified \
+              --ws06-root ws06 \
+              --contract qual/research/greenfield-qualification/failure-semantics/outcome-contract.schema.json \
+              --out artifacts/ws22/REPLAY_DIVERGENCE_TRACE.json \
+              --mutated-out artifacts/ws22/process-B.controlled-divergence.json \
+              | tee artifacts/ws22/replay-adapter.log
+          grep -Fx 'WS22_REPLAY_DIVERGENCE=PASS' artifacts/ws22/replay-adapter.log
+          jq -e '.status == "PASS" and .category == "REPLAY_DIVERGENCE" and .outcome.state_committed == false and .detector.stdout_used_as_replay_criterion == false and .qualified_baseline.status == "PASS"' \
+            artifacts/ws22/REPLAY_DIVERGENCE_TRACE.json >/dev/null
+
+      - name: Apply exact Q2 and WS12 paths with WS22 test-only injection
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee artifacts/ws22/ws01-overlay.log
+          grep -Fx 'STRICT_DECISION_PATCH_APPLIED=TRUE' artifacts/ws22/ws01-overlay.log
+
+          python3 ws05/research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge \
+            | tee artifacts/ws22/ws05-overlay.log
+          grep -Fx 'WS05_HIDDEN_INFO_OVERLAY_APPLIED=TRUE' artifacts/ws22/ws05-overlay.log
+
+          cp ws05/research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java \
+            forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          python3 qual/research/greenfield-qualification/failure-semantics/adapters/replay-hidden/apply_ws22_hidden_probe_overlay.py \
+            forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java \
+            | tee artifacts/ws22/ws22-hidden-probe-overlay.log
+          grep -Fx 'WS22_HIDDEN_PROBE_OVERLAY=APPLIED' artifacts/ws22/ws22-hidden-probe-overlay.log
+
+          python3 qual/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py \
+            --forge-root forge | tee artifacts/ws22/ws12-overlay.log
+          grep -Fx 'WS12_FORGE_OVERLAY=APPLIED' artifacts/ws22/ws12-overlay.log
+
+          cp qual/research/greenfield-qualification/failure-semantics/adapters/replay-hidden/Ws22HiddenInfoViolationQualificationTest.java \
+            forge/forge-gui-desktop/src/test/java/forge/net/Ws22HiddenInfoViolationQualificationTest.java
+
+          git -C qual diff --quiet "$BASE_SHA...HEAD" -- \
+            research/greenfield-qualification/failure-semantics/outcome-contract.schema.json \
+            research/greenfield-qualification/failure-semantics/qualify.py
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: forge/pom.xml
+
+      - name: Ensure virtual display
+        shell: bash
+        run: command -v Xvfb >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y xvfb; }
+
+      - name: Compile exact-pin hidden-information negative path
+        shell: bash
+        run: |
+          set -o pipefail
+          cd forge
+          mvn -B -ntp -T 1C -pl forge-gui-desktop -am -DskipTests test-compile 2>&1 \
+            | tee ../artifacts/ws22/hidden-compile.log
+
+      - name: Exercise actual WS05 principal hidden-information detector
+        shell: bash
+        run: |
+          set -o pipefail
+          cd forge
+          xvfb-run -a mvn -B -ntp -T 1C -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws22HiddenInfoViolationQualificationTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws22.hiddenEvidencePath="$GITHUB_WORKSPACE/artifacts/ws22/HIDDEN_INFO_VIOLATION_RUNTIME.json" \
+            test 2>&1 | tee ../artifacts/ws22/hidden-runtime.log
+          grep -Fx 'WS22_HIDDEN_INFO_VIOLATION=PASS' ../artifacts/ws22/hidden-runtime.log
+          jq -e '.detector_boundary == "WS05_CARDVIEW_PLAYERVIEW_AUTHORIZATION" and .actual_cardview_identity_bearing == true and .authorized_for_target_principal == false and .detected == true and .leaks_before == 0 and .leaks_after == 1 and .public_envelope_secret_safe == true and .state_witness_unchanged == true and .fail_closed == true and .outcome.category == "HIDDEN_INFO_VIOLATION" and .outcome.state_committed == false' \
+            ../artifacts/ws22/HIDDEN_INFO_VIOLATION_RUNTIME.json >/dev/null
+
+      - name: Adjudicate WS22 fail closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_head="$(git -C qual rev-parse HEAD)"
+          source_tree="$(git -C qual rev-parse 'HEAD^{tree}')"
+          PYTHONPATH="$GITHUB_WORKSPACE/qual/research/greenfield-qualification/failure-semantics/adapters/replay-hidden" \
+            python3 qual/research/greenfield-qualification/failure-semantics/adapters/replay-hidden/qualify_ws22.py \
+              --replay artifacts/ws22/REPLAY_DIVERGENCE_TRACE.json \
+              --hidden artifacts/ws22/HIDDEN_INFO_VIOLATION_RUNTIME.json \
+              --contract qual/research/greenfield-qualification/failure-semantics/outcome-contract.schema.json \
+              --source-head "$source_head" \
+              --source-tree "$source_tree" \
+              --hidden-trace-out artifacts/ws22/HIDDEN_INFO_VIOLATION_TRACE.json \
+              --out artifacts/ws22/WS22_FAILURE_REPLAY_HIDDEN_GATE.json \
+              | tee artifacts/ws22/adjudication.log
+
+      - name: Hash WS22 evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd artifacts/ws22
+          find . -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > hashes.sha256 || true
+
+      - name: Upload WS22 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws22-failure-replay-hidden-${{ github.run_id }}
+          path: artifacts/ws22
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce WS22 gate
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .status == "PASS" and
+            .REPLAY_DIVERGENCE == "PASS" and
+            .HIDDEN_INFO_VIOLATION == "PASS" and
+            .FAILURE_SEMANTICS == "DEFERRED_TO_LATER_INTEGRATION" and
+            .shared_ws12_schema_or_gate_modified == false and
+            (.hard_gates | all(. == true)) and
+            .regression_implications.Q2_PRINCIPAL_HIDDEN_INFORMATION.decision == "NO_RERUN" and
+            .regression_implications.Q3_SEMANTIC_REPLAY.decision == "NO_RERUN"
+          ' artifacts/ws22/WS22_FAILURE_REPLAY_HIDDEN_GATE.json >/dev/null
