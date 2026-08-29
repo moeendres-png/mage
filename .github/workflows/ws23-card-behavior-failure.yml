@@ -60,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git -C ws12 rev-parse HEAD)" = "$WS12_HEAD"
-          test "$(jq -r '.$id' ws12/research/greenfield-qualification/failure-semantics/outcome-contract.schema.json)" = 'commander-simulator-next.failure-outcome.v1'
+          test "$(jq -r '.["$id"]' ws12/research/greenfield-qualification/failure-semantics/outcome-contract.schema.json)" = 'commander-simulator-next.failure-outcome.v1'
           test "$(jq -r '."x-categories".CARD_BEHAVIOR_FAILURE.public_message' ws12/research/greenfield-qualification/failure-semantics/outcome-contract.schema.json)" = 'card behavior verification failed'
           run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WS17_RUN_ID")"
           test "$(jq -r '.head_sha' <<<"$run")" = "$WS17_HEAD"
@@ -84,7 +84,7 @@ jobs:
           set -euo pipefail
           test -f artifacts/ws17/WS17_WITNESSES.jsonl
           test -f artifacts/ws17/WS17_HASHES.sha256
-          (cd artifacts/ws17 && sha256sum -c WS17_HASHES.sha256)
+          sha256sum -c artifacts/ws17/WS17_HASHES.sha256
           mkdir -p artifacts/ws23
           python3 qual/research/greenfield-qualification/failure-semantics/adapters/card-behavior/qualify_ws23.py \
             --contract ws12/research/greenfield-qualification/failure-semantics/outcome-contract.schema.json \
