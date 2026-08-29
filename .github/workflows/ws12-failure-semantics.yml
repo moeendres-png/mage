@@ -88,12 +88,16 @@ jobs:
         run: |
           set -euo pipefail
           source evidence/provenance.env
+          set +e
           python3 qual/research/greenfield-qualification/failure-semantics/qualify.py \
             --source-head "$source_head" --source-tree "$source_tree" \
             --forge-root forge \
             --out evidence/FAILURE_SEMANTICS_GATE.json \
             --md-out evidence/FAILURE_SEMANTICS_GATE.md \
             | tee evidence/failure-semantics-gate.log
+          qualifier_status=${PIPESTATUS[0]}
+          set -e
+          test "$qualifier_status" -eq 1
           python3 - <<'PY'
           import json
           from pathlib import Path
