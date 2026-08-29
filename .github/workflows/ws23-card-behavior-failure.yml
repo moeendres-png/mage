@@ -1,0 +1,105 @@
+name: WS23 card behavior failure adapter
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - work/ws23-card-behavior-failure-adapter-20260829
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  WS14_HEAD: d8c1ee0c08c7e7f0bc2bc86c70166ebc198e30d5
+  WS14_TREE: 5725f47951938bc71af181cf1617e6b3be158804
+  WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+  WS17_HEAD: a5f68f9ec49d19d900e92e505654871d2267ba93
+  WS17_RUN_ID: '33264286138'
+  WS17_ARTIFACT_ID: '9718189742'
+  WS17_ARTIFACT_DIGEST: sha256:7133a9b8fdf3246f6a756114396fba6a35cb8b9a28c4cc8622317ab0b0f03cba
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout WS23
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+
+      - name: Verify exact WS14 base and WS23 ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual merge-base "$WS14_HEAD" HEAD)" = "$WS14_HEAD"
+          test "$(git -C qual rev-parse "$WS14_HEAD^{tree}")" = "$WS14_TREE"
+          changed="$(git -C qual diff --name-only "$WS14_HEAD" HEAD)"
+          while IFS= read -r path; do
+            test -z "$path" && continue
+            case "$path" in
+              .github/workflows/ws23-card-behavior-failure.yml|research/greenfield-qualification/WS23_HANDOFF.md|research/greenfield-qualification/failure-semantics/adapters/card-behavior/*) ;;
+              *) echo "out-of-scope WS23 path: $path" >&2; exit 1 ;;
+            esac
+          done <<< "$changed"
+          test ! -e qual/research/greenfield-qualification/actual-card-behavior/WS14_WITNESS_REGISTRY.json
+
+      - name: Checkout retained WS12 outcome contract read-only
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.WS12_HEAD }}
+          path: ws12
+          fetch-depth: 1
+
+      - name: Verify WS12 contract and WS17 provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C ws12 rev-parse HEAD)" = "$WS12_HEAD"
+          test "$(jq -r '.$id' ws12/research/greenfield-qualification/failure-semantics/outcome-contract.schema.json)" = 'commander-simulator-next.failure-outcome.v1'
+          test "$(jq -r '."x-categories".CARD_BEHAVIOR_FAILURE.public_message' ws12/research/greenfield-qualification/failure-semantics/outcome-contract.schema.json)" = 'card behavior verification failed'
+          run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WS17_RUN_ID")"
+          test "$(jq -r '.head_sha' <<<"$run")" = "$WS17_HEAD"
+          test "$(jq -r '.conclusion' <<<"$run")" = success
+          metadata="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WS17_RUN_ID/artifacts")"
+          test "$(jq -r '.artifacts[] | select(.name == "ws17-continuous-copy-control-witnesses") | .id' <<<"$metadata")" = "$WS17_ARTIFACT_ID"
+          test "$(jq -r '.artifacts[] | select(.name == "ws17-continuous-copy-control-witnesses") | .digest' <<<"$metadata")" = "$WS17_ARTIFACT_DIGEST"
+
+      - name: Download immutable WS17 witness artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.WS17_RUN_ID }}
+          name: ws17-continuous-copy-control-witnesses
+          path: artifacts/ws17
+
+      - name: Verify WS17 artifact hashes and detect controlled semantic mismatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f artifacts/ws17/WS17_WITNESSES.jsonl
+          test -f artifacts/ws17/WS17_HASHES.sha256
+          (cd artifacts/ws17 && sha256sum -c WS17_HASHES.sha256)
+          mkdir -p artifacts/ws23
+          python3 qual/research/greenfield-qualification/failure-semantics/adapters/card-behavior/qualify_ws23.py \
+            --contract ws12/research/greenfield-qualification/failure-semantics/outcome-contract.schema.json \
+            --witnesses artifacts/ws17/WS17_WITNESSES.jsonl \
+            --source-head "$(git -C qual rev-parse HEAD)" \
+            --source-tree "$(git -C qual rev-parse 'HEAD^{tree}')" \
+            --out artifacts/ws23 | tee artifacts/ws23/qualify.log
+          jq -e '.status == "PASS" and .WORKSTREAM_COMPLETE == true and .classification == "CARD_BEHAVIOR_FAILURE" and .engine_execution == "PASS" and .semantic_verifier == "FAIL_AS_CONTROLLED" and .production_binding == "QUALIFIER_ONLY" and .production_reachable == false and (.hard_gates | all(. == true)) and .FAILURE_SEMANTICS_OVERALL_CLAIMED == false' artifacts/ws23/WS23_GATE.json >/dev/null
+          jq -e '.category == "CARD_BEHAVIOR_FAILURE" and .state_committed == false and .public_message == "card behavior verification failed"' artifacts/ws23/CARD_BEHAVIOR_FAILURE.json >/dev/null
+          (cd artifacts/ws23 && sha256sum -c WS23_HASHES.sha256)
+
+      - name: Upload immutable WS23 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws23-card-behavior-failure-evidence
+          path: artifacts/ws23
+          if-no-files-found: error
+          retention-days: 90
