@@ -73,7 +73,7 @@ jobs:
             --forge-root forge | tee evidence/ws20-overlay-apply.log
           grep -Fq 'Ws20ActionCompletionBoundary.requireCompletable(getGame(), response, optionList);' \
             forge/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java
-          grep -Fq 'Ws20RulesPathBoundary.unsupportedAstrotoriumMergedZoneChange' \
+          grep -Fq 'Ws20RulesPathBoundary.requireSupportedAstrotoriumMergedZoneChange' \
             forge/forge-game/src/main/java/forge/game/GameAction.java
 
       - name: Compile exact-pin Forge overlays
@@ -126,6 +126,7 @@ jobs:
               assert row['production_binding'] == 'ACTUAL_RUNTIME_PATH'
               assert row['classification'] == 'PASS'
               assert row['evidence_class'] == 'TECHNICALLY_CONFORMANT'
+              assert row['exact_production_guard_invoked'] is True
           assert all(gate['hard_gate'].values())
           PY
 
