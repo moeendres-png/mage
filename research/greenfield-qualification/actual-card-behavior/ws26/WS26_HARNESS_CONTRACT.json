@@ -1,0 +1,13 @@
+{
+  "schema":"commander-simulator-next.ws26.shared-harness-contract.v2",
+  "forge_pin":"8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "oracle_corpus_identity_count":1678,
+  "rules_core_authority":["legal_actions","costs","mana_legality","targets","stack","priority","combat_legality","trigger_replacement_resolution","continuous_effects","state_based_actions","zones","commander_rules"],
+  "pilot_boundary":{"input":"authoritative legal options only","may_infer_legality":false,"silent_fallbacks":0},
+  "required_witness_evidence":["actual_corpus_card","valid_rules_state","initial_semantic_state","final_semantic_state","state_assertions","path_exercise","immutable_trace_sha256","decision_tape_when_required","rng_tape_when_required","principal_observation_evidence_when_required"],
+  "forbidden_shortcuts":["direct_effect_resolve_bypass","impossible_manual_state","manual_legality","hardcoded_choice_outside_offered_set","cost_bypass","target_bypass","stack_priority_bypass_when_required","replacement_bypass","sba_bypass","hidden_information_bypass","rng_recording_bypass","final_state_injection","stdout_only","no_exception_only_assertion"],
+  "failure_classes":["UNSUPPORTED_DECISION_PATH","UNSUPPORTED_RULES_PATH","ENGINE_FAILURE","REPLAY_DIVERGENCE","HIDDEN_INFO_VIOLATION","CARD_BEHAVIOR_FAILURE"],
+  "failure_semantics_overall_claimed":false,
+  "card_behavior_failure_production_binding_claimed":false,
+  "evidence_class":"TECHNICALLY_CONFORMANT"
+}
