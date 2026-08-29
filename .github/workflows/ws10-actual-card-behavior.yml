@@ -1,0 +1,294 @@
+name: WS10 actual-card behavior qualification
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - work/ws10-card-behavior-20260828
+    paths:
+      - '.github/workflows/ws10-actual-card-behavior.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ws10-card-behavior-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AUDIT_BASE_SHA: c0e42fb42c4a603aff4a76b1284f8271c12bfd42
+  AUDIT_BASE_TREE: fb06c61dd87b4b742722925cd7374d8f037e1f47
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+  WS02_HEAD: 56e82b8aeeb5059db46b3a5eea3abd05f5e1d3c6
+  WS05_HEAD: 554bb06af0dd5e542ff8bbfd5e96054a74642d3a
+  WS06_HEAD: e23af2b621f2e318014491b8a84146ed4ad3bed6
+  WS07_HEAD: 4076ec9d7e3f3f74ddd35f4fab250928db109af6
+  WS07_QUALIFIED_HEAD: 87834da73f22e62a1803733be812d3b22b9f485b
+  WS01_RUN: '33200503101'
+  WS05_RUN: '33210994482'
+  WS06_RUN: '33209213338'
+  WS07_RUN: '33244368567'
+  WS07_ARTIFACT: '9712369379'
+  SCRYFALL_URI: https://data.scryfall.io/oracle-cards/oracle-cards-20260828090156.jsonl.gz
+  SCRYFALL_PAYLOAD_SHA256: fd14481dae5029077ed00f8932e07acd6dc21a76d7aff8e287c5a93652d891b4
+  SCRYFALL_INDEX_SHA256: 0fb351eae3e16a5739194835a8633187298c7660ef3712e21e5d5ca13d66327f
+  SCRYFALL_UPDATED_AT: '2026-08-28T09:01:56.722+00:00'
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout WS10 qualification source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: qual
+          fetch-depth: 0
+
+      - name: Checkout read-only dependency overlays
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.WS02_HEAD }}
+          path: deps/ws02
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.WS01_HEAD }}
+          path: deps/ws01
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.WS05_HEAD }}
+          path: deps/ws05
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.WS06_HEAD }}
+          path: deps/ws06
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.WS07_HEAD }}
+          path: deps/ws07
+          fetch-depth: 1
+
+      - name: Verify immutable source/dependency provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual merge-base "$GITHUB_SHA" "$AUDIT_BASE_SHA")" = "$AUDIT_BASE_SHA"
+          test "$(git -C deps/ws01 rev-parse HEAD)" = "$WS01_HEAD"
+          test "$(git -C deps/ws02 rev-parse HEAD)" = "$WS02_HEAD"
+          test "$(git -C deps/ws05 rev-parse HEAD)" = "$WS05_HEAD"
+          test "$(git -C deps/ws06 rev-parse HEAD)" = "$WS06_HEAD"
+          test "$(git -C deps/ws07 rev-parse HEAD)" = "$WS07_HEAD"
+          mkdir -p artifacts/ws10
+          printf 'source_head=%s\nsource_tree=%s\n' \
+            "$(git -C qual rev-parse HEAD)" "$(git -C qual rev-parse 'HEAD^{tree}')" \
+            > artifacts/ws10/provenance.env
+
+      - name: Verify completed dependency qualification evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs"
+          for x in WS01 WS05 WS06; do
+            run_var="${x}_RUN"; head_var="${x}_HEAD"
+            run="${!run_var}"; head="${!head_var}"
+            curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' \
+              "$api/$run" > "artifacts/ws10/${x,,}-run.json"
+            jq -e --arg h "$head" '.head_sha == $h and .status == "completed" and .conclusion == "success"' \
+              "artifacts/ws10/${x,,}-run.json" >/dev/null
+          done
+
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' \
+            "$api/$WS07_RUN" > artifacts/ws10/ws07-run.json
+          jq -e --arg h "$WS07_QUALIFIED_HEAD" \
+            '.head_sha == $h and .status == "completed" and .conclusion == "success"' \
+            artifacts/ws10/ws07-run.json >/dev/null
+          curl -fsSL -L -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${WS07_ARTIFACT}/zip" \
+            -o artifacts/ws10/ws07-qualified.zip
+          mkdir -p artifacts/ws10/ws07-qualified
+          unzip -q artifacts/ws10/ws07-qualified.zip -d artifacts/ws10/ws07-qualified
+          jq -e --arg h "$WS07_QUALIFIED_HEAD" --arg f "$FORGE_PIN" '
+            .status == "PASS" and .workstream_complete == true and
+            .source_head == $h and .forge_pin == $f and
+            .gates.Q5_COMMANDER_MULTIPLAYER == "PASS" and
+            .gates.A_T_semantic_4P == "PASS" and
+            .gates.C01_C22_semantic_4P == "PASS" and
+            .gates."2P_conformance_required_subset" == "PASS" and
+            .gates."3P_conformance_required_subset" == "PASS" and
+            .gates."4P_conformance_required_subset" == "PASS" and
+            .gates."5P_conformance_required_subset" == "PASS" and
+            .gates.all_42_authoritative_rows_semantic == "PASS"
+          ' artifacts/ws10/ws07-qualified/WS07_CONFORMANCE.json >/dev/null
+
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          deps={
+            'WS01': {'head':os.environ['WS01_HEAD'],'run_id':int(os.environ['WS01_RUN']),'status':'PASS','evidence_class':'TECHNICALLY_CONFORMANT'},
+            'WS02': {'head':os.environ['WS02_HEAD'],'status':'PASS','evidence_class':'DIRECTLY_VERIFIED'},
+            'WS05': {'head':os.environ['WS05_HEAD'],'run_id':int(os.environ['WS05_RUN']),'status':'PASS','evidence_class':'TECHNICALLY_CONFORMANT'},
+            'WS06': {'head':os.environ['WS06_HEAD'],'run_id':int(os.environ['WS06_RUN']),'status':'PASS','evidence_class':'TECHNICALLY_CONFORMANT'},
+            'WS07': {
+              'head':os.environ['WS07_HEAD'],
+              'qualified_head':os.environ['WS07_QUALIFIED_HEAD'],
+              'run_id':int(os.environ['WS07_RUN']),
+              'artifact_id':int(os.environ['WS07_ARTIFACT']),
+              'status':'PASS',
+              'evidence_class':'TECHNICALLY_CONFORMANT'
+            },
+          }
+          Path('artifacts/ws10/DEPENDENCIES.json').write_text(
+              json.dumps({'schema':'commander-simulator-next.ws10.dependencies.v2','dependencies':deps},sort_keys=True,indent=2)+'\n')
+          PY
+
+      - name: Reconstruct exact WS02 Oracle index
+        shell: bash
+        run: |
+          set -euo pipefail
+          pin=deps/ws02/research/greenfield-qualification/ACTUAL_CARD_REQUIREMENT_ORACLE_PIN.json
+          union=deps/ws02/research/greenfield-qualification/ACTUAL_CARD_REQUIREMENT_UNION.json
+          jq -e '.status == "PASS" and .oracle_identity_count == 38626' "$pin" >/dev/null
+          jq -e '.status == "PASS" and .complete == true and .target_count == 1678 and .computed_oracle_id_count == 1678' "$union" >/dev/null
+          test "$(jq -r .payload_sha256 "$pin")" = "$SCRYFALL_PAYLOAD_SHA256"
+          test "$(jq -r .index_sha256 "$pin")" = "$SCRYFALL_INDEX_SHA256"
+          curl -fsSL --retry 3 "$SCRYFALL_URI" -o artifacts/ws10/oracle-cards.jsonl.gz
+          echo "$SCRYFALL_PAYLOAD_SHA256  artifacts/ws10/oracle-cards.jsonl.gz" | sha256sum -c -
+          python3 qual/research/greenfield-qualification/scryfall_oracle_index.py \
+            --payload artifacts/ws10/oracle-cards.jsonl.gz \
+            --out artifacts/ws10/oracle-index.json \
+            --source-head "$AUDIT_BASE_SHA" --source-tree "$AUDIT_BASE_TREE" \
+            --bulk-updated-at "$SCRYFALL_UPDATED_AT" --bulk-download-uri "$SCRYFALL_URI"
+          test "$(sha256sum artifacts/ws10/oracle-index.json | cut -d' ' -f1)" = "$SCRYFALL_INDEX_SHA256"
+
+      - name: Checkout pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Unit-test WS10 classifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s qual/research/greenfield-qualification/actual-card-behavior -p 'test_*.py' -v \
+            | tee artifacts/ws10/unit-tests.log
+
+      - name: Materialize exact identities and Forge source reachability
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          python3 qual/research/greenfield-qualification/actual-card-behavior/qualify.py prepare \
+            --ws02 deps/ws02 \
+            --oracle-index artifacts/ws10/oracle-index.json \
+            --forge-cards forge/forge-gui/res/cardsfolder \
+            --out artifacts/ws10
+          jq -e '.requirement_identity_count == 1678 and .loadability_probe_count == 1678' artifacts/ws10/PREPARE_SUMMARY.json >/dev/null
+          cat artifacts/ws10/PREPARE_SUMMARY.json
+          cat artifacts/ws10/MAPPING_GAPS.json
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: forge/pom.xml
+
+      - name: Install headless display
+        shell: bash
+        run: command -v Xvfb >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y xvfb; }
+
+      - name: Batch-probe Forge CardDb loadability and runtime construction
+        id: loadprobe
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp qual/research/greenfield-qualification/actual-card-behavior/Ws10ActualCardLoadabilityTest.java \
+             forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws10ActualCardLoadabilityTest.java
+          names="$GITHUB_WORKSPACE/artifacts/ws10/names.tsv"
+          out="$GITHUB_WORKSPACE/artifacts/ws10/loadability.jsonl"
+          bootstrap="$GITHUB_WORKSPACE/artifacts/ws10/BOOTSTRAP.json"
+          log="$GITHUB_WORKSPACE/artifacts/ws10/forge-loadability.log"
+          exit_file="$GITHUB_WORKSPACE/artifacts/ws10/loadability-probe.exit"
+          cd forge
+          set +e
+          /usr/bin/time -v xvfb-run -a mvn -B \
+            -pl forge-gui-desktop -am \
+            -Dtest=forge.gamesimulationtests.Ws10ActualCardLoadabilityTest \
+            -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false \
+            -Dws10.names="$names" -Dws10.out="$out" -Dws10.bootstrap="$bootstrap" test \
+            > "$log" 2>&1
+          rc=$?
+          set -e
+          echo "$rc" > "$exit_file"
+          cat "$log"
+          if [ "$rc" -ne 0 ]; then exit "$rc"; fi
+          jq -e '.bootstrap_success == true' "$bootstrap" >/dev/null
+          test -s "$out"
+          test "$(wc -l < "$out")" = "$(wc -l < "$names")"
+
+      - name: Finalize fail-closed per-identity classification
+        id: finalize
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          python3 qual/research/greenfield-qualification/actual-card-behavior/qualify.py finalize \
+            --prepared artifacts/ws10/prepared.jsonl \
+            --loadability artifacts/ws10/loadability.jsonl \
+            --bootstrap artifacts/ws10/BOOTSTRAP.json \
+            --dependencies artifacts/ws10/DEPENDENCIES.json \
+            --out artifacts/ws10 \
+            | tee artifacts/ws10/finalize.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "$rc" > artifacts/ws10/finalizer.exit
+          if [ "$rc" != 0 ] && [ "$rc" != 3 ]; then exit "$rc"; fi
+
+      - name: Hash complete WS10 evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd artifacts/ws10
+          find . -type f ! -name ALL_HASHES.sha256 -print0 | sort -z | xargs -0 sha256sum > ALL_HASHES.sha256 || true
+
+      - name: Upload WS10 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws10-actual-card-behavior
+          path: artifacts/ws10
+          if-no-files-found: error
+
+      - name: Enforce Q6 hard gate after evidence upload
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f artifacts/ws10/ACTUAL_CARD_COVERAGE.runtime.json
+          jq . artifacts/ws10/ACTUAL_CARD_COVERAGE.runtime.json
+          jq -e '.Q6_ACTUAL_CARD_COVERAGE == "PASS" and
+                 .all_requirement_identities_classified == true and
+                 .production_reachable_UNKNOWN == 0 and
+                 .production_reachable_UNSUPPORTED == 0 and
+                 .production_reachable_PARTIAL == 0 and
+                 .decision_complete_required_paths == "PASS" and
+                 .hidden_info_safe_required_paths == "PASS" and
+                 .replay_safe_required_paths == "PASS" and
+                 .behavior_verified_required_paths == "PASS" and
+                 .card_name_hacks_added == 0' \
+            artifacts/ws10/ACTUAL_CARD_COVERAGE.runtime.json >/dev/null
