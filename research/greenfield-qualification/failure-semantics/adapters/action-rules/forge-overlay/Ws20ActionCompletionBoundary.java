@@ -14,6 +14,7 @@ import forge.game.player.Player;
 public final class Ws20ActionCompletionBoundary {
     private Ws20ActionCompletionBoundary() { }
 
+    /** Production entrypoint used by PlayerControllerHuman immediately pre-commit. */
     public static <T extends GameEntity> void requireCompletable(final Game game,
                                                                  final ExternalDecisionResponse response,
                                                                  final Iterable<T> authoritativeOptions) {
@@ -24,6 +25,7 @@ public final class Ws20ActionCompletionBoundary {
             return;
         }
 
+        boolean completable = true;
         for (final String selectedOptionId : response.getSelectedOptionIds()) {
             T selected = null;
             for (final T candidate : authoritativeOptions) {
@@ -33,8 +35,23 @@ public final class Ws20ActionCompletionBoundary {
                 }
             }
             if (selected == null || !isCurrentEngineEntity(game, selected)) {
-                fail("forge-game:" + game.getId(), response.getDecisionId(), response.getPrincipalId());
+                completable = false;
+                break;
             }
+        }
+        requireCompletable("forge-game:" + game.getId(), response.getDecisionId(),
+                response.getPrincipalId(), completable);
+    }
+
+    /**
+     * Exact fail-closed guard used by the production entrypoint. Tests inject
+     * the live-condition result here rather than constructing the enum/outcome.
+     */
+    public static void requireCompletable(final String gameId, final long decisionId,
+                                           final int principalId, final boolean completable) {
+        if (!completable) {
+            throw new Ws20FailureException(
+                    Ws20FailureSignal.actionNotCompletable(gameId, decisionId, principalId));
         }
     }
 
@@ -49,17 +66,5 @@ public final class Ws20ActionCompletionBoundary {
                     && game.getZoneOf(current) != null;
         }
         return false;
-    }
-
-    /** Fault-injection entrypoint exercising the exact throwing path used above. */
-    public static void injectNotCompletableForContractTest(final String gameId,
-                                                            final long decisionId,
-                                                            final int principalId) {
-        fail(gameId, decisionId, principalId);
-    }
-
-    private static void fail(final String gameId, final long decisionId, final int principalId) {
-        throw new Ws20FailureException(
-                Ws20FailureSignal.actionNotCompletable(gameId, decisionId, principalId));
     }
 }
