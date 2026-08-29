@@ -1,0 +1,91 @@
+{
+  "schema": "commander-simulator-next.ws90-integration-adjudication.v1",
+  "date": "2026-08-29",
+  "repository": "moeendres-png/mage",
+  "branch": "work/90-integration-cross-qualification-20260828",
+  "audit_base_sha": "c0e42fb42c4a603aff4a76b1284f8271c12bfd42",
+  "audit_base_tree": "fb06c61dd87b4b742722925cd7374d8f037e1f47",
+  "integrated_merge_head": "95a0c4f08bd016004975a381b70a5b73186d822c",
+  "integrated_merge_tree": "b34a88a5e1f25ea60dfac04701b10e6b5a1af8bc",
+  "qualified_integration_head": "55820618e7243bd5ba8cfa33c3148cea8c166c73",
+  "qualified_integration_tree": "3706900d49c6ef61690c227bb7b4c0067fbcfb44",
+  "engine_pins": {
+    "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+    "xmage": "86d86b580cd7e1f30b51110d70cecae18c1ce452",
+    "phase_rs": "fae406c4603f450797014f3ac8e8818b3d36c2a4",
+    "manabrew": "754ec2aeec495d67d7bb9b89d0fd67ee22281b46"
+  },
+  "workstreams": {
+    "WS01": {"head":"bf089ea806f54a9bbb64ede205915729e3629684","tree":"8d8d4587e3cf2cb3c375b8039c0d9d08c6e41f84","adjudication":"ACCEPT","gate":"Q1","status":"PASS"},
+    "WS02": {"head":"2a5695aba3f2ad9f2de42a65a416195d6d59241a","tree":"477c0d84745620fa13119477bff21c130e659d0f","adjudication":"ACCEPT_SCOPE_LIMITED","gate":"Q0/Q6_INPUT","status":"PASS","note":"identity/requirement corpus only; 1678 Oracle identities plus 142 explicit unknown real-opponent slots"},
+    "WS03": {"head":"5991be4ff3135a92bb02a3a71a9ab16fc2b5fa03","tree":"3dbd887784e9adcb7a6a26d6426fd3562012f0ec","adjudication":"ACCEPT_SUBGATE_ONLY","gate":"Q8_INPUT","status":"PASS_SUBGATE","note":"Q8 remains DEFERRED_PENDING_ARCHITECTURE_SELECTION; LICENSE_DECISION_COMPLETE=false"},
+    "WS04": {"head":"ccc7d98d49c82039787d38b3bd13c0bcb768c0ab","tree":"480477d8f5e9e35a07586afb11f824c3d431ed77","adjudication":"ACCEPT_PROVENANCE_ONLY","gate":"Q0_INPUT","status":"PASS","note":"historical A-T/C01-C22 sources were requirement labels only, not semantic scenarios"},
+    "WS05": {"head":"554bb06af0dd5e542ff8bbfd5e96054a74642d3a","tree":"b31327688e0ed7754385a1932fce907647a1afd9","adjudication":"ACCEPT","gate":"Q2","status":"PASS"},
+    "WS06": {"head":"e23af2b621f2e318014491b8a84146ed4ad3bed6","tree":"7bd40d8b7f0dbedcd8f9def864c3e9d42c77c554","adjudication":"ACCEPT","gate":"Q3","status":"PASS"},
+    "WS07": {"head":"4076ec9d7e3f3f74ddd35f4fab250928db109af6","tree":"70b383dd9fed36c98c7d050e9170c432fb5226ef","qualified_head":"87834da73f22e62a1803733be812d3b22b9f485b","adjudication":"ACCEPT_AND_REQUALIFIED_IN_WS90","gate":"Q5","status":"PASS"},
+    "WS08": {"head":"60bf65a7562f1f9bf43cf2f571489ec994487668","tree":"d6192e774c9fda982d4886c6fe57d98ca2a5d389","adjudication":"ACCEPT_PROCESS_PER_GAME_ONLY","gate":"Q4","status":"PASS","note":"same-JVM multi-game isolation is not qualified"},
+    "WS09": {"head":"9021fa4d7893dd7437deb930fc126e6ce2dfd122","tree":"37de1c6bfea60178ba612fe2861a0c69be1057bd","qualified_head":"636e0b558d9b1a3c4ea5495c2b489c032960c430","adjudication":"ACCEPT_SCOPE_LIMITED_AND_FORGE_SIDE_REQUALIFIED","gate":"Q7","status":"PASS","note":"two shared scenarios only; phase.rs and Manabrew remain UNSUPPORTED/UNKNOWN for this adapter"},
+    "WS10": {"head":"ad33d83638704e53efbce0f6d00d26cbb6fe3bca","tree":"5eb1367ccf6406a9eb41c9733ed7985c0adb69e8","qualified_head":"f3037faa539364e49443603c7af2710c7f3ffd76","adjudication":"EVIDENCE_ONLY_Q6_CLAIM_REJECTED","gate":"Q6","status":"FAIL_INTEGRATION","note":"per-card decision/hidden/replay flags inherit global WS01/WS05/WS06 booleans and dedicated behavior is required only for hard source markers; 0/1678 identities have direct semantic FULL proof"}
+  },
+  "cross_gates": {
+    "Q0_PROVENANCE_SCHEMAS": "PASS",
+    "Q1_STRICT_DECISION_EXTERNALIZATION": "PASS",
+    "Q2_HIDDEN_INFORMATION": "PASS",
+    "Q3_RNG_SEMANTIC_REPLAY": "PASS",
+    "Q4_PROCESS_ISOLATION": "PASS_PROCESS_PER_GAME",
+    "Q5_COMMANDER_MULTIPLAYER": "PASS",
+    "Q6_ACTUAL_CARD_BEHAVIOR": "FAIL",
+    "Q7_DIFFERENTIAL_ADJUDICATION": "PASS_SCOPE_LIMITED",
+    "Q8_LICENSE_THIRD_PARTY": "DEFERRED_PENDING_ARCHITECTURE_SELECTION",
+    "FAILURE_SEMANTICS": "FAIL_INCOMPLETE"
+  },
+  "mandatory_metrics": {
+    "PILOT_VISIBLE_HIDDEN_INFO_LEAKS": 0,
+    "CROSS_PRINCIPAL_DECISION_LEAKS": 0,
+    "production_reachable_untyped_decisions": 0,
+    "production_reachable_fallback_decisions": 0,
+    "semantic_replay_fresh_process_A_B_C": "PASS",
+    "semantic_state_divergences": 0,
+    "rng_event_divergences": 0,
+    "decision_event_divergences": 0,
+    "primary_4P_semantic_qualification": "PASS"
+  },
+  "reruns": [
+    {"gate":"Q1-Q4","classification":"NO_RERUN","reason":"WS08 already compiled and qualified the exact WS01+WS05+WS06+WS08 stack; no integration-relevant path changed afterward"},
+    {"gate":"Q5","classification":"RERUN_NOW","run_id":33250119165,"job_id":99094251297,"artifact_id":9714119110,"artifact_digest":"sha256:d5bdb8b59045c78c5c3774bac1f9091c7b32327834eea9abf106412452cdcb4c","result":"PASS","reason":"WS06 modifies Forge Game/RNG paths used by WS07, so stock-Forge WS07 evidence alone was stale for the combined candidate"},
+    {"gate":"Q7_FORGE_SIDE","classification":"RERUN_NOW","run_id":33250119165,"result":"PASS","reason":"same integrated Q5 run freshly proved 3P players=3 and life=40; unchanged exact-pin XMage witness was reused"},
+    {"gate":"Q6","classification":"AUDIT_NEEDS_RERUN","result":"NOT_EXECUTED_UNCHANGED_HARNESS","reason":"the existing classifier methodology is itself insufficient; rerunning it unchanged cannot produce behavioral proof"},
+    {"gate":"FAILURE_SEMANTICS","classification":"AUDIT_NEEDS_RERUN","result":"NOT_EXECUTED","reason":"required unified failure model is not implemented/verified"}
+  ],
+  "artifact_inventory": [
+    {"boundary":"WS01_Q1","run_id":33200503101,"job_id":98948483892,"artifact_id":9697626914,"digest":"sha256:a731838e0c24ee2a25738af80aa94d59b69743b5e141a8959da3101029bf5e1f","status":"PASS"},
+    {"boundary":"WS02_ORACLE","run_id":33176329547,"artifact_id":9687739211,"digest":"sha256:9dd003cc916b58aee3f7a56881b63ec0e7d2291501fa38f3d66cd285e682af4e","status":"PASS"},
+    {"boundary":"WS02_PRECONS","run_id":33089467077,"artifact_id":9653672924,"digest":"sha256:4700fcc5c13ce0884bec3807980fcd7a310252be1a8d154edbd5c1eed498a0d0","status":"PASS_SOURCE_INPUT"},
+    {"boundary":"WS05_Q2","run_id":33210994482,"job_id":98983894190,"artifact_id":9701653278,"digest":"sha256:137f1978e487473266599559d5602ff7f8186cad83b327a43be380fbc3a033ab","status":"PASS"},
+    {"boundary":"WS06_Q3","run_id":33209213338,"job_id":98977993604,"artifact_id":9701086657,"digest":"sha256:c5f80e39105abcf1d1c7bc8323394c69dc74eed4c961b687520371a7f55a8f90","status":"PASS"},
+    {"boundary":"WS07_Q5_ORIGINAL","run_id":33244368567,"job_id":99079149450,"artifact_id":9712369379,"digest":"sha256:72d2f8af3ed4e9892451546132dd7e09e33400f728983f6f0e9be341540b2c5e","status":"PASS"},
+    {"boundary":"WS08_Q4","run_id":33211580138,"job_id":98985813266,"artifact_id":9701960978,"digest":"sha256:29c16cae97c83b46246fcd0e3ac27da00a979f8c0f062d070087b09327555f19","status":"PASS"},
+    {"boundary":"WS09_Q7","run_id":33246123537,"job_id":99083770804,"artifact_id":9712936171,"digest":"sha256:44b106695591afb1853d7d11273466c093c95fb7f67aabdce9df3937fe6501ff","status":"PASS_SCOPE_LIMITED"},
+    {"boundary":"WS10_Q6_CLAIM","run_id":33247342048,"job_id":99086999845,"artifact_id":9713305048,"digest":"sha256:b4e494b93500749dc4eb50e25793e682069661980b5e9331db500c4c6ac1d0f0","status":"CLAIM_REJECTED_BY_WS90"},
+    {"boundary":"WS90_INTEGRATED_Q5_Q7_FORGE","run_id":33250119165,"job_id":99094251297,"artifact_id":9714119110,"digest":"sha256:d5bdb8b59045c78c5c3774bac1f9091c7b32327834eea9abf106412452cdcb4c","status":"PASS"}
+  ],
+  "failure_semantics": {
+    "status": "FAIL_INCOMPLETE",
+    "required_categories": ["SUCCESS","PLAYER_CANCELLED","ACTION_NOT_COMPLETABLE","ILLEGAL_RESPONSE","MALFORMED_RESPONSE","STALE_RESPONSE","WRONG_ACTOR","TIMEOUT","UNSUPPORTED_DECISION_PATH","UNSUPPORTED_RULES_PATH","ENGINE_FAILURE","TRANSPORT_FAILURE","PROCESS_FAILURE","REPLAY_DIVERGENCE","HIDDEN_INFO_VIOLATION","CARD_BEHAVIOR_FAILURE"],
+    "finding": "Existing workstreams prove several low-level rejection/failure paths and no production fallback, but no unified integrated taxonomy distinguishes all required categories. Repository/artifact searches found no authoritative PLAYER_CANCELLED, UNSUPPORTED_DECISION_PATH or UNSUPPORTED_RULES_PATH contract tokens."
+  },
+  "blockers": [
+    "Q6_ACTUAL_CARD_BEHAVIOR_FAIL: WS10 construction/global-contract inheritance is not per-identity semantic behavior proof",
+    "Q8_DEFERRED_PENDING_ARCHITECTURE_SELECTION: LICENSE_DECISION_COMPLETE=false",
+    "FAILURE_SEMANTICS_INCOMPLETE: required unified failure taxonomy is not implemented/verified"
+  ],
+  "architecture_freeze_recommended": false,
+  "INITIAL_ARCHITECTURE_DECISION_FROZEN": false,
+  "READY_FOR_GREENFIELD_BUILD": false,
+  "next_wave": [
+    "WS11 actual-card semantic behavior closure: replace global-contract inheritance with actual identity/path semantic execution evidence and fail-closed per-identity binding",
+    "WS12 unified failure-semantics contract: implement and test all required failure categories with no cancel/pass/default coercion",
+    "WS13 architecture-specific Q8 closure after the candidate topology is concrete; re-adjudicate any Q7 divergences introduced by WS11"
+  ],
+  "next_action": "Start WS11 and WS12 from the final WS90 integration HEAD as separate owned branches; do not create moeendres-png/commander-simulator-next."
+}
