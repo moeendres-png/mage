@@ -17,6 +17,15 @@ SCHEMA_NAME = "commander-simulator-next.failure-outcome.v1"
 HERE = Path(__file__).resolve().parent
 CONTRACT_PATH = HERE / "outcome-contract.schema.json"
 SECRET_MARKERS = ("opponent-hand-secret", "library-top-secret", "private-choice-secret")
+UNBOUND_PRODUCTION_CATEGORIES = {
+    "ACTION_NOT_COMPLETABLE",
+    "UNSUPPORTED_RULES_PATH",
+    "ENGINE_FAILURE",
+    "TRANSPORT_FAILURE",
+    "REPLAY_DIVERGENCE",
+    "HIDDEN_INFO_VIOLATION",
+    "CARD_BEHAVIOR_FAILURE",
+}
 
 
 def canonical_hash(value: Any) -> str:
@@ -144,6 +153,21 @@ def execute_witness(contract: dict[str, Any], category: str) -> dict[str, Any]:
         "selected_option": selected_option,
         "checks": checks,
     }
+    if category in UNBOUND_PRODUCTION_CATEGORIES:
+        trace["production_binding"] = "UNBOUND_GENERIC_CONSTRUCTION_ONLY"
+        trace["classification"] = "PARTIAL"
+        trace["failure_reason"] = (
+            "No production-facing exact-path adapter or fault injection captures this category; "
+            "constructing its enum outcome does not prove runtime classification or no fallback."
+        )
+    elif category == "PROCESS_FAILURE":
+        trace["production_binding"] = "OS_PROCESS_SUPERVISOR_WITNESS"
+        trace["classification"] = "CONDITIONAL_PASS"
+        trace["failure_reason"] = None
+    else:
+        trace["production_binding"] = "EXACT_PIN_DECISION_TAPE_AND_MAPPER"
+        trace["classification"] = "PASS"
+        trace["failure_reason"] = None
     trace["trace_sha256"] = canonical_hash(trace)
     trace["status"] = "PASS" if all(checks.values()) else "FAIL"
     return trace
@@ -161,6 +185,9 @@ def qualify(source_head: str, source_tree: str, *, java_contract_pass: bool = Fa
         "ALL_PRODUCTION_REACHABLE_CATEGORIES_EXECUTED": all(
             contract["x-categories"][w["outcome"]["category"]]["production_reachable"] and w["status"] == "PASS"
             for w in witnesses
+        ),
+        "ALL_PRODUCTION_REACHABLE_CATEGORIES_BOUND_TO_ACTUAL_ADAPTERS": all(
+            w["production_binding"] != "UNBOUND_GENERIC_CONSTRUCTION_ONLY" for w in witnesses
         ),
         "DECISION_ERRORS_MAPPED_EXHAUSTIVELY": len(decision_map) == 12,
         "NO_TECHNICAL_FAILURE_COERCION": all(
@@ -181,9 +208,14 @@ def qualify(source_head: str, source_tree: str, *, java_contract_pass: bool = Fa
         "EXACT_PIN_JAVA_OUTCOME_CONTRACT": java_contract_pass,
         "AFFECTED_Q1_VALIDATOR_REGRESSION": q1_validator_pass,
     }
-    untyped = sum(w["outcome"]["category"] not in categories for w in witnesses)
-    fallback = sum(not w["checks"]["no_pass_cancel_default_random_first_or_skip_fallback"] for w in witnesses)
-    status = "PASS" if all(hard.values()) and untyped == 0 and fallback == 0 else "FAIL"
+    contract_witness_untyped = sum(w["outcome"]["category"] not in categories for w in witnesses)
+    contract_witness_fallback = sum(not w["checks"]["no_pass_cancel_default_random_first_or_skip_fallback"] for w in witnesses)
+    unbound = sorted(w["outcome"]["category"] for w in witnesses
+                     if w["production_binding"] == "UNBOUND_GENERIC_CONSTRUCTION_ONLY")
+    production_untyped: int | None = 0 if not unbound else None
+    production_fallback: int | None = 0 if not unbound else None
+    passed = (all(hard.values()) and production_untyped == 0 and production_fallback == 0)
+    status = "PASS" if passed else "FAIL_INCOMPLETE"
     return {
         "schema": "commander-simulator-next.failure-semantics-gate.v1",
         "source_head": source_head,
@@ -193,22 +225,32 @@ def qualify(source_head: str, source_tree: str, *, java_contract_pass: bool = Fa
         "category_count": len(categories),
         "category_matrix": witnesses,
         "hard_gate_values": hard,
-        "production_reachable_untyped_failure_outcomes": untyped,
-        "production_reachable_fallback_failure_handling": fallback,
+        "production_reachable_untyped_failure_outcomes": production_untyped,
+        "production_reachable_untyped_failure_outcomes_classification": "DIRECTLY_VERIFIED" if production_untyped == 0 else "UNKNOWN",
+        "production_reachable_fallback_failure_handling": production_fallback,
+        "production_reachable_fallback_failure_handling_classification": "DIRECTLY_VERIFIED" if production_fallback == 0 else "UNKNOWN",
+        "contract_witness_untyped_failure_outcomes": contract_witness_untyped,
+        "contract_witness_fallback_failure_handling": contract_witness_fallback,
+        "unbound_production_categories": unbound,
         "evidence_classes": ["DIRECTLY_VERIFIED", "CODE_DERIVED", "TECHNICALLY_CONFORMANT", "SYNTHETIC"],
         "regression_decisions": {
-            "Q1_STRICT_DECISION_BOUNDARY": {"decision": "RERUN_NOW", "reason": "WS12 maps the existing exact-pin decision validation errors into the unified outcome contract; compile and runtime contract probes are affected."},
-            "Q2_PRINCIPAL_HIDDEN_INFORMATION": {"decision": "RERUN_NOW", "reason": "The new public failure envelope is a principal-facing surface; every category is checked against private markers."},
-            "Q3_SEMANTIC_REPLAY": {"decision": "RERUN_NOW", "reason": "REPLAY_DIVERGENCE is newly authoritative and is checked as distinct from execution failure without mutating state."},
-            "Q4_PROCESS_ISOLATION": {"decision": "RERUN_NOW", "reason": "PROCESS_FAILURE is newly authoritative; two OS child games prove one failed process cannot alter the independent game."},
+            "Q1_STRICT_DECISION_BOUNDARY": {"decision": "NO_RERUN", "focused_probe": "PASS", "reason": "The additive tape classification does not change legality or response validation. The exact-pin validator probe passed; this was not a full Q1 predecessor rerun."},
+            "Q2_PRINCIPAL_HIDDEN_INFORMATION": {"decision": "AUDIT_NEEDS_RERUN", "focused_probe": "PASS_SCOPE_LIMITED", "reason": "Fixed public envelopes excluded private markers, but the seven unbound adapters have no actual failure payload to assay. The full Q2 predecessor gate was not rerun."},
+            "Q3_SEMANTIC_REPLAY": {"decision": "AUDIT_NEEDS_RERUN", "focused_probe": "PARTIAL", "reason": "Only enum construction/non-mutation was exercised; no replay divergence detector is bound. The full Q3 semantic replay gate was not rerun."},
+            "Q4_PROCESS_ISOLATION": {"decision": "NO_RERUN", "focused_probe": "PASS_SCOPE_LIMITED", "reason": "Two OS children demonstrated fault isolation, but this was a focused contract probe rather than a full Q4 predecessor rerun; no process isolation implementation changed."},
             "Q5_COMMANDER_MULTIPLAYER": {"decision": "NO_RERUN", "reason": "WS12 changes no Commander or multiplayer rules path."}
         },
         "FAILURE_SEMANTICS": status,
-        "status": status,
+        "status": "PASS" if status == "PASS" else "FAIL",
         "failure": None if status == "PASS" else {
             "failed_hard_gates": sorted(k for k, value in hard.items() if not value),
-            "untyped": untyped,
-            "fallback": fallback,
+            "unbound_production_categories": unbound,
+            "production_untyped": production_untyped,
+            "production_fallback": production_fallback,
+            "smallest_blocker": (
+                "Bind actual production-facing capture/fault-injection adapters for exactly the seven "
+                "unbound categories and prove state/fallback behavior at those boundaries."
+            ),
         },
     }
 
@@ -221,22 +263,20 @@ def render_markdown(gate: dict[str, Any]) -> str:
         f"- Source tree: `{gate['source_tree']}`",
         f"- Authoritative contract SHA-256: `{gate['contract_sha256']}`",
         f"- Required typed categories: **{gate['category_count']}/16**",
-        f"- Production-reachable untyped failure outcomes: **{gate['production_reachable_untyped_failure_outcomes']}**",
-        f"- Production-reachable fallback failure handling: **{gate['production_reachable_fallback_failure_handling']}**",
+        f"- Production-reachable untyped failure outcomes: **{gate['production_reachable_untyped_failure_outcomes']} ({gate['production_reachable_untyped_failure_outcomes_classification']})**",
+        f"- Production-reachable fallback failure handling: **{gate['production_reachable_fallback_failure_handling']} ({gate['production_reachable_fallback_failure_handling_classification']})**",
         f"- FAILURE_SEMANTICS: **{gate['FAILURE_SEMANTICS']}**",
         "",
         "## Category matrix",
         "",
-        "| Category | Witness | State policy | No fallback | Hidden-safe payload | Trace SHA-256 |",
-        "|---|---:|---:|---:|---:|---|",
+        "| Category | Construction witness | Production binding | Classification | Trace SHA-256 |",
+        "|---|---:|---|---:|---|",
     ]
     for witness in gate["category_matrix"]:
         checks = witness["checks"]
         lines.append(
             f"| `{witness['outcome']['category']}` | {witness['status']} | "
-            f"{'PASS' if checks['state_commit_policy'] else 'FAIL'} | "
-            f"{'PASS' if checks['no_pass_cancel_default_random_first_or_skip_fallback'] else 'FAIL'} | "
-            f"{'PASS' if checks['failure_payload_hidden_information_safe'] else 'FAIL'} | "
+            f"`{witness['production_binding']}` | {witness['classification']} | "
             f"`{witness['trace_sha256']}` |"
         )
     lines.extend(["", "## Regression decisions", ""])
@@ -292,6 +332,7 @@ def main() -> int:
         "category_count": gate["category_count"],
         "untyped": gate["production_reachable_untyped_failure_outcomes"],
         "fallback": gate["production_reachable_fallback_failure_handling"],
+        "unbound": gate["unbound_production_categories"],
     }, sort_keys=True))
     return 0 if gate["status"] == "PASS" else 1
 

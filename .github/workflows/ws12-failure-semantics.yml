@@ -98,10 +98,12 @@ jobs:
           import json
           from pathlib import Path
           gate = json.loads(Path('evidence/FAILURE_SEMANTICS_GATE.json').read_text())
-          assert gate['FAILURE_SEMANTICS'] == 'PASS'
-          assert gate['production_reachable_untyped_failure_outcomes'] == 0
-          assert gate['production_reachable_fallback_failure_handling'] == 0
-          assert all(gate['hard_gate_values'].values())
+          assert gate['FAILURE_SEMANTICS'] == 'FAIL_INCOMPLETE'
+          assert gate['status'] == 'FAIL'
+          assert gate['production_reachable_untyped_failure_outcomes'] is None
+          assert gate['production_reachable_fallback_failure_handling'] is None
+          assert len(gate['unbound_production_categories']) == 7
+          assert gate['hard_gate_values']['ALL_PRODUCTION_REACHABLE_CATEGORIES_BOUND_TO_ACTUAL_ADAPTERS'] is False
           PY
 
       - name: Hash evidence
