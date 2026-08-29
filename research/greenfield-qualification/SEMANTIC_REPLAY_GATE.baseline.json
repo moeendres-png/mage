@@ -1,0 +1,21 @@
+{
+  "artifact_id": 9679680835,
+  "decision_event_divergences": null,
+  "evidence_class": [
+    "DIRECTLY_VERIFIED"
+  ],
+  "fresh_processes": 3,
+  "missing_streams": [
+    "states",
+    "rng_events",
+    "decision_tape"
+  ],
+  "process_count": 3,
+  "reason": "Three fresh 4P process envelopes existed, but canonical state, RNG-event, and full-game Decision Tape streams were absent. Same-seed envelopes are not semantic replay.",
+  "rng_event_divergences": null,
+  "schema": "commander-simulator-next.semantic-replay-negative-baseline.v1",
+  "semantic_state_divergences": null,
+  "source_run_id": 33155888017,
+  "status": "NOT_RUN",
+  "stdout_used_as_replay_criterion": false
+}
