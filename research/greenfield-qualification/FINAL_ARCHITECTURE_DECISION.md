@@ -1,49 +1,83 @@
-# Final Architecture Decision — NOT FROZEN
+# Architecture Decision — NOT FROZEN after WS90
 
-Date: 2026-08-28
+Date: 2026-08-29
 
 ```text
-INITIAL_ARCHITECTURE_DECISION_FROZEN = FALSE
-READY_FOR_GREENFIELD_BUILD          = FALSE
+INITIAL_ARCHITECTURE_DECISION_FROZEN   = FALSE
+READY_FOR_GREENFIELD_BUILD             = FALSE
 READY_FOR_TRUSTED_REAL_DECK_SIMULATION = FALSE
-PRODUCTION_REPOSITORY_CREATED       = FALSE
+PRODUCTION_REPOSITORY_CREATED           = FALSE
 ```
 
 ## Decision
 
-No production Rules Core, control plane, observation boundary, RNG/replay
-format, interop strategy, or license/distribution model is selected.
+No production architecture is frozen. WS90 materially strengthens the Forge
+candidate but also identifies three mandatory non-PASS areas that prohibit a
+freeze: Q6 actual-card behavior, the integrated failure model, and Q8's
+architecture-specific license boundary.
 
-Forge remains the current Rules Core hypothesis. At exact pin
-`8c7e9afb…`, the research patch establishes a server-side typed entity
-selection boundary with authoritative Player/Card/entity options, typed
-response validation, monotonic tokens, principal scope, and no GUI/AI/default
-fallback. A Java-executed validator and metadata-only Decision-Tape contract
-also pass at the exact pin. The same patch now redacts hidden CardViews per client across full
-state, deltas, events, and visibility transitions; current decoded 2P transport
-testing saw zero hidden card names.
+## Technically qualified candidate constraints
 
-## Why this is not a freeze
+These are evidence-backed constraints on the current strongest hypothesis; they
+are **not** a Frozen ADR:
 
-The exact current strict run (`33155888019`) proves the entity seam, a
-server-mapped discrete facade, the validator, and the metadata-only tape. The
-static census classifies all 109 controller callbacks and all 15 blocking GUI
-methods, but the remaining 106 callback paths still lack full runtime-qualified
-typed request/response coverage. The current runtime run (`33155888017`) also contains no canonical
-state, RNG, or Decision-Tape streams, and the 1,721 actual-card requirement
-union is still missing materialized Oracle IDs.
+- `PRODUCTION_RULES_CORE_CANDIDATE`: Forge at
+  `8c7e9afb8e6caee88644b94e25da5852e36f8928` plus the qualified WS01/WS05/WS06
+  research overlays.
+- `CONTROL_PLANE_CANDIDATE`: external pilots choose only from server-generated
+  typed legal decision options; production-reachable untyped/fallback paths are
+  zero in the qualified 4P run.
+- `OBSERVATION_MODEL_CANDIDATE`: principal-scoped observations and transport;
+  the qualified 4P hidden-info campaign reports zero pilot-visible leaks and
+  zero cross-principal decision leaks.
+- `RNG_MODEL_CANDIDATE`: explicit game-scoped named RNG streams with an event
+  tape and deterministic fresh-process replay.
+- `REPLAY_MODEL_CANDIDATE`: canonical semantic state + RNG + decision tapes;
+  A/B/C fresh-process replay is zero-divergence.
+- `PROCESS_ISOLATION_MODEL_CANDIDATE`: one game per OS process. Same-JVM
+  multi-game isolation is not qualified and must not be silently assumed.
+- `MULTIPLAYER_MODEL_CANDIDATE`: 4P Commander is primary; 2P–5P required
+  conformance subsets pass.
+- `REFERENCE_ENGINES`: XMage for the currently qualified shared differential
+  scenarios; phase.rs and Manabrew remain reference-only where adapters are
+  unsupported.
 
-The scoped hidden transport pass does not cover the required principal-scoped
-4P campaign, logs, exceptions, IDs/hashes, replay, debug output, or
-reveal/look lifecycle. Differential adjudication, isolation, matrices, and
-license/distribution gates remain incomplete.
+## Why Freeze remains prohibited
 
-```text
-DECISION_EXTERNALIZATION
-  -> FULL_DECISION_CENSUS_AND_TYPED_CALLBACK_COVERAGE = FAIL
-```
+### Q6 — actual-card behavior
 
-`REMOTE_QUALIFICATION_EVIDENCE.json` contains current source/tree, artifact
-hashes, and gate results. Historical workflow evidence is not substituted for
-current-head proof. No private `moeendres-png/commander-simulator-next`
-repository is created.
+WS10 verified the exact 1,678-identity requirement corpus, Forge presence,
+loadability and CardFactory construction. It then classified all 1,678 as
+`CONDITIONAL_FULL`, with 0 `FULL`. WS90 rejects the resulting Q6 PASS claim:
+per-card decision/hidden/replay flags are derived from global WS01/WS05/WS06
+PASS values after source regex reachability, and dedicated behavior is required
+only when hard suspicious source markers are found. Successful construction and
+global contract prerequisites do not prove each card's rules behavior.
+
+### Failure model
+
+The integrated evidence distinguishes many negative response paths and proves
+no decision fallback, but it does not expose one verified outcome taxonomy that
+covers all required categories from `SUCCESS` through response failures,
+unsupported decision/rules paths, engine/transport/process failures, replay
+and hidden-info violations, and card-behavior failure.
+
+### Q8 — license / third-party
+
+WS03's exact-pin license inventory and third-party boundary are accepted. Its
+own final status is nevertheless
+`DEFERRED_PENDING_ARCHITECTURE_SELECTION` with
+`LICENSE_DECISION_COMPLETE = FALSE`. Linkage/distribution/interop obligations
+cannot be promoted to PASS before the concrete production topology exists.
+
+## Current integrated proof anchor
+
+- runtime-qualified integration source: `55820618e7243bd5ba8cfa33c3148cea8c166c73`
+- tree: `3706900d49c6ef61690c227bb7b4c0067fbcfb44`
+- WS90 integrated rerun: `33250119165`
+- artifact: `9714119110`
+- artifact SHA-256:
+  `d5bdb8b59045c78c5c3774bac1f9091c7b32327834eea9abf106412452cdcb4c`
+
+No `moeendres-png/commander-simulator-next` repository is authorized from this
+state. The next dependency wave is defined in `NEXT_HANDOFF.md`.
