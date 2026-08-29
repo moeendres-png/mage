@@ -357,17 +357,18 @@ public class WS07MainApiConformanceTest {
                 "Forge LandAbility legality and resolution move the land to battlefield and consume the turn land play",
                 "Plains zone=Battlefield; landsPlayedThisTurn=1");
 
-        var manaAbilities = battlefieldPlains.getManaAbilities();
+        Card manaRock = putPermanent(f, p0, p0, "Sol Ring");
+        var manaAbilities = manaRock.getManaAbilities();
         Assert.assertFalse(manaAbilities.isEmpty());
         SpellAbility mana = manaAbilities.get(0);
         mana.setActivatingPlayer(p0);
         Assert.assertTrue(mana.canPlay());
         Assert.assertTrue(PlaySpellAbility.playSpellAbilityNoStack(p0.getController(), p0, mana, false));
-        Assert.assertTrue(battlefieldPlains.isTapped());
-        Assert.assertEquals(p0.getManaPool().totalMana(), 1);
-        emit("C", 4, "P1 controls an untapped Plains", "activate its mana ability",
-                "Forge pays the tap cost and resolves a mana ability without the stack",
-                "Plains tapped=true; manaPool.totalMana=1");
+        Assert.assertTrue(manaRock.isTapped());
+        Assert.assertEquals(p0.getManaPool().totalMana(), 2);
+        emit("C", 4, "P1 controls an untapped Sol Ring with its pinned scripted mana ability", "activate {T}: add {C}{C}",
+                "Forge validates the activation, pays the tap cost, and resolves the mana ability without the stack",
+                "Sol Ring tapped=true; manaPool.totalMana=2");
 
         Card bolt = Card.fromPaperCard(paper("Lightning Bolt"), p0);
         p0.getZone(ZoneType.Hand).add(bolt);
