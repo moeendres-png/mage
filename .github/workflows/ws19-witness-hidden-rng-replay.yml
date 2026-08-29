@@ -17,9 +17,9 @@ env:
   BASE_SHA: d8c1ee0c08c7e7f0bc2bc86c70166ebc198e30d5
   BASE_TREE: 5725f47951938bc71af181cf1617e6b3be158804
   FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
-  # SHA-256 of the repository-bound manifest at BASE_SHA. The historical WS14
-  # artifact's materialization digest is tracked separately in its handoff.
-  WS14_REPOSITORY_MANIFEST_SHA256: fc22faf2682cc4739fd494b3fac8a2f5470b61dc909c213565d22bf2967d01c8
+  # SHA-256 of the repository-bound manifest blob at BASE_SHA, as independently
+  # reproduced by WS14's final qualification artifact.
+  WS14_REPOSITORY_MANIFEST_SHA256: 1137335dd7101df44940a2b0c8cacc5740e2aef0a24eceb541449dd10a5e6f7b
 
 jobs:
   qualify:
