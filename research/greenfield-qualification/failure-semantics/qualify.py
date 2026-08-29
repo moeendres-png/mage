@@ -256,6 +256,10 @@ def qualify(source_head: str, source_tree: str, *, java_contract_pass: bool = Fa
 
 
 def render_markdown(gate: dict[str, Any]) -> str:
+    untyped_display = ("UNKNOWN" if gate["production_reachable_untyped_failure_outcomes"] is None
+                       else str(gate["production_reachable_untyped_failure_outcomes"]))
+    fallback_display = ("UNKNOWN" if gate["production_reachable_fallback_failure_handling"] is None
+                        else str(gate["production_reachable_fallback_failure_handling"]))
     lines = [
         "# WS12 unified failure-semantics gate",
         "",
@@ -263,8 +267,8 @@ def render_markdown(gate: dict[str, Any]) -> str:
         f"- Source tree: `{gate['source_tree']}`",
         f"- Authoritative contract SHA-256: `{gate['contract_sha256']}`",
         f"- Required typed categories: **{gate['category_count']}/16**",
-        f"- Production-reachable untyped failure outcomes: **{gate['production_reachable_untyped_failure_outcomes']} ({gate['production_reachable_untyped_failure_outcomes_classification']})**",
-        f"- Production-reachable fallback failure handling: **{gate['production_reachable_fallback_failure_handling']} ({gate['production_reachable_fallback_failure_handling_classification']})**",
+        f"- Production-reachable untyped failure outcomes: **{untyped_display} ({gate['production_reachable_untyped_failure_outcomes_classification']})**",
+        f"- Production-reachable fallback failure handling: **{fallback_display} ({gate['production_reachable_fallback_failure_handling_classification']})**",
         f"- FAILURE_SEMANTICS: **{gate['FAILURE_SEMANTICS']}**",
         "",
         "## Category matrix",
