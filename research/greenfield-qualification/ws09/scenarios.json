@@ -1,0 +1,48 @@
+{
+  "schema": "commander-simulator-next.differential-scenarios.v2",
+  "audit_base_sha": "c0e42fb42c4a603aff4a76b1284f8271c12bfd42",
+  "engine_pins": {
+    "forge": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+    "xmage": "86d86b580cd7e1f30b51110d70cecae18c1ce452",
+    "phase_rs": "fae406c4603f450797014f3ac8e8818b3d36c2a4",
+    "manabrew": "754ec2aeec495d67d7bb9b89d0fd67ee22281b46"
+  },
+  "dependency_evidence": {
+    "WS07": {
+      "qualified_head": "87834da73f22e62a1803733be812d3b22b9f485b",
+      "run_id": 33244368567,
+      "artifact_id": 9712369379,
+      "artifact_name": "ws07-commander-conformance-33244368567"
+    }
+  },
+  "rules_authority": {
+    "authority": "Wizards of the Coast",
+    "url": "https://magic.wizards.com/en/formats/commander",
+    "checked_date": "2026-08-29",
+    "engine_majority_is_authority": false
+  },
+  "contracts": {
+    "initial_state": "Three Commander seats configured to begin a multiplayer Commander game; no gameplay action has occurred.",
+    "decision_tape": [],
+    "rng_tape": [],
+    "normalization": "Engine-native state/configuration is mapped to canonical semantic events; lifecycle representation differences are not divergences when the same rules fact is proven."
+  },
+  "scenarios": [
+    {
+      "id": "S01_3P_PLAYER_COUNT",
+      "action_tape": [{"op": "OBSERVE", "field": "player_count"}],
+      "expected_canonical_trace": [{"event": "PLAYER_COUNT", "value": 3}],
+      "official_adjudication": "PASS"
+    },
+    {
+      "id": "S02_3P_STARTING_LIFE",
+      "action_tape": [{"op": "OBSERVE", "field": "starting_life", "principals": ["P1", "P2", "P3"]}],
+      "expected_canonical_trace": [
+        {"event": "STARTING_LIFE", "principal": "P1", "value": 40},
+        {"event": "STARTING_LIFE", "principal": "P2", "value": 40},
+        {"event": "STARTING_LIFE", "principal": "P3", "value": 40}
+      ],
+      "official_adjudication": "PASS"
+    }
+  ]
+}
