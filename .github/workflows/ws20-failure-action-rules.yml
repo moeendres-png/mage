@@ -1,0 +1,145 @@
+name: WS20 actual-path failure adapters action rules
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - work/ws20-failure-action-rules-20260829
+    paths:
+      - '.github/workflows/ws20-failure-action-rules.yml'
+      - 'research/greenfield-qualification/failure-semantics/adapters/action-rules/**'
+      - 'research/greenfield-qualification/WS20_HANDOFF.md'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout WS20 branch
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+
+      - name: Verify immutable base and ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=80743bdbc2950b00e422f3deb38f04111f30a4d4
+          EXPECTED_TREE=9a2a52932a0d69dcf06c2392cddcf40b47e810cc
+          test "$(git -C qual show -s --format=%T "$BASE")" = "$EXPECTED_TREE"
+          git -C qual merge-base --is-ancestor "$BASE" HEAD
+          git -C qual diff --name-only "$BASE"...HEAD | tee ownership.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          allowed_exact = {
+              '.github/workflows/ws20-failure-action-rules.yml',
+              'research/greenfield-qualification/WS20_HANDOFF.md',
+          }
+          allowed_prefix = 'research/greenfield-qualification/failure-semantics/adapters/action-rules/'
+          paths = [x for x in Path('ownership.txt').read_text().splitlines() if x]
+          bad = [x for x in paths if x not in allowed_exact and not x.startswith(allowed_prefix)]
+          assert not bad, f'WS20 ownership violation: {bad}'
+          PY
+          mkdir -p evidence
+          {
+            echo "source_head=$(git -C qual rev-parse HEAD)"
+            echo "source_tree=$(git -C qual rev-parse 'HEAD^{tree}')"
+            echo "base_sha=$BASE"
+            echo "base_tree=$EXPECTED_TREE"
+          } | tee evidence/provenance.env
+
+      - name: Checkout exact Forge pin
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          path: forge
+          fetch-depth: 1
+
+      - name: Apply retained WS01 WS12 and WS20 overlays
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash qual/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge qual/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee evidence/ws01-patch-apply.log
+          python3 qual/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py \
+            --forge-root forge | tee evidence/ws12-overlay-apply.log
+          python3 qual/research/greenfield-qualification/failure-semantics/adapters/action-rules/apply-ws20-forge-overlay.py \
+            --forge-root forge | tee evidence/ws20-overlay-apply.log
+          grep -Fq 'Ws20ActionCompletionBoundary.requireCompletable(getGame(), response, optionList);' \
+            forge/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java
+          grep -Fq 'Ws20RulesPathBoundary.unsupportedAstrotoriumMergedZoneChange' \
+            forge/forge-game/src/main/java/forge/game/GameAction.java
+
+      - name: Compile exact-pin Forge overlays
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          mvn -B '-DskipTests' -pl forge-gui -am test-compile \
+            | tee ../evidence/forge-test-compile.log
+
+      - name: Run retained focused contracts and WS20 fault injection
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          CP='forge-gui/target/test-classes:forge-gui/target/classes:forge-game/target/classes:forge-core/target/classes:forge-ai/target/classes'
+          java -cp "$CP" forge.gamemodes.match.input.ExternalDecisionValidatorContractTest \
+            | tee ../evidence/q1-decision-validator-regression.log
+          grep -Fx 'JAVA_EXTERNAL_DECISION_CONTRACT=PASS' ../evidence/q1-decision-validator-regression.log
+          java -cp "$CP" forge.gamemodes.match.input.Ws12FailureSemanticsContractTest \
+            | tee ../evidence/ws12-java-regression.log
+          grep -Fx 'WS12_JAVA_FAILURE_SEMANTICS=PASS' ../evidence/ws12-java-regression.log
+          java -cp "$CP" forge.gamemodes.match.input.Ws20FailureAdaptersContractTest \
+            | tee ../evidence/ws20-java-contract.log
+          grep -Fx 'WS20_FAILURE_ADAPTERS=PASS' ../evidence/ws20-java-contract.log
+
+      - name: Materialize WS20 hard gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          source evidence/provenance.env
+          python3 qual/research/greenfield-qualification/failure-semantics/adapters/action-rules/qualify_ws20.py \
+            --forge-root forge \
+            --java-log evidence/ws20-java-contract.log \
+            --source-head "$source_head" \
+            --source-tree "$source_tree" \
+            --out-dir evidence \
+            | tee evidence/ws20-hard-gate.log
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          gate = json.loads(Path('evidence/WS20_GATE.json').read_text())
+          assert gate['status'] == 'PASS'
+          assert gate['WORKSTREAM_COMPLETE'] is True
+          assert gate['FAILURE_SEMANTICS_OVERALL_CLAIMED'] is False
+          assert gate['owned_categories'] == ['ACTION_NOT_COMPLETABLE', 'UNSUPPORTED_RULES_PATH']
+          assert gate['other_ws12_unbound_categories_touched'] == []
+          for category in gate['owned_categories']:
+              row = gate['categories'][category]
+              assert row['production_binding'] == 'ACTUAL_RUNTIME_PATH'
+              assert row['classification'] == 'PASS'
+              assert row['evidence_class'] == 'TECHNICALLY_CONFORMANT'
+          assert all(gate['hard_gate'].values())
+          PY
+
+      - name: Hash evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find evidence -type f ! -name hashes.sha256 -print0 | sort -z | xargs -0 sha256sum > evidence/hashes.sha256 || true
+
+      - name: Upload WS20 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws20-failure-action-rules
+          path: evidence
+          if-no-files-found: error
