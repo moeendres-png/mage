@@ -1,0 +1,74 @@
+name: WS18 combat and Commander witnesses
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [work/ws18-witness-combat-commander-20260829]
+    paths:
+      - '.github/workflows/ws18-witness-combat-commander.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/witness-shards/combat-commander/**'
+      - 'research/greenfield-qualification/WS14_HANDOFF.md'
+      - 'research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json'
+      - 'research/greenfield-qualification/actual-card-behavior/WS14_WITNESS_ABI.schema.json'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: qualification
+      - name: Verify exact WS14 ancestry and source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd qualification
+          test "$(git merge-base d8c1ee0c08c7e7f0bc2bc86c70166ebc198e30d5 HEAD)" = d8c1ee0c08c7e7f0bc2bc86c70166ebc198e30d5
+          echo "WS18_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "WS18_TREE=$(git rev-parse HEAD^{tree})" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+      - name: Verify pinned Forge and compile actual engine source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          cd forge
+          mvn -B -DskipTests -pl forge-gui-desktop -am test-compile
+      - name: Test and materialize fail-closed witness shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ws18
+          python3 -m unittest discover -s qualification/research/greenfield-qualification/actual-card-behavior/witness-shards/combat-commander -p 'test_ws18_*.py' -v 2>&1 | tee artifacts/ws18/unit-tests.log
+          python3 qualification/research/greenfield-qualification/actual-card-behavior/witness-shards/combat-commander/ws18_qualify.py \
+            --manifest qualification/research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json \
+            --source-head "$WS18_HEAD" --source-tree "$WS18_TREE" \
+            --out artifacts/ws18/WS18_PRIMITIVE_STATUS.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data=json.loads(Path('artifacts/ws18/WS18_PRIMITIVE_STATUS.json').read_text())
+          assert data['primitive_count'] == 10
+          assert data['counts']['PASS'] == 0
+          assert data['counts']['PARTIAL'] == 10
+          assert data['witnesses'] == []
+          assert all(row['status'] == 'PARTIAL' and row['blocker'] for row in data['primitive_status'])
+          PY
+          sha256sum artifacts/ws18/WS18_PRIMITIVE_STATUS.json artifacts/ws18/unit-tests.log > artifacts/ws18/WS18_HASHES.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ws18-combat-commander-witness-shard
+          path: artifacts/ws18
+          if-no-files-found: error
