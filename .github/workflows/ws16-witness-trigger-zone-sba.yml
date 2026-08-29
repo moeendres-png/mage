@@ -69,7 +69,7 @@ jobs:
           test "$(jq -r '[.steps[] | select(.name == "Execute pinned Forge state witness only")][0].conclusion' <<<"$job")" = success
           test "$(jq -r '[.steps[] | select(.name == "Upload immutable Forge execution evidence")][0].conclusion' <<<"$job")" = success
           test "$(cat artifacts/ws16-execution/forge_head.txt)" = "$FORGE_PIN"
-          (cd artifacts/ws16-execution && sha256sum -c EXECUTION_HASHES.sha256)
+          sha256sum -c artifacts/ws16-execution/EXECUTION_HASHES.sha256
 
       - name: Materialize and ABI-validate WS16 witness shard
         shell: bash
