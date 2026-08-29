@@ -1,0 +1,122 @@
+name: WS17 continuous copy control witnesses
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - work/ws17-witness-continuous-copy-control-20260829
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  BASE_SHA: d8c1ee0c08c7e7f0bc2bc86c70166ebc198e30d5
+  BASE_TREE: 5725f47951938bc71af181cf1617e6b3be158804
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  SHARD: research/greenfield-qualification/actual-card-behavior/witness-shards/continuous-copy-control
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+
+      - name: Verify exact WS14 base and immutable ABI inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C qual merge-base --is-ancestor "$BASE_SHA" HEAD
+          test "$(git -C qual rev-parse "$BASE_SHA^{tree}")" = "$BASE_TREE"
+          test "$(jq -r '.forge_pin' qual/research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json)" = "$FORGE_PIN"
+          test "$(jq -r '.primitive_count_by_owner_family.CONTINUOUS_COPY_CONTROL' qual/research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json)" = 21
+          git -C qual diff --exit-code "$BASE_SHA" -- research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json research/greenfield-qualification/actual-card-behavior/WS14_WITNESS_ABI.schema.json || {
+            echo 'WS17 may not alter the WS14 manifest or witness ABI' >&2; exit 1;
+          }
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Install witness validator dependency
+        run: python3 -m pip install --disable-pip-version-check --quiet jsonschema==4.23.0
+
+      - name: Apply WS17 test-only overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -D -m 0644 \
+            "qual/$SHARD/overlay/src/test/java/forge/ai/ability/Ws17ContinuousCopyControlWitnessTest.java" \
+            forge/forge-gui-desktop/src/test/java/forge/ai/ability/Ws17ContinuousCopyControlWitnessTest.java
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+
+      - name: Execute pinned Forge state witnesses
+        shell: bash
+        env:
+          WS17_TRACE: ${{ github.workspace }}/artifacts/ws17/ws17-runtime-trace.tsv
+          MAVEN_OPTS: -Dsurefire.failIfNoSpecifiedTests=false
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ws17
+          (cd forge && mvn -pl forge-gui-desktop -am -Dtest=Ws17ContinuousCopyControlWitnessTest test) \
+            2>&1 | tee artifacts/ws17/pinned-forge-test.log
+          cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.ai.ability.Ws17ContinuousCopyControlWitnessTest.xml artifacts/ws17/
+          test "$(wc -l < artifacts/ws17/ws17-runtime-trace.tsv)" = 11
+          ! grep -q '<failure\|<error' artifacts/ws17/TEST-forge.ai.ability.Ws17ContinuousCopyControlWitnessTest.xml
+
+      - name: Upload immutable runtime trace first
+        id: runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws17-pinned-forge-runtime-trace
+          path: |
+            artifacts/ws17/ws17-runtime-trace.tsv
+            artifacts/ws17/TEST-forge.ai.ability.Ws17ContinuousCopyControlWitnessTest.xml
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Materialize and validate ABI witnesses
+        shell: bash
+        env:
+          RUNTIME_ARTIFACT_ID: ${{ steps.runtime.outputs.artifact-id }}
+          RUNTIME_ARTIFACT_DIGEST: ${{ steps.runtime.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          job_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs" --jq '.jobs[] | select(.name == "qualify") | .id')"
+          test -n "$job_id"
+          python3 "qual/$SHARD/ws17_materialize.py" \
+            --trace artifacts/ws17/ws17-runtime-trace.tsv \
+            --source-head "$(git -C qual rev-parse HEAD)" \
+            --source-tree "$(git -C qual rev-parse HEAD^{tree})" \
+            --run-id "$GITHUB_RUN_ID" --job-id "$job_id" \
+            --artifact-id "$RUNTIME_ARTIFACT_ID" --artifact-digest "$RUNTIME_ARTIFACT_DIGEST" \
+            --out artifacts/ws17/WS17_WITNESSES.jsonl
+          python3 "qual/$SHARD/ws17_gate.py" \
+            --manifest qual/research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json \
+            --schema qual/research/greenfield-qualification/actual-card-behavior/WS14_WITNESS_ABI.schema.json \
+            --validator qual/research/greenfield-qualification/actual-card-behavior/ws14/ws14_validate_witness.py \
+            --witnesses artifacts/ws17/WS17_WITNESSES.jsonl --out artifacts/ws17/WS17_PRIMITIVE_GATE.json
+          jq -e '.primitive_count == 21 and .pass_count == 11 and .partial_count == 10 and .unknown_count == 0 and .unsupported_count == 0 and .WS17_RESULT == "PARTIAL_FAIL_CLOSED" and .Q6_ACTUAL_CARD_BEHAVIOR == "NOT_ADJUDICATED"' artifacts/ws17/WS17_PRIMITIVE_GATE.json >/dev/null
+          sha256sum artifacts/ws17/ws17-runtime-trace.tsv artifacts/ws17/WS17_WITNESSES.jsonl artifacts/ws17/WS17_PRIMITIVE_GATE.json artifacts/ws17/TEST-forge.ai.ability.Ws17ContinuousCopyControlWitnessTest.xml > artifacts/ws17/WS17_HASHES.sha256
+
+      - name: Upload WS17 shard evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws17-continuous-copy-control-witnesses
+          path: |
+            artifacts/ws17/ws17-runtime-trace.tsv
+            artifacts/ws17/TEST-forge.ai.ability.Ws17ContinuousCopyControlWitnessTest.xml
+            artifacts/ws17/pinned-forge-test.log
+            artifacts/ws17/WS17_WITNESSES.jsonl
+            artifacts/ws17/WS17_PRIMITIVE_GATE.json
+            artifacts/ws17/WS17_HASHES.sha256
+            qual/${{ env.SHARD }}/WS17_RULES_ADJUDICATION.md
+          if-no-files-found: error
+          retention-days: 90
