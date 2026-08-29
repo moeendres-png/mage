@@ -63,4 +63,21 @@ Overall `FAILURE_SEMANTICS` remains `DEFERRED_TO_LATER_INTEGRATION`.
 
 ## Final live evidence
 
-This section is updated after the WS22 workflow has run and its artifact has been directly inspected.
+- Tested source HEAD: `984f78737fc682abb58da9c89ae7738d0224c41b`
+- Tested source tree: `3a668c10c4f28e3d8d5eeae27999cef7e3637976`
+- Successful workflow run: `33255343659`
+- Successful job: `99107951779`
+- Immutable artifact: `9715695346` (`ws22-failure-replay-hidden-33255343659`)
+- Artifact SHA-256: `43f5b3f76989dc850b73356cb427316d1bf8dc7d109fa57d4691750b92d33a6d`
+- `REPLAY_DIVERGENCE=PASS`
+- `HIDDEN_INFO_VIOLATION=PASS`
+- Gate status: `PASS`
+- `FAILURE_SEMANTICS=DEFERRED_TO_LATER_INTEGRATION`
+- `Q2_PRINCIPAL_HIDDEN_INFORMATION=NO_RERUN`
+- `Q3_SEMANTIC_REPLAY=NO_RERUN`
+
+Run `33255343659` completed with all workflow hard gates satisfied. The replay proof was deliberately reused from the already-completed WS22 replay run rather than rerun; the hidden-information negative path was executed on the actual 4-player Commander WS05 authorization boundary at the exact Forge pin. The shared WS12 schema/gate remained unchanged.
+
+`WORKSTREAM_COMPLETE=TRUE`.
+
+WS25 must consume this branch and the executable evidence above read-only and independently re-adjudicate the full 16-category failure-semantics gate. This handoff does not pre-authorize a WS25 PASS.
