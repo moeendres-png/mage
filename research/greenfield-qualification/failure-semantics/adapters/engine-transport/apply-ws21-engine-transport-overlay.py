@@ -62,36 +62,15 @@ def main() -> int:
     )
 
     controller = forge / "forge-gui/src/main/java/forge/player/PlayerControllerHuman.java"
-    field_anchor = "    private volatile long externalDecisionTimeoutMillis = 30000L;\n"
-    replace_once(
-        controller,
-        field_anchor,
-        field_anchor
-        + "    private static volatile Function<Player, ExternalDecisionProvider> externalDecisionProviderFactory;\n\n"
-        + "    public static void setExternalDecisionProviderFactory(\n"
-        + "            final Function<Player, ExternalDecisionProvider> factory) {\n"
-        + "        externalDecisionProviderFactory = factory;\n"
-        + "    }\n\n"
-        + "    private void installExternalDecisionProviderFromFactory() {\n"
-        + "        if (!Boolean.getBoolean(\"forge.ws01.externalHumanHost\")) return;\n"
-        + "        final Function<Player, ExternalDecisionProvider> factory = externalDecisionProviderFactory;\n"
-        + "        if (factory != null && player != null) {\n"
-        + "            setExternalDecisionProvider(factory.apply(player));\n"
-        + "        }\n"
-        + "    }\n",
+    controller_text = controller.read_text(encoding="utf-8")
+    required_ws01_factory = (
+        "private static volatile Function<Player, ExternalDecisionProvider> externalDecisionProviderFactory;",
+        "public static void setExternalDecisionProviderFactory(final Function<Player, ExternalDecisionProvider> factory)",
     )
-    replace_once(
-        controller,
-        "        inputProxy = new InputProxy(this);\n        inputQueue = new InputQueue(game0.getView(), inputProxy);\n",
-        "        inputProxy = new InputProxy(this);\n        inputQueue = new InputQueue(game0.getView(), inputProxy);\n"
-        "        installExternalDecisionProviderFromFactory();\n",
-    )
-    replace_once(
-        controller,
-        "        inputProxy = owner.inputProxy;\n        inputQueue = owner.getInputQueue();\n",
-        "        inputProxy = owner.inputProxy;\n        inputQueue = owner.getInputQueue();\n"
-        "        installExternalDecisionProviderFromFactory();\n",
-    )
+    for marker in required_ws01_factory:
+        if marker not in controller_text:
+            raise SystemExit(f"WS21 requires authoritative WS01 provider factory marker: {marker}")
+
     replace_once(
         controller,
         "                cancelAllowed, constraints, responseSchema, semanticContext);\n        try {\n",
@@ -139,6 +118,7 @@ def main() -> int:
     print("WS21_ENGINE_FAULT_SITE=forge.game.GameAction.changeZone:entry")
     print("WS21_TRANSPORT_EXCEPTION_PRESERVED=TRUE")
     print("WS21_DECISION_COMMIT_PROBE=TRUE")
+    print("WS21_WS01_PROVIDER_FACTORY_REUSED=TRUE")
     print("WS21_PROCESS_MODEL=ONE_GAME_PER_OS_PROCESS")
     return 0
 
