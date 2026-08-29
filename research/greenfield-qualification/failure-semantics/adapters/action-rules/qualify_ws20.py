@@ -69,24 +69,46 @@ def main() -> int:
     action_boundary = action_boundary_path.read_text(encoding="utf-8")
     rules_boundary = rules_boundary_path.read_text(encoding="utf-8")
 
+    # ACTION_NOT_COMPLETABLE production binding: accepted response -> live entity
+    # revalidation -> exact central guard -> only then Input mutation.
     action_guard = "Ws20ActionCompletionBoundary.requireCompletable(getGame(), response, optionList);"
     action_apply = "input.applyExternalSelection(response.getSelectedOptionIds());"
     guard_index = controller.find(action_guard)
     apply_index = controller.find(action_apply)
     assert guard_index >= 0 and apply_index >= 0 and guard_index < apply_index
+    assert 'requireCompletable("forge-game:" + game.getId(), response.getDecisionId(),' in action_boundary
+    assert "final int principalId, final boolean completable" in action_boundary
+    assert "if (!completable)" in action_boundary
     assert "throw new Ws20FailureException" in action_boundary
-    assert "return false" in action_boundary  # unknown/non-current entity fails closed, not default-selected
+    assert "injectNotCompletableForContractTest" not in action_boundary
+    assert "player.isInGame()" in action_boundary
+    assert "game.getCardState(card)" in action_boundary
+    assert "current.getGameTimestamp() == card.getGameTimestamp()" in action_boundary
+    assert "game.getZoneOf(current) != null" in action_boundary
 
+    # UNSUPPORTED_RULES_PATH production binding: the exact documented unresolved
+    # Astrotorium branch passes the Rules Core's live merged-object condition into
+    # the same guard that the Java fault witness invokes.
     todo = "//TODO: Figure out what on earth happens if you animate an attraction, mutate a creature/commander/token onto it, and it dies..."
-    rules_guard = "Ws20RulesPathBoundary.unsupportedAstrotoriumMergedZoneChange"
+    rules_guard = "Ws20RulesPathBoundary.requireSupportedAstrotoriumMergedZoneChange"
     todo_index = action.find(todo)
     rules_index = action.find(rules_guard, todo_index)
     junkyard_index = action.find("return moveToJunkyard(c, cause, params);", todo_index)
     assert todo_index >= 0 and rules_index > todo_index and junkyard_index > rules_index
+    rules_slice = action[rules_index:junkyard_index]
+    assert "c.hasMergedCard()" in rules_slice
+    assert "if (mergedObject)" in rules_boundary
     assert "throw new Ws20FailureException" in rules_boundary
 
     log_text = args.java_log.read_text(encoding="utf-8")
     assert "WS20_FAILURE_ADAPTERS=PASS" in log_text
+    # These source tokens prove the runtime probe invokes the exact production
+    # guards, not an enum constructor or a test-only throwing helper.
+    test_path = root / "forge-gui/src/test/java/forge/gamemodes/match/input/Ws20FailureAdaptersContractTest.java"
+    test_source = test_path.read_text(encoding="utf-8")
+    assert 'Ws20ActionCompletionBoundary.requireCompletable("forge-game:77", 41L, 3, false);' in test_source
+    assert 'Ws20RulesPathBoundary.requireSupportedAstrotoriumMergedZoneChange("forge-game:77", 3, true);' in test_source
+
     action_trace = parse_trace(log_text, "WS20_TRACE_ACTION=")
     rules_trace = parse_trace(log_text, "WS20_TRACE_RULES=")
     validate_payload(action_trace, contract, "ACTION_NOT_COMPLETABLE")
@@ -105,7 +127,8 @@ def main() -> int:
             "classification": "PASS",
             "evidence_class": EVIDENCE_CLASS,
             "actual_boundary": "PlayerControllerHuman.chooseExternalEntities -> Ws20ActionCompletionBoundary -> InputSelectEntitiesFromList.applyExternalSelection",
-            "condition_injection": "exact throwing boundary invoked with not-completable condition",
+            "condition_injection": "exact production guard invoked with completable=false; production caller derives the boolean from live current-entity revalidation",
+            "exact_production_guard_invoked": True,
             "no_downstream_mutation": True,
             "no_fallback_coercion": True,
             "public_payload_hidden_info_marker_count": 0,
@@ -116,7 +139,8 @@ def main() -> int:
             "classification": "PASS",
             "evidence_class": EVIDENCE_CLASS,
             "actual_boundary": "GameAction.changeZone Astrotorium merged-object TODO -> Ws20RulesPathBoundary",
-            "condition_injection": "exact throwing boundary invoked for unsupported merged Astrotorium rule condition",
+            "condition_injection": "exact Rules Core production guard invoked with mergedObject=true; GameAction supplies c.hasMergedCard() inside the documented unresolved Astrotorium branch",
+            "exact_production_guard_invoked": True,
             "no_downstream_mutation": True,
             "no_fallback_coercion": True,
             "public_payload_hidden_info_marker_count": 0,
@@ -138,6 +162,7 @@ def main() -> int:
             "both_actual_runtime_path": all(v["production_binding"] == PRODUCTION_BINDING for v in category_rows.values()),
             "both_classification_pass": all(v["classification"] == "PASS" for v in category_rows.values()),
             "both_evidence_class_at_least_technically_conformant": all(v["evidence_class"] == EVIDENCE_CLASS for v in category_rows.values()),
+            "exact_production_guards_fault_injected": all(v["exact_production_guard_invoked"] for v in category_rows.values()),
             "actual_fault_condition_injection_present": True,
             "public_failure_payload_hidden_info_safe": True,
             "prohibited_state_mutation_absent": True,
@@ -152,6 +177,7 @@ def main() -> int:
             "Ws20ActionCompletionBoundary.java_sha256": sha256(action_boundary_path),
             "Ws20RulesPathBoundary.java_sha256": sha256(rules_boundary_path),
             "Ws20FailureSignal.java_sha256": sha256(signal_path),
+            "Ws20FailureAdaptersContractTest.java_sha256": sha256(test_path),
         },
     }
     assert all(gate["hard_gate"].values())
