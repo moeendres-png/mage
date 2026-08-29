@@ -1,0 +1,239 @@
+{
+  "schema": "commander-simulator-next.ws91-cross-qualification.v1",
+  "workstream": "WS91",
+  "repository": "moeendres-png/mage",
+  "branch": "work/91-semantic-failure-cross-qualification-20260829",
+  "base": {
+    "ws90_head": "624c0a652de775dcdf9d641438b5c18ef4ce50d2",
+    "ws90_tree": "f47e41f0fc09349579f480acd0ca2593c7aceca1",
+    "qualified_runtime_head": "55820618e7243bd5ba8cfa33c3148cea8c166c73",
+    "qualified_runtime_tree": "3706900d49c6ef61690c227bb7b4c0067fbcfb44"
+  },
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "verified_successors": {
+    "WS24": {
+      "final_head": "7267a6ead4fbc7c72a0d0e2e8da1c0e5ca8e34e6",
+      "final_tree": "8f1db090569e3d4079280fd5d8b8ad39b31ba0e6",
+      "tested_head": "5b7dc610caadaa3d9539e26bca3bda5879955fe0",
+      "tested_tree": "6647325ed48bcadb8439812006d9fa6ca4093e67",
+      "run_id": 33273280712,
+      "job_id": 99155505569,
+      "artifact_id": 9720751546,
+      "artifact_digest": "sha256:512c4d9f1fdae11aab8bb6145af2df02e3d2c42205ac42c17d521fcd34e267b9",
+      "artifact_internal_hashes_verified": true,
+      "result": "Q6_ACTUAL_CARD_BEHAVIOR=FAIL_CLOSED",
+      "evidence_class": "UNKNOWN",
+      "metrics": {
+        "identity_count": 1678,
+        "primitive_count": 174,
+        "primitive_pass": 13,
+        "primitive_partial": 161,
+        "unproved_primitive_count": 161,
+        "unresolved_binding_count": 1800,
+        "identity_partial": 664,
+        "identity_unknown": 1014
+      }
+    },
+    "WS25": {
+      "final_head": "f40e12bc321223ec1a4918fa3f0e425ec5651ba2",
+      "final_tree": "ff2f2a9bc830d14df350862273c9076a07e644f6",
+      "tested_head": "05cf89a5ef515f84fc81ddd4db9aba788704df06",
+      "tested_tree": "bac6cc5600c20b879e0d826959a728d1b7245777",
+      "run_id": 33275091071,
+      "job_id": 99160294360,
+      "artifact_id": 9721261751,
+      "artifact_digest": "sha256:2e1bc7c04eafecf211b6647fb97ce490c09cfca250c038dd35f22e54ecb641cf",
+      "artifact_internal_hashes_verified": true,
+      "result": "FAILURE_SEMANTICS=FAIL_CLOSED",
+      "evidence_class": "UNKNOWN",
+      "metrics": {
+        "category_count": 16,
+        "production_reachable_untyped_failure_outcomes": 1,
+        "production_reachable_untyped_categories": [
+          "CARD_BEHAVIOR_FAILURE"
+        ],
+        "production_reachable_fallback_observed_count": 0,
+        "production_reachable_fallback_failure_handling": "UNKNOWN"
+      }
+    }
+  },
+  "dependency_chain": {
+    "WS14": {
+      "final_head": "d8c1ee0c08c7e7f0bc2bc86c70166ebc198e30d5",
+      "final_tree": "5725f47951938bc71af181cf1617e6b3be158804",
+      "qualified_head": "1a80c05bb24608fd2b3b508f6feb32606bf1f01f",
+      "run_id": 33255369528,
+      "job_id": 99108011389,
+      "artifact_id": 9715652489,
+      "artifact_digest": "sha256:f87f9320703665ad5139140cb24299f9b9abb8f5f16ac5003747f9f9545e8e61",
+      "ownership_verified": true
+    },
+    "WS15": {
+      "final_head": "93abc135fe5029781335b4c026736a191451af78",
+      "final_tree": "90515cc8770fbd0f4588582ed077f1a4ebb64317",
+      "run_id": 33263641859,
+      "job_id": 99129711412,
+      "artifact_id": 9717987956,
+      "artifact_digest": "sha256:53415e799f8ae0a4a542453b486f90310cc14eb1dc89e0f0b03ac16b7dddbb37",
+      "primitive_pass": 0,
+      "primitive_partial": 76,
+      "ownership_verified": true
+    },
+    "WS16": {
+      "final_head": "2ec85801ce0f2c9fa66c0d8c61f56f5c08b8ca0e",
+      "final_tree": "ff1870ba08c5fe810a097bf17711bbb95405a975",
+      "execution_run_id": 33270636779,
+      "execution_job_id": 99148367194,
+      "execution_job_conclusion": "failure_after_successful_engine_execution_and_artifact_upload",
+      "execution_artifact_id": 9720024348,
+      "execution_artifact_digest": "sha256:9d231f95ca45b84f170a3b7eb370a7f4aef821f7a06807840f0cb95ad41e0fd7",
+      "recovery_run_id": 33272938913,
+      "recovery_job_id": 99154590943,
+      "recovery_artifact_id": 9720648943,
+      "recovery_artifact_digest": "sha256:10457ba3256fe00948876903883cc0df07084b1ab60226c4a9eb10118953dc97",
+      "primitive_pass": 2,
+      "primitive_partial": 51,
+      "pass_trace_sha256": "19fc608325e7a4d6d372bbe8b246fefe3a23ca490e02f01f7a2a52a486cec37e",
+      "pass_stdout_only": false,
+      "ownership_verified": true
+    },
+    "WS17": {
+      "final_head": "a5f68f9ec49d19d900e92e505654871d2267ba93",
+      "final_tree": "a51afb30dce648f09b891611b8fcb218b671d347",
+      "run_id": 33264286138,
+      "job_id": 99131470398,
+      "artifact_id": 9718189742,
+      "artifact_digest": "sha256:7133a9b8fdf3246f6a756114396fba6a35cb8b9a28c4cc8622317ab0b0f03cba",
+      "runtime_trace_artifact_id": 9718189371,
+      "runtime_trace_artifact_digest": "sha256:4ecc3642090cd05a71b46ddd82291b3538236bbddba234a8adffbfb4f6ea2578",
+      "primitive_pass": 11,
+      "pass_stdout_only": false,
+      "pass_trace_hashes_verified": true,
+      "ownership_verified": true
+    },
+    "WS18": {
+      "final_head": "5f575e43aed11d0bf0eb0dceac9ed7f258370d31",
+      "final_tree": "4ac939fe79cd6b89beb9a682b17cd58e71ba07f8",
+      "run_id": 33263491675,
+      "job_id": 99129313855,
+      "artifact_id": 9717959307,
+      "artifact_digest": "sha256:41868506e9763b9ac6bff23ad9dee706b316881567dc7378ca20bcd386f0e078",
+      "primitive_pass": 0,
+      "primitive_partial": 10,
+      "ownership_verified": true
+    },
+    "WS19": {
+      "final_head": "61f345603b39aa555d4682fea40f7cc29a598073",
+      "final_tree": "ace72c4f3ae8003ad62ff3cfd4bfe685ef92658d",
+      "run_id": 33264114319,
+      "job_id": 99130975896,
+      "artifact_id": 9718129252,
+      "artifact_digest": "sha256:408002e0d1d077fc311bd44928cbeebaa4df3266d78cef1f04a10dffdde3f550",
+      "primitive_pass": 0,
+      "primitive_partial": 14,
+      "ownership_verified": true
+    },
+    "WS20": {
+      "final_head": "df146cd5aa404c2c371bc1591416d4bf57dbf2cc",
+      "final_tree": "f655edb640ca6b315a1ea5edc689d1366379ebc8",
+      "run_id": 33254049343,
+      "job_id": 99104581314,
+      "artifact_id": 9715271475,
+      "artifact_digest": "sha256:0945f0f15bc54ebcbbf4bed81999c99191b4ef5f5f4149ec61a52ddc4082fecb",
+      "ownership_verified": true
+    },
+    "WS21": {
+      "final_head": "a016ac70778c0784857f5e3247629e5866a16e15",
+      "final_tree": "e3d85ac96b75bf41e4349dca1fbd991855f72938",
+      "qualified_head": "cfd9ca96a796a825b0c70d7caff849ae49883752",
+      "run_id": 33254238155,
+      "job_id": 99105065883,
+      "artifact_id": 9715407935,
+      "artifact_digest": "sha256:2b4456226526e941e87d4b8f0c0f54e3410635e6382ddef8e3812b98eefbec35",
+      "ownership_verified": true
+    },
+    "WS22": {
+      "final_head": "45f5691ab4cc1e8a2e4a0904b041ef08a1613612",
+      "final_tree": "90fa76a676d2955ea3f478d42c9485bc60e99ce8",
+      "tested_head": "984f78737fc682abb58da9c89ae7738d0224c41b",
+      "run_id": 33255343659,
+      "job_id": 99107951779,
+      "artifact_id": 9715695346,
+      "artifact_digest": "sha256:43f5b3f76989dc850b73356cb427316d1bf8dc7d109fa57d4691750b92d33a6d",
+      "ownership_verified": true
+    },
+    "WS23": {
+      "final_head": "b773d490f2e5610a72499f8633ef3e3b82be3757",
+      "final_tree": "a1732108e5669e080c010e35d59a624cd73ae9a1",
+      "tested_head": "bb066962376d48bbfa1ce42b96b4c8b57c30d72f",
+      "run_id": 33273319809,
+      "job_id": 99155610511,
+      "artifact_id": 9720758445,
+      "artifact_digest": "sha256:f9084d2166460b4ea2a2c85af64aceee406003d8fc160030ff1846e8b401cba3",
+      "production_binding": "QUALIFIER_ONLY",
+      "production_reachable": false,
+      "ownership_verified": true
+    }
+  },
+  "requalification_policy": {
+    "runtime_predecessor_code_invalidated": false,
+    "reruns_performed": [],
+    "reason": "WS14-WS25 successor changes are confined to qualification workflows, research evidence, witness shards, and test/overlay adapters; the WS90 qualified runtime implementation was not replaced on the WS91 branch. Existing Q1-Q5 and Q7 runtime qualification therefore remains applicable within its declared boundary."
+  },
+  "adjudication": {
+    "Q0": "PASS",
+    "Q1": "PASS_NO_RERUN",
+    "Q2": "PASS_NO_RERUN",
+    "Q3": "PASS_NO_RERUN",
+    "Q4": "PASS_PROCESS_PER_GAME_NO_RERUN",
+    "Q5": "PASS_NO_RERUN",
+    "Q6": "FAIL_CLOSED",
+    "Q7": "PASS_SCOPE_LIMITED_NO_RERUN",
+    "Q8": "DEFERRED",
+    "FAILURE_SEMANTICS": "FAIL_CLOSED"
+  },
+  "mandatory_questions": {
+    "Q6_ACTUAL_CARD_BEHAVIOR_PASS": false,
+    "FAILURE_SEMANTICS_PASS": false,
+    "compatible_candidate_runtime_topology_with_both_pass": false,
+    "WS13_ELIGIBLE": false
+  },
+  "blockers": [
+    {
+      "gate": "Q6_ACTUAL_CARD_BEHAVIOR",
+      "evidence_class": "UNKNOWN",
+      "facts": {
+        "non_pass_primitives": 161,
+        "unresolved_ws14_bindings": 1800
+      },
+      "next_evidence": "Systemically resolve the remaining WS14 source bindings and execute the remaining production-required atomic behavior paths on exact pinned Forge with authoritative legal decisions, state assertions, immutable traces, and decision/RNG tapes where applicable. No card-name production exceptions and no global Q2/Q3 inheritance may be used as behavior proof."
+    },
+    {
+      "gate": "FAILURE_SEMANTICS",
+      "category": "CARD_BEHAVIOR_FAILURE",
+      "evidence_class": "UNKNOWN",
+      "facts": {
+        "production_reachable_untyped_failure_outcomes": 1,
+        "qualifier_detector": "PASS",
+        "production_binding": "UNKNOWN"
+      },
+      "next_evidence": "Bind a real production-runtime card-behavior semantic verifier/capture path, induce an actual semantic mismatch at that path, emit CARD_BEHAVIOR_FAILURE, and prove no state commit, fallback, or private-data disclosure."
+    }
+  ],
+  "topology_adjudication": {
+    "license_ready_topology_issued": false,
+    "reason": "WS13 is gated on simultaneous Q6 and FAILURE_SEMANTICS PASS; both are fail-closed.",
+    "retained_proven_constraints": {
+      "rules_core_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+      "process_boundary": "PROCESS_PER_GAME",
+      "pilot_boundary": "EXTERNAL_PILOTS_ONLY_DISCRETIONARY_CHOICES",
+      "decision_boundary": "AUTHORITATIVE_TYPED_LEGAL_DECISION_OPTIONS",
+      "observation_boundary": "PRINCIPAL_SCOPED",
+      "rng_replay_boundary": "NAMED_RNG_PLUS_SEMANTIC_REPLAY"
+    }
+  },
+  "INITIAL_ARCHITECTURE_DECISION_FROZEN": false,
+  "READY_FOR_GREENFIELD_BUILD": false,
+  "PRODUCTION_REPOSITORY_CREATED": false,
+  "WORKSTREAM_COMPLETE": true
+}
