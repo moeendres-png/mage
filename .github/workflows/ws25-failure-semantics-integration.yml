@@ -1,0 +1,152 @@
+name: WS25 failure semantics integration
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - work/ws25-failure-semantics-integration-20260829
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  BASE_SHA: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+  BASE_TREE: 9a2a52932a0d69dcf06c2392cddcf40b47e810cc
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout WS25
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+
+      - name: Verify exact base, ownership, dependency heads and immutable artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git -C qual merge-base "$BASE_SHA" HEAD)" = "$BASE_SHA"
+          test "$(git -C qual rev-parse "$BASE_SHA^{tree}")" = "$BASE_TREE"
+          changed="$(git -C qual diff --name-only "$BASE_SHA" HEAD)"
+          while IFS= read -r path; do
+            test -z "$path" && continue
+            case "$path" in
+              .github/workflows/ws25-failure-semantics-integration.yml|research/greenfield-qualification/WS25_HANDOFF.md|research/greenfield-qualification/failure-semantics/ws25/*) ;;
+              *) echo "out-of-scope WS25 path: $path" >&2; exit 1 ;;
+            esac
+          done <<< "$changed"
+
+          verify_ref() {
+            local branch="$1" expected="$2"
+            test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" --jq .object.sha)" = "$expected"
+          }
+          verify_run_artifact() {
+            local run="$1" tested_head="$2" artifact_name="$3" artifact_id="$4" digest="$5"
+            local r a
+            r="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run")"
+            test "$(jq -r .head_sha <<<"$r")" = "$tested_head"
+            test "$(jq -r .conclusion <<<"$r")" = success
+            a="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts")"
+            test "$(jq -r --arg n "$artifact_name" '.artifacts[] | select(.name==$n) | .id' <<<"$a")" = "$artifact_id"
+            test "$(jq -r --arg n "$artifact_name" '.artifacts[] | select(.name==$n) | .digest' <<<"$a")" = "$digest"
+          }
+
+          verify_ref work/ws20-failure-action-rules-20260829 df146cd5aa404c2c371bc1591416d4bf57dbf2cc
+          verify_ref work/ws21-failure-engine-transport-20260829 a016ac70778c0784857f5e3247629e5866a16e15
+          verify_ref work/ws22-failure-replay-hidden-20260829 45f5691ab4cc1e8a2e4a0904b041ef08a1613612
+          verify_ref work/ws23-card-behavior-failure-adapter-20260829 b773d490f2e5610a72499f8633ef3e3b82be3757
+
+          verify_run_artifact 33254049343 df146cd5aa404c2c371bc1591416d4bf57dbf2cc ws20-failure-action-rules 9715271475 sha256:0945f0f15bc54ebcbbf4bed81999c99191b4ef5f5f4149ec61a52ddc4082fecb
+          verify_run_artifact 33254238155 cfd9ca96a796a825b0c70d7caff849ae49883752 ws21-failure-engine-transport 9715407935 sha256:2b4456226526e941e87d4b8f0c0f54e3410635e6382ddef8e3812b98eefbec35
+          verify_run_artifact 33255343659 984f78737fc682abb58da9c89ae7738d0224c41b ws22-failure-replay-hidden-33255343659 9715695346 sha256:43f5b3f76989dc850b73356cb427316d1bf8dc7d109fa57d4691750b92d33a6d
+          verify_run_artifact 33273319809 bb066962376d48bbfa1ce42b96b4c8b57c30d72f ws23-card-behavior-failure-evidence 9720758445 sha256:f9084d2166460b4ea2a2c85af64aceee406003d8fc160030ff1846e8b401cba3
+
+      - name: Download WS20 evidence
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 33254049343
+          name: ws20-failure-action-rules
+          path: evidence/ws20
+
+      - name: Download WS21 evidence
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 33254238155
+          name: ws21-failure-engine-transport
+          path: evidence/ws21
+
+      - name: Download WS22 evidence
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 33255343659
+          name: ws22-failure-replay-hidden-33255343659
+          path: evidence/ws22
+
+      - name: Download WS23 evidence
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 33273319809
+          name: ws23-card-behavior-failure-evidence
+          path: evidence/ws23
+
+      - name: Re-adjudicate all 16 authoritative categories
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ws25
+          python3 qual/research/greenfield-qualification/failure-semantics/ws25/integrate_ws25.py \
+            --base-gate qual/research/greenfield-qualification/FAILURE_SEMANTICS_GATE.json \
+            --contract qual/research/greenfield-qualification/failure-semantics/outcome-contract.schema.json \
+            --ws20 evidence/ws20 --ws21 evidence/ws21 --ws22 evidence/ws22 --ws23 evidence/ws23 \
+            --source-head "$(git -C qual rev-parse HEAD)" \
+            --source-tree "$(git -C qual rev-parse 'HEAD^{tree}')" \
+            --out artifacts/ws25 | tee artifacts/ws25/integration.log
+
+          jq -e '
+            .WORKSTREAM_COMPLETE == true and
+            .category_count == 16 and
+            .FAILURE_SEMANTICS == "FAIL_CLOSED" and
+            .production_reachable_untyped_failure_outcomes == 1 and
+            .production_reachable_untyped_categories == ["CARD_BEHAVIOR_FAILURE"] and
+            .production_reachable_fallback_observed_count == 0 and
+            .production_reachable_fallback_failure_handling == "UNKNOWN" and
+            .production_reachable_fallback_unknown_categories == ["CARD_BEHAVIOR_FAILURE"] and
+            .Q2_PRINCIPAL_HIDDEN_INFORMATION == "NO_RERUN" and
+            .Q3_SEMANTIC_REPLAY == "NO_RERUN" and
+            .hard_gates.ALL_16_CATEGORIES_ACCOUNTED_FOR == true and
+            .hard_gates.SIX_SUCCESSOR_PRODUCTION_BINDINGS_PASS == true and
+            .hard_gates.RETAINED_WS12_TYPED_PATHS_PRESERVED == true and
+            .hard_gates.CARD_BEHAVIOR_QUALIFIER_DETECTOR_PASS == true and
+            .hard_gates.CARD_BEHAVIOR_PRODUCTION_BINDING_CLOSED == false and
+            .hard_gates.REACHABLE_UNTYPED_FAILURES_ZERO == false and
+            .hard_gates.REACHABLE_FALLBACK_HANDLING_ZERO_PROVEN == false and
+            .hard_gates.OBSERVED_PROHIBITED_FALLBACKS_ZERO == true and
+            .hard_gates.HIDDEN_INFO_SAFE_PAYLOADS == true and
+            .hard_gates.FAILED_STATE_COMMITS_ZERO == true and
+            .architecture_freeze == "NOT_AUTHORIZED_BY_THIS_WORKSTREAM"
+          ' artifacts/ws25/FAILURE_SEMANTICS_GATE.v2.json >/dev/null
+          jq -e '.categories | length == 16' artifacts/ws25/FAILURE_SEMANTICS_MATRIX.v2.json >/dev/null
+          jq -e '.traces | length == 16' artifacts/ws25/FAILURE_SEMANTICS_TRACE_INVENTORY.v2.json >/dev/null
+          (cd artifacts/ws25 && sha256sum -c WS25_HASHES.sha256)
+
+      - name: Upload immutable WS25 integration evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws25-failure-semantics-integration
+          path: artifacts/ws25
+          if-no-files-found: error
+          retention-days: 90
