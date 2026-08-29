@@ -1,0 +1,577 @@
+{
+  "FAILURE_SEMANTICS": "PASS",
+  "category_count": 16,
+  "category_matrix": [
+    {
+      "after_state_sha256": "815ad513cec4266d6051cbf7b41f10486d62a1cc570b12e5b5f1444fe71bed6a",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "TECHNICALLY_CONFORMANT",
+      "injection": {
+        "kind": "accepted_authoritative_plan",
+        "legal_option": "legal-option:draw"
+      },
+      "outcome": {
+        "category": "SUCCESS",
+        "correlation_id": "corr:success",
+        "decision_id": 91,
+        "game_id": "game:ws12",
+        "principal_id": 1,
+        "public_message": "operation completed",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": true
+      },
+      "scenario_id": "WS12-SUCCESS",
+      "selected_option": "legal-option:draw",
+      "status": "PASS",
+      "trace_sha256": "485123e599cb56c0745a454610bfa8a814832da638d7286a2d8b7e71119821ef"
+    },
+    {
+      "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "TECHNICALLY_CONFORMANT",
+      "injection": {
+        "cancel_was_offered": true,
+        "kind": "explicit_legal_cancel"
+      },
+      "outcome": {
+        "category": "PLAYER_CANCELLED",
+        "correlation_id": "corr:player_cancelled",
+        "decision_id": 91,
+        "game_id": "game:ws12",
+        "principal_id": 1,
+        "public_message": "player cancelled the legal action",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": false
+      },
+      "scenario_id": "WS12-PLAYER_CANCELLED",
+      "selected_option": null,
+      "status": "PASS",
+      "trace_sha256": "5781558e7bb6f09efd11dd23eedd38fb1856d82ff0b9cf63baf281ececf9647d"
+    },
+    {
+      "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "SYNTHETIC",
+      "injection": {
+        "category": "ACTION_NOT_COMPLETABLE",
+        "kind": "typed_fault"
+      },
+      "outcome": {
+        "category": "ACTION_NOT_COMPLETABLE",
+        "correlation_id": "corr:action_not_completable",
+        "decision_id": 91,
+        "game_id": "game:ws12",
+        "principal_id": 1,
+        "public_message": "action is not completable",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": false
+      },
+      "scenario_id": "WS12-ACTION_NOT_COMPLETABLE",
+      "selected_option": null,
+      "status": "PASS",
+      "trace_sha256": "25a0c10d90de415655a9723538e59636693df8ba49969000bb6775a318b9cc24"
+    },
+    {
+      "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "TECHNICALLY_CONFORMANT",
+      "injection": {
+        "category": "ILLEGAL_RESPONSE",
+        "kind": "typed_fault"
+      },
+      "outcome": {
+        "category": "ILLEGAL_RESPONSE",
+        "correlation_id": "corr:illegal_response",
+        "decision_id": 91,
+        "game_id": "game:ws12",
+        "principal_id": 1,
+        "public_message": "response is not legal",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": false
+      },
+      "scenario_id": "WS12-ILLEGAL_RESPONSE",
+      "selected_option": null,
+      "status": "PASS",
+      "trace_sha256": "e6e43973f57a25c5f3fe370fcb12083370198685f4477ef7fd34eb1a3b4c866e"
+    },
+    {
+      "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "TECHNICALLY_CONFORMANT",
+      "injection": {
+        "category": "MALFORMED_RESPONSE",
+        "kind": "typed_fault"
+      },
+      "outcome": {
+        "category": "MALFORMED_RESPONSE",
+        "correlation_id": "corr:malformed_response",
+        "decision_id": 91,
+        "game_id": "game:ws12",
+        "principal_id": 1,
+        "public_message": "response is malformed",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": false
+      },
+      "scenario_id": "WS12-MALFORMED_RESPONSE",
+      "selected_option": null,
+      "status": "PASS",
+      "trace_sha256": "d4788d6f8713153c056affa6fb710d1e44084694606333472a7ce4fb42f21891"
+    },
+    {
+      "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "TECHNICALLY_CONFORMANT",
+      "injection": {
+        "category": "STALE_RESPONSE",
+        "kind": "typed_fault"
+      },
+      "outcome": {
+        "category": "STALE_RESPONSE",
+        "correlation_id": "corr:stale_response",
+        "decision_id": 91,
+        "game_id": "game:ws12",
+        "principal_id": 1,
+        "public_message": "response is stale",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": false
+      },
+      "scenario_id": "WS12-STALE_RESPONSE",
+      "selected_option": null,
+      "status": "PASS",
+      "trace_sha256": "135d3af30fd1e472539cabae1fd2c318773cd22a3b4baa109b4a97a229559fb2"
+    },
+    {
+      "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "TECHNICALLY_CONFORMANT",
+      "injection": {
+        "kind": "actor_mismatch",
+        "request_owner_checked": true,
+        "response_actor": 2
+      },
+      "outcome": {
+        "category": "WRONG_ACTOR",
+        "correlation_id": "corr:wrong_actor",
+        "decision_id": 91,
+        "game_id": "game:ws12",
+        "principal_id": 2,
+        "public_message": "response actor is not authorized",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": false
+      },
+      "scenario_id": "WS12-WRONG_ACTOR",
+      "selected_option": null,
+      "status": "PASS",
+      "trace_sha256": "aac0450cd2eec61bd96d406fe96dfc8452dd2cbe927b323ddfc36bc515f20ce6"
+    },
+    {
+      "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "TECHNICALLY_CONFORMANT",
+      "injection": {
+        "category": "TIMEOUT",
+        "kind": "typed_fault"
+      },
+      "outcome": {
+        "category": "TIMEOUT",
+        "correlation_id": "corr:timeout",
+        "decision_id": 91,
+        "game_id": "game:ws12",
+        "principal_id": 1,
+        "public_message": "decision timed out",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": false
+      },
+      "scenario_id": "WS12-TIMEOUT",
+      "selected_option": null,
+      "status": "PASS",
+      "trace_sha256": "9a792d99f1190b67b5d54bb22e77eee536c05c029066ab4f10c6cf7e58bc85d6"
+    },
+    {
+      "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "TECHNICALLY_CONFORMANT",
+      "injection": {
+        "category": "UNSUPPORTED_DECISION_PATH",
+        "kind": "typed_fault"
+      },
+      "outcome": {
+        "category": "UNSUPPORTED_DECISION_PATH",
+        "correlation_id": "corr:unsupported_decision_path",
+        "decision_id": 91,
+        "game_id": "game:ws12",
+        "principal_id": 1,
+        "public_message": "decision path is unsupported",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": false
+      },
+      "scenario_id": "WS12-UNSUPPORTED_DECISION_PATH",
+      "selected_option": null,
+      "status": "PASS",
+      "trace_sha256": "80b5e8f736fa9da30a5485f0e9d8f956c62967e76954f00702f4baad4820fe9c"
+    },
+    {
+      "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "SYNTHETIC",
+      "injection": {
+        "category": "UNSUPPORTED_RULES_PATH",
+        "kind": "typed_fault"
+      },
+      "outcome": {
+        "category": "UNSUPPORTED_RULES_PATH",
+        "correlation_id": "corr:unsupported_rules_path",
+        "decision_id": 91,
+        "game_id": "game:ws12",
+        "principal_id": 1,
+        "public_message": "rules path is unsupported",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": false
+      },
+      "scenario_id": "WS12-UNSUPPORTED_RULES_PATH",
+      "selected_option": null,
+      "status": "PASS",
+      "trace_sha256": "5c1ff45e69cce66a556144381f986a5b3fc7b5dbd576522b305a4c8650d11508"
+    },
+    {
+      "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "SYNTHETIC",
+      "injection": {
+        "category": "ENGINE_FAILURE",
+        "kind": "typed_fault"
+      },
+      "outcome": {
+        "category": "ENGINE_FAILURE",
+        "correlation_id": "corr:engine_failure",
+        "decision_id": 91,
+        "game_id": "game:ws12",
+        "principal_id": 1,
+        "public_message": "rules engine failed",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": false
+      },
+      "scenario_id": "WS12-ENGINE_FAILURE",
+      "selected_option": null,
+      "status": "PASS",
+      "trace_sha256": "967ac49f30916c323e4a7cfb6ff7c9db2c24ad9e18d818906a17649dd6ece03d"
+    },
+    {
+      "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "SYNTHETIC",
+      "injection": {
+        "category": "TRANSPORT_FAILURE",
+        "kind": "typed_fault"
+      },
+      "outcome": {
+        "category": "TRANSPORT_FAILURE",
+        "correlation_id": "corr:transport_failure",
+        "decision_id": 91,
+        "game_id": "game:ws12",
+        "principal_id": 1,
+        "public_message": "decision transport failed",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": false
+      },
+      "scenario_id": "WS12-TRANSPORT_FAILURE",
+      "selected_option": null,
+      "status": "PASS",
+      "trace_sha256": "60f346c3c0f81ccef6bb1b2abdb3d62e19a477544a8fea2152c95a07c4baf174"
+    },
+    {
+      "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "SYNTHETIC",
+      "injection": {
+        "cross_game_corruption": false,
+        "failed_process_exit": 73,
+        "healthy_process_completed": true,
+        "healthy_process_exit": 0,
+        "healthy_process_state_hash": "ccbcbebd754690ce0b8167aa9df7b03bf37920bf2583c236fb69b707218b7790",
+        "kind": "isolated_child_exit"
+      },
+      "outcome": {
+        "category": "PROCESS_FAILURE",
+        "correlation_id": "corr:process_failure",
+        "decision_id": null,
+        "game_id": "game:ws12",
+        "principal_id": null,
+        "public_message": "isolated game process failed",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": false
+      },
+      "scenario_id": "WS12-PROCESS_FAILURE",
+      "selected_option": null,
+      "status": "PASS",
+      "trace_sha256": "fad4500f62c7f854c4cb9200a2e6a7efbef7bc4be776f059a62ce9203664c0a4"
+    },
+    {
+      "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "SYNTHETIC",
+      "injection": {
+        "category": "REPLAY_DIVERGENCE",
+        "kind": "typed_fault"
+      },
+      "outcome": {
+        "category": "REPLAY_DIVERGENCE",
+        "correlation_id": "corr:replay_divergence",
+        "decision_id": 91,
+        "game_id": "game:ws12",
+        "principal_id": 1,
+        "public_message": "semantic replay diverged",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": false
+      },
+      "scenario_id": "WS12-REPLAY_DIVERGENCE",
+      "selected_option": null,
+      "status": "PASS",
+      "trace_sha256": "ca2b6d1a7b110e122772efdb804eac5ec0f3dd76ec03064f3500d8e0c9f9225e"
+    },
+    {
+      "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "SYNTHETIC",
+      "injection": {
+        "category": "HIDDEN_INFO_VIOLATION",
+        "kind": "typed_fault"
+      },
+      "outcome": {
+        "category": "HIDDEN_INFO_VIOLATION",
+        "correlation_id": "corr:hidden_info_violation",
+        "decision_id": 91,
+        "game_id": "game:ws12",
+        "principal_id": 1,
+        "public_message": "hidden-information boundary was violated",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": false
+      },
+      "scenario_id": "WS12-HIDDEN_INFO_VIOLATION",
+      "selected_option": null,
+      "status": "PASS",
+      "trace_sha256": "fd7fc3fe23cb08f082915494a6f1195284c9a06d772711ea7341650f4cb9dd33"
+    },
+    {
+      "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "before_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
+      "checks": {
+        "exact_typed_category": true,
+        "failure_payload_hidden_information_safe": true,
+        "no_pass_cancel_default_random_first_or_skip_fallback": true,
+        "principal_or_decision_ownership_checked_where_relevant": true,
+        "public_payload_schema_valid": true,
+        "state_commit_policy": true
+      },
+      "evidence_class": "SYNTHETIC",
+      "injection": {
+        "category": "CARD_BEHAVIOR_FAILURE",
+        "kind": "typed_fault"
+      },
+      "outcome": {
+        "category": "CARD_BEHAVIOR_FAILURE",
+        "correlation_id": "corr:card_behavior_failure",
+        "decision_id": 91,
+        "game_id": "game:ws12",
+        "principal_id": 1,
+        "public_message": "card behavior verification failed",
+        "schema": "commander-simulator-next.failure-outcome.v1",
+        "state_committed": false
+      },
+      "scenario_id": "WS12-CARD_BEHAVIOR_FAILURE",
+      "selected_option": null,
+      "status": "PASS",
+      "trace_sha256": "18b5706eb30007183a33e2103e172d1ad459538eb569e09a1c47ad8343f33a92"
+    }
+  ],
+  "contract_sha256": "f96cd8b941fce54e3fc2be58d3b62516fee6a33af26b8fbdd67d99704f258d21",
+  "evidence_classes": [
+    "DIRECTLY_VERIFIED",
+    "CODE_DERIVED",
+    "TECHNICALLY_CONFORMANT",
+    "SYNTHETIC"
+  ],
+  "failure": null,
+  "hard_gate_values": {
+    "AFFECTED_Q1_VALIDATOR_REGRESSION": true,
+    "ALL_PRODUCTION_REACHABLE_CATEGORIES_EXECUTED": true,
+    "ALL_REQUIRED_CATEGORIES_DEFINED": true,
+    "DECISION_ERRORS_MAPPED_EXHAUSTIVELY": true,
+    "EXACT_PIN_JAVA_OUTCOME_CONTRACT": true,
+    "FAILURES_DO_NOT_MUTATE_STATE": true,
+    "HIDDEN_INFO_VIOLATION_EXPLICIT_AND_PAYLOAD_SAFE": true,
+    "NO_TECHNICAL_FAILURE_COERCION": true,
+    "ONE_AUTHORITATIVE_TYPED_OUTCOME_SCHEMA": true,
+    "PROCESS_FAILURE_ISOLATED": true,
+    "PROCESS_TRANSPORT_ENGINE_DISTINCT": true,
+    "REPLAY_DIVERGENCE_DISTINCT": true,
+    "UNSUPPORTED_DECISION_FAILS_CLOSED": true,
+    "UNSUPPORTED_RULES_FAILS_CLOSED": true
+  },
+  "production_reachable_fallback_failure_handling": 0,
+  "production_reachable_untyped_failure_outcomes": 0,
+  "regression_decisions": {
+    "Q1_STRICT_DECISION_BOUNDARY": {
+      "decision": "RERUN_NOW",
+      "reason": "WS12 maps the existing exact-pin decision validation errors into the unified outcome contract; compile and runtime contract probes are affected."
+    },
+    "Q2_PRINCIPAL_HIDDEN_INFORMATION": {
+      "decision": "RERUN_NOW",
+      "reason": "The new public failure envelope is a principal-facing surface; every category is checked against private markers."
+    },
+    "Q3_SEMANTIC_REPLAY": {
+      "decision": "RERUN_NOW",
+      "reason": "REPLAY_DIVERGENCE is newly authoritative and is checked as distinct from execution failure without mutating state."
+    },
+    "Q4_PROCESS_ISOLATION": {
+      "decision": "RERUN_NOW",
+      "reason": "PROCESS_FAILURE is newly authoritative; two OS child games prove one failed process cannot alter the independent game."
+    },
+    "Q5_COMMANDER_MULTIPLAYER": {
+      "decision": "NO_RERUN",
+      "reason": "WS12 changes no Commander or multiplayer rules path."
+    }
+  },
+  "required_categories": [
+    "SUCCESS",
+    "PLAYER_CANCELLED",
+    "ACTION_NOT_COMPLETABLE",
+    "ILLEGAL_RESPONSE",
+    "MALFORMED_RESPONSE",
+    "STALE_RESPONSE",
+    "WRONG_ACTOR",
+    "TIMEOUT",
+    "UNSUPPORTED_DECISION_PATH",
+    "UNSUPPORTED_RULES_PATH",
+    "ENGINE_FAILURE",
+    "TRANSPORT_FAILURE",
+    "PROCESS_FAILURE",
+    "REPLAY_DIVERGENCE",
+    "HIDDEN_INFO_VIOLATION",
+    "CARD_BEHAVIOR_FAILURE"
+  ],
+  "schema": "commander-simulator-next.failure-semantics-gate.v1",
+  "source_head": "259d6d68b59fe0cdca3d8d495371b84a226c67fa",
+  "source_tree": "991817a776ae1b50e95b3969a7e6ed891294780b",
+  "status": "PASS"
+}
