@@ -108,7 +108,9 @@ def main() -> int:
             and hidden.get("checks", {}).get("no_fallback") is True
         ),
     }
-    passed = all(hard.values())
+    replay_pass = all(hard[key] for key in hard if key.startswith("REPLAY_"))
+    hidden_pass = all(hard[key] for key in hard if key.startswith("HIDDEN_"))
+    passed = replay_pass and hidden_pass
 
     result = {
         "schema": "commander-simulator-next.ws22-failure-replay-hidden-gate.v1",
@@ -124,21 +126,13 @@ def main() -> int:
         },
         "categories": {
             "REPLAY_DIVERGENCE": {
-                "status": "PASS" if hard["REPLAY_ACTUAL_WS06_DETECTOR_BOUND"]
-                    and hard["REPLAY_QUALIFIED_BASELINE_PASSES"]
-                    and hard["REPLAY_CONTROLLED_DIVERGENCE_REJECTED"]
-                    and hard["REPLAY_SEMANTIC_CRITERIA_ONLY"]
-                    and hard["REPLAY_FAILURE_NO_STATE_COMMIT_OR_FALLBACK"] else "FAIL",
+                "status": "PASS" if replay_pass else "FAIL",
                 "evidence_class": "TECHNICALLY_CONFORMANT",
                 "production_binding": replay.get("production_binding"),
                 "trace_sha256": replay.get("trace_sha256"),
             },
             "HIDDEN_INFO_VIOLATION": {
-                "status": "PASS" if hard["HIDDEN_ACTUAL_WS05_DETECTOR_BOUND"]
-                    and hard["HIDDEN_ACTUAL_FORBIDDEN_CARDVIEW_DATUM"]
-                    and hard["HIDDEN_PUBLIC_ERROR_ENVELOPE_SECRET_SAFE"]
-                    and hard["HIDDEN_FAILURE_DOES_NOT_MUTATE_STATE"]
-                    and hard["HIDDEN_FAILS_CLOSED_WITHOUT_FALLBACK"] else "FAIL",
+                "status": "PASS" if hidden_pass else "FAIL",
                 "evidence_class": "TECHNICALLY_CONFORMANT",
                 "production_binding": hidden.get("production_binding"),
                 "trace_sha256": hidden.get("trace_sha256"),
@@ -148,7 +142,7 @@ def main() -> int:
         "regression_implications": {
             "Q2_PRINCIPAL_HIDDEN_INFORMATION": {
                 "decision": "NO_RERUN",
-                "focused_negative_probe": "PASS" if passed else "FAIL",
+                "focused_negative_probe": "PASS" if hidden_pass else "FAIL",
                 "reason": (
                     "WS22 does not modify the qualified WS05 source or production visibility overlay. "
                     "It copies exact WS05 code read-only, adds a test-workspace-only injection entry point, "
@@ -157,7 +151,7 @@ def main() -> int:
             },
             "Q3_SEMANTIC_REPLAY": {
                 "decision": "NO_RERUN",
-                "focused_negative_probe": "PASS" if passed else "FAIL",
+                "focused_negative_probe": "PASS" if replay_pass else "FAIL",
                 "reason": (
                     "WS22 does not modify the qualified WS06 comparator, tape contract, RNG overlay, or replay runtime. "
                     "It first rechecks the immutable qualified A/B/C evidence as PASS, then mutates only a copied "
@@ -167,8 +161,8 @@ def main() -> int:
         },
         "shared_ws12_schema_or_gate_modified": False,
         "FAILURE_SEMANTICS": "DEFERRED_TO_LATER_INTEGRATION",
-        "REPLAY_DIVERGENCE": "PASS" if passed and hard["REPLAY_ACTUAL_WS06_DETECTOR_BOUND"] else "FAIL",
-        "HIDDEN_INFO_VIOLATION": "PASS" if passed and hard["HIDDEN_ACTUAL_WS05_DETECTOR_BOUND"] else "FAIL",
+        "REPLAY_DIVERGENCE": "PASS" if replay_pass else "FAIL",
+        "HIDDEN_INFO_VIOLATION": "PASS" if hidden_pass else "FAIL",
         "evidence_classes": ["DIRECTLY_VERIFIED", "CODE_DERIVED", "TECHNICALLY_CONFORMANT"],
         "status": "PASS" if passed else "FAIL",
     }
