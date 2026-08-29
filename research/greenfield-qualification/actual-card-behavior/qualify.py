@@ -3,11 +3,11 @@
 
 Fail-closed classification for the exact WS02 Oracle identity union. Ordinary
 Forge declarative card scripts may qualify as CONDITIONAL_FULL only when the
-actual canonical identity is present/loadable, CardFactory can construct it,
-and every reached decision/hidden-info/replay contract has a completed
-dependency proof. Dedicated card behavior is required only for source rows
-that advertise an unsupported/placeholder implementation marker; those rows
-remain non-PASS until separately exercised.
+actual Oracle identity is present/loadable, CardFactory can construct it, and
+every reached decision/hidden-info/replay contract has a completed dependency
+proof. Multi-face identities are resolved generically by an Oracle-derived
+front-face alias and are accepted only when Forge CardRules reproduces the
+expected Oracle face-name tuple.
 """
 from __future__ import annotations
 
@@ -139,6 +139,25 @@ def forge_scripts(cards_root: Path) -> dict[str, list[dict[str, Any]]]:
     return by_name
 
 
+def oracle_alias_spec(name: str, face_names: Any, exact: list[dict[str, Any]], scripts: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    """Return a generic, identity-checked CardDb fallback for two-face layouts.
+
+    Forge indexes transform/adventure/reversible-style cards by the main face in
+    several layouts while Scryfall's Oracle identity name is `front // back`.
+    We never guess from card names: the alias and expected tuple come directly
+    from the pinned Oracle index and are enabled only when the Forge source scan
+    contains the Oracle front face.
+    """
+    if exact or not isinstance(face_names, list) or len(face_names) != 2:
+        return {"lookup_alias": None, "expected_faces": []}
+    if not all(isinstance(x, str) and x and "\t" not in x for x in face_names):
+        return {"lookup_alias": None, "expected_faces": []}
+    front, back = face_names
+    if front not in scripts:
+        return {"lookup_alias": None, "expected_faces": []}
+    return {"lookup_alias": front, "expected_faces": [front, back]}
+
+
 def prepare(args: argparse.Namespace) -> int:
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
@@ -165,21 +184,25 @@ def prepare(args: argparse.Namespace) -> int:
         if not oracle:
             raise ValueError(f"requirement Oracle ID absent from reconstructed index: {oid}")
         name = oracle.get("name")
-        if not isinstance(name, str) or not name:
-            raise ValueError(f"missing canonical Oracle name: {oid}")
+        if not isinstance(name, str) or not name or "\t" in name:
+            raise ValueError(f"missing/invalid canonical Oracle name: {oid}")
+        face_names = oracle.get("face_names") or []
         exact = scripts.get(name, [])
         face_candidates: list[dict[str, Any]] = []
         if not exact:
-            for face in oracle.get("face_names") or []:
+            for face in face_names:
                 if isinstance(face, str) and face in scripts:
                     face_candidates.extend({"face_name": face, **x} for x in scripts[face])
         candidates = exact if exact else face_candidates
         suspicious = sorted({m for x in candidates for m in x["suspicious_markers"]})
         hard = sorted({m for x in candidates for m in x["hard_suspicious_markers"]})
         source_present = "PASS" if exact else "UNKNOWN" if face_candidates else "FAIL"
+        alias_spec = oracle_alias_spec(name, face_names, exact, scripts)
         row = {
             "oracle_id": oid,
             "oracle_name": name,
+            "oracle_face_names": face_names,
+            "runtime_lookup": alias_spec,
             "source_mask": mask,
             "commander_legality": oracle.get("commander_legality"),
             "type_line": oracle.get("type_line"),
@@ -198,12 +221,20 @@ def prepare(args: argparse.Namespace) -> int:
             "evidence": {"present": "CODE_DERIVED" if exact else "UNKNOWN"},
         }
         rows.append(row)
-        names.append(oid + "\t" + name)
+        expected = alias_spec["expected_faces"]
+        names.append("\t".join([
+            oid,
+            name,
+            alias_spec["lookup_alias"] or "",
+            expected[0] if len(expected) == 2 else "",
+            expected[1] if len(expected) == 2 else "",
+        ]))
         if source_present != "PASS":
             mapping_gaps.append({
                 "oracle_id": oid,
                 "oracle_name": name,
                 "source_presence": source_present,
+                "runtime_lookup": alias_spec,
                 "face_candidates": [
                     {"face_name": x.get("face_name"), "path": x.get("path"), "sha256": x.get("sha256")}
                     for x in face_candidates
@@ -216,7 +247,7 @@ def prepare(args: argparse.Namespace) -> int:
         "schema": SCHEMA + ".mapping-gaps",
         "count": len(mapping_gaps),
         "rows": mapping_gaps,
-        "note": "Canonical-name runtime resolution may close face-name source mapping gaps; source-name matching alone is never promoted.",
+        "note": "Multi-face fallback aliases are Oracle-derived and accepted only when Forge CardRules reproduces the expected two-face name tuple.",
     })
     write_json(out / "PREPARE_SUMMARY.json", {
         "schema": SCHEMA + ".prepare",
@@ -229,6 +260,7 @@ def prepare(args: argparse.Namespace) -> int:
         "exact_present_count": sum(r["present"] == "PASS" for r in rows),
         "face_only_unknown_count": sum(r["present"] == "UNKNOWN" for r in rows),
         "absent_count": sum(r["present"] == "FAIL" for r in rows),
+        "oracle_alias_probe_count": sum(bool(r["runtime_lookup"]["lookup_alias"]) for r in rows),
         "hard_suspicious_identity_count": sum(bool(r["reachability"]["hard_suspicious_markers"]) for r in rows),
         "loadability_probe_count": len(names),
     })
@@ -268,13 +300,13 @@ def finalize(args: argparse.Namespace) -> int:
         oid = base["oracle_id"]
         source_present = base["present"]
         load = by_load.get(oid)
-        loadable = "UNKNOWN" if load is None else ("PASS" if load.get("loadable") is True else "FAIL")
-        runtime_exact = bool(loadable == "PASS" and load and load.get("resolved_name") == base["oracle_name"])
+        loadable = "UNKNOWN" if load is None else ("PASS" if load.get("loadable") is True and load.get("identity_match") is True else "FAIL")
+        runtime_identity_match = bool(loadable == "PASS" and load and load.get("identity_match") is True)
 
         if source_present == "PASS":
             present = "PASS"
             present_ev = base.get("evidence", {}).get("present", "CODE_DERIVED")
-        elif runtime_exact:
+        elif runtime_identity_match:
             present = "PASS"
             present_ev = "TECHNICALLY_CONFORMANT"
         else:
@@ -326,7 +358,7 @@ def finalize(args: argparse.Namespace) -> int:
 
         if present == "FAIL": taxonomy["CARD_PRESENCE_FAILURE"] += 1
         if present == "UNKNOWN": taxonomy["IDENTITY_TO_SCRIPT_MAPPING_UNKNOWN"] += 1
-        if loadable == "FAIL": taxonomy["CARD_LOADABILITY_FAILURE"] += 1
+        if loadable == "FAIL": taxonomy["CARD_LOADABILITY_OR_IDENTITY_FAILURE"] += 1
         if loadable == "UNKNOWN": taxonomy["CARD_LOADABILITY_UNKNOWN"] += 1
         if executable == "FAIL": taxonomy["ENGINE_CONSTRUCTION_PROBE_FAILURE"] += 1
         if executable == "UNKNOWN": taxonomy["EXECUTION_EVIDENCE_MISSING"] += 1
@@ -353,6 +385,7 @@ def finalize(args: argparse.Namespace) -> int:
                 "BEHAVIOR_VERIFIED_WHERE_REQUIRED": behavior_verified,
             },
             "source_presence": source_present,
+            "runtime_lookup": base.get("runtime_lookup"),
             "required_paths": {
                 "decision": decision_required,
                 "hidden_info": hidden_required,
@@ -411,18 +444,20 @@ def finalize(args: argparse.Namespace) -> int:
         "replay_safe_required_paths": "PASS" if replay_gate else "FAIL",
         "behavior_verified_required_paths": "PASS" if behavior_gate else "FAIL",
         "dedicated_behavior_required_count": sum(r["required_paths"]["dedicated_behavior"] for r in out_rows),
+        "oracle_alias_resolved_count": sum(bool(r.get("loadability_evidence") and r["loadability_evidence"].get("used_alias")) for r in out_rows),
         "card_name_hacks_added": 0,
         "failure_taxonomy": dict(sorted(taxonomy.items())),
         "evidence_class": ["CODE_DERIVED", "TECHNICALLY_CONFORMANT"],
         "classification_policy": {
             "FULL": "reserved for direct identity-level semantic behavior proof",
-            "CONDITIONAL_FULL": "actual canonical identity is present/loadable/constructable and all reached qualified engine contracts pass; no dedicated card-specific behavior evidence is required",
+            "CONDITIONAL_FULL": "actual Oracle identity is present/loadable/constructable and all reached qualified engine contracts pass; no dedicated card-specific behavior evidence is required",
             "PARTIAL": "runtime identity exists but one required qualified contract is not PASS",
             "UNKNOWN": "required runtime evidence is missing",
-            "UNSUPPORTED": "runtime presence/load/construction explicitly failed",
+            "UNSUPPORTED": "runtime presence/load/identity/construction explicitly failed",
         },
         "notes": [
             "Source presence or parsing alone never establishes coverage.",
+            "Multi-face aliases are derived mechanically from pinned Oracle face_names and accepted only when Forge CardRules returns the same ordered face-name tuple.",
             "EXECUTABLE requires successful CardFactory construction after Forge's pinned headless runtime bootstrap.",
             "Decision, hidden-information and replay flags are bound to actual-card source reachability and the completed WS01/WS05/WS06 contracts.",
             "WS07 is a global Commander/multiplayer prerequisite and must independently PASS.",

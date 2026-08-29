@@ -1,6 +1,7 @@
 package forge.gamesimulationtests;
 
 import forge.StaticData;
+import forge.card.CardRules;
 import forge.game.card.CardFactory;
 import forge.item.PaperCard;
 import forge.net.TestUtils;
@@ -16,10 +17,11 @@ import java.util.List;
 /**
  * WS10 batch runtime CardDb/ability-construction probe.
  *
- * The probe uses Forge's pinned headless test bootstrap before touching
- * ForgeConstants/StaticData. CardDb loadability and CardFactory construction are
- * recorded independently; neither is promoted to semantic spell/ability
- * execution by the WS10 classifier.
+ * Forge's canonical DB key differs from Scryfall's `front // back` Oracle name
+ * for several non-combine two-face layouts. The optional fallback alias in the
+ * input is derived from Scryfall's pinned front face. It is accepted only when
+ * Forge CardRules reports the exact ordered front/back face names supplied by
+ * that same Oracle identity. No card-name exception table exists here.
  */
 public final class Ws10ActualCardLoadabilityTest {
     private static String esc(String s) {
@@ -61,6 +63,18 @@ public final class Ws10ActualCardLoadabilityTest {
         Files.writeString(path, body, StandardCharsets.UTF_8);
     }
 
+    private static boolean matchesExpectedFaces(PaperCard pc, String expectedFront, String expectedBack) {
+        if (pc == null || pc.getRules() == null || expectedFront.isEmpty() || expectedBack.isEmpty()) {
+            return false;
+        }
+        CardRules rules = pc.getRules();
+        if (rules.getMainPart() == null || rules.getOtherPart() == null) {
+            return false;
+        }
+        return expectedFront.equals(rules.getMainPart().getName())
+                && expectedBack.equals(rules.getOtherPart().getName());
+    }
+
     @Test
     public void batchLoadRequirementIdentities() throws Exception {
         String namesArg = System.getProperty("ws10.names");
@@ -89,21 +103,44 @@ public final class Ws10ActualCardLoadabilityTest {
         try (BufferedWriter w = Files.newBufferedWriter(out, StandardCharsets.UTF_8)) {
             for (String line : lines) {
                 if (line.isBlank()) continue;
-                int tab = line.indexOf('\t');
-                if (tab <= 0) throw new IllegalArgumentException("invalid WS10 TSV row");
-                String oid = line.substring(0, tab);
-                String name = line.substring(tab + 1);
+                String[] cols = line.split("\\t", -1);
+                if (cols.length != 5 || cols[0].isEmpty() || cols[1].isEmpty()) {
+                    throw new IllegalArgumentException("invalid WS10 TSV row; expected oid, canonical, alias, expected-front, expected-back");
+                }
+                String oid = cols[0];
+                String canonical = cols[1];
+                String alias = cols[2];
+                String expectedFront = cols[3];
+                String expectedBack = cols[4];
+
                 boolean loadable = false;
+                boolean identityMatch = false;
                 boolean constructable = false;
+                boolean usedAlias = false;
+                String lookupName = canonical;
                 String resolvedName = null;
+                String rulesName = null;
+                String resolvedFront = null;
+                String resolvedBack = null;
                 String errorClass = null;
                 String error = null;
                 try {
-                    PaperCard pc = StaticData.instance().getCommonCards().getCard(name);
-                    loadable = pc != null && pc.getRules() != null;
-                    if (pc != null) {
-                        resolvedName = pc.getName();
+                    PaperCard pc = StaticData.instance().getCommonCards().getCard(canonical);
+                    if (pc != null && pc.getRules() != null) {
+                        identityMatch = true;
+                    } else if (!alias.isEmpty()) {
+                        lookupName = alias;
+                        pc = StaticData.instance().getCommonCards().getCard(alias);
+                        usedAlias = pc != null;
+                        identityMatch = matchesExpectedFaces(pc, expectedFront, expectedBack);
                     }
+                    if (pc != null && pc.getRules() != null) {
+                        resolvedName = pc.getName();
+                        rulesName = pc.getRules().getName();
+                        if (pc.getRules().getMainPart() != null) resolvedFront = pc.getRules().getMainPart().getName();
+                        if (pc.getRules().getOtherPart() != null) resolvedBack = pc.getRules().getOtherPart().getName();
+                    }
+                    loadable = pc != null && pc.getRules() != null && identityMatch;
                     if (loadable) {
                         try {
                             CardFactory.getCard(pc, null, null);
@@ -112,17 +149,26 @@ public final class Ws10ActualCardLoadabilityTest {
                             errorClass = t.getClass().getName();
                             error = throwableSummary(t);
                         }
-                    } else {
+                    } else if (pc == null) {
                         errorClass = "CARD_NOT_FOUND";
-                        error = "StaticData common CardDb returned no canonical-name card";
+                        error = "CardDb returned no canonical card and no Oracle-derived front-face alias match";
+                    } else if (!identityMatch) {
+                        errorClass = "ORACLE_FACE_IDENTITY_MISMATCH";
+                        error = "Front-face alias resolved, but Forge CardRules did not match the expected Oracle face-name tuple";
                     }
                 } catch (Throwable t) {
                     errorClass = t.getClass().getName();
                     error = throwableSummary(t);
                 }
                 w.write("{\"oracle_id\":\"" + esc(oid)
-                        + "\",\"oracle_name\":\"" + esc(name)
-                        + "\",\"resolved_name\":" + (resolvedName == null ? "null" : "\"" + esc(resolvedName) + "\"")
+                        + "\",\"oracle_name\":\"" + esc(canonical)
+                        + "\",\"lookup_name\":\"" + esc(lookupName)
+                        + "\",\"used_alias\":" + usedAlias
+                        + ",\"identity_match\":" + identityMatch
+                        + ",\"resolved_name\":" + (resolvedName == null ? "null" : "\"" + esc(resolvedName) + "\"")
+                        + ",\"rules_name\":" + (rulesName == null ? "null" : "\"" + esc(rulesName) + "\"")
+                        + ",\"resolved_front\":" + (resolvedFront == null ? "null" : "\"" + esc(resolvedFront) + "\"")
+                        + ",\"resolved_back\":" + (resolvedBack == null ? "null" : "\"" + esc(resolvedBack) + "\"")
                         + ",\"loadable\":" + loadable
                         + ",\"runtime_constructable\":" + constructable
                         + ",\"error_class\":" + (errorClass == null ? "null" : "\"" + esc(errorClass) + "\"")

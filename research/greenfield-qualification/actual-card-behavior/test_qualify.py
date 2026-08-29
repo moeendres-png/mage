@@ -54,6 +54,21 @@ class Ws10HarnessTests(unittest.TestCase):
         self.assertNotIn("TODO", q.HARD_SUSPICIOUS)
         self.assertEqual({"UNSUPPORTED", "NOT_IMPLEMENTED", "DUMMY", "PLACEHOLDER"}, q.HARD_SUSPICIOUS)
 
+    def test_multiface_alias_is_oracle_derived_and_two_face_only(self):
+        scripts = {"Front": [{"path": "front.txt"}]}
+        self.assertEqual(
+            {"lookup_alias": "Front", "expected_faces": ["Front", "Back"]},
+            q.oracle_alias_spec("Front // Back", ["Front", "Back"], [], scripts),
+        )
+        self.assertEqual(
+            {"lookup_alias": None, "expected_faces": []},
+            q.oracle_alias_spec("Front // Back", ["Front", "Back"], [{"path": "combined.txt"}], scripts),
+        )
+        self.assertEqual(
+            {"lookup_alias": None, "expected_faces": []},
+            q.oracle_alias_spec("Three Faces", ["A", "B", "C"], [], {"A": [{}]}),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
