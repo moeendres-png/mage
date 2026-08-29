@@ -1,73 +1,83 @@
-# Commander Simulator Next — Current Qualification Status
+# Commander Simulator Next — Current Integration Status
 
-Date: 2026-08-28
-
-## Verdict
+Date: 2026-08-29  
+Canonical integration branch: `work/90-integration-cross-qualification-20260828`
 
 ```text
-INITIAL_ARCHITECTURE_DECISION_FROZEN = FALSE
-READY_FOR_GREENFIELD_BUILD          = FALSE
+INTEGRATION_COMPLETE                    = TRUE
+INITIAL_ARCHITECTURE_DECISION_FROZEN   = FALSE
+READY_FOR_GREENFIELD_BUILD             = FALSE
 READY_FOR_TRUSTED_REAL_DECK_SIMULATION = FALSE
-PRODUCTION_REPOSITORY_CREATED       = FALSE
+PRODUCTION_REPOSITORY_CREATED           = FALSE
 ```
 
-The research-only qualification increment is current through revision
-`5897a196405e6fc1743f41b4d5f9bf6367884930`. The affected strict-boundary,
-hidden-transport, census/RNG, and runtime workflows were all rerun at that
-exact revision; no historical run is used as proof for it.
-`REMOTE_QUALIFICATION_EVIDENCE.json` records the current remote artifacts and
-their SHA-256 values.
+## Reproducible integrated runtime anchor
 
-## Provenance
+All WS01–WS10 branch slices were live-verified against audit base
+`c0e42fb42c4a603aff4a76b1284f8271c12bfd42` / tree
+`fb06c61dd87b4b742722925cd7374d8f037e1f47` and integrated in dependency order.
+The cross-qualified runtime source executed by WS90 is:
 
-- Research branch: `research/greenfield-engine-shootout-20260827`.
-- Current qualification revision/tree: `5897a196405e6fc1743f41b4d5f9bf6367884930` /
-  `7d2ed2c97fc3579561c9166110f61a757cd88ca9`.
-- Starting research input retained for traceability: `7f843a29808c086f960128585b49bb18a7ec381a` /
-  `c7c570a7e88bc7b4d0cced2d9ef88aed5fd9528e`.
-- Exact Forge pin: `8c7e9afb8e6caee88644b94e25da5852e36f8928`.
-- Strict patch SHA-256 as applied in remote qualification:
-  `190e2fdacfc24903589164d031072daf87573111b0f8a738e31a6005a71ce476`.
+- head: `55820618e7243bd5ba8cfa33c3148cea8c166c73`
+- tree: `3706900d49c6ef61690c227bb7b4c0067fbcfb44`
+- Forge pin: `8c7e9afb8e6caee88644b94e25da5852e36f8928`
+- WS90 run/job: `33250119165` / `99094251297`
+- WS90 artifact: `9714119110`
+- artifact SHA-256: `d5bdb8b59045c78c5c3774bac1f9091c7b32327834eea9abf106412452cdcb4c`
 
-## Qualification gates
+The final status-document commit is intentionally not used as runtime proof;
+`55820618…` is the exact tree executed by the integrated qualification run.
 
-| Gate | Current result | Current evidence boundary |
+## Cross-gate adjudication
+
+| Gate | WS90 result | Evidence / qualification boundary |
 |---|---|---|
-| Q0 provenance/schemas | PASS locally | versioned schemas, exact source/pin fields, local Python qualification suite |
-| Q1 typed decision externalization | FAIL | remote strict run `33155888019`: Java validator and metadata-only Decision-Tape contracts PASS; static 109/109 controller and 15/15 GUI census is complete, but 106 controller paths remain outside full runtime externalization |
-| Q2 hidden information | FAIL / insufficient evidence | remote 2P decoded-transport assay `33155887970`: 0 hidden identity names; required 4P multi-surface red team remains incomplete |
-| Q3 RNG/replay | NOT_RUN | remote runtime run `33155888017` repeats 2P–5P/RogShai probes but lacks `states`, `rng_events`, and full-game `decision_tape` streams; raw logs excluded |
-| Q4 process isolation | INSUFFICIENT_EVIDENCE | no selected production core with isolated queues, IDs, observations, and RNGs qualified |
-| Q5 Commander/multiplayer | INCOMPLETE | current CLI probes exit successfully for 2P–5P (including 4P), but no semantic/decision evidence or A–T/C01–C22 behavior closure exists |
-| Q6 actual-card coverage | INSUFFICIENT_EVIDENCE | Scryfall upstream index 38,626 PASS; project requirement union remains 0/1,721 because source descriptors contain no Oracle IDs |
-| Q7 differential adjudication | INCOMPLETE | no common explicit action/RNG/decision tape campaign against XMage/phase.rs |
-| Q8 license/third-party boundary | DEFERRED | licenses documented; no production linkage/distribution decision is authorized |
+| Q0 provenance/schemas | **PASS** | all ten branch heads/trees and audit-base ancestry verified live; machine-readable gates and exact engine pins checked |
+| Q1 strict decision externalization | **PASS** | 4P full game; 699 accepted typed decisions; 109 controller + 15 blocking-GUI semantic census complete; production-reachable untyped/fallback decisions = 0 |
+| Q2 hidden information | **PASS** | 4P principal campaign; pilot-visible hidden-info leaks = 0; cross-principal decision leaks = 0 |
+| Q3 RNG / semantic replay | **PASS** | three fresh processes A/B/C; state, RNG-event and decision-event divergences = 0 |
+| Q4 process isolation | **PASS — PROCESS_PER_GAME** | combined WS01+WS05+WS06+WS08 build; parallel 4P games + worker fault injection; same-JVM multi-game isolation is not qualified |
+| Q5 Commander / multiplayer | **PASS** | WS90 reran WS07 on the combined WS01+WS05+WS06 Forge stack: 42/42 semantic rows, 4P mandatory scenarios and 2P–5P subsets PASS |
+| Q6 actual-card behavior | **FAIL** | WS10's `Q6=PASS` claim is rejected: 1,678 cards are loadable/constructable, but per-card decision/hidden/replay flags inherit global dependency booleans and 0/1,678 identities have direct semantic `FULL` proof |
+| Q7 differential adjudication | **PASS — SCOPE LIMITED** | two shared Forge/XMage scenarios; Forge side freshly requalified by WS90; phase.rs and Manabrew remain unsupported/unknown for this adapter; no engine-majority rules authority |
+| Q8 license / third-party | **DEFERRED_PENDING_ARCHITECTURE_SELECTION** | WS03 subgate PASS, but `LICENSE_DECISION_COMPLETE = FALSE`; architecture-dependent legal implications remain explicit unknowns |
+| Integrated failure semantics | **FAIL / INCOMPLETE** | no unified verified taxonomy covers all required success/cancel/not-completable/response/rules/engine/transport/process/replay/hidden-info/card-behavior outcomes |
 
-## Implemented and requalified work
-
-The strict Forge patch provides a typed, server-owned entity-selection seam,
-an experimental server-mapped discrete-choice facade, a Java-executed response
-validator, and a metadata-only in-memory Decision-Tape contract: authoritative
-Player/Card/entity or opaque server-mapped option IDs,
-actor/principal/visibility scope, min/max/constraints/schema/context,
-monotonic tokens, validation, one-shot consumption, and atomic application.
-Invalid, stale, malformed, foreign, illegal, missing, timeout, consumed, GUI,
-legacy, and unknown paths fail explicitly. The complete static census now
-classifies all 109 controller callbacks and all 15 blocking GUI methods. This
-does not qualify a full-game Decision-Tape or the remaining runtime paths.
-
-The current requalification also corrected the concrete hidden-information
-leak. Per-client redaction now applies to full GameView serialization, delta
-maps, wrapped events, and visibility transitions. The scoped red-team result
-is zero leaked names; it is not promoted beyond that test scope.
-
-## First blocking gate and handoff
+## Mandatory zero / hard metrics
 
 ```text
-DECISION_EXTERNALIZATION
-  -> FULL_DECISION_CENSUS_AND_TYPED_CALLBACK_COVERAGE = FAIL
+PILOT_VISIBLE_HIDDEN_INFO_LEAKS          = 0
+CROSS_PRINCIPAL_DECISION_LEAKS           = 0
+production_reachable_untyped_decisions   = 0
+production_reachable_fallback_decisions  = 0
+semantic replay fresh-process A/B/C      = PASS
+semantic_state_divergences               = 0
+rng_event_divergences                    = 0
+decision_event_divergences               = 0
+4P primary semantic qualification        = PASS
 ```
 
-No deck, inventory, allocation, purchase, opponent-data, Drive, or
-Commander-Lab Rules-Core state was changed. The next non-redundant work is in
+## Workstream disposition
+
+WS01, WS02, WS03, WS04, WS05, WS06, WS07, WS08 and WS09 are accepted within
+their stated evidence boundaries. WS03 is not promoted to Q8 PASS; WS04 is
+provenance-only; WS08 qualifies process-per-game only; WS09 is a narrow two-
+scenario differential gate.
+
+WS10's branch and evidence harness are retained for audit, but its behavioral
+`Q6_ACTUAL_CARD_COVERAGE = PASS` conclusion is rejected by integration. The
+classifier sets `DECISION_COMPLETE`, `HIDDEN_INFO_SAFE` and `REPLAY_SAFE` from
+global WS01/WS05/WS06 PASS booleans after regex reachability classification,
+and requires dedicated card behavior only for hard suspicious source markers.
+That is not actual identity-level behavioral proof.
+
+## Architecture-freeze blockers
+
+1. `Q6_ACTUAL_CARD_BEHAVIOR = FAIL`.
+2. `FAILURE_SEMANTICS = FAIL_INCOMPLETE`.
+3. `Q8 = DEFERRED_PENDING_ARCHITECTURE_SELECTION`.
+
+Therefore an Architecture Freeze is prohibited and the private production
+repository must not be created. Exact machine-readable adjudication is in
+`WS90_INTEGRATION_ADJUDICATION.json`; the next dependency wave is specified in
 `NEXT_HANDOFF.md`.
