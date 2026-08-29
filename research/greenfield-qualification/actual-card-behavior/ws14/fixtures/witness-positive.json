@@ -1,0 +1,20 @@
+{
+  "schema": "commander-simulator-next.atomic-primitive-witness.v1",
+  "witness_id": "ws15-positive-fixture",
+  "primitive_ids": ["forge-primitive-v1:0123456789abcdef0123456789abcdef"],
+  "primitive_exercise": [{"primitive_id":"forge-primitive-v1:0123456789abcdef0123456789abcdef","trace_event_ids":["e1"],"assertion_ids":["a1"],"exercised":true}],
+  "scenario_id": "fixture-positive",
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "source_head": "0123456789abcdef0123456789abcdef01234567",
+  "source_tree": "89abcdef0123456789abcdef0123456789abcdef",
+  "initial_semantic_state_id": "state:fixture:0",
+  "decision_tape_ref": null,
+  "rng_tape_ref": null,
+  "state_assertions": [{"assertion_id":"a1","semantic_path":"players[0].life","expected":40,"actual":40,"result":"PASS"}],
+  "trace_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "execution": "PASS",
+  "stdout_only": false,
+  "official_rules_adjudication": {"status":"NOT_REQUIRED","rules_refs":[],"adjudication":null},
+  "evidence_class": "TECHNICALLY_CONFORMANT",
+  "run_job_artifact_refs": {"run_id":1,"job_id":2,"artifact_id":3,"artifact_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+}
