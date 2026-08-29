@@ -1,0 +1,160 @@
+name: WS24 Q6 semantic integration
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - work/ws24-q6-semantic-integration-20260829
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  WS14_BASE: d8c1ee0c08c7e7f0bc2bc86c70166ebc198e30d5
+  WS14_TREE: 5725f47951938bc71af181cf1617e6b3be158804
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout WS24
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+
+      - name: Verify exact base, branch heads, runs and artifact identities
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual merge-base "$WS14_BASE" HEAD)" = "$WS14_BASE"
+          test "$(git -C qual rev-parse "$WS14_BASE^{tree}")" = "$WS14_TREE"
+          changed="$(git -C qual diff --name-only "$WS14_BASE" HEAD)"
+          while IFS= read -r path; do
+            test -z "$path" && continue
+            case "$path" in
+              .github/workflows/ws24-q6-semantic-integration.yml|research/greenfield-qualification/WS24_HANDOFF.md|research/greenfield-qualification/actual-card-behavior/ws24/*) ;;
+              *) echo "out-of-scope WS24 path: $path" >&2; exit 1 ;;
+            esac
+          done <<< "$changed"
+
+          verify_ref() {
+            local ref="$1" expected="$2"
+            test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$ref" --jq .object.sha)" = "$expected"
+          }
+          verify_run() {
+            local run="$1" expected_head="$2"
+            local payload
+            payload="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run")"
+            test "$(jq -r .head_sha <<<"$payload")" = "$expected_head"
+            test "$(jq -r .conclusion <<<"$payload")" = success
+          }
+          verify_artifact() {
+            local run="$1" name="$2" id="$3" digest="$4"
+            local payload
+            payload="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts")"
+            test "$(jq -r --arg n "$name" '.artifacts[] | select(.name==$n) | .id' <<<"$payload")" = "$id"
+            test "$(jq -r --arg n "$name" '.artifacts[] | select(.name==$n) | .digest' <<<"$payload")" = "$digest"
+          }
+
+          verify_ref work/ws15-witness-action-cost-decision-20260829 93abc135fe5029781335b4c026736a191451af78
+          verify_ref work/ws16-witness-trigger-zone-sba-20260829 2ec85801ce0f2c9fa66c0d8c61f56f5c08b8ca0e
+          verify_ref work/ws17-witness-continuous-copy-control-20260829 a5f68f9ec49d19d900e92e505654871d2267ba93
+          verify_ref work/ws18-witness-combat-commander-20260829 5f575e43aed11d0bf0eb0dceac9ed7f258370d31
+          verify_ref work/ws19-witness-hidden-rng-replay-20260829 61f345603b39aa555d4682fea40f7cc29a598073
+
+          verify_run 33255369528 1a80c05bb24608fd2b3b508f6feb32606bf1f01f
+          verify_artifact 33255369528 ws14-behavior-primitive-model 9715652489 sha256:f87f9320703665ad5139140cb24299f9b9abb8f5f16ac5003747f9f9545e8e61
+          verify_run 33263641859 c11f7963a21ba29cece936679788e93343b54bf1
+          verify_artifact 33263641859 ws15-action-cost-decision-evidence 9717987956 sha256:53415e799f8ae0a4a542453b486f90310cc14eb1dc89e0f0b03ac16b7dddbb37
+          verify_run 33270636779 b6927c63f2dfcbc45b6357351be2828917db1a2c || true
+          # The original WS16 overall job is red only after successful engine execution/upload;
+          # its immutable execution artifact identity is still independently required here.
+          verify_artifact 33270636779 ws16-pinned-forge-execution 9720024348 sha256:9d231f95ca45b84f170a3b7eb370a7f4aef821f7a06807840f0cb95ad41e0fd7
+          engine_job="$(gh api repos/$GITHUB_REPOSITORY/actions/runs/33270636779/jobs --jq '.jobs[] | select(.id==99148367194)')"
+          test "$(jq -r '[.steps[] | select(.name=="Execute pinned Forge state witness only")][0].conclusion' <<<"$engine_job")" = success
+          test "$(jq -r '[.steps[] | select(.name=="Upload immutable Forge execution evidence")][0].conclusion' <<<"$engine_job")" = success
+          verify_run 33272938913 2fc51cb355423bae73647e076bf204a0a10eb406
+          verify_artifact 33272938913 ws16-trigger-replacement-zone-sba-witness-shard 9720648943 sha256:10457ba3256fe00948876903883cc0df07084b1ab60226c4a9eb10118953dc97
+          verify_run 33264286138 a5f68f9ec49d19d900e92e505654871d2267ba93
+          verify_artifact 33264286138 ws17-continuous-copy-control-witnesses 9718189742 sha256:7133a9b8fdf3246f6a756114396fba6a35cb8b9a28c4cc8622317ab0b0f03cba
+          verify_artifact 33264286138 ws17-pinned-forge-runtime-trace 9718189371 sha256:4ecc3642090cd05a71b46ddd82291b3538236bbddba234a8adffbfb4f6ea2578
+          verify_run 33263491675 18ee0c6e4ae7a7c6fb36b1c859c1ecaad2a6c7cf
+          verify_artifact 33263491675 ws18-combat-commander-witness-shard 9717959307 sha256:41868506e9763b9ac6bff23ad9dee706b316881567dc7378ca20bcd386f0e078
+          verify_run 33264114319 229c8a3f2113a23b008c6c3bc24fc4ee4755deab
+          verify_artifact 33264114319 ws19-hidden-rng-replay-witness-shard 9718129252 sha256:408002e0d1d077fc311bd44928cbeebaa4df3266d78cef1f04a10dffdde3f550
+
+      - name: Download WS14 immutable model
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '33255369528'
+          name: ws14-behavior-primitive-model
+          path: evidence/ws14
+      - name: Download WS15 shard
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '33263641859'
+          name: ws15-action-cost-decision-evidence
+          path: evidence/ws15
+      - name: Download WS16 shard
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '33272938913'
+          name: ws16-trigger-replacement-zone-sba-witness-shard
+          path: evidence/ws16
+      - name: Download WS17 shard
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '33264286138'
+          name: ws17-continuous-copy-control-witnesses
+          path: evidence/ws17
+      - name: Download WS18 shard
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '33263491675'
+          name: ws18-combat-commander-witness-shard
+          path: evidence/ws18
+      - name: Download WS19 shard
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '33264114319'
+          name: ws19-hidden-rng-replay-witness-shard
+          path: evidence/ws19
+
+      - name: Integrate registry and classify all Oracle identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ws24
+          python3 qual/research/greenfield-qualification/actual-card-behavior/ws24/ws24_integrate.py \
+            --ws14 evidence/ws14 --ws15 evidence/ws15 --ws16 evidence/ws16 --ws17 evidence/ws17 --ws18 evidence/ws18 --ws19 evidence/ws19 \
+            --source-head "$(git -C qual rev-parse HEAD)" --source-tree "$(git -C qual rev-parse 'HEAD^{tree}')" \
+            --out artifacts/ws24 | tee artifacts/ws24/integration.log
+          jq -e '.WORKSTREAM_COMPLETE == true and .identity_count == 1678 and .primitive_count == 174 and .primitive_status_counts.PASS == 13 and .primitive_status_counts.PARTIAL == 161 and .unresolved_binding_count == 1800 and .unproved_primitive_count == 161 and .Q6_ACTUAL_CARD_BEHAVIOR == "FAIL_CLOSED" and .q6_pass == false and (.hard_gates | all(. == true))' artifacts/ws24/Q6_ACTUAL_CARD_BEHAVIOR_GATE.json >/dev/null
+          test "$(wc -l < artifacts/ws24/WS24_PER_IDENTITY.jsonl)" = 1678
+          test "$(wc -l < artifacts/ws24/WS24_UNRESOLVED_BINDINGS.jsonl)" = 1800
+          (cd artifacts/ws24 && sha256sum -c WS24_HASHES.sha256)
+
+      - name: Upload immutable WS24 integration evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws24-q6-semantic-integration
+          path: artifacts/ws24
+          if-no-files-found: error
+          retention-days: 90
