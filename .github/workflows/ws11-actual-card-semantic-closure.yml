@@ -57,7 +57,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m unittest discover -s qual/research/greenfield-qualification/actual-card-behavior -p 'test_ws11_*.py' -v | tee artifacts/ws11/unit-tests.log
+          python3 -m unittest discover -s qual/research/greenfield-qualification/actual-card-behavior -p 'test_ws11_*.py' -v 2>&1 | tee artifacts/ws11/unit-tests.log
 
       - name: Materialize exact identity-to-path frontier
         shell: bash

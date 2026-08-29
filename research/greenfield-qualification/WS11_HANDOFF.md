@@ -6,9 +6,9 @@ BRANCH: `work/ws11-actual-card-semantic-closure-20260829`
 
 BASE_SHA: `624c0a652de775dcdf9d641438b5c18ef4ce50d2`
 
-QUALIFICATION_IMPLEMENTATION_HEAD: `6b7fe94519b70708fb79907b36b2c8c4bb4e2ca6`
+QUALIFIED_HEAD: `0a4151adfc3a0434644acc8a56741744323b5c6b`
 
-QUALIFICATION_IMPLEMENTATION_TREE: `6afda0e03ea113c2b6b871fc73b03b1364af5ee3`
+QUALIFIED_TREE: `7460c90e3f0f4fa061cd7ca253da5aba743b4c27`
 
 FILES_CHANGED:
 
@@ -32,15 +32,16 @@ TESTS:
 - `py -3 -m unittest discover -s research/greenfield-qualification/actual-card-behavior -p 'test_ws11_*.py' -v`: PASS, 4/4
 - exact local materialization from the WS10 artifact and pinned Forge: completed with expected fail-closed exit 3
 - per-identity rows: 1678
-- per-identity local SHA-256: `d51e8112f5d4e4072f1e773199fcc5cf20572ce99f84869045a1654daac067a9`
+- workflow `33251282186`: PASS (the green run proves evidence materialization and honest fail-closed enforcement, not Q6 PASS)
+- per-identity artifact SHA-256: `9bada161034a35024c880c9a3e4142874313715172348c39c9c3b708f6d791ab`
 
-RUN_IDS: `PENDING_INITIAL_WORKFLOW`
+RUN_IDS: `33251282186`
 
-JOB_IDS: `PENDING_INITIAL_WORKFLOW`
+JOB_IDS: `99097271546`
 
-ARTIFACT_IDS: `PENDING_INITIAL_WORKFLOW`
+ARTIFACT_IDS: `9714450822`
 
-ARTIFACT_DIGESTS: `PENDING_INITIAL_WORKFLOW`
+ARTIFACT_DIGESTS: `sha256:a9505ece9e893a51c535a2674626a59d9c78be7a5cee3c31b4bd5239964f1f42`
 
 EVIDENCE_CLASSES: `CODE_DERIVED`, `TECHNICALLY_CONFORMANT`, `UNKNOWN`
 
