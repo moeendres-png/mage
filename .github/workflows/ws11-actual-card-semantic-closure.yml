@@ -30,7 +30,7 @@ jobs:
           set -euo pipefail
           git -C qual merge-base --is-ancestor 624c0a652de775dcdf9d641438b5c18ef4ce50d2 HEAD
           jq -e '.target_count == 1678 and .computed_oracle_id_count == 1678 and .status == "PASS"' qual/research/greenfield-qualification/ACTUAL_CARD_REQUIREMENT_UNION.json >/dev/null
-          jq -e '.oracle_union.synthetic_promotion == false' qual/research/greenfield-qualification/ACTUAL_CARD_REQUIREMENT_MANIFEST.json >/dev/null
+          jq -e '.gate.synthetic_promotion == false' qual/research/greenfield-qualification/ACTUAL_CARD_REQUIREMENT_MANIFEST.json >/dev/null
           jq -e '.summary.slot_count == 142 and .summary.status == "PASS"' qual/research/greenfield-qualification/actual-card-manifest/UNKNOWN_REAL_OPPONENTS.json >/dev/null
 
       - name: Download exact rejected WS10 evidence inputs
