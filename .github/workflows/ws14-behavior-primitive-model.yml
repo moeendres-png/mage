@@ -7,7 +7,7 @@ on:
       - work/ws14-behavior-primitive-model-20260829
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
 env:
@@ -132,6 +132,21 @@ jobs:
           sha256sum PER_IDENTITY.atomic.jsonl UNRESOLVED_BINDINGS.jsonl WS14_PRIMITIVE_MANIFEST.json WS14_GATE.runtime.json unit-tests.log > WS14_HASHES.sha256
           cat WS14_GATE.runtime.json
           cat WS14_HASHES.sha256
+
+      - name: Record exact manifest on branch when absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          target=qual/research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json
+          if [ ! -f "$target" ]; then
+            cp artifacts/ws14/WS14_PRIMITIVE_MANIFEST.json "$target"
+            test "$(sha256sum "$target" | cut -d' ' -f1)" = "$(sha256sum artifacts/ws14/WS14_PRIMITIVE_MANIFEST.json | cut -d' ' -f1)"
+            git -C qual config user.name 'github-actions[bot]'
+            git -C qual config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git -C qual add research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json
+            git -C qual commit -m 'WS14: record exact primitive manifest [skip actions]'
+            git -C qual push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
 
       - name: Upload complete WS14 evidence
         uses: actions/upload-artifact@v4
