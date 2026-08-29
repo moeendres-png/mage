@@ -90,8 +90,12 @@ jobs:
           xvfb-run -a mvn -B -pl forge-gui-desktop -am \
             -Dtest=forge.ws07.WS07MainApiConformanceTest \
             -Dsurefire.failIfNoSpecifiedTests=false \
-            -DfailIfNoTests=false test
-          rc=$?
+            -DfailIfNoTests=false test \
+            2>&1 | tee "$GITHUB_WORKSPACE/artifacts/ws07/ws07-maven.log"
+          rc=${PIPESTATUS[0]}
+          if [ -d forge-gui-desktop/target/surefire-reports ]; then
+            cp -R forge-gui-desktop/target/surefire-reports "$GITHUB_WORKSPACE/artifacts/ws07/surefire-reports"
+          fi
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           exit 0
 
