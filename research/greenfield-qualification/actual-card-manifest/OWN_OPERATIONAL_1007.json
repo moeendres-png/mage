@@ -1,15 +1,1 @@
-{
-  "schema": "commander-simulator-next.actual-card-requirement-manifest-descriptor.v1",
-  "generated_at": "2026-08-27",
-  "source": {
-    "drive_id": "1_HlokwIebhVKCeQuDvVOpr3BZWYwgKBd",
-    "title": "MTG_Kartensammlung_kanonisch_aktuell.xlsx",
-    "source_modified_at": "2026-08-20T08:10:51.737Z"
-  },
-  "derivation": "available_for_own_decks_quantity_lower_bound > 0 AND commander_legal AND (color_identity subset WUR OR color_identity subset WBR)",
-  "physical_unique_identities": 1338,
-  "operational_unique_identities": 1007,
-  "materialized_manifest_sha256": "9739c2620972467f81b141364814d2060b11e9d93df3cfc53599155cbf45c319",
-  "materialized_manifest_bytes": 172754,
-  "note": "The full 1007-row materialization is preserved as qualification evidence; this descriptor pins its source, derivation, count, and SHA-256 without embedding Drive-domain data into the temporary research runner repository."
-}
+{"detailed_fragment_sha256":"df22ffc1652f6a4a805787b37243f823cce07d6459201e6759ca4b31ea090e1d","distinct_oracle_ids":1007,"expected_record_count":1007,"expected_slot_count":1376,"membership_authority":"ACTUAL_CARD_REQUIREMENT_UNION.source_class_mask","provenance":{"authority":"CURRENT_OPERATIONAL_OWN_IDENTITY_SOURCE","raw_record_count":1007,"raw_source":"TARGET_CARD_IDENTITY_CURRENT.jsonl","raw_source_sha256":"fffd8afd77f674100312200bebcf360b6a20b2464a8090e257e45884bac9d37d"},"record_count":1007,"resolution_evidence":{"ambiguous":0,"missing":0,"resolved_records":1007},"resolution_policy":{"alias_matching":false,"case_sensitive":true,"fuzzy_matching":false,"normalization":"UNICODE_NFC_AND_TRIM","synthetic_promotion":false,"zero_or_multi_match":"FAIL_CLOSED"},"schema":"commander-simulator-next.actual-card-source-fragment.v4","slot_count":1376,"source_class":"operational_own","status":"PASS"}
