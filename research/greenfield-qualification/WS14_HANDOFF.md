@@ -91,7 +91,7 @@ Artifact contents:
 - `WS14_HASHES.sha256`
 - `unit-tests.log`
 
-The workflow also verifies that the repository-bound `WS14_PRIMITIVE_MANIFEST.json` is byte-identical to the regenerated manifest, and `WS14_MANIFEST_PIN.json` binds the stable manifest/per-identity/unresolved hashes across generation runs.
+The workflow verifies that the repository-bound `WS14_PRIMITIVE_MANIFEST.json` is byte-identical to freshly regenerated output. Independent qualifying runs reproduced the same manifest, per-identity, unresolved-binding, runtime-gate, and unit-test hashes listed above.
 
 ## Evidence classes
 
