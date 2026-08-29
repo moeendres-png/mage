@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "commander-simulator-next.failure-outcome.v1",
+  "title": "Commander Simulator Next authoritative run outcome",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "category", "correlation_id", "game_id", "public_message", "state_committed"],
+  "properties": {
+    "schema": {"const": "commander-simulator-next.failure-outcome.v1"},
+    "category": {
+      "type": "string",
+      "enum": [
+        "SUCCESS",
+        "PLAYER_CANCELLED",
+        "ACTION_NOT_COMPLETABLE",
+        "ILLEGAL_RESPONSE",
+        "MALFORMED_RESPONSE",
+        "STALE_RESPONSE",
+        "WRONG_ACTOR",
+        "TIMEOUT",
+        "UNSUPPORTED_DECISION_PATH",
+        "UNSUPPORTED_RULES_PATH",
+        "ENGINE_FAILURE",
+        "TRANSPORT_FAILURE",
+        "PROCESS_FAILURE",
+        "REPLAY_DIVERGENCE",
+        "HIDDEN_INFO_VIOLATION",
+        "CARD_BEHAVIOR_FAILURE"
+      ]
+    },
+    "correlation_id": {"type": "string", "minLength": 1},
+    "game_id": {"type": "string", "minLength": 1},
+    "decision_id": {"type": ["integer", "null"], "minimum": 1},
+    "principal_id": {"type": ["integer", "null"], "minimum": 0},
+    "public_message": {"type": "string", "minLength": 1},
+    "state_committed": {"type": "boolean"}
+  },
+  "x-authority": "Rules Core owns legality and rule resolution; pilots select only offered legal options. This outcome envelope classifies the result and never changes legality.",
+  "x-no-fallback": ["PASS", "CANCEL", "DEFAULT_CHOICE", "RANDOM_CHOICE", "FIRST_LEGAL_OPTION", "SILENT_SKIP"],
+  "x-categories": {
+    "SUCCESS": {"semantics": "The authoritative operation completed and its explicitly planned state transition committed.", "state_commit": "REQUIRED", "production_reachable": true, "public_message": "operation completed"},
+    "PLAYER_CANCELLED": {"semantics": "The current actor explicitly selected a cancellation option that the Rules Core exposed as legal.", "state_commit": "FORBIDDEN", "production_reachable": true, "public_message": "player cancelled the legal action"},
+    "ACTION_NOT_COMPLETABLE": {"semantics": "The Rules Core determined that an otherwise requested action cannot be completed in the current state; this is not player cancellation.", "state_commit": "FORBIDDEN", "production_reachable": true, "public_message": "action is not completable"},
+    "ILLEGAL_RESPONSE": {"semantics": "A well-formed response selected an option, count, or cancellation not present in the authoritative legal request.", "state_commit": "FORBIDDEN", "production_reachable": true, "public_message": "response is not legal"},
+    "MALFORMED_RESPONSE": {"semantics": "The response envelope is missing, null, structurally invalid, or does not satisfy its declared schema.", "state_commit": "FORBIDDEN", "production_reachable": true, "public_message": "response is malformed"},
+    "STALE_RESPONSE": {"semantics": "The decision id, token, or one-shot consumption state does not identify the currently open decision.", "state_commit": "FORBIDDEN", "production_reachable": true, "public_message": "response is stale"},
+    "WRONG_ACTOR": {"semantics": "The response actor or principal does not own the currently open decision.", "state_commit": "FORBIDDEN", "production_reachable": true, "public_message": "response actor is not authorized"},
+    "TIMEOUT": {"semantics": "The authoritative decision deadline elapsed before a valid response was accepted.", "state_commit": "FORBIDDEN", "production_reachable": true, "public_message": "decision timed out"},
+    "UNSUPPORTED_DECISION_PATH": {"semantics": "A production-reachable discretionary decision has no typed external decision implementation.", "state_commit": "FORBIDDEN", "production_reachable": true, "public_message": "decision path is unsupported"},
+    "UNSUPPORTED_RULES_PATH": {"semantics": "The Rules Core explicitly cannot resolve a production-reachable rule path.", "state_commit": "FORBIDDEN", "production_reachable": true, "public_message": "rules path is unsupported"},
+    "ENGINE_FAILURE": {"semantics": "The Rules Core failed internally outside an explicitly unsupported rule path.", "state_commit": "FORBIDDEN", "production_reachable": true, "public_message": "rules engine failed"},
+    "TRANSPORT_FAILURE": {"semantics": "The request or response transport failed before a valid outcome could commit.", "state_commit": "FORBIDDEN", "production_reachable": true, "public_message": "decision transport failed"},
+    "PROCESS_FAILURE": {"semantics": "The isolated game process terminated or became unavailable; other game processes remain independent.", "state_commit": "FORBIDDEN", "production_reachable": true, "public_message": "isolated game process failed"},
+    "REPLAY_DIVERGENCE": {"semantics": "Semantic replay first diverged in canonical state, RNG events, or decision events from the recorded run.", "state_commit": "FORBIDDEN", "production_reachable": true, "public_message": "semantic replay diverged"},
+    "HIDDEN_INFO_VIOLATION": {"semantics": "A principal-scoped observation or failure payload would disclose information to an unauthorized principal.", "state_commit": "FORBIDDEN", "production_reachable": true, "public_message": "hidden-information boundary was violated"},
+    "CARD_BEHAVIOR_FAILURE": {"semantics": "An actual-card semantic witness or production card behavior failed its authoritative expected-state assertion.", "state_commit": "FORBIDDEN", "production_reachable": true, "public_message": "card behavior verification failed"}
+  },
+  "x-decision-error-map": {
+    "MISSING_RESPONSE": "MALFORMED_RESPONSE",
+    "NULL_RESPONSE": "MALFORMED_RESPONSE",
+    "MALFORMED_RESPONSE": "MALFORMED_RESPONSE",
+    "STALE_RESPONSE": "STALE_RESPONSE",
+    "DECISION_CONSUMED": "STALE_RESPONSE",
+    "WRONG_ACTOR": "WRONG_ACTOR",
+    "WRONG_PRINCIPAL": "WRONG_ACTOR",
+    "ILLEGAL_OPTION": "ILLEGAL_RESPONSE",
+    "INVALID_SELECTION_COUNT": "ILLEGAL_RESPONSE",
+    "CANCEL_NOT_ALLOWED": "ILLEGAL_RESPONSE",
+    "TIMEOUT": "TIMEOUT",
+    "UNSUPPORTED_DECISION_PATH": "UNSUPPORTED_DECISION_PATH"
+  }
+}
