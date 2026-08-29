@@ -343,7 +343,7 @@ public class WS07MainApiConformanceTest {
                 "Forge LandAbility legality and resolution move the land to battlefield and consume the turn land play",
                 "Plains zone=Battlefield; landsPlayedThisTurn=1");
 
-        List<SpellAbility> manaAbilities = battlefieldPlains.getManaAbilities();
+        var manaAbilities = battlefieldPlains.getManaAbilities();
         Assert.assertFalse(manaAbilities.isEmpty());
         SpellAbility mana = manaAbilities.get(0);
         mana.setActivatingPlayer(p0);
@@ -661,8 +661,8 @@ public class WS07MainApiConformanceTest {
     public void londonMulliganStartingPlayerAndShuffleSemantics() {
         Fixture f = fixture(4, true);
         Player player = f.p(0);
-        player.getZone(ZoneType.Hand).clear();
-        player.getZone(ZoneType.Library).clear();
+        player.getZone(ZoneType.Hand).setCards(List.of());
+        player.getZone(ZoneType.Library).setCards(List.of());
         for (int i = 0; i < 14; i++) {
             Card plains = Card.fromPaperCard(paper("Plains"), player);
             if (i < 7) {
