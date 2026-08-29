@@ -124,12 +124,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          xvfb-run -a mvn -B -f forge/pom.xml -pl forge-gui-desktop -am \
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
             -Dtest=forge.gamesimulationtests.Ws26RuntimeBindingTracerTest \
             -Dsurefire.failIfNoSpecifiedTests=false \
             -Dws26.bindingInput="$GITHUB_WORKSPACE/inputs/ws26-keywords.tsv" \
             -Dws26.bindingOut="$GITHUB_WORKSPACE/inputs/ws26-keyword-runtime.jsonl" \
-            test 2>&1 | tee evidence/ws26-keyword-runtime.log
+            test) 2>&1 | tee evidence/ws26-keyword-runtime.log
           test "$(wc -l < inputs/ws26-keyword-runtime.jsonl)" = 888
           ! grep -q '<failure\|<error' forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws26RuntimeBindingTracerTest.xml
           cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws26RuntimeBindingTracerTest.xml evidence/
