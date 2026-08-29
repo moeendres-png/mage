@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Verify exact WS14 base provenance
         run: |
           test "$(git merge-base HEAD d8c1ee0c08c7e7f0bc2bc86c70166ebc198e30d5)" = "d8c1ee0c08c7e7f0bc2bc86c70166ebc198e30d5"
