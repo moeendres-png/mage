@@ -1,0 +1,148 @@
+name: WS14 Atomic behavior primitive model
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - work/ws14-behavior-primitive-model-20260829
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  BASE_SHA: 6828c7175345d3193d814406428c8ee6b54c1136
+  BASE_TREE: f4234a34762a6e36f32bdbaf2234a8136aeeca12
+  WS90_SHA: 624c0a652de775dcdf9d641438b5c18ef4ce50d2
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  WS11_RUN_ID: '33251464459'
+  WS11_JOB_ID: '99097754070'
+  WS11_ARTIFACT_ID: '9714505392'
+  WS11_ARTIFACT_DIGEST: 'sha256:74be5debf765e76d3aa8ab8a868795193b8f5dc6b4856d95bf9e94b087a7d581'
+  WS11_PER_IDENTITY_SHA256: '1f46fc66d2049d65c7ede91700c0e76e38b3fb7c49c13bb394dd20aa6ea8ced7'
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout WS14
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+
+      - name: Verify exact base, ancestry, and immutable WS11 metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C qual merge-base --is-ancestor "$WS90_SHA" "$BASE_SHA"
+          git -C qual merge-base --is-ancestor "$BASE_SHA" HEAD
+          test "$(git -C qual rev-parse "$BASE_SHA^{tree}")" = "$BASE_TREE"
+          jq -e --arg pin "$FORGE_PIN" '.forge_pin == $pin and .exact_known_oracle_identities == 1678 and .behavior_signature_count == 1677 and .Q6_ACTUAL_CARD_BEHAVIOR == "FAIL"' qual/research/greenfield-qualification/WS11_ACTUAL_CARD_SEMANTIC_GATE.json >/dev/null
+          grep -F 'QUALIFIED_HEAD: `a604db2f8ebedfa9fad32fe71425ea2bfd031ec4`' qual/research/greenfield-qualification/WS11_HANDOFF.md >/dev/null
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS11_ARTIFACT_ID")"
+          test "$(jq -r '.workflow_run.id' <<<"$meta")" = "$WS11_RUN_ID"
+          test "$(jq -r '.digest' <<<"$meta")" = "$WS11_ARTIFACT_DIGEST"
+          test "$(jq -r '.expired' <<<"$meta")" = "false"
+
+      - name: Download exact WS11 evidence input
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ws11 artifacts/ws14
+          gh run download "$WS11_RUN_ID" --repo "$GITHUB_REPOSITORY" --name ws11-actual-card-semantic-closure --dir artifacts/ws11
+          test "$(wc -l < artifacts/ws11/PER_IDENTITY.semantic.jsonl)" = 1678
+          echo "$WS11_PER_IDENTITY_SHA256  artifacts/ws11/PER_IDENTITY.semantic.jsonl" | sha256sum -c -
+
+      - name: Checkout exact Forge implementation pin
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Install witness-schema validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --quiet 'jsonschema==4.23.0'
+
+      - name: Run only WS14 contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s qual/research/greenfield-qualification/actual-card-behavior/ws14 -p 'test_ws14_*.py' -v 2>&1 | tee artifacts/ws14/unit-tests.log
+          python3 qual/research/greenfield-qualification/actual-card-behavior/ws14/ws14_validate_witness.py \
+            --schema qual/research/greenfield-qualification/actual-card-behavior/WS14_WITNESS_ABI.schema.json \
+            --witness qual/research/greenfield-qualification/actual-card-behavior/ws14/fixtures/witness-positive.json
+          if python3 qual/research/greenfield-qualification/actual-card-behavior/ws14/ws14_validate_witness.py \
+            --schema qual/research/greenfield-qualification/actual-card-behavior/WS14_WITNESS_ABI.schema.json \
+            --witness qual/research/greenfield-qualification/actual-card-behavior/ws14/fixtures/witness-negative-missing-exercise.json; then
+            echo 'negative witness fixture unexpectedly validated' >&2
+            exit 1
+          fi
+
+      - name: Materialize atomic model twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pass in A B; do
+            python3 qual/research/greenfield-qualification/actual-card-behavior/ws14/ws14_materialize.py \
+              --ws11-per-identity artifacts/ws11/PER_IDENTITY.semantic.jsonl \
+              --forge-root forge \
+              --out "artifacts/ws14/materialization-$pass"
+          done
+          cmp artifacts/ws14/materialization-A/PER_IDENTITY.atomic.jsonl artifacts/ws14/materialization-B/PER_IDENTITY.atomic.jsonl
+          cmp artifacts/ws14/materialization-A/UNRESOLVED_BINDINGS.jsonl artifacts/ws14/materialization-B/UNRESOLVED_BINDINGS.jsonl
+          cmp artifacts/ws14/materialization-A/WS14_PRIMITIVE_MANIFEST.json artifacts/ws14/materialization-B/WS14_PRIMITIVE_MANIFEST.json
+          cmp artifacts/ws14/materialization-A/WS14_GATE.runtime.json artifacts/ws14/materialization-B/WS14_GATE.runtime.json
+          cp artifacts/ws14/materialization-A/PER_IDENTITY.atomic.jsonl artifacts/ws14/PER_IDENTITY.atomic.jsonl
+          cp artifacts/ws14/materialization-A/UNRESOLVED_BINDINGS.jsonl artifacts/ws14/UNRESOLVED_BINDINGS.jsonl
+          cp artifacts/ws14/materialization-A/WS14_PRIMITIVE_MANIFEST.json artifacts/ws14/WS14_PRIMITIVE_MANIFEST.json
+          cp artifacts/ws14/materialization-A/WS14_GATE.runtime.json artifacts/ws14/WS14_GATE.runtime.json
+
+      - name: Enforce WS14 hard gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest=artifacts/ws14/WS14_PRIMITIVE_MANIFEST.json
+          gate=artifacts/ws14/WS14_GATE.runtime.json
+          jq -e '.identity_count == 1678 and .old_full_script_signature_count == 1677 and .atomic_primitive_count > 0 and .card_name_production_hacks == 0 and .synthetic_behavior_promotion == false and .behavior_pass_issued_from_parsing == false' "$manifest" >/dev/null
+          jq -e '[.primitive_count_by_owner_family.ACTION_COST_DECISION,.primitive_count_by_owner_family.TRIGGER_REPLACEMENT_ZONE_SBA,.primitive_count_by_owner_family.CONTINUOUS_COPY_CONTROL,.primitive_count_by_owner_family.COMBAT_COMMANDER,.primitive_count_by_owner_family.HIDDEN_RNG_REPLAY] | all(. > 0)' "$manifest" >/dev/null
+          jq -e '.WORKSTREAM_COMPLETE == true and .Q6_ACTUAL_CARD_BEHAVIOR == "NOT_ADJUDICATED" and .identity_count == 1678 and .old_full_script_signature_count == 1677 and .zero_duplicate_primitive_ids_with_conflicting_semantics == true and .zero_silent_unresolved_mappings == true and .all_unresolved_explicit_unknown == true and .old_full_script_signatures_retained == true and .card_name_production_hacks == 0 and .behavior_pass_issued_from_parsing == false' "$gate" >/dev/null
+          jq -e '.atomic_primitive_count == (.primitives | length) and ([.primitives[].primitive_id] | unique | length) == .atomic_primitive_count and ([.primitives[].owner_family] | all(. == "ACTION_COST_DECISION" or . == "TRIGGER_REPLACEMENT_ZONE_SBA" or . == "CONTINUOUS_COPY_CONTROL" or . == "COMBAT_COMMANDER" or . == "HIDDEN_RNG_REPLAY"))' "$manifest" >/dev/null
+          jq -cs -e 'length == 1678 and all(.[]; .behavior_qualification == "NOT_EVALUATED" and .behavior_pass_issued_from_parsing == false and (.old_ws11_full_script_signature_ids | length) >= 1 and (.forge_sources | length) >= 1 and all(.forge_sources[]; (.forge_source_path | type) == "string" and (.forge_source_sha256_bytes | test("^[0-9a-f]{64}$")) and (.old_ws11_full_script_signature | startswith("forge-path-v1:")) and all(.unresolved_bindings[]; .binding_status == "UNKNOWN" and .evidence_class == "UNKNOWN" and .primitive_id == null and .owner_family == null)))' artifacts/ws14/PER_IDENTITY.atomic.jsonl >/dev/null
+          unresolved_lines="$(wc -l < artifacts/ws14/UNRESOLVED_BINDINGS.jsonl)"
+          test "$unresolved_lines" = "$(jq -r '.unresolved_binding_count' "$manifest")"
+          if [ -f qual/research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json ]; then
+            cmp qual/research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json "$manifest"
+          fi
+
+      - name: Hash WS14 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd artifacts/ws14
+          sha256sum PER_IDENTITY.atomic.jsonl UNRESOLVED_BINDINGS.jsonl WS14_PRIMITIVE_MANIFEST.json WS14_GATE.runtime.json unit-tests.log > WS14_HASHES.sha256
+          cat WS14_GATE.runtime.json
+          cat WS14_HASHES.sha256
+
+      - name: Upload complete WS14 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws14-behavior-primitive-model
+          path: |
+            artifacts/ws14/PER_IDENTITY.atomic.jsonl
+            artifacts/ws14/UNRESOLVED_BINDINGS.jsonl
+            artifacts/ws14/WS14_PRIMITIVE_MANIFEST.json
+            artifacts/ws14/WS14_GATE.runtime.json
+            artifacts/ws14/WS14_HASHES.sha256
+            artifacts/ws14/unit-tests.log
+          if-no-files-found: error
+          retention-days: 90
