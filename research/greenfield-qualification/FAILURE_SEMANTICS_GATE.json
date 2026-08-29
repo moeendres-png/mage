@@ -1,5 +1,5 @@
 {
-  "FAILURE_SEMANTICS": "PASS",
+  "FAILURE_SEMANTICS": "FAIL_INCOMPLETE",
   "category_count": 16,
   "category_matrix": [
     {
@@ -13,7 +13,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "PASS",
       "evidence_class": "TECHNICALLY_CONFORMANT",
+      "failure_reason": null,
       "injection": {
         "kind": "accepted_authoritative_plan",
         "legal_option": "legal-option:draw"
@@ -28,10 +30,11 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": true
       },
+      "production_binding": "EXACT_PIN_DECISION_TAPE_AND_MAPPER",
       "scenario_id": "WS12-SUCCESS",
       "selected_option": "legal-option:draw",
       "status": "PASS",
-      "trace_sha256": "485123e599cb56c0745a454610bfa8a814832da638d7286a2d8b7e71119821ef"
+      "trace_sha256": "de024e51ca41ec26c8b2c2fa59973da0fb891d37d979c090e4ba4ac4ef8e3d50"
     },
     {
       "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
@@ -44,7 +47,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "PASS",
       "evidence_class": "TECHNICALLY_CONFORMANT",
+      "failure_reason": null,
       "injection": {
         "cancel_was_offered": true,
         "kind": "explicit_legal_cancel"
@@ -59,10 +64,11 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": false
       },
+      "production_binding": "EXACT_PIN_DECISION_TAPE_AND_MAPPER",
       "scenario_id": "WS12-PLAYER_CANCELLED",
       "selected_option": null,
       "status": "PASS",
-      "trace_sha256": "5781558e7bb6f09efd11dd23eedd38fb1856d82ff0b9cf63baf281ececf9647d"
+      "trace_sha256": "35893c0bfb54a7a9376f90feed4f3822e3d7bf63e4c09c37175a067a61e2f994"
     },
     {
       "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
@@ -75,7 +81,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "PARTIAL",
       "evidence_class": "SYNTHETIC",
+      "failure_reason": "No production-facing exact-path adapter or fault injection captures this category; constructing its enum outcome does not prove runtime classification or no fallback.",
       "injection": {
         "category": "ACTION_NOT_COMPLETABLE",
         "kind": "typed_fault"
@@ -90,10 +98,11 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": false
       },
+      "production_binding": "UNBOUND_GENERIC_CONSTRUCTION_ONLY",
       "scenario_id": "WS12-ACTION_NOT_COMPLETABLE",
       "selected_option": null,
       "status": "PASS",
-      "trace_sha256": "25a0c10d90de415655a9723538e59636693df8ba49969000bb6775a318b9cc24"
+      "trace_sha256": "1f45ac6298e66c63645db65830a7f655cc95a72f8296ee24a0ffdbc3050c5400"
     },
     {
       "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
@@ -106,7 +115,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "PASS",
       "evidence_class": "TECHNICALLY_CONFORMANT",
+      "failure_reason": null,
       "injection": {
         "category": "ILLEGAL_RESPONSE",
         "kind": "typed_fault"
@@ -121,10 +132,11 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": false
       },
+      "production_binding": "EXACT_PIN_DECISION_TAPE_AND_MAPPER",
       "scenario_id": "WS12-ILLEGAL_RESPONSE",
       "selected_option": null,
       "status": "PASS",
-      "trace_sha256": "e6e43973f57a25c5f3fe370fcb12083370198685f4477ef7fd34eb1a3b4c866e"
+      "trace_sha256": "ba6eb3af5c8bc49bb42c910042f5b4f7a6a44755a8da082124a6c79a2b525400"
     },
     {
       "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
@@ -137,7 +149,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "PASS",
       "evidence_class": "TECHNICALLY_CONFORMANT",
+      "failure_reason": null,
       "injection": {
         "category": "MALFORMED_RESPONSE",
         "kind": "typed_fault"
@@ -152,10 +166,11 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": false
       },
+      "production_binding": "EXACT_PIN_DECISION_TAPE_AND_MAPPER",
       "scenario_id": "WS12-MALFORMED_RESPONSE",
       "selected_option": null,
       "status": "PASS",
-      "trace_sha256": "d4788d6f8713153c056affa6fb710d1e44084694606333472a7ce4fb42f21891"
+      "trace_sha256": "64837db1e15091870d33cf8b6d59b3d5438579d42faa9d05490b82e5c114d714"
     },
     {
       "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
@@ -168,7 +183,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "PASS",
       "evidence_class": "TECHNICALLY_CONFORMANT",
+      "failure_reason": null,
       "injection": {
         "category": "STALE_RESPONSE",
         "kind": "typed_fault"
@@ -183,10 +200,11 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": false
       },
+      "production_binding": "EXACT_PIN_DECISION_TAPE_AND_MAPPER",
       "scenario_id": "WS12-STALE_RESPONSE",
       "selected_option": null,
       "status": "PASS",
-      "trace_sha256": "135d3af30fd1e472539cabae1fd2c318773cd22a3b4baa109b4a97a229559fb2"
+      "trace_sha256": "8bb8eb8150f1e45a4e0b0ce1712b7dfc349dbefbf4c2acf23dc6966ff971e9b3"
     },
     {
       "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
@@ -199,7 +217,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "PASS",
       "evidence_class": "TECHNICALLY_CONFORMANT",
+      "failure_reason": null,
       "injection": {
         "kind": "actor_mismatch",
         "request_owner_checked": true,
@@ -215,10 +235,11 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": false
       },
+      "production_binding": "EXACT_PIN_DECISION_TAPE_AND_MAPPER",
       "scenario_id": "WS12-WRONG_ACTOR",
       "selected_option": null,
       "status": "PASS",
-      "trace_sha256": "aac0450cd2eec61bd96d406fe96dfc8452dd2cbe927b323ddfc36bc515f20ce6"
+      "trace_sha256": "62cf35ffa6a846d55703dca125a515acb8e99b3340ac27034ecab98f85f1150a"
     },
     {
       "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
@@ -231,7 +252,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "PASS",
       "evidence_class": "TECHNICALLY_CONFORMANT",
+      "failure_reason": null,
       "injection": {
         "category": "TIMEOUT",
         "kind": "typed_fault"
@@ -246,10 +269,11 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": false
       },
+      "production_binding": "EXACT_PIN_DECISION_TAPE_AND_MAPPER",
       "scenario_id": "WS12-TIMEOUT",
       "selected_option": null,
       "status": "PASS",
-      "trace_sha256": "9a792d99f1190b67b5d54bb22e77eee536c05c029066ab4f10c6cf7e58bc85d6"
+      "trace_sha256": "e2865d667751429d45c9aca934daa92a70e3224adc8c98e6333f7b4557120913"
     },
     {
       "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
@@ -262,7 +286,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "PASS",
       "evidence_class": "TECHNICALLY_CONFORMANT",
+      "failure_reason": null,
       "injection": {
         "category": "UNSUPPORTED_DECISION_PATH",
         "kind": "typed_fault"
@@ -277,10 +303,11 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": false
       },
+      "production_binding": "EXACT_PIN_DECISION_TAPE_AND_MAPPER",
       "scenario_id": "WS12-UNSUPPORTED_DECISION_PATH",
       "selected_option": null,
       "status": "PASS",
-      "trace_sha256": "80b5e8f736fa9da30a5485f0e9d8f956c62967e76954f00702f4baad4820fe9c"
+      "trace_sha256": "e7ea37302556386090b2a05d7e300e9ab765548fbb1b7816f2999a24f4812835"
     },
     {
       "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
@@ -293,7 +320,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "PARTIAL",
       "evidence_class": "SYNTHETIC",
+      "failure_reason": "No production-facing exact-path adapter or fault injection captures this category; constructing its enum outcome does not prove runtime classification or no fallback.",
       "injection": {
         "category": "UNSUPPORTED_RULES_PATH",
         "kind": "typed_fault"
@@ -308,10 +337,11 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": false
       },
+      "production_binding": "UNBOUND_GENERIC_CONSTRUCTION_ONLY",
       "scenario_id": "WS12-UNSUPPORTED_RULES_PATH",
       "selected_option": null,
       "status": "PASS",
-      "trace_sha256": "5c1ff45e69cce66a556144381f986a5b3fc7b5dbd576522b305a4c8650d11508"
+      "trace_sha256": "ea8f1b21bf3dcb9564bd6c58a28a65065ca4a9e9d21bc74be69406f7d67fd996"
     },
     {
       "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
@@ -324,7 +354,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "PARTIAL",
       "evidence_class": "SYNTHETIC",
+      "failure_reason": "No production-facing exact-path adapter or fault injection captures this category; constructing its enum outcome does not prove runtime classification or no fallback.",
       "injection": {
         "category": "ENGINE_FAILURE",
         "kind": "typed_fault"
@@ -339,10 +371,11 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": false
       },
+      "production_binding": "UNBOUND_GENERIC_CONSTRUCTION_ONLY",
       "scenario_id": "WS12-ENGINE_FAILURE",
       "selected_option": null,
       "status": "PASS",
-      "trace_sha256": "967ac49f30916c323e4a7cfb6ff7c9db2c24ad9e18d818906a17649dd6ece03d"
+      "trace_sha256": "097ba63abfaf91560a4e6f1c1d4eafe809cefbddec2f425be9cbae5a8cecf2bd"
     },
     {
       "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
@@ -355,7 +388,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "PARTIAL",
       "evidence_class": "SYNTHETIC",
+      "failure_reason": "No production-facing exact-path adapter or fault injection captures this category; constructing its enum outcome does not prove runtime classification or no fallback.",
       "injection": {
         "category": "TRANSPORT_FAILURE",
         "kind": "typed_fault"
@@ -370,10 +405,11 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": false
       },
+      "production_binding": "UNBOUND_GENERIC_CONSTRUCTION_ONLY",
       "scenario_id": "WS12-TRANSPORT_FAILURE",
       "selected_option": null,
       "status": "PASS",
-      "trace_sha256": "60f346c3c0f81ccef6bb1b2abdb3d62e19a477544a8fea2152c95a07c4baf174"
+      "trace_sha256": "a0d1c5999025cdf12f91b185317a8efa836fbc2368bc059f3878053662142472"
     },
     {
       "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
@@ -386,7 +422,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "CONDITIONAL_PASS",
       "evidence_class": "SYNTHETIC",
+      "failure_reason": null,
       "injection": {
         "cross_game_corruption": false,
         "failed_process_exit": 73,
@@ -405,10 +443,11 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": false
       },
+      "production_binding": "OS_PROCESS_SUPERVISOR_WITNESS",
       "scenario_id": "WS12-PROCESS_FAILURE",
       "selected_option": null,
       "status": "PASS",
-      "trace_sha256": "fad4500f62c7f854c4cb9200a2e6a7efbef7bc4be776f059a62ce9203664c0a4"
+      "trace_sha256": "2ad2a596a744b268c0391a540e19afc800a362f313ad1105d6ed88efaa7539f0"
     },
     {
       "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
@@ -421,7 +460,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "PARTIAL",
       "evidence_class": "SYNTHETIC",
+      "failure_reason": "No production-facing exact-path adapter or fault injection captures this category; constructing its enum outcome does not prove runtime classification or no fallback.",
       "injection": {
         "category": "REPLAY_DIVERGENCE",
         "kind": "typed_fault"
@@ -436,10 +477,11 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": false
       },
+      "production_binding": "UNBOUND_GENERIC_CONSTRUCTION_ONLY",
       "scenario_id": "WS12-REPLAY_DIVERGENCE",
       "selected_option": null,
       "status": "PASS",
-      "trace_sha256": "ca2b6d1a7b110e122772efdb804eac5ec0f3dd76ec03064f3500d8e0c9f9225e"
+      "trace_sha256": "1127f8ce3c11213af79662ac3dbb1f2f4f6006350adc97c878cebd8d9236508c"
     },
     {
       "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
@@ -452,7 +494,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "PARTIAL",
       "evidence_class": "SYNTHETIC",
+      "failure_reason": "No production-facing exact-path adapter or fault injection captures this category; constructing its enum outcome does not prove runtime classification or no fallback.",
       "injection": {
         "category": "HIDDEN_INFO_VIOLATION",
         "kind": "typed_fault"
@@ -467,10 +511,11 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": false
       },
+      "production_binding": "UNBOUND_GENERIC_CONSTRUCTION_ONLY",
       "scenario_id": "WS12-HIDDEN_INFO_VIOLATION",
       "selected_option": null,
       "status": "PASS",
-      "trace_sha256": "fd7fc3fe23cb08f082915494a6f1195284c9a06d772711ea7341650f4cb9dd33"
+      "trace_sha256": "61301895fc2821ab539e246fd74902a10813556eafede23295d178b46b75a7f2"
     },
     {
       "after_state_sha256": "b5b7dbff608734e12ab77021cf9f57ed8c84457dc58700cf4add2ef99c4c19a6",
@@ -483,7 +528,9 @@
         "public_payload_schema_valid": true,
         "state_commit_policy": true
       },
+      "classification": "PARTIAL",
       "evidence_class": "SYNTHETIC",
+      "failure_reason": "No production-facing exact-path adapter or fault injection captures this category; constructing its enum outcome does not prove runtime classification or no fallback.",
       "injection": {
         "category": "CARD_BEHAVIOR_FAILURE",
         "kind": "typed_fault"
@@ -498,22 +545,42 @@
         "schema": "commander-simulator-next.failure-outcome.v1",
         "state_committed": false
       },
+      "production_binding": "UNBOUND_GENERIC_CONSTRUCTION_ONLY",
       "scenario_id": "WS12-CARD_BEHAVIOR_FAILURE",
       "selected_option": null,
       "status": "PASS",
-      "trace_sha256": "18b5706eb30007183a33e2103e172d1ad459538eb569e09a1c47ad8343f33a92"
+      "trace_sha256": "bfaa370bff4bf7e1c6c60af18d4435fcdd32d99df4d0831d2d1a15213d9dbc26"
     }
   ],
   "contract_sha256": "f96cd8b941fce54e3fc2be58d3b62516fee6a33af26b8fbdd67d99704f258d21",
+  "contract_witness_fallback_failure_handling": 0,
+  "contract_witness_untyped_failure_outcomes": 0,
   "evidence_classes": [
     "DIRECTLY_VERIFIED",
     "CODE_DERIVED",
     "TECHNICALLY_CONFORMANT",
     "SYNTHETIC"
   ],
-  "failure": null,
+  "failure": {
+    "failed_hard_gates": [
+      "ALL_PRODUCTION_REACHABLE_CATEGORIES_BOUND_TO_ACTUAL_ADAPTERS"
+    ],
+    "production_fallback": null,
+    "production_untyped": null,
+    "smallest_blocker": "Bind actual production-facing capture/fault-injection adapters for exactly the seven unbound categories and prove state/fallback behavior at those boundaries.",
+    "unbound_production_categories": [
+      "ACTION_NOT_COMPLETABLE",
+      "CARD_BEHAVIOR_FAILURE",
+      "ENGINE_FAILURE",
+      "HIDDEN_INFO_VIOLATION",
+      "REPLAY_DIVERGENCE",
+      "TRANSPORT_FAILURE",
+      "UNSUPPORTED_RULES_PATH"
+    ]
+  },
   "hard_gate_values": {
     "AFFECTED_Q1_VALIDATOR_REGRESSION": true,
+    "ALL_PRODUCTION_REACHABLE_CATEGORIES_BOUND_TO_ACTUAL_ADAPTERS": false,
     "ALL_PRODUCTION_REACHABLE_CATEGORIES_EXECUTED": true,
     "ALL_REQUIRED_CATEGORIES_DEFINED": true,
     "DECISION_ERRORS_MAPPED_EXHAUSTIVELY": true,
@@ -528,24 +595,30 @@
     "UNSUPPORTED_DECISION_FAILS_CLOSED": true,
     "UNSUPPORTED_RULES_FAILS_CLOSED": true
   },
-  "production_reachable_fallback_failure_handling": 0,
-  "production_reachable_untyped_failure_outcomes": 0,
+  "production_reachable_fallback_failure_handling": null,
+  "production_reachable_fallback_failure_handling_classification": "UNKNOWN",
+  "production_reachable_untyped_failure_outcomes": null,
+  "production_reachable_untyped_failure_outcomes_classification": "UNKNOWN",
   "regression_decisions": {
     "Q1_STRICT_DECISION_BOUNDARY": {
-      "decision": "RERUN_NOW",
-      "reason": "WS12 maps the existing exact-pin decision validation errors into the unified outcome contract; compile and runtime contract probes are affected."
+      "decision": "NO_RERUN",
+      "focused_probe": "PASS",
+      "reason": "The additive tape classification does not change legality or response validation. The exact-pin validator probe passed; this was not a full Q1 predecessor rerun."
     },
     "Q2_PRINCIPAL_HIDDEN_INFORMATION": {
-      "decision": "RERUN_NOW",
-      "reason": "The new public failure envelope is a principal-facing surface; every category is checked against private markers."
+      "decision": "AUDIT_NEEDS_RERUN",
+      "focused_probe": "PASS_SCOPE_LIMITED",
+      "reason": "Fixed public envelopes excluded private markers, but the seven unbound adapters have no actual failure payload to assay. The full Q2 predecessor gate was not rerun."
     },
     "Q3_SEMANTIC_REPLAY": {
-      "decision": "RERUN_NOW",
-      "reason": "REPLAY_DIVERGENCE is newly authoritative and is checked as distinct from execution failure without mutating state."
+      "decision": "AUDIT_NEEDS_RERUN",
+      "focused_probe": "PARTIAL",
+      "reason": "Only enum construction/non-mutation was exercised; no replay divergence detector is bound. The full Q3 semantic replay gate was not rerun."
     },
     "Q4_PROCESS_ISOLATION": {
-      "decision": "RERUN_NOW",
-      "reason": "PROCESS_FAILURE is newly authoritative; two OS child games prove one failed process cannot alter the independent game."
+      "decision": "NO_RERUN",
+      "focused_probe": "PASS_SCOPE_LIMITED",
+      "reason": "Two OS children demonstrated fault isolation, but this was a focused contract probe rather than a full Q4 predecessor rerun; no process isolation implementation changed."
     },
     "Q5_COMMANDER_MULTIPLAYER": {
       "decision": "NO_RERUN",
@@ -571,7 +644,16 @@
     "CARD_BEHAVIOR_FAILURE"
   ],
   "schema": "commander-simulator-next.failure-semantics-gate.v1",
-  "source_head": "259d6d68b59fe0cdca3d8d495371b84a226c67fa",
-  "source_tree": "991817a776ae1b50e95b3969a7e6ed891294780b",
-  "status": "PASS"
+  "source_head": "9566758b0d7b7cd5b1cf9847f0e438b67025c403",
+  "source_tree": "e7a71586ab52bd24ebe5b6b7b51bf8f6099729a1",
+  "status": "FAIL",
+  "unbound_production_categories": [
+    "ACTION_NOT_COMPLETABLE",
+    "CARD_BEHAVIOR_FAILURE",
+    "ENGINE_FAILURE",
+    "HIDDEN_INFO_VIOLATION",
+    "REPLAY_DIVERGENCE",
+    "TRANSPORT_FAILURE",
+    "UNSUPPORTED_RULES_PATH"
+  ]
 }
