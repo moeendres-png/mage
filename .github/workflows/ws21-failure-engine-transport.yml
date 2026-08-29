@@ -85,7 +85,7 @@ jobs:
           set -euo pipefail
           python3 qual/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py \
             --forge-root forge | tee evidence/ws12-overlay.log
-          grep -Fx 'WS12_FORGE_OVERLAY_APPLIED=TRUE' evidence/ws12-overlay.log
+          grep -Fx 'WS12_FORGE_OVERLAY=APPLIED' evidence/ws12-overlay.log
 
       - name: Apply WS21 actual-path adapters
         shell: bash
