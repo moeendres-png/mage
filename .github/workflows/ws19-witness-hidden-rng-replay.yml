@@ -1,0 +1,85 @@
+name: WS19 hidden information RNG replay witnesses
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - work/ws19-witness-hidden-rng-replay-20260829
+    paths:
+      - '.github/workflows/ws19-witness-hidden-rng-replay.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/witness-shards/hidden-rng-replay/**'
+      - 'research/greenfield-qualification/WS14_HANDOFF.md'
+
+permissions:
+  contents: read
+
+env:
+  BASE_SHA: d8c1ee0c08c7e7f0bc2bc86c70166ebc198e30d5
+  BASE_TREE: 5725f47951938bc71af181cf1617e6b3be158804
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  # SHA-256 of the repository-bound manifest at BASE_SHA. The historical WS14
+  # artifact's materialization digest is tracked separately in its handoff.
+  WS14_REPOSITORY_MANIFEST_SHA256: fc22faf2682cc4739fd494b3fac8a2f5470b61dc909c213565d22bf2967d01c8
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+      - name: Verify WS14 source boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C qual merge-base --is-ancestor "$BASE_SHA" HEAD
+          test "$(git -C qual rev-parse "$BASE_SHA^{tree}")" = "$BASE_TREE"
+          test "$(sha256sum qual/research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json | cut -d' ' -f1)" = "$WS14_REPOSITORY_MANIFEST_SHA256"
+          jq -e --arg p "$FORGE_PIN" '.forge_pin == $p and .primitive_count_by_owner_family.HIDDEN_RNG_REPLAY == 14' qual/research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json >/dev/null
+      - name: Checkout exact pinned Forge implementation
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+      - name: Verify pinned Forge source and shard contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          python3 -m pip install --disable-pip-version-check --quiet 'jsonschema==4.23.0'
+          python3 -m unittest discover -s qual/research/greenfield-qualification/actual-card-behavior/witness-shards/hidden-rng-replay -p 'test_ws19_*.py' -v | tee ws19-unit-tests.log
+      - name: Materialize and validate exact WS19 coverage shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ws19
+          python3 qual/research/greenfield-qualification/actual-card-behavior/witness-shards/hidden-rng-replay/ws19_materialize.py \
+            --manifest qual/research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json \
+            --out artifacts/ws19/WS19_PRIMITIVE_COVERAGE.json \
+            --source-head "$(git -C qual rev-parse HEAD)" \
+            --source-tree "$(git -C qual rev-parse 'HEAD^{tree}')"
+          python3 qual/research/greenfield-qualification/actual-card-behavior/witness-shards/hidden-rng-replay/ws19_validate.py \
+            --manifest qual/research/greenfield-qualification/actual-card-behavior/WS14_PRIMITIVE_MANIFEST.json \
+            --coverage artifacts/ws19/WS19_PRIMITIVE_COVERAGE.json \
+            --abi qual/research/greenfield-qualification/actual-card-behavior/WS14_WITNESS_ABI.schema.json \
+            --ws14-validator qual/research/greenfield-qualification/actual-card-behavior/ws14/ws14_validate_witness.py \
+            --witness-dir qual/research/greenfield-qualification/actual-card-behavior/witness-shards/hidden-rng-replay
+          jq -e '.coverage_counts.PASS == 0 and .coverage_counts.PARTIAL == 14 and .hard_gate.result == "FAIL_CLOSED" and .hard_gate.global_ws05_ws06_inheritance_used_as_behavior_proof == false and .hard_gate.q6_actual_card_behavior == "NOT_ADJUDICATED"' artifacts/ws19/WS19_PRIMITIVE_COVERAGE.json >/dev/null
+      - name: Seal reproducible evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp ws19-unit-tests.log artifacts/ws19/
+          (cd artifacts/ws19 && sha256sum WS19_PRIMITIVE_COVERAGE.json ws19-unit-tests.log > WS19_HASHES.sha256)
+          cat artifacts/ws19/WS19_PRIMITIVE_COVERAGE.json
+          cat artifacts/ws19/WS19_HASHES.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ws19-hidden-rng-replay-witness-shard
+          path: artifacts/ws19
+          if-no-files-found: error
+          retention-days: 90

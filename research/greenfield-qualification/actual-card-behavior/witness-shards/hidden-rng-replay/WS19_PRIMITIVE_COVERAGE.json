@@ -1,0 +1,383 @@
+{
+  "coverage_counts": {
+    "PARTIAL": 14,
+    "PASS": 0,
+    "UNKNOWN": 0,
+    "UNSUPPORTED": 0
+  },
+  "coverage_sha256": "386d09f9c62502b4418b1eda3b056f397c19d435c2b44e6266ab38c2acef109e",
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "hard_gate": {
+    "all_assigned_primitives_accounted_for": true,
+    "global_ws05_ws06_inheritance_used_as_behavior_proof": false,
+    "pass_requires_pinned_forge_actual_card_execution": true,
+    "pass_requires_stdout_only_false": true,
+    "pass_requires_ws14_abi_witness": true,
+    "q6_actual_card_behavior": "NOT_ADJUDICATED",
+    "result": "FAIL_CLOSED"
+  },
+  "nonqualifying_dependency_evidence": {
+    "reason": "Their global contracts do not establish execution of a WS19-owned actual-card primitive.",
+    "ws05_q2": "PREREQUISITE_ONLY_NOT_PRIMITIVE_WITNESS",
+    "ws06_q3": "PREREQUISITE_ONLY_NOT_PRIMITIVE_WITNESS"
+  },
+  "owner_family": "HIDDEN_RNG_REPLAY",
+  "pass_witnesses": [],
+  "primitive_count": 14,
+  "primitive_coverage": [
+    {
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Dig",
+      "evidence_class": "UNKNOWN",
+      "exact_blocker": "No actual-card scenario has executed this exact Forge dispatch path with principal-scoped observations, authoritative state assertions, immutable trace hash, and decision/RNG tapes where applicable. WS05/WS06 global qualification is a prerequisite only and is not per-primitive evidence.",
+      "failure_reason": "NO_CARD_DRIVEN_PINNED_FORGE_SEMANTIC_WITNESS",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DigEffect",
+      "primitive_id": "forge-primitive-v1:1af578dfe4497e08dfe2939d9255d1a0",
+      "required_next_evidence": [
+        "pinned_forge_actual_card_execution",
+        "trace_event_for_exact_primitive",
+        "initial_and_final_semantic_state",
+        "principal_scoped_hidden_information_assertion",
+        "named_game_rng_tape_when_rng_relevant",
+        "semantic_replay_comparison_when_replay_relevant",
+        "official_rules_adjudication_when_semantic_rule_is_asserted"
+      ],
+      "status": "PARTIAL",
+      "witness_ids": []
+    },
+    {
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "PeekAndReveal",
+      "evidence_class": "UNKNOWN",
+      "exact_blocker": "No actual-card scenario has executed this exact Forge dispatch path with principal-scoped observations, authoritative state assertions, immutable trace hash, and decision/RNG tapes where applicable. WS05/WS06 global qualification is a prerequisite only and is not per-primitive evidence.",
+      "failure_reason": "NO_CARD_DRIVEN_PINNED_FORGE_SEMANTIC_WITNESS",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.PeekAndRevealEffect",
+      "primitive_id": "forge-primitive-v1:226fa6e9b7b0d63d6cc6dd2d2476a33d",
+      "required_next_evidence": [
+        "pinned_forge_actual_card_execution",
+        "trace_event_for_exact_primitive",
+        "initial_and_final_semantic_state",
+        "principal_scoped_hidden_information_assertion",
+        "named_game_rng_tape_when_rng_relevant",
+        "semantic_replay_comparison_when_replay_relevant",
+        "official_rules_adjudication_when_semantic_rule_is_asserted"
+      ],
+      "status": "PARTIAL",
+      "witness_ids": []
+    },
+    {
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Reveal",
+      "evidence_class": "UNKNOWN",
+      "exact_blocker": "No actual-card scenario has executed this exact Forge dispatch path with principal-scoped observations, authoritative state assertions, immutable trace hash, and decision/RNG tapes where applicable. WS05/WS06 global qualification is a prerequisite only and is not per-primitive evidence.",
+      "failure_reason": "NO_CARD_DRIVEN_PINNED_FORGE_SEMANTIC_WITNESS",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.RevealEffect",
+      "primitive_id": "forge-primitive-v1:2f2d89998203c56addfd1a7101c0451e",
+      "required_next_evidence": [
+        "pinned_forge_actual_card_execution",
+        "trace_event_for_exact_primitive",
+        "initial_and_final_semantic_state",
+        "principal_scoped_hidden_information_assertion",
+        "named_game_rng_tape_when_rng_relevant",
+        "semantic_replay_comparison_when_replay_relevant",
+        "official_rules_adjudication_when_semantic_rule_is_asserted"
+      ],
+      "status": "PARTIAL",
+      "witness_ids": []
+    },
+    {
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Clash",
+      "evidence_class": "UNKNOWN",
+      "exact_blocker": "No actual-card scenario has executed this exact Forge dispatch path with principal-scoped observations, authoritative state assertions, immutable trace hash, and decision/RNG tapes where applicable. WS05/WS06 global qualification is a prerequisite only and is not per-primitive evidence.",
+      "failure_reason": "NO_CARD_DRIVEN_PINNED_FORGE_SEMANTIC_WITNESS",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ClashEffect",
+      "primitive_id": "forge-primitive-v1:4c4fe5c81ac8ed964406738c06a730d5",
+      "required_next_evidence": [
+        "pinned_forge_actual_card_execution",
+        "trace_event_for_exact_primitive",
+        "initial_and_final_semantic_state",
+        "principal_scoped_hidden_information_assertion",
+        "named_game_rng_tape_when_rng_relevant",
+        "semantic_replay_comparison_when_replay_relevant",
+        "official_rules_adjudication_when_semantic_rule_is_asserted"
+      ],
+      "status": "PARTIAL",
+      "witness_ids": []
+    },
+    {
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Discover",
+      "evidence_class": "UNKNOWN",
+      "exact_blocker": "No actual-card scenario has executed this exact Forge dispatch path with principal-scoped observations, authoritative state assertions, immutable trace hash, and decision/RNG tapes where applicable. WS05/WS06 global qualification is a prerequisite only and is not per-primitive evidence.",
+      "failure_reason": "NO_CARD_DRIVEN_PINNED_FORGE_SEMANTIC_WITNESS",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DiscoverEffect",
+      "primitive_id": "forge-primitive-v1:4f16a56f434c6729b6ece4ef96f1bed3",
+      "required_next_evidence": [
+        "pinned_forge_actual_card_execution",
+        "trace_event_for_exact_primitive",
+        "initial_and_final_semantic_state",
+        "principal_scoped_hidden_information_assertion",
+        "named_game_rng_tape_when_rng_relevant",
+        "semantic_replay_comparison_when_replay_relevant",
+        "official_rules_adjudication_when_semantic_rule_is_asserted"
+      ],
+      "status": "PARTIAL",
+      "witness_ids": []
+    },
+    {
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Surveil",
+      "evidence_class": "UNKNOWN",
+      "exact_blocker": "No actual-card scenario has executed this exact Forge dispatch path with principal-scoped observations, authoritative state assertions, immutable trace hash, and decision/RNG tapes where applicable. WS05/WS06 global qualification is a prerequisite only and is not per-primitive evidence.",
+      "failure_reason": "NO_CARD_DRIVEN_PINNED_FORGE_SEMANTIC_WITNESS",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.SurveilEffect",
+      "primitive_id": "forge-primitive-v1:5b8dc389fee68dfe40bdb177efc57142",
+      "required_next_evidence": [
+        "pinned_forge_actual_card_execution",
+        "trace_event_for_exact_primitive",
+        "initial_and_final_semantic_state",
+        "principal_scoped_hidden_information_assertion",
+        "named_game_rng_tape_when_rng_relevant",
+        "semantic_replay_comparison_when_replay_relevant",
+        "official_rules_adjudication_when_semantic_rule_is_asserted"
+      ],
+      "status": "PARTIAL",
+      "witness_ids": []
+    },
+    {
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "DigUntil",
+      "evidence_class": "UNKNOWN",
+      "exact_blocker": "No actual-card scenario has executed this exact Forge dispatch path with principal-scoped observations, authoritative state assertions, immutable trace hash, and decision/RNG tapes where applicable. WS05/WS06 global qualification is a prerequisite only and is not per-primitive evidence.",
+      "failure_reason": "NO_CARD_DRIVEN_PINNED_FORGE_SEMANTIC_WITNESS",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.DigUntilEffect",
+      "primitive_id": "forge-primitive-v1:64bc2f793686b1e70d0e8a00852a0623",
+      "required_next_evidence": [
+        "pinned_forge_actual_card_execution",
+        "trace_event_for_exact_primitive",
+        "initial_and_final_semantic_state",
+        "principal_scoped_hidden_information_assertion",
+        "named_game_rng_tape_when_rng_relevant",
+        "semantic_replay_comparison_when_replay_relevant",
+        "official_rules_adjudication_when_semantic_rule_is_asserted"
+      ],
+      "status": "PARTIAL",
+      "witness_ids": []
+    },
+    {
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Scry",
+      "evidence_class": "UNKNOWN",
+      "exact_blocker": "No actual-card scenario has executed this exact Forge dispatch path with principal-scoped observations, authoritative state assertions, immutable trace hash, and decision/RNG tapes where applicable. WS05/WS06 global qualification is a prerequisite only and is not per-primitive evidence.",
+      "failure_reason": "NO_CARD_DRIVEN_PINNED_FORGE_SEMANTIC_WITNESS",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ScryEffect",
+      "primitive_id": "forge-primitive-v1:956ffbd2eb0157a5e1cdf4f9e1b85234",
+      "required_next_evidence": [
+        "pinned_forge_actual_card_execution",
+        "trace_event_for_exact_primitive",
+        "initial_and_final_semantic_state",
+        "principal_scoped_hidden_information_assertion",
+        "named_game_rng_tape_when_rng_relevant",
+        "semantic_replay_comparison_when_replay_relevant",
+        "official_rules_adjudication_when_semantic_rule_is_asserted"
+      ],
+      "status": "PARTIAL",
+      "witness_ids": []
+    },
+    {
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Shuffle",
+      "evidence_class": "UNKNOWN",
+      "exact_blocker": "No actual-card scenario has executed this exact Forge dispatch path with principal-scoped observations, authoritative state assertions, immutable trace hash, and decision/RNG tapes where applicable. WS05/WS06 global qualification is a prerequisite only and is not per-primitive evidence.",
+      "failure_reason": "NO_CARD_DRIVEN_PINNED_FORGE_SEMANTIC_WITNESS",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ShuffleEffect",
+      "primitive_id": "forge-primitive-v1:a64e9262ef709ba93ce92660c3e8cc24",
+      "required_next_evidence": [
+        "pinned_forge_actual_card_execution",
+        "trace_event_for_exact_primitive",
+        "initial_and_final_semantic_state",
+        "principal_scoped_hidden_information_assertion",
+        "named_game_rng_tape_when_rng_relevant",
+        "semantic_replay_comparison_when_replay_relevant",
+        "official_rules_adjudication_when_semantic_rule_is_asserted"
+      ],
+      "status": "PARTIAL",
+      "witness_ids": []
+    },
+    {
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "FlipCoin",
+      "evidence_class": "UNKNOWN",
+      "exact_blocker": "No actual-card scenario has executed this exact Forge dispatch path with principal-scoped observations, authoritative state assertions, immutable trace hash, and decision/RNG tapes where applicable. WS05/WS06 global qualification is a prerequisite only and is not per-primitive evidence.",
+      "failure_reason": "NO_CARD_DRIVEN_PINNED_FORGE_SEMANTIC_WITNESS",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.FlipCoinEffect",
+      "primitive_id": "forge-primitive-v1:b844b962e4b9193c8f2165257630ebb7",
+      "required_next_evidence": [
+        "pinned_forge_actual_card_execution",
+        "trace_event_for_exact_primitive",
+        "initial_and_final_semantic_state",
+        "principal_scoped_hidden_information_assertion",
+        "named_game_rng_tape_when_rng_relevant",
+        "semantic_replay_comparison_when_replay_relevant",
+        "official_rules_adjudication_when_semantic_rule_is_asserted"
+      ],
+      "status": "PARTIAL",
+      "witness_ids": []
+    },
+    {
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "RearrangeTopOfLibrary",
+      "evidence_class": "UNKNOWN",
+      "exact_blocker": "No actual-card scenario has executed this exact Forge dispatch path with principal-scoped observations, authoritative state assertions, immutable trace hash, and decision/RNG tapes where applicable. WS05/WS06 global qualification is a prerequisite only and is not per-primitive evidence.",
+      "failure_reason": "NO_CARD_DRIVEN_PINNED_FORGE_SEMANTIC_WITNESS",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.RearrangeTopOfLibraryEffect",
+      "primitive_id": "forge-primitive-v1:bdc400efacf3b7fc01e29f443ac255d4",
+      "required_next_evidence": [
+        "pinned_forge_actual_card_execution",
+        "trace_event_for_exact_primitive",
+        "initial_and_final_semantic_state",
+        "principal_scoped_hidden_information_assertion",
+        "named_game_rng_tape_when_rng_relevant",
+        "semantic_replay_comparison_when_replay_relevant",
+        "official_rules_adjudication_when_semantic_rule_is_asserted"
+      ],
+      "status": "PARTIAL",
+      "witness_ids": []
+    },
+    {
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "TwoPiles",
+      "evidence_class": "UNKNOWN",
+      "exact_blocker": "No actual-card scenario has executed this exact Forge dispatch path with principal-scoped observations, authoritative state assertions, immutable trace hash, and decision/RNG tapes where applicable. WS05/WS06 global qualification is a prerequisite only and is not per-primitive evidence.",
+      "failure_reason": "NO_CARD_DRIVEN_PINNED_FORGE_SEMANTIC_WITNESS",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.TwoPilesEffect",
+      "primitive_id": "forge-primitive-v1:bddb30779cdc7ee1bf4ded9159c5fa2d",
+      "required_next_evidence": [
+        "pinned_forge_actual_card_execution",
+        "trace_event_for_exact_primitive",
+        "initial_and_final_semantic_state",
+        "principal_scoped_hidden_information_assertion",
+        "named_game_rng_tape_when_rng_relevant",
+        "semantic_replay_comparison_when_replay_relevant",
+        "official_rules_adjudication_when_semantic_rule_is_asserted"
+      ],
+      "status": "PARTIAL",
+      "witness_ids": []
+    },
+    {
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "Manifest",
+      "evidence_class": "UNKNOWN",
+      "exact_blocker": "No actual-card scenario has executed this exact Forge dispatch path with principal-scoped observations, authoritative state assertions, immutable trace hash, and decision/RNG tapes where applicable. WS05/WS06 global qualification is a prerequisite only and is not per-primitive evidence.",
+      "failure_reason": "NO_CARD_DRIVEN_PINNED_FORGE_SEMANTIC_WITNESS",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.ManifestEffect",
+      "primitive_id": "forge-primitive-v1:f6f08c4954b68118901277a828ae0e3e",
+      "required_next_evidence": [
+        "pinned_forge_actual_card_execution",
+        "trace_event_for_exact_primitive",
+        "initial_and_final_semantic_state",
+        "principal_scoped_hidden_information_assertion",
+        "named_game_rng_tape_when_rng_relevant",
+        "semantic_replay_comparison_when_replay_relevant",
+        "official_rules_adjudication_when_semantic_rule_is_asserted"
+      ],
+      "status": "PARTIAL",
+      "witness_ids": []
+    },
+    {
+      "dispatch_domain": "ABILITY_API",
+      "dispatch_token": "RevealHand",
+      "evidence_class": "UNKNOWN",
+      "exact_blocker": "No actual-card scenario has executed this exact Forge dispatch path with principal-scoped observations, authoritative state assertions, immutable trace hash, and decision/RNG tapes where applicable. WS05/WS06 global qualification is a prerequisite only and is not per-primitive evidence.",
+      "failure_reason": "NO_CARD_DRIVEN_PINNED_FORGE_SEMANTIC_WITNESS",
+      "implementation_source": {
+        "entry_count": 201,
+        "path": "forge-game/src/main/java/forge/game/ability/ApiType.java",
+        "sha256_bytes": "e4975eaf48e0b1505a2f728e3488f8214b9eac7789a61ba88ace29188b78077e"
+      },
+      "implementation_target": "forge.game.ability.effects.RevealHandEffect",
+      "primitive_id": "forge-primitive-v1:fac941257271245f0344d824a7fbcc79",
+      "required_next_evidence": [
+        "pinned_forge_actual_card_execution",
+        "trace_event_for_exact_primitive",
+        "initial_and_final_semantic_state",
+        "principal_scoped_hidden_information_assertion",
+        "named_game_rng_tape_when_rng_relevant",
+        "semantic_replay_comparison_when_replay_relevant",
+        "official_rules_adjudication_when_semantic_rule_is_asserted"
+      ],
+      "status": "PARTIAL",
+      "witness_ids": []
+    }
+  ],
+  "primitive_manifest_sha256": "fc22faf2682cc4739fd494b3fac8a2f5470b61dc909c213565d22bf2967d01c8",
+  "schema": "commander-simulator-next.ws19-hidden-rng-replay-coverage.v1",
+  "source_head": "d8c1ee0c08c7e7f0bc2bc86c70166ebc198e30d5",
+  "source_tree": "5725f47951938bc71af181cf1617e6b3be158804"
+}
