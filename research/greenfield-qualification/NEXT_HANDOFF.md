@@ -1,79 +1,97 @@
-# Commander Simulator Next — Next Handoff
+# Commander Simulator Next — Next Dependency Wave
 
-Date: 2026-08-28
+Date: 2026-08-29
 
 ## Entry state
 
 ```text
+INTEGRATION_COMPLETE                  = TRUE
 INITIAL_ARCHITECTURE_DECISION_FROZEN = FALSE
-FIRST_BLOCKING_GATE = DECISION_EXTERNALIZATION
-FIRST_BLOCKING_SUBGATE = FULL_DECISION_CENSUS_AND_TYPED_CALLBACK_COVERAGE
+READY_FOR_GREENFIELD_BUILD           = FALSE
+FIRST_BLOCKING_GATE                   = Q6_ACTUAL_CARD_BEHAVIOR
+PARALLEL_CROSS_BLOCKER                = FAILURE_SEMANTICS
+SEQUENTIAL_BLOCKER                    = Q8_LICENSE_THIRD_PARTY
 ```
 
-Do not create `moeendres-png/commander-simulator-next`. Do not use the old
-Commander-Lab checkout as a Rules Core source.
+Do not create `moeendres-png/commander-simulator-next`.
 
-## Exact current evidence
+## Canonical runtime evidence entering the next wave
 
-- Qualification revision/tree: `5897a196405e6fc1743f41b4d5f9bf6367884930` /
-  `7d2ed2c97fc3579561c9166110f61a757cd88ca9`.
+- WS90 qualified runtime head/tree: `55820618e7243bd5ba8cfa33c3148cea8c166c73` /
+  `3706900d49c6ef61690c227bb7b4c0067fbcfb44`.
 - Forge pin: `8c7e9afb8e6caee88644b94e25da5852e36f8928`.
-- Strict patch SHA-256: `190e2fdacfc24903589164d031072daf87573111b0f8a738e31a6005a71ce476`.
-- Current strict gate: run `33155888019`, artifact `9679614525`, gate `FAIL`.
-- Current hidden-transport assay: run `33155887970`, artifact `9679616053`,
-  0 decoded identity leaks in the scoped 2P test.
-- Current replay failure: run `33155888017`, artifact `9679680835`, missing
-  canonical state/RNG/decision streams in all three fresh processes.
+- Integrated Q5/Q7-Forge run/job/artifact: `33250119165` / `99094251297` /
+  `9714119110`, SHA-256
+  `d5bdb8b59045c78c5c3774bac1f9091c7b32327834eea9abf106412452cdcb4c`.
+- Q1/Q2/Q3/Q4/Q5 are PASS within the exact boundaries recorded in
+  `WS90_INTEGRATION_ADJUDICATION.json`.
+- Q6 is FAIL; Q8 is deferred; failure semantics are incomplete.
 
-## Completed without repeating historical work
+## WS11 — Actual-card semantic behavior closure
 
-1. Robust Scryfall gzip/plain ingest, deterministic Oracle dedup, and
-   upstream count 38,626.
-2. Fail-closed 1,721-union materializer; it remains `NOT_RUN` at 0/1,721
-   because materialized Oracle-ID inputs are absent.
-3. Typed server-side Forge entity selection plus a server-mapped discrete
-   facade, with explicit negative-response validation and no
-   GUI/AI/first/random/default/pass/cancel fallback. The facade remains
-   static/compile-only and is not runtime-qualified.
-4. Current static census: all 109 controller callbacks and all 15 blocking GUI
-   decisions classified. The direct authoritative entity seam covers 3 entry
-   points; 106 remain outside full runtime externalization.
-5. Java-executed validator contract and metadata-only server Decision-Tape
-   contract, including accepted, stale, foreign actor/principal, malformed,
-   missing, timeout, illegal-option, and consumed-token rejection evidence.
-6. Versioned Decision/RNG/State/Tape schemas, semantic replay validator, A–T,
-   C01–C22, card-coverage, differential, isolation, and license artifacts.
-7. Per-client hidden-card redaction in full state, deltas, events, and
-   visibility transitions; current raw decoded transport name-leak count is 0.
-8. Current 2P–5P CLI probe executions, including a successful 4P CLI probe;
-   these are not semantic replay or Decision-Tape evidence.
+Create a separately owned branch from the final WS90 integration ref. Do not
+reuse WS10's `Q6=PASS` criterion unchanged.
 
-## Required next work — no substitutions allowed
+Required correction:
 
-1. Replace the remaining runtime-unqualified callback paths with typed
-   server-owned requests, or prove a path is structurally
-   non-discretionary and unreachable in the bounded 2P–5P Commander scope.
-   A generic `UNSUPPORTED_DECISION_PATH` is a fail-closed diagnostic, not
-   production coverage.
-2. Emit runtime DecisionRequest/DecisionEvent records for every open decision
-   and test valid, stale, foreign actor/principal, malformed, missing,
-   timeout, illegal-option, and one-shot responses under real 4P gameplay.
-3. Extend the hidden-information campaign to 4P and cover principal-scoped
-   observations, raw bytes/metadata, logs, exceptions, IDs/hashes, replay,
-   debug output, and reveal/look lifecycle. Require zero leaks across every
-   surface.
-4. Replace global/random bypasses with named game-scoped RNG streams and emit
-   an event tape plus canonical state digests. Reproduce one 4P trajectory in
-   three fresh processes without using stdout/stderr/timestamps as criteria.
-5. Obtain materialized source Oracle IDs for the exact 1,721 requirement
-   union. Do not map names, invent identities, or promote unknown cards.
-6. Execute A–T and C01–C22 plus behavior coverage through the strict boundary,
-   then conduct first-divergence adjudication against XMage and phase.rs.
-7. Complete process-isolation and license/distribution gates. Only then may an
-   ADR/scorecard be frozen and the private production repository be created.
+1. Remove global dependency inheritance as per-identity behavior evidence.
+   A card with a decision/hidden/RNG path may cite WS01/WS05/WS06 as a required
+   contract prerequisite, but that prerequisite cannot by itself set the card's
+   behavioral flag to PASS.
+2. Replace `dedicated_behavior_required = hard_suspicious_marker_present` with
+   a rules/behavior reachability model. Absence of TODO/unsupported markers is
+   not evidence that a card's semantics are correct.
+3. Bind every one of the exact WS02 1,678 Oracle identities to executable
+   semantic evidence. Mechanic/path-signature grouping is allowed only when the
+   mapping from each identity to the exercised authoritative engine path is
+   machine-readable and the shared path is itself semantically executed.
+4. Verify at least the actual production-reachable behavior categories needed
+   by the corpus: legal actions, costs/mana, targets, modes/choices, stack and
+   priority, triggers, replacement/continuous effects, state-based actions,
+   zones, combat, Commander rules, hidden-information transitions and RNG.
+5. Per identity emit PRESENT, LOADABLE, EXECUTABLE, DECISION_COMPLETE,
+   HIDDEN_INFO_SAFE, REPLAY_SAFE and BEHAVIOR_VERIFIED_WHERE_REQUIRED with
+   evidence class and concrete run/trace binding. UNKNOWN is not PASS; PARTIAL
+   is not FULL.
+6. Construction-only evidence remains useful but cannot close behavioral Q6.
+7. No card-name-specific production hacks. Repair systemic engine gaps.
 
-## Guardrails
+Hard gate: Q6 may become PASS only when no production-required identity relies
+on global-contract inheritance in place of actual semantic behavior evidence.
 
-Google Drive is read-only. No deck, inventory, purchase, allocation, or
-Playtest-Lab state may change. Historical results are context only, never
-current-head proof.
+## WS12 — Unified failure-semantics contract
+
+May run in parallel with WS11 on a separate branch with non-overlapping
+ownership. Implement and qualify an integrated outcome model that distinguishes
+at least:
+
+`SUCCESS`, `PLAYER_CANCELLED`, `ACTION_NOT_COMPLETABLE`, `ILLEGAL_RESPONSE`,
+`MALFORMED_RESPONSE`, `STALE_RESPONSE`, `WRONG_ACTOR`, `TIMEOUT`,
+`UNSUPPORTED_DECISION_PATH`, `UNSUPPORTED_RULES_PATH`, `ENGINE_FAILURE`,
+`TRANSPORT_FAILURE`, `PROCESS_FAILURE`, `REPLAY_DIVERGENCE`,
+`HIDDEN_INFO_VIOLATION`, `CARD_BEHAVIOR_FAILURE`.
+
+No technical failure may be coerced to cancel/pass/default. Add executable
+negative tests and machine-readable evidence for each production-reachable
+category.
+
+## WS13 — Architecture-specific Q8 closure
+
+Run only after WS11/WS12 have narrowed the actual candidate topology enough to
+make the distribution/linkage/interop boundary concrete. Reuse WS03's exact
+license inventory; do not repeat license discovery without a pin change.
+Adjudicate the chosen topology explicitly and keep any legal uncertainty as
+`LEGAL_REVIEW_REQUIRED`/non-PASS.
+
+## Differential follow-up
+
+Current Q7 is PASS only for its two selected shared scenarios. If WS11 exposes
+any meaningful Forge/reference-engine divergence, adjudicate each divergence
+against current official Magic rules; do not use engine majority as authority.
+
+## Exact next action
+
+Start WS11 and WS12 as separate workstreams from the final WS90 integration
+HEAD, with fixed base SHA, file ownership and hard gates. Do not start a
+production repository and do not freeze the architecture before both complete
+and Q8 is subsequently closed.
