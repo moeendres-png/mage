@@ -1,8 +1,9 @@
 package forge.gamesimulationtests;
 
+import forge.StaticData;
 import forge.game.card.CardFactory;
-import forge.gamesimulationtests.util.CardDatabaseHelper;
 import forge.item.PaperCard;
+import forge.net.TestUtils;
 import org.testng.annotations.Test;
 
 import java.io.BufferedWriter;
@@ -13,12 +14,12 @@ import java.nio.file.Paths;
 import java.util.List;
 
 /**
- * WS10 batch CardDb/ability-construction probe.
+ * WS10 batch runtime CardDb/ability-construction probe.
  *
- * This proves canonical-name CardDb loadability and records whether CardFactory
- * can build the card's runtime object/abilities in a no-game parse context. It
- * does not claim that any spell/ability was legally activated or semantically
- * resolved; the Python closeout deliberately keeps EXECUTABLE fail-closed.
+ * The probe uses Forge's pinned headless test bootstrap before touching
+ * ForgeConstants/StaticData. CardDb loadability and CardFactory construction are
+ * recorded independently; neither is promoted to semantic spell/ability
+ * execution by the WS10 classifier.
  */
 public final class Ws10ActualCardLoadabilityTest {
     private static String esc(String s) {
@@ -40,15 +41,49 @@ public final class Ws10ActualCardLoadabilityTest {
         return b.toString();
     }
 
+    private static String throwableSummary(Throwable t) {
+        StringBuilder b = new StringBuilder();
+        Throwable cur = t;
+        int depth = 0;
+        while (cur != null && depth++ < 8) {
+            if (b.length() > 0) b.append(" <- ");
+            b.append(cur.getClass().getName()).append(": ").append(String.valueOf(cur.getMessage()));
+            cur = cur.getCause();
+        }
+        return b.toString();
+    }
+
+    private static void writeBootstrap(Path path, boolean ok, String error) throws Exception {
+        Files.createDirectories(path.getParent());
+        String body = "{\"bootstrap_success\":" + ok
+                + ",\"error\":" + (error == null ? "null" : "\"" + esc(error) + "\"")
+                + "}\n";
+        Files.writeString(path, body, StandardCharsets.UTF_8);
+    }
+
     @Test
     public void batchLoadRequirementIdentities() throws Exception {
         String namesArg = System.getProperty("ws10.names");
         String outArg = System.getProperty("ws10.out");
-        if (namesArg == null || outArg == null) {
-            throw new IllegalStateException("ws10.names and ws10.out system properties are required");
+        String bootstrapArg = System.getProperty("ws10.bootstrap");
+        if (namesArg == null || outArg == null || bootstrapArg == null) {
+            throw new IllegalStateException("ws10.names, ws10.out and ws10.bootstrap system properties are required");
         }
         Path names = Paths.get(namesArg);
         Path out = Paths.get(outArg);
+        Path bootstrap = Paths.get(bootstrapArg);
+
+        try {
+            TestUtils.ensureFModelInitialized();
+            if (StaticData.instance() == null) {
+                throw new IllegalStateException("Forge StaticData.instance() is null after TestUtils bootstrap");
+            }
+            writeBootstrap(bootstrap, true, null);
+        } catch (Throwable t) {
+            writeBootstrap(bootstrap, false, throwableSummary(t));
+            throw new RuntimeException("WS10 Forge bootstrap failed: " + throwableSummary(t), t);
+        }
+
         Files.createDirectories(out.getParent());
         List<String> lines = Files.readAllLines(names, StandardCharsets.UTF_8);
         try (BufferedWriter w = Files.newBufferedWriter(out, StandardCharsets.UTF_8)) {
@@ -64,7 +99,7 @@ public final class Ws10ActualCardLoadabilityTest {
                 String errorClass = null;
                 String error = null;
                 try {
-                    PaperCard pc = CardDatabaseHelper.getCard(name);
+                    PaperCard pc = StaticData.instance().getCommonCards().getCard(name);
                     loadable = pc != null && pc.getRules() != null;
                     if (pc != null) {
                         resolvedName = pc.getName();
@@ -75,12 +110,15 @@ public final class Ws10ActualCardLoadabilityTest {
                             constructable = true;
                         } catch (Throwable t) {
                             errorClass = t.getClass().getName();
-                            error = String.valueOf(t.getMessage());
+                            error = throwableSummary(t);
                         }
+                    } else {
+                        errorClass = "CARD_NOT_FOUND";
+                        error = "StaticData common CardDb returned no canonical-name card";
                     }
                 } catch (Throwable t) {
                     errorClass = t.getClass().getName();
-                    error = String.valueOf(t.getMessage());
+                    error = throwableSummary(t);
                 }
                 w.write("{\"oracle_id\":\"" + esc(oid)
                         + "\",\"oracle_name\":\"" + esc(name)

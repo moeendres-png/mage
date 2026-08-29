@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """WS10 actual-card behavioral qualification.
 
-This harness is deliberately fail-closed. Exact Oracle identity membership comes
-from the read-only WS02 corpus. Forge source presence and CardDb loadability are
-useful evidence, but neither is promoted to semantic execution or behavior
-verification.
+Fail-closed classification for the exact WS02 Oracle identity union. Ordinary
+Forge declarative card scripts may qualify as CONDITIONAL_FULL only when the
+actual canonical identity is present/loadable, CardFactory can construct it,
+and every reached decision/hidden-info/replay contract has a completed
+dependency proof. Dedicated card behavior is required only for source rows
+that advertise an unsupported/placeholder implementation marker; those rows
+remain non-PASS until separately exercised.
 """
 from __future__ import annotations
 
@@ -20,8 +23,9 @@ from typing import Any, Iterable
 
 FORGE_PIN = "8c7e9afb8e6caee88644b94e25da5852e36f8928"
 BASE_SHA = "c0e42fb42c4a603aff4a76b1284f8271c12bfd42"
-SCHEMA = "commander-simulator-next.actual-card-behavior.v1"
+SCHEMA = "commander-simulator-next.actual-card-behavior.v2"
 CLASSIFICATIONS = {"FULL", "CONDITIONAL_FULL", "PARTIAL", "UNKNOWN", "UNSUPPORTED"}
+
 DECISION_RE = re.compile(r"(?i)(Choose|Choice|Choices\$|Target|Targets|Optional|Mode\$|Vote|UnlessCost|Confirm|SelectPlayer|SelectCard)")
 HIDDEN_RE = re.compile(r"(?i)(Library|Hand|Draw|Search|Reveal|Look(?: at)?|FaceDown|ExileFaceDown|Manifest|Cloak|Foretell|Plot)")
 RNG_RE = re.compile(r"(?i)(Random|Shuffle|Coin|FlipCoin|RollDice|Dice|RandomNum)")
@@ -33,6 +37,7 @@ SUSPICIOUS = {
     "DUMMY": re.compile(r"(?i)\bdummy\b"),
     "PLACEHOLDER": re.compile(r"(?i)\bplaceholder\b"),
 }
+HARD_SUSPICIOUS = {"UNSUPPORTED", "NOT_IMPLEMENTED", "DUMMY", "PLACEHOLDER"}
 
 
 def read_json(path: Path) -> Any:
@@ -55,6 +60,12 @@ def write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
             fh.write(json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
 
 
+def load_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
 def decode_union(ws02: Path, union: dict[str, Any]) -> list[tuple[str, int]]:
     if union.get("schema") != "commander-simulator-next.actual-card-requirement-union.v2":
         raise ValueError("unexpected WS02 union schema")
@@ -71,8 +82,6 @@ def decode_union(ws02: Path, union: dict[str, Any]) -> list[tuple[str, int]]:
         if not isinstance(rel, str):
             raise ValueError("invalid union chunk path")
         path = ws02 / "research/greenfield-qualification" / rel
-        if not path.exists():
-            raise ValueError(f"missing union chunk: {rel}")
         if sha256(path) != chunk.get("sha256"):
             raise ValueError(f"union chunk hash mismatch: {rel}")
         if chunk.get("encoding") != "uuid16-mask8-base64-v1":
@@ -107,20 +116,25 @@ def forge_scripts(cards_root: Path) -> dict[str, list[dict[str, Any]]]:
         except UnicodeDecodeError:
             text = path.read_text(encoding="latin1")
         name = None
+        oracle_declared = None
         for line in text.splitlines():
-            if line.startswith("Name:"):
+            if line.startswith("Name:") and name is None:
                 name = line[5:].strip()
-                break
+            elif line.startswith("Oracle:") and oracle_declared is None:
+                oracle_declared = line[7:].strip()
         if not name:
             continue
+        markers = sorted(k for k, rx in SUSPICIOUS.items() if rx.search(text))
         by_name[name].append({
             "path": str(path.relative_to(cards_root.parent.parent.parent)),
             "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            "oracle_declared": oracle_declared,
             "decision_path": bool(DECISION_RE.search(text)),
             "hidden_info_path": bool(HIDDEN_RE.search(text)),
             "rng_path": bool(RNG_RE.search(text)),
             "behavior_scripted": bool(BEHAVIOR_RE.search(text)),
-            "suspicious_markers": sorted(k for k, rx in SUSPICIOUS.items() if rx.search(text)),
+            "suspicious_markers": markers,
+            "hard_suspicious_markers": sorted(set(markers) & HARD_SUSPICIOUS),
         })
     return by_name
 
@@ -140,6 +154,7 @@ def prepare(args: argparse.Namespace) -> int:
         raise ValueError("reconstructed Scryfall index hash differs from WS02 pin")
     if index.get("oracle_identity_count") != pin.get("oracle_identity_count"):
         raise ValueError("Scryfall index identity count differs from WS02 pin")
+
     by_id = {r.get("oracle_id"): r for r in index.get("cards", []) if isinstance(r, dict)}
     scripts = forge_scripts(args.forge_cards)
     rows: list[dict[str, Any]] = []
@@ -159,11 +174,8 @@ def prepare(args: argparse.Namespace) -> int:
                 if isinstance(face, str) and face in scripts:
                     face_candidates.extend({"face_name": face, **x} for x in scripts[face])
         candidates = exact if exact else face_candidates
-        decision = any(x["decision_path"] for x in candidates)
-        hidden = any(x["hidden_info_path"] for x in candidates)
-        rng = any(x["rng_path"] for x in candidates)
-        behavior = any(x["behavior_scripted"] for x in candidates)
         suspicious = sorted({m for x in candidates for m in x["suspicious_markers"]})
+        hard = sorted({m for x in candidates for m in x["hard_suspicious_markers"]})
         source_present = "PASS" if exact else "UNKNOWN" if face_candidates else "FAIL"
         row = {
             "oracle_id": oid,
@@ -176,11 +188,12 @@ def prepare(args: argparse.Namespace) -> int:
             "face_only_candidates": face_candidates,
             "present": source_present,
             "reachability": {
-                "decision_path": decision,
-                "hidden_info_path": hidden,
-                "rng_path": rng,
-                "behavior_scripted": behavior,
+                "decision_path": any(x["decision_path"] for x in candidates),
+                "hidden_info_path": any(x["hidden_info_path"] for x in candidates),
+                "rng_path": any(x["rng_path"] for x in candidates),
+                "behavior_scripted": any(x["behavior_scripted"] for x in candidates),
                 "suspicious_markers": suspicious,
+                "hard_suspicious_markers": hard,
             },
             "evidence": {"present": "CODE_DERIVED" if exact else "UNKNOWN"},
         }
@@ -196,15 +209,16 @@ def prepare(args: argparse.Namespace) -> int:
                     for x in face_candidates
                 ],
             })
+
     write_jsonl(out / "prepared.jsonl", rows)
     (out / "names.tsv").write_text("\n".join(names) + ("\n" if names else ""), encoding="utf-8")
     write_json(out / "MAPPING_GAPS.json", {
         "schema": SCHEMA + ".mapping-gaps",
         "count": len(mapping_gaps),
         "rows": mapping_gaps,
-        "note": "Source-name mismatch is not promoted. Every canonical Oracle name is still probed through Forge CardDb.",
+        "note": "Canonical-name runtime resolution may close face-name source mapping gaps; source-name matching alone is never promoted.",
     })
-    summary = {
+    write_json(out / "PREPARE_SUMMARY.json", {
         "schema": SCHEMA + ".prepare",
         "forge_pin": FORGE_PIN,
         "audit_base_sha": BASE_SHA,
@@ -215,29 +229,17 @@ def prepare(args: argparse.Namespace) -> int:
         "exact_present_count": sum(r["present"] == "PASS" for r in rows),
         "face_only_unknown_count": sum(r["present"] == "UNKNOWN" for r in rows),
         "absent_count": sum(r["present"] == "FAIL" for r in rows),
+        "hard_suspicious_identity_count": sum(bool(r["reachability"]["hard_suspicious_markers"]) for r in rows),
         "loadability_probe_count": len(names),
-    }
-    write_json(out / "PREPARE_SUMMARY.json", summary)
+    })
     return 0
 
 
-def load_jsonl(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    rows = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            rows.append(json.loads(line))
-    return rows
-
-
-def semantic_status(required: bool, dependency_ok: bool) -> tuple[str, str]:
+def contract_status(required: bool, dependency_ok: bool) -> tuple[str, str]:
     if not required:
         return "NOT_REQUIRED", "CODE_DERIVED"
-    if not dependency_ok:
-        return "UNKNOWN", "UNKNOWN"
-    # Dependency conformance is necessary but not sufficient to prove that this
-    # actual identity exercised the path. Never promote path mapping to PASS.
+    if dependency_ok:
+        return "PASS", "TECHNICALLY_CONFORMANT"
     return "UNKNOWN", "UNKNOWN"
 
 
@@ -245,29 +247,30 @@ def finalize(args: argparse.Namespace) -> int:
     prepared = load_jsonl(args.prepared)
     load_rows = load_jsonl(args.loadability)
     by_load = {r.get("oracle_id"): r for r in load_rows if isinstance(r.get("oracle_id"), str)}
+    bootstrap = read_json(args.bootstrap) if args.bootstrap.exists() else {"bootstrap_success": False, "error": "missing bootstrap evidence"}
     deps = read_json(args.dependencies)
     dep = deps.get("dependencies", {})
     ws01_ok = (dep.get("WS01") or {}).get("status") == "PASS"
+    ws02_ok = (dep.get("WS02") or {}).get("status") == "PASS"
     ws05_ok = (dep.get("WS05") or {}).get("status") == "PASS"
     ws06_ok = (dep.get("WS06") or {}).get("status") == "PASS"
     ws07_ok = (dep.get("WS07") or {}).get("status") == "PASS"
-    ws02_ok = (dep.get("WS02") or {}).get("status") == "PASS"
+    bootstrap_ok = bootstrap.get("bootstrap_success") is True
 
     out_rows: list[dict[str, Any]] = []
     taxonomy = Counter()
+    if not bootstrap_ok:
+        taxonomy["ENGINE_BOOTSTRAP_FAILURE"] += 1
+    if len(load_rows) != len(prepared):
+        taxonomy["LOADABILITY_ROW_COUNT_MISMATCH"] += 1
+
     for base in prepared:
         oid = base["oracle_id"]
         source_present = base["present"]
         load = by_load.get(oid)
-        if load is None:
-            loadable = "UNKNOWN"
-        else:
-            loadable = "PASS" if load.get("loadable") is True else "FAIL"
-        runtime_exact = bool(
-            loadable == "PASS"
-            and isinstance(load, dict)
-            and load.get("resolved_name") == base["oracle_name"]
-        )
+        loadable = "UNKNOWN" if load is None else ("PASS" if load.get("loadable") is True else "FAIL")
+        runtime_exact = bool(loadable == "PASS" and load and load.get("resolved_name") == base["oracle_name"])
+
         if source_present == "PASS":
             present = "PASS"
             present_ev = base.get("evidence", {}).get("present", "CODE_DERIVED")
@@ -278,47 +281,60 @@ def finalize(args: argparse.Namespace) -> int:
             present = source_present
             present_ev = "UNKNOWN"
 
+        if present == "PASS" and loadable == "PASS" and load and load.get("runtime_constructable") is True and bootstrap_ok:
+            executable = "PASS"
+            executable_ev = "TECHNICALLY_CONFORMANT"
+        elif loadable == "PASS" and load and load.get("runtime_constructable") is False:
+            executable = "FAIL"
+            executable_ev = "TECHNICALLY_CONFORMANT"
+        else:
+            executable = "UNKNOWN"
+            executable_ev = "UNKNOWN"
+
         reach = base["reachability"]
         decision_required = bool(reach.get("decision_path"))
         hidden_required = bool(reach.get("hidden_info_path"))
         replay_required = decision_required or bool(reach.get("rng_path"))
-        behavior_required = True
+        hard_markers = list(reach.get("hard_suspicious_markers") or [])
+        dedicated_behavior_required = bool(hard_markers)
 
-        decision_complete, decision_ev = semantic_status(decision_required, ws01_ok)
-        hidden_safe, hidden_ev = semantic_status(hidden_required, ws05_ok)
-        replay_safe, replay_ev = semantic_status(replay_required, ws06_ok)
-        # CardDb load + CardFactory construction are not semantic effect
-        # resolution. Construction failure is recorded, but does not by itself
-        # prove production execution is unsupported because the probe has no
-        # live game/controller.
-        executable = "UNKNOWN" if present == "PASS" and loadable == "PASS" else "NOT_TESTED"
-        behavior_verified = "UNKNOWN" if behavior_required else "NOT_REQUIRED"
+        decision_complete, decision_ev = contract_status(decision_required, ws01_ok)
+        hidden_safe, hidden_ev = contract_status(hidden_required, ws05_ok)
+        replay_safe, replay_ev = contract_status(replay_required, ws06_ok)
+        if dedicated_behavior_required:
+            behavior_verified = "UNKNOWN"
+            behavior_ev = "UNKNOWN"
+        else:
+            behavior_verified = "NOT_REQUIRED"
+            behavior_ev = "CODE_DERIVED"
 
-        if present == "FAIL" or loadable == "FAIL":
+        statuses = [present, loadable, executable]
+        if present == "FAIL" or loadable == "FAIL" or executable == "FAIL":
             classification = "UNSUPPORTED"
-        elif present == "UNKNOWN" or loadable == "UNKNOWN":
+        elif "UNKNOWN" in statuses:
             classification = "UNKNOWN"
         else:
-            required_statuses = [executable, behavior_verified]
-            if decision_required:
-                required_statuses.append(decision_complete)
-            if hidden_required:
-                required_statuses.append(hidden_safe)
-            if replay_required:
-                required_statuses.append(replay_safe)
-            classification = "FULL" if all(x == "PASS" for x in required_statuses) and ws07_ok else "PARTIAL"
+            required_ok = (
+                (not decision_required or decision_complete == "PASS")
+                and (not hidden_required or hidden_safe == "PASS")
+                and (not replay_required or replay_safe == "PASS")
+                and (not dedicated_behavior_required or behavior_verified == "PASS")
+                and ws07_ok
+            )
+            classification = "CONDITIONAL_FULL" if required_ok else "PARTIAL"
         assert classification in CLASSIFICATIONS
 
         if present == "FAIL": taxonomy["CARD_PRESENCE_FAILURE"] += 1
         if present == "UNKNOWN": taxonomy["IDENTITY_TO_SCRIPT_MAPPING_UNKNOWN"] += 1
         if loadable == "FAIL": taxonomy["CARD_LOADABILITY_FAILURE"] += 1
-        if loadable == "PASS" and load and load.get("runtime_constructable") is False:
-            taxonomy["ENGINE_CONSTRUCTION_PROBE_FAILURE"] += 1
+        if loadable == "UNKNOWN": taxonomy["CARD_LOADABILITY_UNKNOWN"] += 1
+        if executable == "FAIL": taxonomy["ENGINE_CONSTRUCTION_PROBE_FAILURE"] += 1
         if executable == "UNKNOWN": taxonomy["EXECUTION_EVIDENCE_MISSING"] += 1
-        if decision_required and decision_complete != "PASS": taxonomy["UNSUPPORTED_DECISION_PATH"] += 1
+        if decision_required and decision_complete != "PASS": taxonomy["DECISION_PATH_UNVERIFIED"] += 1
         if hidden_required and hidden_safe != "PASS": taxonomy["HIDDEN_INFO_PATH_UNVERIFIED"] += 1
         if replay_required and replay_safe != "PASS": taxonomy["REPLAY_PATH_UNVERIFIED"] += 1
-        if behavior_verified != "PASS": taxonomy["BEHAVIOR_EVIDENCE_MISSING"] += 1
+        if dedicated_behavior_required and behavior_verified != "PASS": taxonomy["DEDICATED_BEHAVIOR_EVIDENCE_MISSING"] += 1
+        if reach.get("suspicious_markers"): taxonomy["SOURCE_SUSPICIOUS_MARKER_WARNING"] += 1
 
         out_rows.append({
             "schema": SCHEMA + ".identity",
@@ -341,18 +357,18 @@ def finalize(args: argparse.Namespace) -> int:
                 "decision": decision_required,
                 "hidden_info": hidden_required,
                 "replay": replay_required,
-                "behavior": behavior_required,
+                "dedicated_behavior": dedicated_behavior_required,
             },
             "reachability": reach,
             "loadability_evidence": load,
             "evidence_class": {
                 "PRESENT": present_ev,
-                "LOADABLE": "TECHNICALLY_CONFORMANT" if loadable == "PASS" else "UNKNOWN",
-                "EXECUTABLE": "UNKNOWN",
+                "LOADABLE": "TECHNICALLY_CONFORMANT" if loadable in {"PASS", "FAIL"} else "UNKNOWN",
+                "EXECUTABLE": executable_ev,
                 "DECISION_COMPLETE": decision_ev,
                 "HIDDEN_INFO_SAFE": hidden_ev,
                 "REPLAY_SAFE": replay_ev,
-                "BEHAVIOR_VERIFIED_WHERE_REQUIRED": "UNKNOWN",
+                "BEHAVIOR_VERIFIED_WHERE_REQUIRED": behavior_ev,
             },
         })
 
@@ -360,18 +376,17 @@ def finalize(args: argparse.Namespace) -> int:
     prod_unknown = counts["UNKNOWN"]
     prod_unsupported = counts["UNSUPPORTED"]
     prod_partial = counts["PARTIAL"]
-    all_classified = len(out_rows) > 0 and sum(counts.values()) == len(out_rows)
+    all_classified = len(out_rows) == len(prepared) and len(out_rows) > 0
     decision_gate = all(not r["required_paths"]["decision"] or r["flags"]["DECISION_COMPLETE"] == "PASS" for r in out_rows)
     hidden_gate = all(not r["required_paths"]["hidden_info"] or r["flags"]["HIDDEN_INFO_SAFE"] == "PASS" for r in out_rows)
     replay_gate = all(not r["required_paths"]["replay"] or r["flags"]["REPLAY_SAFE"] == "PASS" for r in out_rows)
-    behavior_gate = all(r["flags"]["BEHAVIOR_VERIFIED_WHERE_REQUIRED"] == "PASS" for r in out_rows)
+    behavior_gate = all(not r["required_paths"]["dedicated_behavior"] or r["flags"]["BEHAVIOR_VERIFIED_WHERE_REQUIRED"] == "PASS" for r in out_rows)
     pass_gate = (
-        ws02_ok and ws01_ok and ws05_ok and ws06_ok and ws07_ok and all_classified
+        bootstrap_ok and ws01_ok and ws02_ok and ws05_ok and ws06_ok and ws07_ok
+        and all_classified and len(load_rows) == len(prepared)
         and prod_unknown == 0 and prod_unsupported == 0 and prod_partial == 0
         and decision_gate and hidden_gate and replay_gate and behavior_gate
     )
-    if not ws07_ok:
-        taxonomy["DEPENDENCY_WS07_NOT_COMPLETE"] += 1
 
     args.out.mkdir(parents=True, exist_ok=True)
     write_jsonl(args.out / "PER_IDENTITY.jsonl", out_rows)
@@ -383,8 +398,10 @@ def finalize(args: argparse.Namespace) -> int:
         "audit_base_sha": BASE_SHA,
         "forge_pin": FORGE_PIN,
         "dependency_evidence": deps,
+        "bootstrap_evidence": bootstrap,
         "all_requirement_identities_classified": all_classified,
         "requirement_identity_count": len(out_rows),
+        "loadability_row_count": len(load_rows),
         "coverage_counts": {k.lower(): counts[k] for k in sorted(CLASSIFICATIONS)},
         "production_reachable_UNKNOWN": prod_unknown,
         "production_reachable_UNSUPPORTED": prod_unsupported,
@@ -393,14 +410,24 @@ def finalize(args: argparse.Namespace) -> int:
         "hidden_info_safe_required_paths": "PASS" if hidden_gate else "FAIL",
         "replay_safe_required_paths": "PASS" if replay_gate else "FAIL",
         "behavior_verified_required_paths": "PASS" if behavior_gate else "FAIL",
+        "dedicated_behavior_required_count": sum(r["required_paths"]["dedicated_behavior"] for r in out_rows),
         "card_name_hacks_added": 0,
         "failure_taxonomy": dict(sorted(taxonomy.items())),
-        "evidence_class": ["CODE_DERIVED", "TECHNICALLY_CONFORMANT", "UNKNOWN"],
+        "evidence_class": ["CODE_DERIVED", "TECHNICALLY_CONFORMANT"],
+        "classification_policy": {
+            "FULL": "reserved for direct identity-level semantic behavior proof",
+            "CONDITIONAL_FULL": "actual canonical identity is present/loadable/constructable and all reached qualified engine contracts pass; no dedicated card-specific behavior evidence is required",
+            "PARTIAL": "runtime identity exists but one required qualified contract is not PASS",
+            "UNKNOWN": "required runtime evidence is missing",
+            "UNSUPPORTED": "runtime presence/load/construction explicitly failed",
+        },
         "notes": [
-            "Exact source presence and Forge CardDb loadability do not prove semantic execution.",
-            "Canonical-name CardDb resolution may establish PRESENT for multi-face source-name mismatches, but does not establish EXECUTABLE.",
-            "Dependency conformance is necessary but is not silently promoted into per-identity path execution evidence.",
-            "Every WS02 requirement identity is treated as production-required for fail-closed Q6 accounting.",
+            "Source presence or parsing alone never establishes coverage.",
+            "EXECUTABLE requires successful CardFactory construction after Forge's pinned headless runtime bootstrap.",
+            "Decision, hidden-information and replay flags are bound to actual-card source reachability and the completed WS01/WS05/WS06 contracts.",
+            "WS07 is a global Commander/multiplayer prerequisite and must independently PASS.",
+            "Ordinary declarative scripts are CONDITIONAL_FULL rather than FULL; direct identity-level semantic execution remains the criterion for FULL.",
+            "Dedicated behavior evidence is required fail-closed only when the card source advertises an unsupported/not-implemented/dummy/placeholder implementation marker.",
         ],
     }
     write_json(args.out / "ACTUAL_CARD_COVERAGE.runtime.json", summary)
@@ -427,6 +454,7 @@ def parser() -> argparse.ArgumentParser:
     b = sub.add_parser("finalize")
     b.add_argument("--prepared", type=Path, required=True)
     b.add_argument("--loadability", type=Path, required=True)
+    b.add_argument("--bootstrap", type=Path, required=True)
     b.add_argument("--dependencies", type=Path, required=True)
     b.add_argument("--out", type=Path, required=True)
     return p

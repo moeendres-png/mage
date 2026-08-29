@@ -2,7 +2,6 @@
 import base64
 import hashlib
 import importlib.util
-import json
 import tempfile
 import unittest
 import uuid
@@ -45,6 +44,15 @@ class Ws10HarnessTests(unittest.TestCase):
 
     def test_classification_vocabulary_is_fail_closed(self):
         self.assertEqual({"FULL", "CONDITIONAL_FULL", "PARTIAL", "UNKNOWN", "UNSUPPORTED"}, q.CLASSIFICATIONS)
+
+    def test_required_contract_promotes_only_completed_dependency(self):
+        self.assertEqual(("NOT_REQUIRED", "CODE_DERIVED"), q.contract_status(False, False))
+        self.assertEqual(("PASS", "TECHNICALLY_CONFORMANT"), q.contract_status(True, True))
+        self.assertEqual(("UNKNOWN", "UNKNOWN"), q.contract_status(True, False))
+
+    def test_only_hard_implementation_markers_require_dedicated_behavior(self):
+        self.assertNotIn("TODO", q.HARD_SUSPICIOUS)
+        self.assertEqual({"UNSUPPORTED", "NOT_IMPLEMENTED", "DUMMY", "PLACEHOLDER"}, q.HARD_SUSPICIOUS)
 
 
 if __name__ == "__main__":
