@@ -116,8 +116,12 @@ jobs:
           assert count >= 1
           s=s.replace('new Combat(p0)', 'beginCombat(f,p0)')
           assert 'new Combat(p0)' not in s
+          first='Combat c=beginCombat(f,p0); var e=legal(c); Assert.assertTrue(e.getLeft().containsKey(bear));'
+          diag='''Combat c=beginCombat(f,p0); var e=legal(c);\n            boolean requirementEntry=c.getAttackConstraints().getRequirements().containsKey(bear);\n            boolean hasRequirement=requirementEntry && c.getAttackConstraints().getRequirements().get(bear).hasRequirement();\n            System.out.println("WS30_DIAG opponents="+p0.getOpponents().size()+" canAttack="+CombatUtil.canAttack(bear)+" sick="+bear.isSick()+" power="+bear.getNetPower()+" requirementEntry="+requirementEntry+" hasRequirement="+hasRequirement+" restrictions="+restrictionsRequirements(c)+" legal="+stableAttackMap(e.getLeft()));\n            Assert.assertTrue(e.getLeft().containsKey(bear));'''
+          assert first in s
+          s=s.replace(first,diag,1)
           p.write_text(s)
-          print(f'PhaseHandler-bound combat substitutions={count}')
+          print(f'PhaseHandler-bound combat substitutions={count}; first-combat Forge diagnostics enabled')
           PY
           : > "$WS30_TRACE_PATH"
 
