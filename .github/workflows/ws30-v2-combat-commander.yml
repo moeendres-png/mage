@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   combat-commander:
@@ -36,29 +37,40 @@ jobs:
           sparse-checkout: |
             .github/workflows/ws30-v2-combat-commander.yml
             research/greenfield-qualification/actual-card-behavior/ws30
-            research/greenfield-qualification/actual-card-behavior/ws26/WS26_OWNER_PARTITIONS.json
             research/greenfield-qualification/WS30_HANDOFF.md
 
-      - name: Verify exact WS26 source boundary and ownership
+      - name: Verify exact WS26 source and artifact boundary
         id: source
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/artifacts/ws30" "$GITHUB_WORKSPACE/artifacts/ws30-replay" "$GITHUB_WORKSPACE/predecessor/ws26"
           cd qualification
           test "$(git rev-parse "$WS26_HEAD^{tree}")" = "$WS26_TREE"
           git merge-base --is-ancestor "$WS26_HEAD" HEAD
-          base_owner=$(mktemp)
-          git show "$WS26_HEAD:research/greenfield-qualification/actual-card-behavior/ws26/WS26_OWNER_PARTITIONS.json" > "$base_owner"
-          cmp "$base_owner" research/greenfield-qualification/actual-card-behavior/ws26/WS26_OWNER_PARTITIONS.json
-          python3 - <<'PY'
-          import json
+
+          meta=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${WS26_ARTIFACT_ID}")
+          test "$(jq -r '.id' <<< "$meta")" = "$WS26_ARTIFACT_ID"
+          test "$(jq -r '.name' <<< "$meta")" = "ws26-runtime-behavior-binding-v2"
+          test "$(jq -r '.digest' <<< "$meta")" = "$WS26_ARTIFACT_DIGEST"
+          test "$(jq -r '.workflow_run.id' <<< "$meta")" = "$WS26_RUN_ID"
+          test "$(jq -r '.workflow_run.head_sha' <<< "$meta")" = "$WS26_HEAD"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${WS26_ARTIFACT_ID}/zip" > "$GITHUB_WORKSPACE/predecessor/ws26.zip"
+          unzip -q "$GITHUB_WORKSPACE/predecessor/ws26.zip" -d "$GITHUB_WORKSPACE/predecessor/ws26"
+          owner=$(find "$GITHUB_WORKSPACE/predecessor/ws26" -name WS26_OWNER_PARTITIONS.json -type f -print -quit)
+          test -n "$owner"
+          python3 - "$owner" <<'PY'
+          import json,sys
           from pathlib import Path
-          p=Path("research/greenfield-qualification/actual-card-behavior/ws26/WS26_OWNER_PARTITIONS.json")
+          p=Path(sys.argv[1])
           obj=json.loads(p.read_text())
           fam=obj["families"]["COMBAT_COMMANDER"]
           assert fam["path_count"] == 27
           assert len(fam["v2_path_ids"]) == 27 == len(set(fam["v2_path_ids"]))
           PY
+
           changed=$(git diff --name-only "$WS26_HEAD"...HEAD)
           while IFS= read -r path; do
             test -z "$path" && continue
@@ -69,6 +81,7 @@ jobs:
               *) echo "Out-of-scope WS30 change: $path" >&2; exit 1 ;;
             esac
           done <<< "$changed"
+          echo "owner_partitions=$owner" >> "$GITHUB_OUTPUT"
           echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "tree=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
 
@@ -97,7 +110,6 @@ jobs:
           test -f "$src"
           mkdir -p forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests
           cp "$src" forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
-          mkdir -p artifacts/ws30 artifacts/ws30-replay
           : > "$WS30_TRACE_PATH"
 
       - name: Run exactly the WS30 Forge witness test
@@ -124,7 +136,7 @@ jobs:
         run: |
           set +e
           python3 qualification/research/greenfield-qualification/actual-card-behavior/ws30/ws30_materialize.py \
-            --owner-partitions qualification/research/greenfield-qualification/actual-card-behavior/ws26/WS26_OWNER_PARTITIONS.json \
+            --owner-partitions "${{ steps.source.outputs.owner_partitions }}" \
             --trace "$WS30_TRACE_PATH" --out-dir artifacts/ws30
           rc=$?
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
@@ -161,7 +173,7 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           if [ "$rc" = 0 ]; then
             python3 qualification/research/greenfield-qualification/actual-card-behavior/ws30/ws30_materialize.py \
-              --owner-partitions qualification/research/greenfield-qualification/actual-card-behavior/ws26/WS26_OWNER_PARTITIONS.json \
+              --owner-partitions "${{ steps.source.outputs.owner_partitions }}" \
               --trace "$WS30_TRACE_PATH" --out-dir artifacts/ws30-replay
             rc=$?
           fi
@@ -178,6 +190,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p artifacts/ws30
           if [ -f artifacts/ws30/WS30_GATE.json ]; then
             (cd artifacts/ws30 && sha256sum WS30_WITNESSES.jsonl WS30_PATH_COVERAGE.json WS30_COMBAT_INVENTORY.json WS30_COMMANDER_INVENTORY.json WS30_RULES_ADJUDICATION.json WS30_GATE.json > WS30_HASHES.sha256)
           fi
