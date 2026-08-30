@@ -1,8 +1,11 @@
 package forge.gamesimulationtests;
 
 import forge.StaticData;
+import forge.ai.AITest;
 import forge.card.CardStateName;
+import forge.game.Game;
 import forge.game.card.Card;
+import forge.game.player.Player;
 import forge.game.card.CardFactory;
 import forge.game.keyword.KeywordInterface;
 import forge.item.PaperCard;
@@ -24,7 +27,7 @@ import java.util.List;
  * It constructs the exact pinned Forge card and observes KeywordInstance output.
  * It does not change production semantics, choose actions, or infer rules from card names.
  */
-public final class Ws26RuntimeBindingTracerTest {
+public final class Ws26RuntimeBindingTracerTest extends AITest {
     private static String esc(final String s) {
         if (s == null) return "";
         return s.replace("\\", "\\\\").replace("\"", "\\\"")
@@ -56,13 +59,13 @@ public final class Ws26RuntimeBindingTracerTest {
         }
         TestUtils.ensureFModelInitialized();
         Assert.assertNotNull(StaticData.instance(), "Forge StaticData must initialize");
+        final Game game = initAndCreateGame();
+        final Player owner = game.getPlayers().get(0);
 
         final List<String> rows = Files.readAllLines(Path.of(inputArg), StandardCharsets.UTF_8);
         final Path out = Path.of(outArg);
         Files.createDirectories(out.getParent());
         try (BufferedWriter w = Files.newBufferedWriter(out, StandardCharsets.UTF_8)) {
-            // Forge treats negative IDs as view-only and omits intrinsic rules data.
-            int runtimeCardId = 1;
             for (final String row : rows) {
                 if (row.isBlank()) continue;
                 final String[] c = row.split("\\t", -1);
@@ -76,12 +79,12 @@ public final class Ws26RuntimeBindingTracerTest {
 
                 final PaperCard pc = StaticData.instance().getCommonCards().getCard(forgeName);
                 Assert.assertNotNull(pc, "exact Forge source Name must resolve: " + forgeName);
-                final Card card = CardFactory.getCard(pc, null, runtimeCardId++, null);
+                final Card card = CardFactory.getCard(pc, owner, game);
                 Assert.assertNotNull(card, "CardFactory must construct: " + forgeName);
 
                 KeywordInterface hit = null;
                 for (final CardStateName state : card.getStates()) {
-                    for (final KeywordInterface kw : card.getKeywords(card.getState(state))) {
+                    for (final KeywordInterface kw : card.getState(state).getIntrinsicKeywords()) {
                         if (keywordText.equals(kw.getOriginal())) {
                             hit = kw;
                             break;
