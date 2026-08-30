@@ -130,13 +130,12 @@ jobs:
             -Dsurefire.failIfNoSpecifiedTests=false \
             -Dws32.out="$GITHUB_WORKSPACE/$runtime_evidence/WS32_RUNTIME_WITNESS.json" test) \
             2>&1 | tee "$runtime_evidence/integrated-runtime.log"
-          cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws32CardBehaviorFailureQualificationTest.xml "$runtime_evidence/"
-          cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws33IntegratedOverlayCompatibilityTest.xml "$runtime_evidence/"
-          cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws33InputConfirmExternalizationTest.xml "$runtime_evidence/"
+          cp forge/forge-gui-desktop/target/surefire-reports/TEST-TestSuite.xml \
+            "$runtime_evidence/WS33_INTEGRATED_RUNTIME_TESTS.xml"
           python "$ROOT/ws33_capture_overlay.py" \
             --forge-root forge \
             --runtime-witness "$runtime_evidence/WS32_RUNTIME_WITNESS.json" \
-            --compatibility-xml "$runtime_evidence/TEST-forge.gamesimulationtests.Ws33IntegratedOverlayCompatibilityTest.xml" \
+            --compatibility-xml "$runtime_evidence/WS33_INTEGRATED_RUNTIME_TESTS.xml" \
             --out "$runtime_evidence/WS33_OVERLAY_MATERIALIZATION.json"
 
       - name: Build deterministic integrated registries
