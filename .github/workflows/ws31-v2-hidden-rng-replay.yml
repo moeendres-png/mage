@@ -226,6 +226,22 @@ jobs:
           cp evidence/*-overlay.log evidence/forge-test-compile.log evidence/process-A.log evidence/process-B.log evidence/ws31-prepare.log evidence/ws31-finalize.log "$OUT/qualification-private/logs/"
           (cd "$OUT/qualification-private" && find . -type f ! -name HASHES.sha256 -print0 | sort -z | xargs -0 sha256sum > HASHES.sha256)
 
+      - name: Upload WS31 fail-closed diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws31-diagnostic-${{ github.sha }}
+          path: |
+            evidence/artifact
+            evidence/process-A
+            evidence/process-B
+            evidence/WS31_CASES.json
+            evidence/ws31-finalize.log
+            evidence/process-A.log
+            evidence/process-B.log
+          if-no-files-found: warn
+          retention-days: 90
+
       - name: WS31 hard gate
         shell: bash
         run: |
