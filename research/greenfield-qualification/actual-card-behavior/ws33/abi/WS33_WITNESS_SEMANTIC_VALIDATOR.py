@@ -70,10 +70,9 @@ def validate(witness, manifest, base: Path, schema, provenance) -> bool:
     if witness["forge_pin"] != PIN or manifest.get("forge_pin") != PIN:
         fail("SOURCE_PIN_MISMATCH", "Forge pin mismatch")
 
-    ws26_manifest = base / provenance["ws26_manifest_ref"]
     effective_model = base / provenance["effective_model_ref"]
     overlay_manifest = base / witness["runtime_overlay_manifest"]
-    if sha256(ws26_manifest) != witness["ws26_manifest_sha256"]:
+    if provenance.get("ws26_manifest_sha256") != witness["ws26_manifest_sha256"]:
         fail("WRONG_WS26_MODEL_HASH", "WS26 manifest digest mismatch")
     if sha256(effective_model) != witness["effective_model_sha256"]:
         fail("UNDECLARED_MODEL_MUTATION", "effective model digest mismatch")

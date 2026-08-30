@@ -1,0 +1,100 @@
+name: WS33 Q6 runtime closure
+
+on:
+  push:
+    branches: [work/ws33-q6-runtime-closure-20260830]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  WS26_HEAD: 206a39cbaa3eeb98b10c2ddc36d51fe5b1b2f5ef
+  WS26_TREE: 837f445f78bb26462653c58baf1532e294151b10
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+
+jobs:
+  integrated-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact WS33 source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify ancestry and changed-file ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "$WS26_HEAD^{tree}")" = "$WS26_TREE"
+          git merge-base --is-ancestor "$WS26_HEAD" "$GITHUB_SHA"
+          bad="$(git diff --name-only "$WS26_HEAD" "$GITHUB_SHA" | grep -Ev '^(.github/workflows/ws33-q6-runtime-closure.yml|research/greenfield-qualification/WS33_HANDOFF.md|research/greenfield-qualification/actual-card-behavior/ws33/)' || true)"
+          test -z "$bad" || { printf '%s\n' "$bad"; exit 1; }
+
+      - name: Checkout exact pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Verify exact Forge pin
+        shell: bash
+        run: test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+
+      - name: Download and verify immutable predecessor artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          fetch_artifact() {
+            id="$1" expected="$2" dest="$3"
+            actual="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" --jq '.digest')"
+            test "$actual" = "$expected"
+            gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "/tmp/$id.zip"
+            mkdir -p "evidence/$dest"
+            unzip -q "/tmp/$id.zip" -d "evidence/$dest"
+          }
+          fetch_artifact 9723722686 sha256:b9e1fc4fd792b0baa1da1c17e3bbc9e01b2557d4b73b8590e680679f53b59883 ws26
+          fetch_artifact 9730143001 sha256:e8b8a690161c464599269cbd7caed0680291f35428163c6e43c5fe3f71d592be ws27
+          fetch_artifact 9732209789 sha256:e96df123f562773f5dc7e3495ea41c30183d62aed9a829ca5f2668a954fa1eaa ws28
+          fetch_artifact 9732414644 sha256:b30415583c2b8c16c6b7cc523e69f5241922aa34d0d3fff17af942dba9c87f62 ws29
+          fetch_artifact 9733716966 sha256:9bd386e63983b8d20ea3a2901bd2cdf351c5914ad2379c51477da6fb4987e2ab ws30
+          fetch_artifact 9734159178 sha256:d1af7b9c348af2a56ebf9b398d29f06d0f2794df089bdd3caa4b18ebf471cffc ws31
+          fetch_artifact 9733547137 sha256:6eb2f0078bf8473571b10433211957e44ef3af93b7bf233e1072e7e12364578e ws32
+
+      - name: Build deterministic integrated registries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check jsonschema==4.25.1
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          python "$ROOT/ws33_build.py" --evidence evidence --out generated/ws33 --source-head "$GITHUB_SHA" --source-tree "$tree" --forge-root forge
+          python "$ROOT/ws33_verify.py" --root generated/ws33
+
+      - name: Upload immutable WS33 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-q6-runtime-closure-${{ github.run_id }}
+          path: generated/ws33
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Enforce candidate hard gate
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          gate=json.loads(Path('generated/ws33/WS33_Q6_CANDIDATE_GATE.json').read_text())
+          assert gate['Q6_CANDIDATE_FOR_CROSS_QUALIFICATION'] is True, gate['remaining_blockers']
+          assert gate['WS32_COMPATIBILITY'] == 'PASS'
+          assert gate['WS34_ELIGIBLE'] is True
+          PY

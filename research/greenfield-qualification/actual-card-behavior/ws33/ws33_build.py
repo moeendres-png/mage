@@ -7,6 +7,7 @@ import hashlib
 import json
 import shutil
 import subprocess
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -31,6 +32,15 @@ PREDECESSORS = {
     "WS30": ("b5bc3803ca04e37bd9223e3505e4a748ce03404c", "86532e457c37e5d615780d9b7372d413558db3f5", 33316769544, None, 9733716966, "sha256:9bd386e63983b8d20ea3a2901bd2cdf351c5914ad2379c51477da6fb4987e2ab"),
     "WS31": ("acd6ae330e798f0e2081d194b371f1d66310aab2", "130d97073a4bff68ac20cee33648e0e629187aa2", 33318196568, None, 9734159178, "sha256:d1af7b9c348af2a56ebf9b398d29f06d0f2794df089bdd3caa4b18ebf471cffc"),
     "WS32": ("6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9", "769cb524895495a7a9ee34d53c88036d878f4c2a", 33316168298, None, 9733547137, "sha256:6eb2f0078bf8473571b10433211957e44ef3af93b7bf233e1072e7e12364578e"),
+}
+WS32_OVERLAY_SHA256 = {
+    "CardBehaviorVerificationException.java": "d45deabb67ada9cdeb004d314d24ebf091c5fbcc41b8502d11806f9757253793",
+    "CardBehaviorVerifier.java": "64cb7a8c3f6bc69246a5346fdc70e7e16861eb842b7ea7ac84408ed26ad11444",
+    "Ws32CardBehaviorFailureQualificationTest.java": "8b5fee96765eb660276b1a7fd61400f208c937f2f63141240b09338eeb0bd048",
+}
+ARTIFACT_EXECUTION_SOURCE = {
+    "WS27": ("93440c26e946934ae9257c16bca0760b02f0c554", "dfc086170097d0dffbfae1da2f956709570bac9e"),
+    "WS31": ("3f8656046b7f905afcebe8a4954883fc81f91ec7", "130d97073a4bff68ac20cee33648e0e629187aa2"),
 }
 
 
@@ -199,7 +209,7 @@ def main() -> None:
     write_json(out / "WS33_MODEL_GATE.json", model_gate)
 
     overlay_entries = []
-    root = Path(__file__).resolve().parents[4]
+    root = Path(__file__).resolve().parents[2]
     overlay_sources = [
         ("WS01_STRICT_DECISION", "forge-patches/apply-strict-decision-boundary.sh"),
         ("WS01_TARGET_BRIDGE", "forge-patches/apply-ws01-target-decision-bridge.py"),
@@ -217,6 +227,7 @@ def main() -> None:
         overlay_entries.append({
             "name": "WS32_" + name, "source_commit": PREDECESSORS["WS32"][0],
             "source_path": "research/greenfield-qualification/actual-card-behavior/ws32/forge-overlay/" + name,
+            "sha256": WS32_OVERLAY_SHA256[name],
             "status": "APPROVED_INPUT_NOT_CAMPAIGN_EXECUTED",
         })
     overlay_manifest = {
@@ -271,7 +282,7 @@ def main() -> None:
     write_json(abi_dir / "fixtures/positive-successor.json", successor)
     provenance = {
         "schema": "commander-simulator-next.ws33-successor-provenance.v1",
-        "ws26_manifest_ref": str(raw_manifest_path.resolve()),
+        "ws26_manifest_sha256": digest(raw_manifest_path),
         "effective_model_ref": "WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json",
         "approved_qualification_sources": {
             BASE_HEAD + ":" + BASE_TREE: {"descends_from_model_base": True, "model_base_head": BASE_HEAD, "model_base_tree": BASE_TREE},
@@ -291,6 +302,24 @@ def main() -> None:
         "validation_result": "ACCEPTED", "fallback_used": False,
     }]}
     write_json(abi_dir / "fixtures/illegal-decision.json", illegal_tape)
+    write_json(abi_dir / "fixtures/valid-decision.json", {"events": [{
+        "decision_id": "valid", "decision_kind": "CONFIRM", "game_id": "fixture",
+        "actor": "P1", "principal": "P1", "visibility_scope": "PUBLIC",
+        "authoritative_legal_options": [{"option_id": "YES"}], "response_option_ids": ["YES"],
+        "validation_result": "ACCEPTED", "fallback_used": False,
+    }]})
+    write_json(abi_dir / "fixtures/valid-rng.json", {"events": [{
+        "stream_id": "fixture-rng", "event_index": 0, "operation": "bounded-int",
+        "result": 0, "pre_state": {"counter": 0}, "post_state": {"counter": 1},
+    }]})
+    write_json(abi_dir / "fixtures/valid-observation.json", {
+        "unauthorized_private_exposure_count": 0, "cross_principal_private_exposure_count": 0,
+        "public_private_artifacts_separated": True,
+    })
+    write_json(abi_dir / "fixtures/valid-replay.json", {
+        "semantic_divergence": 0, "comparison_basis": "CANONICAL_SEMANTIC_STATE",
+        "runtime_overlay_manifest_sha256": overlay_sha,
+    })
     negatives = []
     def negative(name, code, mutate):
         value = copy.deepcopy(successor)
@@ -307,15 +336,24 @@ def main() -> None:
     required = {key: next(path for path in effective_paths if path.get(key)) for key in (
         "required_decision_evidence", "required_rng_evidence", "required_hidden_info_evidence", "required_replay_evidence"
     )}
-    def require_path(w, path):
+    def require_path(w, path, missing):
         w["owner_family"] = path["owner_family"]
         w["v2_path_ids"] = [path["v2_path_id"]]
         parent = path.get("parent_ws14_primitive_id")
         w["parent_ws14_primitive_ids"] = [parent] if parent else []
-    negative("missing-decision-tape", "DECISION_TAPE_REQUIRED", lambda w: require_path(w, required["required_decision_evidence"]))
-    negative("missing-rng-tape", "RNG_TAPE_REQUIRED", lambda w: require_path(w, required["required_rng_evidence"]))
-    negative("private-observation-leak", "OBSERVATION_EVIDENCE_REQUIRED", lambda w: require_path(w, required["required_hidden_info_evidence"]))
-    negative("replay-without-semantic-evidence", "SEMANTIC_REPLAY_REQUIRED", lambda w: require_path(w, required["required_replay_evidence"]))
+        refs = {
+            "required_decision_evidence": ("decision_tape_ref", "abi/fixtures/valid-decision.json"),
+            "required_rng_evidence": ("rng_tape_ref", "abi/fixtures/valid-rng.json"),
+            "required_hidden_info_evidence": ("observation_evidence_ref", "abi/fixtures/valid-observation.json"),
+            "required_replay_evidence": ("semantic_replay_evidence_ref", "abi/fixtures/valid-replay.json"),
+        }
+        for requirement, (field, reference) in refs.items():
+            if path.get(requirement) and requirement != missing:
+                w[field] = reference
+    negative("missing-decision-tape", "DECISION_TAPE_REQUIRED", lambda w: require_path(w, required["required_decision_evidence"], "required_decision_evidence"))
+    negative("missing-rng-tape", "RNG_TAPE_REQUIRED", lambda w: require_path(w, required["required_rng_evidence"], "required_rng_evidence"))
+    negative("private-observation-leak", "OBSERVATION_EVIDENCE_REQUIRED", lambda w: require_path(w, required["required_hidden_info_evidence"], "required_hidden_info_evidence"))
+    negative("replay-without-semantic-evidence", "SEMANTIC_REPLAY_REQUIRED", lambda w: require_path(w, required["required_replay_evidence"], "required_replay_evidence"))
     negative("forge-pin-mismatch", "SOURCE_PIN_MISMATCH", lambda w: w.update(forge_pin="0" * 40))
     negative("incomplete-state-assertion", "INCOMPLETE_STATE_ASSERTION", lambda w: w.update(state_assertions=[]))
     negative("arbitrary-non-descendant", "ARBITRARY_SUCCESSOR_SOURCE", lambda w: w.update(qualification_source_head="1" * 40, qualification_source_tree="2" * 40))
@@ -323,7 +361,7 @@ def main() -> None:
     negative("undeclared-model-mutation", "UNDECLARED_MODEL_MUTATION", lambda w: w.update(effective_model_sha256="0" * 64))
     negative("undeclared-runtime-overlay", "UNDECLARED_RUNTIME_OVERLAY", lambda w: w.update(runtime_overlay_manifest="missing-overlay.json"))
     negative("wrong-overlay-digest", "WRONG_OVERLAY_DIGEST", lambda w: w.update(runtime_overlay_manifest_sha256="0" * 64))
-    negative("local-family-pass-missing-tape", "DECISION_TAPE_REQUIRED", lambda w: require_path(w, required["required_decision_evidence"]))
+    negative("local-family-pass-missing-tape", "DECISION_TAPE_REQUIRED", lambda w: require_path(w, required["required_decision_evidence"], "required_decision_evidence"))
     write_json(abi_dir / "negative-fixtures/index.json", {"fixtures": negatives})
 
     validator = abi_dir / "WS33_WITNESS_SEMANTIC_VALIDATOR.py"
@@ -336,7 +374,7 @@ def main() -> None:
     results = []
     for fixture, expected_exit, expected_error in commands:
         proc = subprocess.run([
-            "python", str(validator), str(fixture), "--manifest", str(effective_manifest_path),
+            sys.executable, str(validator), str(fixture), "--manifest", str(effective_manifest_path),
             "--schema", str(schema), "--provenance", str(abi_dir / "WS33_SUCCESSOR_PROVENANCE.json"),
             "--base", str(out),
         ], text=True, capture_output=True)
@@ -356,8 +394,10 @@ def main() -> None:
     admission = []
     def admission_row(ws, disposition, path_ids, reason, **extra):
         head, tree, run, job, artifact, artifact_digest = PREDECESSORS[ws]
+        execution_head, execution_tree = ARTIFACT_EXECUTION_SOURCE.get(ws, (head, tree))
         admission.append({
-            "source_workstream": ws, "source_head": head, "source_tree": tree,
+            "source_workstream": ws, "source_head": execution_head, "source_tree": execution_tree,
+            "branch_final_head": head, "branch_final_tree": tree,
             "run_id": run, "job_id": job, "artifact_id": artifact, "artifact_digest": artifact_digest,
             "v2_path_ids": path_ids, "oracle_identities": extra.pop("oracle_identities", []),
             "forge_pin": PIN, "execution_route": extra.pop("execution_route", None),
@@ -474,7 +514,10 @@ def main() -> None:
         "FAILURE_SEMANTICS_CANONICAL": "NOT_ADJUDICATED_BY_WS33",
     }
     write_json(out / "WS33_Q6_CANDIDATE_GATE.json", q6_gate)
-    hash_targets = sorted(path for path in out.rglob("*") if path.is_file() and path.name != "WS33_HASHES.sha256")
+    hash_targets = sorted(
+        path for path in out.rglob("*")
+        if path.is_file() and path.name != "WS33_HASHES.sha256" and "__pycache__" not in path.parts
+    )
     with (out / "WS33_HASHES.sha256").open("w", encoding="utf-8", newline="\n") as handle:
         for path in hash_targets:
             handle.write(f"{digest(path)}  {path.relative_to(out).as_posix()}\n")
