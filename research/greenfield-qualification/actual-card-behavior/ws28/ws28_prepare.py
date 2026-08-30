@@ -43,11 +43,14 @@ def parse_records(lines):
 def root_for(target,recs):
     if target["kind"]!="SVAR": return target, [target["line"]]
     by_name={r["name"]:r for r in recs if r["kind"]=="SVAR" and r["name"]}
+    symbols=set(by_name)
     rev=defaultdict(list)
     for r in recs:
-        for k,v in r["params"].items():
-            if v in by_name:
-                rev[v].append((r,k))
+        refs=set(re.findall(r"[A-Za-z][A-Za-z0-9_]*", r["body"])) & symbols
+        for sym in refs:
+            if r["kind"]=="SVAR" and r.get("name")==sym:
+                continue
+            rev[sym].append((r,"TOKEN_REFERENCE"))
     seen=set()
     q=[(target["name"],[target["line"]])]
     candidates=[]
