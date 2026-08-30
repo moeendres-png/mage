@@ -84,7 +84,24 @@ jobs:
           set -euo pipefail
           install -D -m 0644 "qual/$ROOT/forge-overlay/Ws29SourceBindingTest.java" \
             forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws29SourceBindingTest.java
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('forge/forge-gui-desktop/pom.xml')
+          text = p.read_text()
+          marker = '    </dependencies>\n</project>'
+          assert marker in text
+          dependency = '''        <!-- WS29 qualification-harness-only JSONL parser; exact version pinned. -->
+                  <dependency>
+                      <groupId>com.google.code.gson</groupId>
+                      <artifactId>gson</artifactId>
+                      <version>2.11.0</version>
+                      <scope>test</scope>
+                  </dependency>
+          '''
+          p.write_text(text.replace(marker, dependency + marker, 1))
+          PY
           test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          git -C forge diff --exit-code -- . ':!forge-gui-desktop/pom.xml' ':!forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws29SourceBindingTest.java'
 
       - name: Execute exact actual-card source binding probe
         shell: bash
@@ -107,7 +124,7 @@ jobs:
         run: |
           set -euo pipefail
           cat > evidence/WS29_PROVENANCE.json <<JSON
-          {"schema":"commander-simulator-next.ws29.provenance.v1","tested_source_head":"$(git -C qual rev-parse HEAD)","tested_source_tree":"$(git -C qual rev-parse 'HEAD^{tree}')","ws26_final_head":"$WS26_FINAL_HEAD","ws26_final_tree":"$WS26_FINAL_TREE","ws26_artifact_id":$WS26_ARTIFACT_ID,"ws26_artifact_digest":"$WS26_ARTIFACT_DIGEST","forge_pin":"$FORGE_PIN"}
+          {"schema":"commander-simulator-next.ws29.provenance.v1","tested_source_head":"$(git -C qual rev-parse HEAD)","tested_source_tree":"$(git -C qual rev-parse 'HEAD^{tree}')","ws26_final_head":"$WS26_FINAL_HEAD","ws26_final_tree":"$WS26_FINAL_TREE","ws26_artifact_id":$WS26_ARTIFACT_ID,"ws26_artifact_digest":"$WS26_ARTIFACT_DIGEST","forge_pin":"$FORGE_PIN","qualification_test_dependency":{"group":"com.google.code.gson","artifact":"gson","version":"2.11.0","scope":"test","semantic_engine_change":false}}
           JSON
 
       - name: Upload WS29 interim evidence
