@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "commander-simulator-next.ws33-runtime-campaign-record.v1",
+  "title": "WS33 raw runtime campaign record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "witness_id",
+    "oracle_identities",
+    "v2_path_ids",
+    "owner_family",
+    "initial_semantic_state",
+    "final_semantic_state",
+    "state_assertions",
+    "path_exercise",
+    "execution",
+    "trace_file",
+    "rules_authority_refs",
+    "evidence_class"
+  ],
+  "properties": {
+    "schema": {
+      "const": "commander-simulator-next.ws33-runtime-campaign-record.v1"
+    },
+    "witness_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "oracle_identities": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "v2_path_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^forge-behavior-v2:"
+      }
+    },
+    "owner_family": {
+      "enum": [
+        "ACTION_COST_DECISION",
+        "TRIGGER_REPLACEMENT_ZONE_SBA",
+        "CONTINUOUS_COPY_CONTROL",
+        "COMBAT_COMMANDER",
+        "HIDDEN_RNG_REPLAY"
+      ]
+    },
+    "initial_semantic_state": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "final_semantic_state": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "state_assertions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "assertion_id",
+          "expected",
+          "actual",
+          "result"
+        ],
+        "properties": {
+          "assertion_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expected": {},
+          "actual": {},
+          "result": {
+            "const": "PASS"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "path_exercise": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "v2_path_id",
+          "exercised",
+          "trace_event_ids",
+          "assertion_ids"
+        ],
+        "properties": {
+          "v2_path_id": {
+            "type": "string",
+            "pattern": "^forge-behavior-v2:"
+          },
+          "exercised": {
+            "const": true
+          },
+          "trace_event_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "assertion_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "execution": {
+      "type": "object",
+      "required": [
+        "actual_rules_core_path",
+        "authoritative_decision_boundary",
+        "silent_fallbacks"
+      ],
+      "properties": {
+        "actual_rules_core_path": {
+          "const": true
+        },
+        "authoritative_decision_boundary": {
+          "enum": [
+            "USED",
+            "NOT_REQUIRED"
+          ]
+        },
+        "silent_fallbacks": {
+          "const": 0
+        },
+        "actual_card_execution": {
+          "enum": [
+            "PASS",
+            true
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "trace_file": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decision_tape_file": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rng_tape_file": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "observation_evidence_file": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "semantic_replay_evidence_file": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rules_authority_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "evidence_class": {
+      "enum": [
+        "DIRECTLY_VERIFIED",
+        "TECHNICALLY_CONFORMANT",
+        "EXTERNALLY_RULE_VALIDATED"
+      ]
+    },
+    "execution_environment_identity": {
+      "type": "object",
+      "required": [
+        "runner_os",
+        "java_version",
+        "process_isolation"
+      ],
+      "additionalProperties": true
+    }
+  }
+}
