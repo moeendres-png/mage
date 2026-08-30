@@ -101,6 +101,7 @@ jobs:
           test -f "$src"
           mkdir -p forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests
           cp "$src" forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
+          sed -i '/import forge.game.card.CardCollectionView;/d' forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws30CombatCommanderWitnessTest.java
           : > "$WS30_TRACE_PATH"
 
       - name: Run exactly the WS30 Forge witness test
