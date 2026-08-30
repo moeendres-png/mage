@@ -1,0 +1,97 @@
+name: WS28 trigger replacement zone SBA closure V2
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - work/ws28-v2-trigger-replacement-zone-sba-20260830
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  WS26_HEAD: 206a39cbaa3eeb98b10c2ddc36d51fe5b1b2f5ef
+  WS26_TREE: 837f445f78bb26462653c58baf1532e294151b10
+  WS26_ARTIFACT_ID: '9723722686'
+  WS26_ARTIFACT_DIGEST: sha256:b9e1fc4fd792b0baa1da1c17e3bbc9e01b2557d4b73b8590e680679f53b59883
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws28
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact WS28 source
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+
+      - name: Verify exact WS26 base and file ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual rev-parse "$WS26_HEAD^{tree}")" = "$WS26_TREE"
+          git -C qual merge-base --is-ancestor "$WS26_HEAD" HEAD
+          bad="$(git -C qual diff --name-only "$WS26_HEAD"...HEAD | grep -Ev '^(research/greenfield-qualification/actual-card-behavior/ws28/|research/greenfield-qualification/WS28_HANDOFF\.md$|\.github/workflows/ws28-v2-trigger-replacement-zone-sba\.yml$)' || true)"
+          test -z "$bad" || { echo "out-of-scope WS28 changes:" >&2; echo "$bad" >&2; exit 1; }
+          mkdir -p inputs prepared artifact
+
+      - name: Checkout exact pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Verify exact Forge pin
+        shell: bash
+        run: test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+
+      - name: Download exact immutable WS26 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS26_ARTIFACT_ID" --jq '.digest')"
+          test "$actual" = "$WS26_ARTIFACT_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS26_ARTIFACT_ID/zip" > /tmp/ws26.zip
+          unzip -q /tmp/ws26.zip -d inputs/ws26-artifact
+          WS26_DIR="inputs/ws26-artifact/research/greenfield-qualification/actual-card-behavior/ws26"
+          test "$(jq -r '.WORKSTREAM_COMPLETE' "$WS26_DIR/WS26_GATE.json")" = true
+          test "$(jq -r '.WS26_MODEL_V2' "$WS26_DIR/WS26_GATE.json")" = PASS
+          test "$(jq -r '.WS27_WS31_ELIGIBLE' "$WS26_DIR/WS26_GATE.json")" = true
+          test "$(jq -r '.path_count' "$WS26_DIR/WS26_BEHAVIOR_PATH_MANIFEST_V2.json")" = 4280
+
+      - name: Materialize exact WS28 owner cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "qual/$ROOT/ws28_prepare.py" \
+            --ws26-dir inputs/ws26-artifact/research/greenfield-qualification/actual-card-behavior/ws26 \
+            --forge-root forge --out prepared
+          test "$(wc -l < prepared/WS28_CASES.tsv)" = 1172
+          jq -e '.family_path_count==1174 and .reused_exact_ws16_child_count==2 and .new_execution_case_count==1172' prepared/WS28_PREPARE_SUMMARY.json >/dev/null
+
+      - name: Package preparation evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a prepared/. artifact/ 2>/dev/null || true
+          printf '%s\n' "$GITHUB_SHA" > artifact/tested_source_head.txt
+          git -C qual rev-parse 'HEAD^{tree}' > artifact/tested_source_tree.txt
+          printf '%s\n' "$FORGE_PIN" > artifact/forge_pin.txt
+
+      - name: Upload WS28 preparation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws28-preparation-evidence
+          path: artifact
+          if-no-files-found: error
+          retention-days: 30
