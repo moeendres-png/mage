@@ -99,12 +99,13 @@ jobs:
           fetch_artifact 9734159178 sha256:d1af7b9c348af2a56ebf9b398d29f06d0f2794df089bdd3caa4b18ebf471cffc ws31
           fetch_artifact 9733547137 sha256:6eb2f0078bf8473571b10433211957e44ef3af93b7bf233e1072e7e12364578e ws32
 
-      - name: Materialize one integrated runtime overlay and qualify WS32 compatibility
+      - name: Materialize integrated runtime and execute first TargetRestrictions campaign shard
         shell: bash
         run: |
           set -euo pipefail
           runtime_evidence=generated/ws33/runtime-evidence
-          mkdir -p "$runtime_evidence"
+          campaign_root=generated/ws33-runtime-campaign
+          mkdir -p "$runtime_evidence" "$campaign_root"
           bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
             forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
             | tee "$runtime_evidence/ws01-overlay.log"
@@ -121,20 +122,47 @@ jobs:
             --forge-root forge | tee "$runtime_evidence/ws12-overlay.log"
           python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py \
             --forge-root forge | tee "$runtime_evidence/ws32-overlay.log"
+
+          python "$ROOT/ws33_prepare_target_campaign.py" \
+            --manifest "$ROOT/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json" \
+            --forge-root forge \
+            --out-tsv "$campaign_root/target-cases.tsv" \
+            --out-plan "$campaign_root/target-plan.json"
+          cp "$campaign_root/target-plan.json" "$runtime_evidence/WS33_TARGET_CAMPAIGN_PLAN.json"
+
           cp "$ROOT/runtime-tests/Ws33IntegratedOverlayCompatibilityTest.java" \
             forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
           cp "$ROOT/runtime-tests/Ws33InputConfirmExternalizationTest.java" \
             forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
           cp "$ROOT/runtime-tests/Ws33SwiftwaterCliffsWitnessTest.java" \
             forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
+          cp "$ROOT/runtime-tests/Ws33TargetRestrictionsCampaignTest.java" \
+            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
+
           (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
-            -Dtest=forge.gamesimulationtests.Ws32CardBehaviorFailureQualificationTest,forge.gamesimulationtests.Ws33IntegratedOverlayCompatibilityTest,forge.gamesimulationtests.Ws33InputConfirmExternalizationTest,forge.gamesimulationtests.Ws33SwiftwaterCliffsWitnessTest \
+            -Dtest=forge.gamesimulationtests.Ws32CardBehaviorFailureQualificationTest,forge.gamesimulationtests.Ws33IntegratedOverlayCompatibilityTest,forge.gamesimulationtests.Ws33InputConfirmExternalizationTest,forge.gamesimulationtests.Ws33SwiftwaterCliffsWitnessTest,forge.gamesimulationtests.Ws33TargetRestrictionsCampaignTest \
             -Dsurefire.failIfNoSpecifiedTests=false \
             -Dws32.out="$GITHUB_WORKSPACE/$runtime_evidence/WS32_RUNTIME_WITNESS.json" \
-            -Dws33.swiftwaterTraceOut="$GITHUB_WORKSPACE/$runtime_evidence/WS33_SWIFTWATER_CLIFFS_TRACE.json" test) \
+            -Dws33.swiftwaterTraceOut="$GITHUB_WORKSPACE/$runtime_evidence/WS33_SWIFTWATER_CLIFFS_TRACE.json" \
+            -Dws33.targetMode=record \
+            -Dws33.targetCases="$GITHUB_WORKSPACE/$campaign_root/target-cases.tsv" \
+            -Dws33.targetOut="$GITHUB_WORKSPACE/$campaign_root" test) \
             2>&1 | tee "$runtime_evidence/integrated-runtime.log"
           cp forge/forge-gui-desktop/target/surefire-reports/TEST-TestSuite.xml \
             "$runtime_evidence/WS33_INTEGRATED_RUNTIME_TESTS.xml"
+          cp "$campaign_root/target-record-diagnostics.jsonl" \
+            "$runtime_evidence/WS33_TARGET_RECORD_DIAGNOSTICS.jsonl"
+
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.gamesimulationtests.Ws33TargetRestrictionsCampaignTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws33.targetMode=replay \
+            -Dws33.targetCases="$GITHUB_WORKSPACE/$campaign_root/target-cases.tsv" \
+            -Dws33.targetOut="$GITHUB_WORKSPACE/$campaign_root" test) \
+            2>&1 | tee "$runtime_evidence/target-replay-runtime.log"
+          cp "$campaign_root/target-replay-diagnostics.jsonl" \
+            "$runtime_evidence/WS33_TARGET_REPLAY_DIAGNOSTICS.jsonl"
+
           python "$ROOT/ws33_capture_overlay.py" \
             --forge-root forge \
             --runtime-witness "$runtime_evidence/WS32_RUNTIME_WITNESS.json" \
@@ -150,6 +178,9 @@ jobs:
           python "$ROOT/ws33_build.py" --evidence evidence --out generated/ws33 --source-head "$GITHUB_SHA" --source-tree "$tree" --forge-root forge \
             --overlay-evidence generated/ws33/runtime-evidence/WS33_OVERLAY_MATERIALIZATION.json \
             --swiftwater-trace generated/ws33/runtime-evidence/WS33_SWIFTWATER_CLIFFS_TRACE.json
+          python "$ROOT/ws33_bind_campaign_replay.py" \
+            --campaign-root generated/ws33-runtime-campaign \
+            --overlay-manifest generated/ws33/WS33_RUNTIME_OVERLAY_MANIFEST.json
           python "$ROOT/ws33_merge_campaign.py" --root generated/ws33 --campaign-root generated/ws33-runtime-campaign \
             --source-head "$GITHUB_SHA" --source-tree "$tree"
           python "$ROOT/ws33_verify.py" --root generated/ws33
