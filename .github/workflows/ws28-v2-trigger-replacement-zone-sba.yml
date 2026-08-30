@@ -21,7 +21,7 @@ env:
 jobs:
   qualify:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     steps:
       - name: Checkout exact WS28 source
         uses: actions/checkout@v4
@@ -37,7 +37,7 @@ jobs:
           git -C qual merge-base --is-ancestor "$WS26_HEAD" HEAD
           bad="$(git -C qual diff --name-only "$WS26_HEAD"...HEAD | grep -Ev '^(research/greenfield-qualification/actual-card-behavior/ws28/|research/greenfield-qualification/WS28_HANDOFF\.md$|\.github/workflows/ws28-v2-trigger-replacement-zone-sba\.yml$)' || true)"
           test -z "$bad" || { echo "out-of-scope WS28 changes:" >&2; echo "$bad" >&2; exit 1; }
-          mkdir -p inputs prepared artifact
+          mkdir -p inputs prepared artifact engine-artifact
 
       - name: Checkout exact pinned Forge
         uses: actions/checkout@v4
@@ -76,6 +76,60 @@ jobs:
             --forge-root forge --out prepared
           test "$(wc -l < prepared/WS28_CASES.tsv)" = 1172
           jq -e '.family_path_count==1174 and .reused_exact_ws16_child_count==2 and .new_execution_case_count==1172 and .unresolved_root_count==0' prepared/WS28_PREPARE_SUMMARY.json >/dev/null
+
+      - name: Install isolated WS28 dynamic harness overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "qual/$ROOT/forge-overlay/Ws28FamilyHarnessTest.java" \
+            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws28FamilyHarnessTest.java
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+
+      - name: Execute pinned Forge dynamic prototype
+        id: engine
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          CASES="$PWD/prepared/WS28_CASES.tsv"
+          mkdir -p engine-artifact
+          (
+            cd forge
+            xvfb-run -a mvn -pl forge-gui-desktop -am \
+              '-Dtest=forge.gamesimulationtests.Ws28FamilyHarnessTest' \
+              '-Dsurefire.failIfNoSpecifiedTests=false' \
+              "-Dws28.cases=$CASES" '-Dws28.limit=50' test
+          ) 2>&1 | tee engine-artifact/maven.log
+
+      - name: Package dynamic prototype evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a forge/forge-gui-desktop/target/ws28-runtime/. engine-artifact/ 2>/dev/null || true
+          cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws28FamilyHarnessTest.xml engine-artifact/testng-report.xml 2>/dev/null || true
+          printf '%s\n' "$(git -C forge rev-parse HEAD)" > engine-artifact/forge_head.txt
+          printf '%s\n' "$GITHUB_SHA" > engine-artifact/tested_source_head.txt
+          sha256sum engine-artifact/* > engine-artifact/ENGINE_HASHES.sha256 2>/dev/null || true
+
+      - name: Upload dynamic prototype evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws28-dynamic-prototype-evidence
+          path: engine-artifact
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce dynamic prototype success
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ steps.engine.outcome }}' = success
+          test -s engine-artifact/WS28_ENGINE_RESULTS.tsv
+          test "$(wc -l < engine-artifact/WS28_ENGINE_RESULTS.tsv)" = 50
+          test "$(awk -F '\t' '$2 != "PASS" {n++} END {print n+0}' engine-artifact/WS28_ENGINE_RESULTS.tsv)" = 0
 
       - name: Package preparation evidence
         if: always()
