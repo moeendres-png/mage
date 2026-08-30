@@ -4,7 +4,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import forge.ai.AITest;
 import forge.game.ability.AbilityUtils;
-import forge.game.ability.ApiType;
 import forge.game.card.Card;
 import forge.game.card.CardState;
 import forge.game.keyword.Keyword;
@@ -120,7 +119,6 @@ public class Ws29SourceBindingTest extends AITest {
                 runtimeDetail = "TriggerType=" + (parsed == null ? "null" : parsed.getMode().name());
             } else if (target.equals("forge.game.ability.AbilityUtils#calculateAmount")) {
                 Assert.assertFalse(sourceSVar.isEmpty(), pathId + " amount path must be source-bound to SVar");
-                // The call itself is the assigned implementation target. A zero value is valid in the neutral fixture.
                 final int amount = AbilityUtils.calculateAmount(card, state.getSVar(sourceSVar), null);
                 targetBound = true;
                 runtimeDetail = "calculateAmount=" + amount;
@@ -175,7 +173,6 @@ public class Ws29SourceBindingTest extends AITest {
         if (runtime.equals(source)) {
             return true;
         }
-        // Keyword scripts may canonicalize reminder-only punctuation/case; the keyword head is authoritative here.
         return runtime.split(":", 2)[0].equalsIgnoreCase(source.split(":", 2)[0]);
     }
 
