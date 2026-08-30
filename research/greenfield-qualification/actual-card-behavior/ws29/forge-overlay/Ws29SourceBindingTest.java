@@ -3,6 +3,7 @@ package forge.gamesimulationtests;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import forge.ai.AITest;
+import forge.card.CardStateName;
 import forge.game.ability.AbilityUtils;
 import forge.game.card.Card;
 import forge.game.card.CardState;
@@ -82,31 +83,13 @@ public class Ws29SourceBindingTest extends AITest {
 
             final Card card = createCard(cardName, player);
             Assert.assertNotNull(card, pathId + " card must load from pinned Forge database");
-            final CardState state = card.getCurrentState();
-            Assert.assertEquals(state.getName(), cardName, pathId + " card name must bind to actual source");
+            Assert.assertEquals(card.getState(CardStateName.Original).getName(), cardName,
+                    pathId + " card identity must bind to actual source");
+            final CardState state = findSourceState(card, sourceDirective, sourceSVar, sourceText);
+            Assert.assertNotNull(state, pathId + " exact source must bind to one actual CardState");
 
-            boolean exactSourceBound = false;
-            if ("SVAR".equals(sourceDirective)) {
-                Assert.assertFalse(sourceSVar.isEmpty(), pathId + " SVar source must expose its exact key");
-                Assert.assertTrue(state.hasSVar(sourceSVar), pathId + " exact SVar must exist on actual CardState");
-                final String expectedPayload = sourceText.substring(sourceText.indexOf(':', 5) + 1);
-                Assert.assertEquals(state.getSVar(sourceSVar), expectedPayload,
-                        pathId + " actual CardState SVar payload must exactly equal pinned script");
-                exactSourceBound = true;
-            } else if ("KEYWORD".equals(sourceDirective)) {
-                final String keywordPayload = sourceText.substring(2);
-                exactSourceBound = state.getIntrinsicKeywords().stream()
-                        .anyMatch(k -> keywordEquivalent(k.getOriginal(), keywordPayload));
-                Assert.assertTrue(exactSourceBound, pathId + " pinned keyword must exist on actual CardState");
-            } else if ("STATIC".equals(sourceDirective)) {
-                exactSourceBound = state.getStaticAbilities().stream().anyMatch(st -> staticMatchesSource(st, sourceText));
-                Assert.assertTrue(exactSourceBound, pathId + " pinned static ability must exist on actual CardState");
-            } else if ("ABILITY".equals(sourceDirective)) {
-                final String sourceApi = firstApi(sourceText);
-                exactSourceBound = collectSpellAbilities(state).stream()
-                        .anyMatch(sa -> sa.getApi() != null && sa.getApi().name().equals(sourceApi));
-                Assert.assertTrue(exactSourceBound, pathId + " pinned ability API must exist on actual CardState");
-            }
+            final boolean exactSourceBound = sourceMatches(state, sourceDirective, sourceSVar, sourceText);
+            Assert.assertTrue(exactSourceBound, pathId + " exact source must bind on selected actual CardState");
 
             boolean targetBound;
             String runtimeDetail;
@@ -117,6 +100,9 @@ public class Ws29SourceBindingTest extends AITest {
                 boolean exactSVarMaterialized = false;
                 int sourceGraphNodes = 0;
                 if (!graphBound && "SVAR".equals(sourceDirective) && !sourceSVar.isEmpty()) {
+                    // Some exact source SVars are reachable only after runtime creation of a delayed
+                    // trigger/effect. Materialize that exact CardState-owned SVar through Forge's own
+                    // actual-card parser rather than constructing a definition in the qualification code.
                     final List<SpellAbility> sourceGraph = new ArrayList<>();
                     final Set<SpellAbility> sourceSeen = Collections.newSetFromMap(new IdentityHashMap<>());
                     try {
@@ -124,6 +110,8 @@ public class Ws29SourceBindingTest extends AITest {
                         sourceGraphNodes = sourceGraph.size();
                         exactSVarMaterialized = hasApi(sourceGraph, expectedApi);
                     } catch (RuntimeException ignored) {
+                        // The assertion below remains fail-closed. Some SVars are non-ability runtime
+                        // expressions; they are handled by their own implementation-target branch.
                     }
                 }
                 targetBound = graphBound || exactSVarMaterialized;
@@ -169,6 +157,7 @@ public class Ws29SourceBindingTest extends AITest {
             row.addProperty("source_path", str(c, "source_path"));
             row.addProperty("source_line", c.get("source_line").getAsInt());
             row.addProperty("source_directive", sourceDirective);
+            row.addProperty("runtime_state", state.getStateName().name());
             row.addProperty("root_kind", rootKind);
             row.addProperty("root_key", rootKey);
             row.addProperty("implementation_target", target);
@@ -188,6 +177,40 @@ public class Ws29SourceBindingTest extends AITest {
 
     private static String str(JsonObject object, String key) {
         return object.get(key).getAsString();
+    }
+
+    private static CardState findSourceState(Card card, String directive, String sourceSVar, String sourceText) {
+        for (CardStateName stateName : CardStateName.values()) {
+            if (!card.hasState(stateName)) continue;
+            final CardState candidate = card.getState(stateName);
+            if (candidate != null && sourceMatches(candidate, directive, sourceSVar, sourceText)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private static boolean sourceMatches(CardState state, String directive, String sourceSVar, String sourceText) {
+        if ("SVAR".equals(directive)) {
+            if (sourceSVar.isEmpty() || !state.hasSVar(sourceSVar)) return false;
+            final int payloadAt = sourceText.indexOf(':', 5);
+            if (payloadAt < 0) return false;
+            return state.getSVar(sourceSVar).equals(sourceText.substring(payloadAt + 1));
+        }
+        if ("KEYWORD".equals(directive)) {
+            final String keywordPayload = sourceText.substring(2);
+            return state.getIntrinsicKeywords().stream()
+                    .anyMatch(k -> keywordEquivalent(k.getOriginal(), keywordPayload));
+        }
+        if ("STATIC".equals(directive)) {
+            return state.getStaticAbilities().stream().anyMatch(st -> staticMatchesSource(st, sourceText));
+        }
+        if ("ABILITY".equals(directive)) {
+            final String sourceApi = firstApi(sourceText);
+            return collectSpellAbilities(state).stream()
+                    .anyMatch(sa -> sa.getApi() != null && sa.getApi().name().equals(sourceApi));
+        }
+        return false;
     }
 
     private static boolean hasApi(List<SpellAbility> graph, String api) {
