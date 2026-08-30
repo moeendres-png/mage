@@ -9,7 +9,6 @@ import forge.game.phase.PhaseType;
 import forge.game.player.Player;
 import forge.game.trigger.Trigger;
 import forge.game.trigger.TriggerHandler;
-import forge.game.trigger.TriggerType;
 import forge.game.zone.ZoneType;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -19,7 +18,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
-import java.util.List;
 
 /**
  * Qualification-only WS28 smoke harness for the largest trigger class.
