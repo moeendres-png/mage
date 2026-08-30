@@ -123,16 +123,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Enforce complete real ChangesZone census success
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          test '${{ steps.engine.outcome }}' = success
-          test -s engine-artifact/WS28_REAL_CHANGES_ZONE_RESULTS.tsv
-          test "$(wc -l < engine-artifact/WS28_REAL_CHANGES_ZONE_RESULTS.tsv)" = 327
-          test "$(awk -F '\t' '$2 != "PASS" {n++} END {print n+0}' engine-artifact/WS28_REAL_CHANGES_ZONE_RESULTS.tsv)" = 0
-
       - name: Package preparation evidence
         if: always()
         shell: bash
@@ -143,11 +133,36 @@ jobs:
           git -C qual rev-parse 'HEAD^{tree}' > artifact/tested_source_tree.txt
           printf '%s\n' "$FORGE_PIN" > artifact/forge_pin.txt
 
-      - name: Upload WS28 preparation evidence
+      - name: Materialize fail-closed closure evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "qual/$ROOT/ws28_gate.py" \
+            --prepare-summary prepared/WS28_PREPARE_SUMMARY.json \
+            --cases prepared/WS28_CASES.tsv \
+            --changes-zone-results engine-artifact/WS28_REAL_CHANGES_ZONE_RESULTS.tsv \
+            --source-head "$GITHUB_SHA" \
+            --source-tree "$(git -C qual rev-parse 'HEAD^{tree}')" \
+            --run-id "$GITHUB_RUN_ID" \
+            --out-dir "artifact/$ROOT"
+          test "$(jq -r '.WS28_FAMILY_GATE' "artifact/$ROOT/WS28_GATE.json")" = FAIL_CLOSED
+          test "$(jq -r '.WORKSTREAM_COMPLETE' "artifact/$ROOT/WS28_GATE.json")" = false
+
+      - name: Upload WS28 closure evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ws28-preparation-evidence
+          name: ws28-closure-evidence
           path: artifact
           if-no-files-found: error
           retention-days: 30
+
+      - name: Enforce complete WS28 closure
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          gate="artifact/$ROOT/WS28_GATE.json"
+          test "$(jq -r '.WS28_FAMILY_GATE' "$gate")" = PASS
+          test "$(jq -r '.WORKSTREAM_COMPLETE' "$gate")" = true
