@@ -77,15 +77,17 @@ jobs:
           test "$(wc -l < prepared/WS28_CASES.tsv)" = 1172
           jq -e '.family_path_count==1174 and .reused_exact_ws16_child_count==2 and .new_execution_case_count==1172 and .unresolved_root_count==0' prepared/WS28_PREPARE_SUMMARY.json >/dev/null
 
-      - name: Install isolated WS28 dynamic harness overlay
+      - name: Install isolated WS28 real-event overlay
         shell: bash
         run: |
           set -euo pipefail
           cp "qual/$ROOT/forge-overlay/Ws28FamilyHarnessTest.java" \
             forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws28FamilyHarnessTest.java
+          cp "qual/$ROOT/forge-overlay/Ws28RealChangesZoneSmokeTest.java" \
+            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws28RealChangesZoneSmokeTest.java
           test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
 
-      - name: Execute pinned Forge dynamic prototype
+      - name: Execute pinned Forge real ChangesZone smoke
         id: engine
         continue-on-error: true
         shell: bash
@@ -96,40 +98,40 @@ jobs:
           (
             cd forge
             xvfb-run -a mvn -pl forge-gui-desktop -am \
-              '-Dtest=forge.gamesimulationtests.Ws28FamilyHarnessTest' \
+              '-Dtest=forge.gamesimulationtests.Ws28RealChangesZoneSmokeTest' \
               '-Dsurefire.failIfNoSpecifiedTests=false' \
-              "-Dws28.cases=$CASES" '-Dws28.limit=50' test
+              "-Dws28.cases=$CASES" '-Dws28.cz.limit=40' test
           ) 2>&1 | tee engine-artifact/maven.log
 
-      - name: Package dynamic prototype evidence
+      - name: Package real-event smoke evidence
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           cp -a forge/forge-gui-desktop/target/ws28-runtime/. engine-artifact/ 2>/dev/null || true
-          cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws28FamilyHarnessTest.xml engine-artifact/testng-report.xml 2>/dev/null || true
+          cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws28RealChangesZoneSmokeTest.xml engine-artifact/testng-report.xml 2>/dev/null || true
           printf '%s\n' "$(git -C forge rev-parse HEAD)" > engine-artifact/forge_head.txt
           printf '%s\n' "$GITHUB_SHA" > engine-artifact/tested_source_head.txt
           sha256sum engine-artifact/* > engine-artifact/ENGINE_HASHES.sha256 2>/dev/null || true
 
-      - name: Upload dynamic prototype evidence
+      - name: Upload real-event smoke evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ws28-dynamic-prototype-evidence
+          name: ws28-real-changes-zone-smoke
           path: engine-artifact
           if-no-files-found: error
           retention-days: 30
 
-      - name: Enforce dynamic prototype success
+      - name: Enforce real ChangesZone smoke success
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           test '${{ steps.engine.outcome }}' = success
-          test -s engine-artifact/WS28_ENGINE_RESULTS.tsv
-          test "$(wc -l < engine-artifact/WS28_ENGINE_RESULTS.tsv)" = 50
-          test "$(awk -F '\t' '$2 != "PASS" {n++} END {print n+0}' engine-artifact/WS28_ENGINE_RESULTS.tsv)" = 0
+          test -s engine-artifact/WS28_REAL_CHANGES_ZONE_RESULTS.tsv
+          test "$(wc -l < engine-artifact/WS28_REAL_CHANGES_ZONE_RESULTS.tsv)" = 40
+          test "$(awk -F '\t' '$2 != "PASS" {n++} END {print n+0}' engine-artifact/WS28_REAL_CHANGES_ZONE_RESULTS.tsv)" = 0
 
       - name: Package preparation evidence
         if: always()
