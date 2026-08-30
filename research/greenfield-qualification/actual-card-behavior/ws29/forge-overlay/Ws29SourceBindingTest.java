@@ -33,9 +33,12 @@ import java.util.Set;
 /**
  * WS29 qualification-only exact source-binding probe.
  *
- * It never constructs an effect definition. Every card is created from the pinned Forge card
- * database. Intrinsic triggers are expanded through Trigger.ensureAbility(CardState), which is
- * Forge's own actual-card trigger path. No SpellAbility.resolve/AbilityUtils.resolve call occurs.
+ * Every card is loaded from the pinned Forge card database. For source SVars that are only
+ * materialized later (for example an Execute$ ability of a delayed trigger), this probe asks
+ * CardState.getAbilityForTrigger for the exact named SVar. That method is Forge's own cached
+ * actual-card AbilityFactory path and therefore does not fabricate or substitute a definition.
+ * No SpellAbility.resolve/AbilityUtils.resolve call occurs. This is binding evidence only and
+ * must never be promoted to semantic-behavior evidence.
  */
 public class Ws29SourceBindingTest extends AITest {
     private static final Set<String> EFFECT_TARGETS = Set.of(
@@ -78,8 +81,8 @@ public class Ws29SourceBindingTest extends AITest {
             final String rootKey = str(c, "root_key");
 
             final Card card = createCard(cardName, player);
-            final CardState state = card.getCurrentState();
             Assert.assertNotNull(card, pathId + " card must load from pinned Forge database");
+            final CardState state = card.getCurrentState();
             Assert.assertEquals(state.getName(), cardName, pathId + " card name must bind to actual source");
 
             boolean exactSourceBound = false;
@@ -110,8 +113,24 @@ public class Ws29SourceBindingTest extends AITest {
             if (EFFECT_TARGETS.contains(target)) {
                 final String expectedApi = apiForTarget(target);
                 final List<SpellAbility> graph = collectSpellAbilities(state);
-                targetBound = graph.stream().anyMatch(sa -> sa.getApi() != null && sa.getApi().name().equals(expectedApi));
-                runtimeDetail = "ApiType=" + expectedApi + ";graph_nodes=" + graph.size();
+                boolean graphBound = hasApi(graph, expectedApi);
+                boolean exactSVarMaterialized = false;
+                int sourceGraphNodes = 0;
+                if (!graphBound && "SVAR".equals(sourceDirective) && !sourceSVar.isEmpty()) {
+                    final List<SpellAbility> sourceGraph = new ArrayList<>();
+                    final Set<SpellAbility> sourceSeen = Collections.newSetFromMap(new IdentityHashMap<>());
+                    try {
+                        walk(state.getAbilityForTrigger(sourceSVar), sourceGraph, sourceSeen);
+                        sourceGraphNodes = sourceGraph.size();
+                        exactSVarMaterialized = hasApi(sourceGraph, expectedApi);
+                    } catch (RuntimeException ignored) {
+                    }
+                }
+                targetBound = graphBound || exactSVarMaterialized;
+                runtimeDetail = "ApiType=" + expectedApi
+                        + ";graph_nodes=" + graph.size()
+                        + ";exact_svar_materialized=" + exactSVarMaterialized
+                        + ";source_graph_nodes=" + sourceGraphNodes;
             } else if (target.equals("forge.game.trigger.TriggerHandler#parseTrigger")) {
                 Assert.assertFalse(sourceSVar.isEmpty(), pathId + " trigger parser path must be source-bound to SVar");
                 final Trigger parsed = TriggerHandler.parseTrigger(state.getSVar(sourceSVar), card, true, state);
@@ -127,7 +146,8 @@ public class Ws29SourceBindingTest extends AITest {
                 runtimeDetail = "Keyword=PARTNER";
             } else if (target.startsWith("forge.game.staticability.StaticAbilityMode#")) {
                 final String mode = target.substring(target.indexOf('#') + 1);
-                targetBound = state.getStaticAbilities().stream().anyMatch(st -> st.getMode().stream().anyMatch(m -> m.name().equals(mode)));
+                targetBound = state.getStaticAbilities().stream()
+                        .anyMatch(st -> st.getMode().stream().anyMatch(m -> m.name().equals(mode)));
                 runtimeDetail = "StaticAbilityMode=" + mode;
             } else if (target.equals("forge.game.staticability.StaticAbility")) {
                 targetBound = hasRuntimeStatic(state, rootKind, rootKey);
@@ -137,7 +157,8 @@ public class Ws29SourceBindingTest extends AITest {
                 runtimeDetail = "unmapped-target";
             }
 
-            Assert.assertTrue(targetBound, pathId + " assigned implementation target must be constructed from actual card runtime: " + target);
+            Assert.assertTrue(targetBound,
+                    pathId + " assigned implementation target must be constructed from actual card runtime: " + target);
             passCount++;
 
             final JsonObject row = new JsonObject();
@@ -169,10 +190,12 @@ public class Ws29SourceBindingTest extends AITest {
         return object.get(key).getAsString();
     }
 
+    private static boolean hasApi(List<SpellAbility> graph, String api) {
+        return graph.stream().anyMatch(sa -> sa.getApi() != null && sa.getApi().name().equals(api));
+    }
+
     private static boolean keywordEquivalent(String runtime, String source) {
-        if (runtime.equals(source)) {
-            return true;
-        }
+        if (runtime.equals(source)) return true;
         return runtime.split(":", 2)[0].equalsIgnoreCase(source.split(":", 2)[0]);
     }
 
@@ -208,32 +231,23 @@ public class Ws29SourceBindingTest extends AITest {
     private static boolean staticMatchesSource(StaticAbility st, String source) {
         Map<String, String> expected = parseParams(source);
         String mode = expected.get("Mode");
-        if (mode != null && st.getMode().stream().noneMatch(m -> m.name().equals(mode))) {
-            return false;
-        }
+        if (mode != null && st.getMode().stream().noneMatch(m -> m.name().equals(mode))) return false;
         for (Map.Entry<String, String> entry : expected.entrySet()) {
             String key = entry.getKey();
-            if (Set.of("Mode", "Description").contains(key)) {
-                continue;
-            }
-            if (st.hasParam(key) && !st.getParam(key).equals(entry.getValue())) {
-                return false;
-            }
+            if (Set.of("Mode", "Description").contains(key)) continue;
+            if (st.hasParam(key) && !st.getParam(key).equals(entry.getValue())) return false;
         }
         return true;
     }
 
     private static boolean hasRuntimeStatic(CardState state, String rootKind, String rootKey) {
         if (!state.getStaticAbilities().isEmpty()) {
-            if (!"STATIC".equals(rootKind) || rootKey.isEmpty()) {
-                return true;
-            }
-            return state.getStaticAbilities().stream().anyMatch(st -> st.getMode().stream().anyMatch(m -> m.name().equals(rootKey)));
+            if (!"STATIC".equals(rootKind) || rootKey.isEmpty()) return true;
+            return state.getStaticAbilities().stream()
+                    .anyMatch(st -> st.getMode().stream().anyMatch(m -> m.name().equals(rootKey)));
         }
         for (KeywordInterface kw : state.getIntrinsicKeywords()) {
-            if (!kw.getStaticAbilities().isEmpty()) {
-                return true;
-            }
+            if (!kw.getStaticAbilities().isEmpty()) return true;
         }
         return false;
     }
@@ -249,15 +263,9 @@ public class Ws29SourceBindingTest extends AITest {
     private static List<SpellAbility> collectSpellAbilities(CardState state) {
         final List<SpellAbility> result = new ArrayList<>();
         final Set<SpellAbility> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-        for (SpellAbility sa : state.getSpellAbilities()) {
-            walk(sa, result, seen);
-        }
+        for (SpellAbility sa : state.getSpellAbilities()) walk(sa, result, seen);
         for (Trigger trigger : state.getTriggers()) {
-            try {
-                walk(trigger.ensureAbility(state), result, seen);
-            } catch (RuntimeException ignored) {
-                // A trigger can require contextual SVars; exact trigger parser paths are tested separately.
-            }
+            try { walk(trigger.ensureAbility(state), result, seen); } catch (RuntimeException ignored) { }
         }
         for (ReplacementEffect replacement : state.getReplacementEffects()) {
             walk(replacement.getOverridingAbility(), result, seen);
@@ -276,9 +284,7 @@ public class Ws29SourceBindingTest extends AITest {
 
     @SuppressWarnings("unchecked")
     private static void walk(SpellAbility sa, List<SpellAbility> result, Set<SpellAbility> seen) {
-        if (sa == null || !seen.add(sa)) {
-            return;
-        }
+        if (sa == null || !seen.add(sa)) return;
         result.add(sa);
         walk(sa.getSubAbility(), result, seen);
         try {
