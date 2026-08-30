@@ -2,7 +2,7 @@ package forge.gamesimulationtests;
 
 import forge.ai.AITest;
 import forge.game.Game;
-import forge.game.GameObject;
+import forge.game.GameEntity;
 import forge.game.card.Card;
 import forge.game.player.Player;
 import forge.game.spellability.SpellAbility;
@@ -107,7 +107,7 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
             actor.getZone(ZoneType.Battlefield).add(source);
         }
 
-        final GameObject intended;
+        final GameEntity intended;
         final String relation;
         switch (c.targetRole) {
             case "OPPONENT_PLAYER":
@@ -226,14 +226,14 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
     }
 
     private static final class Provider {
-        private final GameObject intended;
+        private final GameEntity intended;
         private final List<ReplayDecision> replay;
         private int replayIndex;
         private boolean selected;
         private boolean sawIntended;
         private final List<CapturedDecision> captured = new ArrayList<>();
 
-        Provider(final Case c, final GameObject intended, final List<ReplayDecision> replay) {
+        Provider(final Case c, final GameEntity intended, final List<ReplayDecision> replay) {
             this.intended = intended;
             this.replay = replay;
         }
