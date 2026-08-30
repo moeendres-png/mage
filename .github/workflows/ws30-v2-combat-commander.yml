@@ -143,8 +143,13 @@ jobs:
           diag='''Combat c=beginCombat(f,p0); var e=legal(c);\n            boolean requirementEntry=c.getAttackConstraints().getRequirements().containsKey(bear);\n            boolean hasRequirement=requirementEntry && c.getAttackConstraints().getRequirements().get(bear).hasRequirement();\n            System.out.println("WS30_DIAG opponents="+p0.getOpponents().size()+" canAttack="+CombatUtil.canAttack(bear)+" sick="+bear.isSick()+" power="+bear.getNetPower()+" requirementEntry="+requirementEntry+" hasRequirement="+hasRequirement+" restrictions="+restrictionsRequirements(c)+" legal="+stableAttackMap(e.getLeft()));\n            Assert.assertTrue(e.getLeft().containsKey(bear));'''
           assert first in s
           s=s.replace(first,diag,1)
+          ghost='Cost cost=CombatUtil.getAttackCost(f.game,bear,p1); Assert.assertNotNull(cost); var e=legal(c); Assert.assertFalse(e.getLeft().containsKey(bear));'
+          ghost_fixed='''Cost cost=CombatUtil.getAttackCost(f.game,bear,p1); Assert.assertNotNull(cost); var e=legal(c);\n            Assert.assertTrue(e.getLeft().containsKey(bear));\n            GameEntity chosen=e.getLeft().get(bear);\n            Assert.assertNotEquals(chosen,p1);\n            Assert.assertNull(CombatUtil.getAttackCost(f.game,bear,chosen));'''
+          assert ghost in s
+          s=s.replace(ghost,ghost_fixed,1)
+          s=s.replace('"unpaid attacker omitted","not-applicable","no combat damage","Forge exposes attack cost and requirements do not bypass it"', '"taxed defender omitted; attacker redirected by rules core","not-applicable","no combat damage","Forge exposes defender-scoped attack cost and selects an untaxed legal defender"', 1)
           p.write_text(s)
-          print(f'PhaseHandler-bound combat substitutions={count}; initialized Forge dynamic game data; instrumented Aura preconditions and Forge-filtered entity choice')
+          print(f'PhaseHandler-bound combat substitutions={count}; initialized Forge dynamic game data; corrected multiplayer Ghostly Prison witness')
           PY
           : > "$WS30_TRACE_PATH"
 
