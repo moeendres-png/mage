@@ -1,6 +1,7 @@
 package forge.gamesimulationtests;
 
 import forge.StaticData;
+import forge.card.CardStateName;
 import forge.game.card.Card;
 import forge.game.card.CardFactory;
 import forge.game.keyword.KeywordInterface;
@@ -79,9 +80,14 @@ public final class Ws26RuntimeBindingTracerTest {
                 Assert.assertNotNull(card, "CardFactory must construct: " + forgeName);
 
                 KeywordInterface hit = null;
-                for (final KeywordInterface kw : card.getKeywords()) {
-                    if (keywordText.equals(kw.getOriginal())) {
-                        hit = kw;
+                for (final CardStateName state : card.getStates()) {
+                    for (final KeywordInterface kw : card.getKeywords(card.getState(state))) {
+                        if (keywordText.equals(kw.getOriginal())) {
+                            hit = kw;
+                            break;
+                        }
+                    }
+                    if (hit != null) {
                         break;
                     }
                 }
