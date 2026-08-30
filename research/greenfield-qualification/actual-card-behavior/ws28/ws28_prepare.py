@@ -34,7 +34,7 @@ def parse_records(lines):
             bits=raw.split(":",2)
             if len(bits)==3:
                 kind="SVAR"; name=bits[1].strip(); body=bits[2].strip()
-        elif len(raw)>=2 and raw[1]==":" and raw[0] in "ATRK":
+        elif len(raw)>=2 and raw[1]==":" and raw[0] in "ASTRK":
             kind=raw[0]; body=raw[2:].strip()
         if kind:
             recs.append({"line":i,"raw":raw,"kind":kind,"name":name,"body":body,"params":parse_params(body)})
@@ -75,6 +75,10 @@ def root_token(root):
         if "SP" in p: return "SP",p["SP"]
         if "AB" in p: return "AB",p["AB"]
         if "DB" in p: return "DB",p["DB"]
+    if root["kind"]=="S":
+        for key in ("AddAbility","AddTrigger","AddReplacementEffect","AddStaticAbility","AddSVar","Mode"):
+            if key in p:
+                return key,p[key]
     if root["kind"]=="T": return "Mode",p.get("Mode","")
     if root["kind"]=="R": return "Event",p.get("Event","")
     if root["kind"]=="K": return "Keyword",root["body"]
@@ -172,5 +176,7 @@ def main():
         "root_kind_counts":dict(sorted(rootc.items())),
         "unresolved":unresolved,
     },sort_keys=True,indent=2)+"\n",encoding="utf-8")
-    print("WS28_PREPARE=PASS cases=1172 unresolved_roots="+str(len(unresolved)))
+    if unresolved:
+        raise SystemExit(f"WS28 production-root binding incomplete: {len(unresolved)} unresolved")
+    print("WS28_PREPARE=PASS cases=1172 unresolved_roots=0")
 if __name__=="__main__": main()
