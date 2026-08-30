@@ -1,0 +1,120 @@
+name: WS29 V2 continuous copy control closure
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - work/ws29-v2-continuous-copy-control-20260830
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  WS26_FINAL_HEAD: 206a39cbaa3eeb98b10c2ddc36d51fe5b1b2f5ef
+  WS26_FINAL_TREE: 837f445f78bb26462653c58baf1532e294151b10
+  WS26_ARTIFACT_ID: '9723722686'
+  WS26_ARTIFACT_DIGEST: sha256:b9e1fc4fd792b0baa1da1c17e3bbc9e01b2557d4b73b8590e680679f53b59883
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws29
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout WS29
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+
+      - name: Verify boundary and ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
+          git -C qual merge-base --is-ancestor "$WS26_FINAL_HEAD" HEAD
+          test "$(git -C qual rev-parse "$WS26_FINAL_HEAD^{tree}")" = "$WS26_FINAL_TREE"
+          bad="$(git -C qual diff --name-only "$WS26_FINAL_HEAD"...HEAD | grep -Ev '^(research/greenfield-qualification/actual-card-behavior/ws29/|research/greenfield-qualification/WS29_HANDOFF\.md$|\.github/workflows/ws29-v2-continuous-copy-control\.yml$)' || true)"
+          test -z "$bad" || { echo 'out-of-scope WS29 changes:' >&2; echo "$bad" >&2; exit 1; }
+          mkdir -p inputs evidence generated
+
+      - name: Checkout exact pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Verify Forge pin and immutable WS26 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          actual="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS26_ARTIFACT_ID" --jq '.digest')"
+          test "$actual" = "$WS26_ARTIFACT_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS26_ARTIFACT_ID/zip" > /tmp/ws26.zip
+          mkdir -p inputs/ws26
+          unzip -q /tmp/ws26.zip -d inputs/ws26
+          base="inputs/ws26/research/greenfield-qualification/actual-card-behavior/ws26"
+          jq -e '.path_count == 4280' "$base/WS26_BEHAVIOR_PATH_MANIFEST_V2.json" >/dev/null
+          jq -e '.WS26_MODEL_V2 == "PASS" and .WS27_WS31_ELIGIBLE == true' "$base/WS26_GATE.json" >/dev/null
+
+      - name: Materialize exact WS29 execution cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="inputs/ws26/research/greenfield-qualification/actual-card-behavior/ws26"
+          python3 "qual/$ROOT/ws29_prepare_cases.py" \
+            --manifest "$base/WS26_BEHAVIOR_PATH_MANIFEST_V2.json" \
+            --forge-root forge \
+            --out inputs/ws29-cases.jsonl
+          test "$(wc -l < inputs/ws29-cases.jsonl)" = 301
+          jq -e '.path_count == 301' inputs/ws29-cases.jsonl.summary.json >/dev/null
+          cp inputs/ws29-cases.jsonl evidence/WS29_CASES.jsonl
+          cp inputs/ws29-cases.jsonl.summary.json evidence/WS29_CASES_SUMMARY.json
+
+      - name: Apply qualification-only source binding probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -D -m 0644 "qual/$ROOT/forge-overlay/Ws29SourceBindingTest.java" \
+            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws29SourceBindingTest.java
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+
+      - name: Execute exact actual-card source binding probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.gamesimulationtests.Ws29SourceBindingTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws29.cases="$GITHUB_WORKSPACE/inputs/ws29-cases.jsonl" \
+            -Dws29.binding.out="$GITHUB_WORKSPACE/evidence/WS29_SOURCE_BINDING_TRACE.jsonl" \
+            test) 2>&1 | tee evidence/ws29-source-binding.log
+          test "$(wc -l < evidence/WS29_SOURCE_BINDING_TRACE.jsonl)" = 301
+          test "$(jq -r 'select(.status != "PASS") | .v2_path_id' evidence/WS29_SOURCE_BINDING_TRACE.jsonl | wc -l)" = 0
+          cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws29SourceBindingTest.xml evidence/
+          ! grep -q '<failure\|<error' evidence/TEST-forge.gamesimulationtests.Ws29SourceBindingTest.xml
+
+      - name: Record interim provenance
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > evidence/WS29_PROVENANCE.json <<JSON
+          {"schema":"commander-simulator-next.ws29.provenance.v1","tested_source_head":"$(git -C qual rev-parse HEAD)","tested_source_tree":"$(git -C qual rev-parse 'HEAD^{tree}')","ws26_final_head":"$WS26_FINAL_HEAD","ws26_final_tree":"$WS26_FINAL_TREE","ws26_artifact_id":$WS26_ARTIFACT_ID,"ws26_artifact_digest":"$WS26_ARTIFACT_DIGEST","forge_pin":"$FORGE_PIN"}
+          JSON
+
+      - name: Upload WS29 interim evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws29-v2-continuous-copy-control
+          path: evidence
+          if-no-files-found: warn
+          retention-days: 90
