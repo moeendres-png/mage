@@ -1,0 +1,206 @@
+name: WS27 action cost mana target decision closure
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - work/ws27-v2-action-cost-decision-20260830
+    paths:
+      - '.github/workflows/ws27-v2-action-cost-decision.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/ws27/**'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  WS26_HEAD: 206a39cbaa3eeb98b10c2ddc36d51fe5b1b2f5ef
+  WS26_TREE: 837f445f78bb26462653c58baf1532e294151b10
+  WS26_ARTIFACT: '9723722686'
+  WS26_DIGEST: sha256:b9e1fc4fd792b0baa1da1c17e3bbc9e01b2557d4b73b8590e680679f53b59883
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws27
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact WS27 source
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+
+      - name: Verify exact WS26 boundary and WS27 ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
+          git -C qual merge-base --is-ancestor "$WS26_HEAD" HEAD
+          test "$(git -C qual rev-parse "$WS26_HEAD^{tree}")" = "$WS26_TREE"
+          bad="$(git -C qual diff --name-only "$WS26_HEAD"...HEAD | grep -Ev '^(research/greenfield-qualification/actual-card-behavior/ws27/|research/greenfield-qualification/WS27_HANDOFF\.md$|\.github/workflows/ws27-v2-action-cost-decision\.yml$)' || true)"
+          test -z "$bad" || { echo "out-of-scope WS27 changes:" >&2; echo "$bad" >&2; exit 1; }
+          mkdir -p inputs evidence generated artifact
+
+      - name: Download exact immutable WS26 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS26_ARTIFACT" --jq '.digest')"
+          test "$actual" = "$WS26_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' \
+            "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS26_ARTIFACT/zip" > /tmp/ws26.zip
+          mkdir -p inputs/ws26-artifact
+          unzip -q /tmp/ws26.zip -d inputs/ws26-artifact
+          WS26_ROOT="inputs/ws26-artifact/research/greenfield-qualification/actual-card-behavior/ws26"
+          test -f "$WS26_ROOT/WS26_GATE.json"
+          jq -e \
+            '.source_head=="206a39cbaa3eeb98b10c2ddc36d51fe5b1b2f5ef"
+             and .source_tree=="837f445f78bb26462653c58baf1532e294151b10"
+             and .WS26_MODEL_V2=="PASS"
+             and .WS26_SHARED_HARNESS=="PASS"
+             and .WS27_WS31_ELIGIBLE==true
+             and .owner_family_path_counts.ACTION_COST_DECISION==2697' \
+            "$WS26_ROOT/WS26_GATE.json" >/dev/null
+          jq -e '.sets.WS27.owner_family=="ACTION_COST_DECISION" and .sets.WS27.path_count==2697' \
+            "$WS26_ROOT/WS26_NEXT_WORKSTREAM_INPUT.json" >/dev/null
+
+      - name: Checkout exact pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: forge/pom.xml
+
+      - name: Verify Forge pin and actual-card source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          grep -Fx 'Name:Swiftwater Cliffs' forge/forge-gui/res/cardsfolder/s/swiftwater_cliffs.txt
+          grep -F 'SVar:TrigGainLife:DB$ GainLife | LifeAmount$ 1' forge/forge-gui/res/cardsfolder/s/swiftwater_cliffs.txt
+          grep -F 'A:AB$ Mana | Cost$ T | Produced$ Combo U R' forge/forge-gui/res/cardsfolder/s/swiftwater_cliffs.txt
+
+      - name: Install WS27 qualification-only actual-card witness
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -D -m 0644 "qual/$ROOT/forge-overlay/Ws27SwiftwaterCliffsWitnessTest.java" \
+            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws27SwiftwaterCliffsWitnessTest.java
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+
+      - name: Ensure virtual display
+        shell: bash
+        run: command -v Xvfb >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y xvfb; }
+
+      - name: Execute exact pinned Forge actual-card witness
+        shell: bash
+        run: |
+          set -euo pipefail
+          trace="$GITHUB_WORKSPACE/evidence/ws27-swiftwater-cliffs.trace.json"
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.gamesimulationtests.Ws27SwiftwaterCliffsWitnessTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws27.traceOut="$trace" \
+            test) 2>&1 | tee evidence/ws27-swiftwater-cliffs.maven.log
+          test -s "$trace"
+          report=forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws27SwiftwaterCliffsWitnessTest.xml
+          test -s "$report"
+          ! grep -q '<failure\|<error' "$report"
+          cp "$report" evidence/
+
+      - name: Materialize complete WS27 inventory and fail-closed gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          WS26_ROOT="inputs/ws26-artifact/research/greenfield-qualification/actual-card-behavior/ws26"
+          source_tree="$(git -C qual rev-parse 'HEAD^{tree}')"
+          python3 "qual/$ROOT/ws27_materialize.py" \
+            --ws26-root "$WS26_ROOT" \
+            --trace evidence/ws27-swiftwater-cliffs.trace.json \
+            --out generated \
+            --source-head "$GITHUB_SHA" \
+            --source-tree "$source_tree"
+
+      - name: Inspect WS27 hard gate directly
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .assigned_path_count==2697
+            and .status_counts.PASS==1
+            and .status_counts.UNKNOWN==2696
+            and .status_counts.UNSUPPORTED==0
+            and .status_counts.FAIL==0
+            and .hard_gate.assigned_paths_accounted==true
+            and .hard_gate.production_required_UNKNOWN==2696
+            and .hard_gate.production_required_UNSUPPORTED==0
+            and .hard_gate.production_required_FAIL==0
+            and .hard_gate.all_PASS_have_state_evidence==true
+            and .hard_gate.all_decision_paths_use_authoritative_options==false
+            and .hard_gate.illegal_test_side_legality_logic==0
+            and .hard_gate.silent_fallback_count==0
+            and .hard_gate.card_name_production_hacks==0
+            and .hard_gate.exact_forge_pin==true
+            and .hard_gate.trace_hashes_complete==true
+            and .hard_gate.stdout_only_PASS_count==0
+            and .WS27_FAMILY_GATE=="FAIL_CLOSED"
+            and .WORKSTREAM_COMPLETE==false
+            and .WORKSTREAM_CLOSED_FAIL_CLOSED==true
+            and .SHARED_CORE_FIX_REQUIRED==false
+            and .Q6_ACTUAL_CARD_BEHAVIOR=="NOT_ADJUDICATED_BY_WS27"
+          ' generated/WS27_GATE.json >/dev/null
+          jq -e '
+            .assigned_path_count==2697
+            and .decision_required_path_count==1812
+            and .decision_paths_with_PASS_authoritative_option_evidence==0
+            and .decision_paths_without_PASS_authoritative_option_evidence==1812
+            and .authoritative_boundary_contract.pilot_may_infer_legality==false
+            and .authoritative_boundary_contract.silent_fallbacks_permitted==false
+            and .authoritative_boundary_contract.test_side_legality_reconstruction_permitted==false
+          ' generated/WS27_DECISION_INVENTORY.json >/dev/null
+          test "$(wc -l < generated/WS27_WITNESSES.jsonl)" = 1
+
+      - name: Hash canonical WS27 evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -d generated; then
+            (cd generated && find . -type f ! -name WS27_HASHES.sha256 -print0 | sort -z | xargs -0 sha256sum) > generated/WS27_HASHES.sha256 || true
+          fi
+
+      - name: Package immutable WS27 artifact
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifact/research/greenfield-qualification/actual-card-behavior/ws27
+          cp -a generated/. artifact/research/greenfield-qualification/actual-card-behavior/ws27/ || true
+          cp -a evidence artifact/workflow-evidence || true
+          printf '%s\n' "$GITHUB_SHA" > artifact/workflow-evidence/tested_source_head.txt
+          git -C qual rev-parse 'HEAD^{tree}' > artifact/workflow-evidence/tested_source_tree.txt
+          printf '%s\n' "$FORGE_PIN" > artifact/workflow-evidence/forge_pin.txt
+          printf '%s\n' "$WS26_ARTIFACT" > artifact/workflow-evidence/ws26_artifact_id.txt
+          printf '%s\n' "$WS26_DIGEST" > artifact/workflow-evidence/ws26_artifact_digest.txt
+
+      - name: Upload immutable WS27 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws27-v2-action-cost-decision
+          path: artifact
+          if-no-files-found: error
+          retention-days: 90
