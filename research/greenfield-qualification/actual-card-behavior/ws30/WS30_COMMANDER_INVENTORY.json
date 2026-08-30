@@ -1,0 +1,49 @@
+{
+  "assigned_path_witnesses": [
+    {
+      "assertion": "Commander-sensitive delayed trigger sees controlled commander",
+      "card": "Fight for the Throne",
+      "evidence_class": "EXTERNALLY_RULE_VALIDATED",
+      "official_rule_refs": [
+        "903",
+        "903.3"
+      ],
+      "path_id": "forge-behavior-v2:945cb309bfe37e292fbecc172efa4789ff1156d1"
+    }
+  ],
+  "command_zone_initialization_actual": true,
+  "commander_damage_by_same_card_identity": true,
+  "commander_damage_witness": [
+    {
+      "card": "Isamaru, Hound of Konda",
+      "combat_state": "commanderDamage=4",
+      "damage_assignment": "Combat.assign/deal",
+      "dispatch": "COMMANDER_COMBAT_DAMAGE",
+      "evidence_class": "TECHNICALLY_CONFORMANT",
+      "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+      "initial_state": "actual commander from command zone to battlefield",
+      "legal_attackers": "Isamaru, Hound of Konda->WS30-P2",
+      "legal_blockers": "",
+      "path_id": "SUPPLEMENTAL:COMMANDER_DAMAGE",
+      "post_damage_state": "life=36; commanderDamage=4",
+      "restrictions_requirements": "R:Isamaru, Hound of Konda=forge.game.combat.AttackRestriction[present]|Q:Isamaru, Hound of Konda=forge.game.combat.AttackRequirement[present]",
+      "result": "PASS",
+      "rules_url": "https://media.wizards.com/2026/downloads/MagicCompRules%2020260807.pdf",
+      "selected_declaration": "Isamaru, Hound of Konda->WS30-P2",
+      "semantic_assertion": "Forge tracks same-commander combat damage identity",
+      "validation_result": "damage dealt"
+    }
+  ],
+  "commander_identity_preserved": true,
+  "commander_sensitive_assigned_paths": [
+    "forge-behavior-v2:945cb309bfe37e292fbecc172efa4789ff1156d1"
+  ],
+  "official_rule_refs": [
+    "903.3",
+    "903.9",
+    "903.10a"
+  ],
+  "rules_url": "https://media.wizards.com/2026/downloads/MagicCompRules%2020260807.pdf",
+  "schema": "ws30-commander-inventory-v1",
+  "status": "PASS"
+}

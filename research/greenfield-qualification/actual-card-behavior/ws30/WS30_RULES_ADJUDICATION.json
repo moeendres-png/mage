@@ -1,0 +1,86 @@
+{
+  "adjudications": [
+    {
+      "rules": [
+        "508.1",
+        "508.1c",
+        "508.1d"
+      ],
+      "topic": "declare_attackers"
+    },
+    {
+      "rules": [
+        "509.1"
+      ],
+      "topic": "declare_blockers"
+    },
+    {
+      "rules": [
+        "510.1",
+        "510.2"
+      ],
+      "topic": "combat_damage"
+    },
+    {
+      "rules": [
+        "702.4",
+        "702.7",
+        "510.4"
+      ],
+      "topic": "first_double_strike"
+    },
+    {
+      "rules": [
+        "701.15"
+      ],
+      "topic": "goad"
+    },
+    {
+      "rules": [
+        "702.9"
+      ],
+      "topic": "evasion"
+    },
+    {
+      "rules": [
+        "702.91"
+      ],
+      "topic": "battle_cry"
+    },
+    {
+      "rules": [
+        "702.83"
+      ],
+      "topic": "exalted"
+    },
+    {
+      "rules": [
+        "702.121"
+      ],
+      "topic": "melee"
+    },
+    {
+      "rules": [
+        "903.3",
+        "903.9"
+      ],
+      "topic": "commander_identity_zone"
+    },
+    {
+      "rules": [
+        "903.10a"
+      ],
+      "topic": "commander_damage"
+    }
+  ],
+  "authority": "Official rules; Forge parity is implementation evidence only",
+  "commander_specific_paths_rules_validated": true,
+  "evidence_class": "EXTERNALLY_RULE_VALIDATED",
+  "official_source": {
+    "effective_date": "2026-08-07",
+    "title": "Magic: The Gathering Comprehensive Rules",
+    "url": "https://media.wizards.com/2026/downloads/MagicCompRules%2020260807.pdf"
+  },
+  "schema": "ws30-rules-adjudication-v1",
+  "status": "PASS"
+}
