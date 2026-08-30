@@ -1,269 +1,198 @@
-name: WS30 V2 Combat Commander
+name: WS30 Evidence Finalizer
 
 on:
-  workflow_dispatch:
   push:
     branches: [work/ws30-v2-combat-commander-20260830]
-    paths:
-      - '.github/workflows/ws30-v2-combat-commander.yml'
-      - 'research/greenfield-qualification/actual-card-behavior/ws30/**'
-      - 'research/greenfield-qualification/WS30_HANDOFF.md'
 
 permissions:
-  contents: read
-  actions: read
+  contents: write
+  actions: write
 
 jobs:
-  combat-commander:
+  finalize-evidence:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 10
     env:
+      BRANCH: work/ws30-v2-combat-commander-20260830
+      EVIDENCE_HEAD: 38d2db6eae131bef1e7079eb80e6c012b9badbdf
+      EVIDENCE_TREE: f55320645dfa63920954ebc2b292ccfc90128db7
+      EVIDENCE_RUN_ID: '33316335525'
+      EVIDENCE_JOB_ID: '99270369522'
+      EVIDENCE_ARTIFACT_ID: '9733584180'
+      EVIDENCE_ARTIFACT_DIGEST: sha256:e31b939402e4b59db711a2bdf29773f4cb7be8d0ea434224256f5b3459a92199
       WS26_HEAD: 206a39cbaa3eeb98b10c2ddc36d51fe5b1b2f5ef
       WS26_TREE: 837f445f78bb26462653c58baf1532e294151b10
-      WS26_RUN_ID: '33283478862'
-      WS26_JOB_ID: '99182488884'
-      WS26_ARTIFACT_ID: '9723722686'
-      WS26_ARTIFACT_DIGEST: sha256:b9e1fc4fd792b0baa1da1c17e3bbc9e01b2557d4b73b8590e680679f53b59883
       FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
-      WS30_TRACE_PATH: ${{ github.workspace }}/artifacts/ws30/raw-trace.jsonl
     steps:
-      - name: Checkout WS30 qualification branch
+      - name: Checkout finalizer commit
         uses: actions/checkout@v4
         with:
-          path: qualification
-          fetch-depth: 0
-          filter: blob:none
-          sparse-checkout: |
-            .github/workflows/ws30-v2-combat-commander.yml
-            research/greenfield-qualification/actual-card-behavior/ws30
-            research/greenfield-qualification/WS30_HANDOFF.md
+          fetch-depth: 2
 
-      - name: Verify exact WS26 source and artifact boundary
-        id: source
+      - name: Verify parent and immutable full-pass artifact
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p "$GITHUB_WORKSPACE/artifacts/ws30" "$GITHUB_WORKSPACE/artifacts/ws30-replay" "$GITHUB_WORKSPACE/predecessor/ws26"
-          cd qualification
-          test "$(git rev-parse "$WS26_HEAD^{tree}")" = "$WS26_TREE"
-          git merge-base --is-ancestor "$WS26_HEAD" HEAD
-          meta=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${WS26_ARTIFACT_ID}")
-          test "$(jq -r '.id' <<< "$meta")" = "$WS26_ARTIFACT_ID"
-          test "$(jq -r '.name' <<< "$meta")" = "ws26-runtime-behavior-binding-v2"
-          test "$(jq -r '.digest' <<< "$meta")" = "$WS26_ARTIFACT_DIGEST"
-          test "$(jq -r '.workflow_run.id' <<< "$meta")" = "$WS26_RUN_ID"
-          test "$(jq -r '.workflow_run.head_sha' <<< "$meta")" = "$WS26_HEAD"
-          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${WS26_ARTIFACT_ID}/zip" > "$GITHUB_WORKSPACE/predecessor/ws26.zip"
-          unzip -q "$GITHUB_WORKSPACE/predecessor/ws26.zip" -d "$GITHUB_WORKSPACE/predecessor/ws26"
-          owner=$(find "$GITHUB_WORKSPACE/predecessor/ws26" -name WS26_OWNER_PARTITIONS.json -type f -print -quit)
-          test -n "$owner"
-          python3 - "$owner" <<'PY'
-          import json,sys
-          from pathlib import Path
-          fam=json.loads(Path(sys.argv[1]).read_text())["families"]["COMBAT_COMMANDER"]
-          assert fam["path_count"] == 27
-          assert len(fam["v2_path_ids"]) == 27 == len(set(fam["v2_path_ids"]))
-          PY
-          changed=$(git diff --name-only "$WS26_HEAD"...HEAD)
-          while IFS= read -r path; do
-            test -z "$path" && continue
-            case "$path" in
-              .github/workflows/ws30-v2-combat-commander.yml|research/greenfield-qualification/actual-card-behavior/ws30/*|research/greenfield-qualification/WS30_HANDOFF.md) ;;
-              *) echo "Out-of-scope WS30 change: $path" >&2; exit 1 ;;
-            esac
-          done <<< "$changed"
-          echo "owner_partitions=$owner" >> "$GITHUB_OUTPUT"
-          echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "tree=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout exact pinned Forge
-        uses: actions/checkout@v4
-        with:
-          repository: Card-Forge/forge
-          ref: ${{ env.FORGE_PIN }}
-          path: forge
-          fetch-depth: 1
-
-      - name: Set up Java 21
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Verify Forge pin and inject qualification-only overlay
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
-          src=qualification/research/greenfield-qualification/actual-card-behavior/ws30/forge-overlay/Ws30CombatCommanderWitnessTest.java
-          dst=forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws30CombatCommanderWitnessTest.java
-          test -f "$src"
-          mkdir -p "$(dirname "$dst")"
-          cp "$src" "$dst"
-          python3 - "$dst" <<'PY'
-          from pathlib import Path
-          import sys
-          p=Path(sys.argv[1])
-          s=p.read_text()
-          s=s.replace('import forge.LobbyPlayer;\n', 'import forge.LobbyPlayer;\nimport forge.GuiDesktop;\n')
-          s=s.replace('import forge.game.card.CardCollectionView;\n','')
-          s=s.replace('import forge.game.player.IGameEntitiesFactory;\n', 'import forge.game.player.DelayedReveal;\nimport forge.game.player.IGameEntitiesFactory;\n')
-          s=s.replace('import forge.item.PaperCard;\n', 'import forge.item.PaperCard;\nimport forge.gui.GuiBase;\nimport forge.model.FModel;\n')
-          s=s.replace('import forge.util.Localizer;\n', 'import forge.util.Localizer;\nimport forge.util.collect.FCollectionView;\n')
-          init='            Localizer.getInstance().initialize("en-US", dir(res.resolve("languages")));\n'
-          bootstrap='''            Localizer.getInstance().initialize("en-US", dir(res.resolve("languages")));\n            if (GuiBase.getInterface() == null) GuiBase.setInterface(new GuiDesktop());\n            FModel.loadDynamicGamedata();\n            Assert.assertTrue(forge.card.CardType.Constant.LOADED.isSet(), "Forge dynamic type registry not loaded");\n'''
-          assert init in s
-          s=s.replace(init,bootstrap,1)
-          controller_ctor='        Ws30Controller(Game game, Player player, LobbyPlayer lobbyPlayer) { super(game, player, lobbyPlayer); }\n'
-          controller_choice='''        private GameEntity expectedEntityChoice;\n        Ws30Controller(Game game, Player player, LobbyPlayer lobbyPlayer) { super(game, player, lobbyPlayer); }\n        void expectEntityChoice(GameEntity entity) {\n            if (expectedEntityChoice != null) throw new IllegalStateException("unconsumed expected entity choice");\n            expectedEntityChoice = entity;\n        }\n        @Override public <T extends GameEntity> T chooseSingleEntityForEffect(FCollectionView<T> optionList, DelayedReveal delayedReveal, SpellAbility sa, String title, boolean isOptional, Player relatedPlayer, Map<String,Object> params) {\n            System.out.println("WS30_ENTITY_CHOICE title="+title+" options="+optionList.size()+" expected="+expectedEntityChoice);\n            if (delayedReveal != null) reveal(delayedReveal);\n            GameEntity expected = expectedEntityChoice;\n            if (expected == null) throw new IllegalStateException("unexpected discretionary entity choice: " + title);\n            expectedEntityChoice = null;\n            for (T option : optionList) if (option.equals(expected)) return option;\n            throw new IllegalStateException("expected entity is not Forge-legal: " + expected + " options=" + optionList);\n        }\n'''
-          assert controller_ctor in s
-          s=s.replace(controller_ctor,controller_choice,1)
-          old='        controller.getZone(ZoneType.Battlefield).add(card); f.game.getTriggerHandler().registerActiveTrigger(card,false); return card;\n'
-          new='        f.game.getAction().changeZone(null,controller.getZone(ZoneType.Battlefield),card,null,null); return card;\n'
-          assert old in s
-          s=s.replace(old,new,1)
-          force='''    private void forceAttack(Fixture f,Player p,Card creature) {\n        Card aura=putPermanent(f,p,p,"Furor of the Bitten"); aura.attachToEntity(creature,null,true); creature.setSickness(false);\n    }\n'''
-          aura_helper='''    private Card putPermanentMaybeAura(Fixture f, Player owner, Player controller, String name, Card target) {\n        Card card=Card.fromPaperCard(paper(name),owner); card.setController(controller,0);\n        System.out.println("WS30_CARD_FACTORY name="+name+" paperType="+paper(name).getRules().getType()+" runtimeType="+card.getType()+" state="+card.getCurrentStateName()+" aura="+card.isAura());\n        if (!card.isAura()) return putPermanent(f,owner,controller,name);\n        Assert.assertTrue(card.hasKeyword(forge.game.keyword.Keyword.ENCHANT), "Aura lacks Forge ENCHANT keyword: "+name);\n        Assert.assertNotNull(card.getCurrentState().getAuraSpell(), "Aura lacks Forge AuraSpell: "+name);\n        f.game.copyLastState();\n        boolean lkiLegal=f.game.getLastStateBattlefield().anyMatch(forge.game.card.CardPredicates.canBeAttached(card,null));\n        boolean currentLegal=f.game.getCardsIn(ZoneType.Battlefield).anyMatch(forge.game.card.CardPredicates.canBeAttached(card,null));\n        System.out.println("WS30_AURA_PRE name="+name+" lastBF="+f.game.getLastStateBattlefield().size()+" currentBF="+f.game.getCardsIn(ZoneType.Battlefield).size()+" lkiLegal="+lkiLegal+" currentLegal="+currentLegal+" controller="+card.getController());\n        Assert.assertTrue(lkiLegal, "No Forge-legal LKI Aura attachment for "+name);\n        Assert.assertTrue(currentLegal, "No Forge-legal current Aura attachment for "+name);\n        ((Ws30Controller)controller.getController()).expectEntityChoice(target);\n        controller.getZone(ZoneType.Hand).add(card);\n        Card entered=f.game.getAction().changeZone(controller.getZone(ZoneType.Hand),controller.getZone(ZoneType.Battlefield),card,null,null);\n        Assert.assertNotNull(entered); Assert.assertTrue(entered.isAura()); Assert.assertEquals(entered.getEntityAttachedTo(),target);\n        f.game.getAction().checkStateEffects(true);\n        Assert.assertTrue(entered.isInPlay()); Assert.assertEquals(entered.getEntityAttachedTo(),target);\n        return entered;\n    }\n    private void forceAttack(Fixture f,Player p,Card creature) {\n        Card aura=putPermanentMaybeAura(f,p,p,"Furor of the Bitten",creature);\n        Assert.assertTrue(aura.isAura(), "Force-attack card lost Aura type: runtimeType="+aura.getType()+" paperType="+paper("Furor of the Bitten").getRules().getType()+" state="+aura.getCurrentStateName());\n        Assert.assertEquals(aura.getEntityAttachedTo(),creature); creature.setSickness(false);\n    }\n'''
-          assert force in s
-          s=s.replace(force,aura_helper,1)
-          sca='Card source=putPermanent(f,p1,p1,sourceName); if(source.isAura()) source.attachToEntity(attacker,null,true);'
-          assert sca in s
-          s=s.replace(sca,'Card source=putPermanentMaybeAura(f,p1,p1,sourceName,attacker);',1)
-          marker='    private Pair<Map<Card,GameEntity>,Integer> legal(Combat c){return c.getAttackConstraints().getLegalAttackers();}\n'
-          helper='''    private Combat beginCombat(Fixture f, Player attacker) {\n        f.game.getPhaseHandler().devModeSet(PhaseType.MAIN1, attacker);\n        f.game.getAction().checkStateEffects(true);\n        Assert.assertTrue(f.game.getPhaseHandler().devAdvanceToPhase(PhaseType.COMBAT_BEGIN));\n        Combat combat=f.game.getPhaseHandler().getCombat();\n        Assert.assertNotNull(combat);\n        return combat;\n    }\n'''
-          assert marker in s
-          s=s.replace(marker, helper + marker, 1)
-          count=s.count('new Combat(p0)')
-          assert count >= 1
-          s=s.replace('new Combat(p0)', 'beginCombat(f,p0)')
-          assert 'new Combat(p0)' not in s
-          first='Combat c=beginCombat(f,p0); var e=legal(c); Assert.assertTrue(e.getLeft().containsKey(bear));'
-          diag='''Combat c=beginCombat(f,p0); var e=legal(c);\n            boolean requirementEntry=c.getAttackConstraints().getRequirements().containsKey(bear);\n            boolean hasRequirement=requirementEntry && c.getAttackConstraints().getRequirements().get(bear).hasRequirement();\n            System.out.println("WS30_DIAG opponents="+p0.getOpponents().size()+" canAttack="+CombatUtil.canAttack(bear)+" sick="+bear.isSick()+" power="+bear.getNetPower()+" requirementEntry="+requirementEntry+" hasRequirement="+hasRequirement+" restrictions="+restrictionsRequirements(c)+" legal="+stableAttackMap(e.getLeft()));\n            Assert.assertTrue(e.getLeft().containsKey(bear));'''
-          assert first in s
-          s=s.replace(first,diag,1)
-          ghost='Cost cost=CombatUtil.getAttackCost(f.game,bear,p1); Assert.assertNotNull(cost); var e=legal(c); Assert.assertFalse(e.getLeft().containsKey(bear));'
-          ghost_fixed='''Cost cost=CombatUtil.getAttackCost(f.game,bear,p1); Assert.assertNotNull(cost); var e=legal(c);\n            Assert.assertTrue(e.getLeft().containsKey(bear));\n            GameEntity chosen=e.getLeft().get(bear);\n            Assert.assertNotEquals(chosen,p1);\n            Assert.assertNull(CombatUtil.getAttackCost(f.game,bear,chosen));'''
-          assert ghost in s
-          s=s.replace(ghost,ghost_fixed,1)
-          s=s.replace('"unpaid attacker omitted","not-applicable","no combat damage","Forge exposes attack cost and requirements do not bypass it"', '"taxed defender omitted; attacker redirected by rules core","not-applicable","no combat damage","Forge exposes defender-scoped attack cost and selects an untaxed legal defender"', 1)
-          p.write_text(s)
-          print(f'PhaseHandler-bound combat substitutions={count}; initialized Forge dynamic game data; corrected multiplayer Ghostly Prison witness')
-          PY
-          : > "$WS30_TRACE_PATH"
-
-      - name: Run exactly the WS30 Forge witness test
-        id: tests
-        shell: bash
-        run: |
-          set +e
-          cd forge
-          xvfb-run -a mvn -B -pl forge-gui-desktop -am \
-            -Dtest=forge.gamesimulationtests.Ws30CombatCommanderWitnessTest \
-            -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test \
-            2>&1 | tee "$GITHUB_WORKSPACE/artifacts/ws30/ws30-maven.log"
-          rc=${PIPESTATUS[0]}
-          test ! -d forge-gui-desktop/target/surefire-reports || cp -R forge-gui-desktop/target/surefire-reports "$GITHUB_WORKSPACE/artifacts/ws30/"
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
-          exit 0
-
-      - name: Materialize exact 27-path evidence
-        id: materialize
-        shell: bash
-        run: |
-          set +e
-          python3 qualification/research/greenfield-qualification/actual-card-behavior/ws30/ws30_materialize.py \
-            --owner-partitions "${{ steps.source.outputs.owner_partitions }}" --trace "$WS30_TRACE_PATH" --out-dir artifacts/ws30
-          rc=$?; echo "exit_code=$rc" >> "$GITHUB_OUTPUT"; exit 0
-
-      - name: Enforce WS30 hard gate
-        id: gate
-        shell: bash
-        run: |
-          set +e
-          python3 qualification/research/greenfield-qualification/actual-card-behavior/ws30/ws30_gate.py \
-            --dir artifacts/ws30 \
-            --java-source qualification/research/greenfield-qualification/actual-card-behavior/ws30/forge-overlay/Ws30CombatCommanderWitnessTest.java \
-            2>&1 | tee artifacts/ws30/ws30-gate.log
-          rc=${PIPESTATUS[0]}; echo "exit_code=$rc" >> "$GITHUB_OUTPUT"; exit 0
-
-      - name: Semantic replay run
-        id: replay
-        if: ${{ steps.tests.outputs.exit_code == '0' && steps.materialize.outputs.exit_code == '0' && steps.gate.outputs.exit_code == '0' }}
-        shell: bash
-        run: |
-          set +e
-          export WS30_TRACE_PATH="$GITHUB_WORKSPACE/artifacts/ws30-replay/raw-trace.jsonl"
-          : > "$WS30_TRACE_PATH"
-          cd forge
-          xvfb-run -a mvn -B -pl forge-gui-desktop -am \
-            -Dtest=forge.gamesimulationtests.Ws30CombatCommanderWitnessTest \
-            -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test \
-            2>&1 | tee "$GITHUB_WORKSPACE/artifacts/ws30-replay/ws30-maven.log"
-          rc=${PIPESTATUS[0]}; cd "$GITHUB_WORKSPACE"
-          if [ "$rc" = 0 ]; then
-            python3 qualification/research/greenfield-qualification/actual-card-behavior/ws30/ws30_materialize.py \
-              --owner-partitions "${{ steps.source.outputs.owner_partitions }}" --trace "$WS30_TRACE_PATH" --out-dir artifacts/ws30-replay
-            rc=$?
-          fi
-          if [ "$rc" = 0 ]; then
-            for f in WS30_WITNESSES.jsonl WS30_PATH_COVERAGE.json WS30_COMBAT_INVENTORY.json WS30_COMMANDER_INVENTORY.json WS30_RULES_ADJUDICATION.json; do
-              cmp "artifacts/ws30/$f" "artifacts/ws30-replay/$f" || rc=1
-            done
-          fi
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"; exit 0
-
-      - name: Generate hashes and execution metadata
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts/ws30
-          if [ -f artifacts/ws30/WS30_GATE.json ]; then
-            (cd artifacts/ws30 && sha256sum WS30_WITNESSES.jsonl WS30_PATH_COVERAGE.json WS30_COMBAT_INVENTORY.json WS30_COMMANDER_INVENTORY.json WS30_RULES_ADJUDICATION.json WS30_GATE.json > WS30_HASHES.sha256)
-          fi
-          cat > artifacts/ws30/WS30_EXECUTION.json <<EOF
-          {"qualification_head":"${{ steps.source.outputs.head }}","qualification_tree":"${{ steps.source.outputs.tree }}","ws26_final_head":"$WS26_HEAD","ws26_final_tree":"$WS26_TREE","ws26_run_id":"$WS26_RUN_ID","ws26_job_id":"$WS26_JOB_ID","ws26_artifact_id":"$WS26_ARTIFACT_ID","ws26_artifact_digest":"$WS26_ARTIFACT_DIGEST","forge_pin":"$FORGE_PIN","test_exit_code":${{ steps.tests.outputs.exit_code || '999' }},"materialize_exit_code":${{ steps.materialize.outputs.exit_code || '999' }},"gate_exit_code":${{ steps.gate.outputs.exit_code || '999' }},"replay_exit_code":${{ steps.replay.outputs.exit_code || '999' }},"workflow_run_id":"${{ github.run_id }}","workflow_run_attempt":"${{ github.run_attempt }}","global_q5_rerun":false,"global_q6_claim":false}
-          EOF
-
-      - name: Print hard-gate evidence
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          for f in WS30_PATH_COVERAGE.json WS30_COMBAT_INVENTORY.json WS30_COMMANDER_INVENTORY.json WS30_RULES_ADJUDICATION.json WS30_GATE.json WS30_HASHES.sha256 WS30_EXECUTION.json; do echo "=== $f ==="; cat "artifacts/ws30/$f" 2>/dev/null || true; done
-
-      - name: Upload WS30 immutable evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ws30-v2-combat-commander-${{ github.run_id }}
-          path: |
-            artifacts/ws30
-            artifacts/ws30-replay
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Enforce final WS30 family gate
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "${{ steps.tests.outputs.exit_code || '999' }}" = 0
-          test "${{ steps.materialize.outputs.exit_code || '999' }}" = 0
-          test "${{ steps.gate.outputs.exit_code || '999' }}" = 0
-          test "${{ steps.replay.outputs.exit_code || '999' }}" = 0
+          test "$(git rev-parse HEAD^)" = "$EVIDENCE_HEAD"
+          test "$(git rev-parse HEAD^{tree})" != "$EVIDENCE_TREE"
+          meta=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${EVIDENCE_ARTIFACT_ID}")
+          test "$(jq -r '.id' <<<"$meta")" = "$EVIDENCE_ARTIFACT_ID"
+          test "$(jq -r '.name' <<<"$meta")" = "ws30-v2-combat-commander-${EVIDENCE_RUN_ID}"
+          test "$(jq -r '.digest' <<<"$meta")" = "$EVIDENCE_ARTIFACT_DIGEST"
+          test "$(jq -r '.workflow_run.id' <<<"$meta")" = "$EVIDENCE_RUN_ID"
+          test "$(jq -r '.workflow_run.head_sha' <<<"$meta")" = "$EVIDENCE_HEAD"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${EVIDENCE_ARTIFACT_ID}/zip" > /tmp/ws30-evidence.zip
+          test "sha256:$(sha256sum /tmp/ws30-evidence.zip | awk '{print $1}')" = "$EVIDENCE_ARTIFACT_DIGEST"
+          rm -rf /tmp/ws30-evidence && mkdir -p /tmp/ws30-evidence
+          unzip -q /tmp/ws30-evidence.zip -d /tmp/ws30-evidence
+          test -f /tmp/ws30-evidence/ws30/WS30_GATE.json
+          (cd /tmp/ws30-evidence/ws30 && sha256sum -c WS30_HASHES.sha256)
+          for f in WS30_WITNESSES.jsonl WS30_PATH_COVERAGE.json WS30_COMBAT_INVENTORY.json WS30_COMMANDER_INVENTORY.json WS30_RULES_ADJUDICATION.json; do
+            cmp "/tmp/ws30-evidence/ws30/$f" "/tmp/ws30-evidence/ws30-replay/$f"
+          done
           python3 - <<'PY'
           import json
           from pathlib import Path
-          g=json.loads(Path('artifacts/ws30/WS30_GATE.json').read_text())
+          root=Path('/tmp/ws30-evidence/ws30')
+          e=json.loads((root/'WS30_EXECUTION.json').read_text())
+          g=json.loads((root/'WS30_GATE.json').read_text())
+          c=json.loads((root/'WS30_PATH_COVERAGE.json').read_text())
+          assert e['qualification_head']=='38d2db6eae131bef1e7079eb80e6c012b9badbdf'
+          assert e['qualification_tree']=='f55320645dfa63920954ebc2b292ccfc90128db7'
+          assert [e[k] for k in ('test_exit_code','materialize_exit_code','gate_exit_code','replay_exit_code')]==[0,0,0,0]
+          assert e['global_q5_rerun'] is False and e['global_q6_claim'] is False
+          assert g['WS30_FAMILY_GATE']=='PASS' and g['WORKSTREAM_COMPLETE'] is True
+          assert g['actual_card_pass_count']==27 and g['assigned_path_count']==27
           assert g['combat_legality_from_rules_core'] is True
-          assert g['manual_combat_legality_in_harness'] == 0
+          assert g['manual_combat_legality_in_harness']==0
           assert g['combat_state_assertions_complete'] is True
           assert g['commander_specific_paths_rules_validated'] is True
-          assert g['actual_card_pass_count'] == 27
-          assert g['WS30_FAMILY_GATE'] == 'PASS'
-          assert g['WORKSTREAM_COMPLETE'] is True
-          assert g['global_q6_claim'] is False
+          assert c['witness_path_count']==27 and c['inherited_pass_count']==0
+          assert c['missing']==[] and c['extra']==[] and c['duplicates']==[]
+          rows=[json.loads(x) for x in (root/'WS30_WITNESSES.jsonl').read_text().splitlines() if x.strip()]
+          assert len(rows)==27==len({r['path_id'] for r in rows})
+          assert all(r['result']=='PASS' and r['actual_card_execution'] is True and r['manual_legality'] is False for r in rows)
           PY
+
+      - name: Materialize committed evidence and handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=research/greenfield-qualification/actual-card-behavior/ws30
+          mkdir -p "$out"
+          for f in WS30_WITNESSES.jsonl WS30_PATH_COVERAGE.json WS30_COMBAT_INVENTORY.json WS30_COMMANDER_INVENTORY.json WS30_RULES_ADJUDICATION.json WS30_GATE.json WS30_HASHES.sha256; do
+            cp "/tmp/ws30-evidence/ws30/$f" "$out/$f"
+          done
+          cat > research/greenfield-qualification/WS30_HANDOFF.md <<'EOF'
+          # WS30 — COMBAT / COMMANDER ACTUAL-CARD CLOSURE — HANDOFF
+
+          ## Qualification status
+
+          The immutable evidence committed with this handoff was produced by a complete WS30 full-pass run and independently rechecked before commit. The commit containing this handoff must itself pass the restored WS30 qualification workflow before final closure.
+
+          - `WS30_FAMILY_GATE = PASS`
+          - `WORKSTREAM_COMPLETE = TRUE`
+          - Owner family: `COMBAT_COMMANDER`
+          - Assigned V2 paths: **27**
+          - Actual-card PASS witnesses: **27**
+          - Inherited PASS witnesses: **0**
+          - Missing / extra / duplicate paths: **0 / 0 / 0**
+          - Global Q5 rerun: **false**
+          - Global Q6 claim: **false**
+
+          ## Immutable predecessor boundary
+
+          - WS26 HEAD: `206a39cbaa3eeb98b10c2ddc36d51fe5b1b2f5ef`
+          - WS26 TREE: `837f445f78bb26462653c58baf1532e294151b10`
+          - WS26 run: `33283478862`
+          - WS26 job: `99182488884`
+          - WS26 artifact: `9723722686`
+          - WS26 artifact digest: `sha256:b9e1fc4fd792b0baa1da1c17e3bbc9e01b2557d4b73b8590e680679f53b59883`
+
+          ## Pinned engine
+
+          - Card-Forge/forge: `8c7e9afb8e6caee88644b94e25da5852e36f8928`
+          - No Forge production source was modified; WS30 uses a qualification-only test overlay against this exact pin.
+
+          ## Full-pass evidence source
+
+          - Qualification HEAD: `38d2db6eae131bef1e7079eb80e6c012b9badbdf`
+          - Qualification TREE: `f55320645dfa63920954ebc2b292ccfc90128db7`
+          - Run: `33316335525`
+          - Job: `99270369522`
+          - Artifact: `9733584180`
+          - Artifact digest: `sha256:e31b939402e4b59db711a2bdf29773f4cb7be8d0ea434224256f5b3459a92199`
+          - Test / materialize / gate / replay exit codes: `0 / 0 / 0 / 0`
+
+          `WS30_HASHES.sha256` was independently verified. The five semantic evidence products from primary execution and replay compare byte-for-byte identical.
+
+          ## Required hard gates
+
+          - `combat_legality_from_rules_core = true`
+          - `manual_combat_legality_in_harness = 0`
+          - `combat_state_assertions_complete = true`
+          - `commander_specific_paths_rules_validated = true`
+
+          First strike, double strike, goad, blocking/evasion, removal from combat, Commander identity, and same-Commander combat damage are qualified by actual pinned-Forge execution.
+
+          ## Rules / pilot boundary
+
+          Attacker declaration consumes `Combat.getAttackConstraints().getLegalAttackers()` and is checked by `CombatUtil.validateAttackers`. Block legality is queried through `CombatUtil.canBlock` and validated through `CombatUtil.validateBlocks`. Combat damage is resolved by Forge combat-phase machinery. The harness does not reimplement combat rules or use silent default/random/pass fallbacks.
+
+          ## Aura bootstrap closure
+
+          The earlier Aura failure was a standalone-test bootstrap defect. `PaperCard` contained `Enchantment - Aura`; runtime construction lost `Aura` because Forge's dynamic subtype registry had not been initialized. WS30 now follows Forge's product initialization path via `FModel.loadDynamicGamedata()` before runtime card construction and asserts `CardType.Constant.LOADED`. No `setType`, card-name subtype patch, manual Aura injection, or SBA bypass was added.
+
+          ## Multiplayer Ghostly Prison closure
+
+          In 4-player Commander the attack tax is defender-scoped. Forge can satisfy a must-attack requirement by selecting an untaxed legal opponent rather than globally omitting the attacker. The witness asserts the actual rules-core-selected defender and does not impose a 2-player heuristic.
+
+          ## Semantic replay normalization
+
+          Java default `Object.toString()` heap identities for `AttackRestriction` and `AttackRequirement` are incidental JVM data. Materialization replaces only those addresses with a stable `[present]` marker, preserving the constraint class and every legal/result/state assertion. No semantic choice or game state is normalized away.
+
+          ## Rules authority and evidence classes
+
+          Official Magic Comprehensive Rules effective **2026-08-07** are semantic authority, including relevant rules 508, 509, 510, 701.12, 701.15, 702.4, 702.7, 702.9, 702.83, 702.91, 702.121, 903.3, 903.9, and 903.10a. Forge parity is implementation evidence only.
+
+          - WS26 boundary / Forge pin / artifact hashes / replay identity: **DIRECTLY_VERIFIED**
+          - 27/27 actual-card execution: **TECHNICALLY_CONFORMANT**
+          - Official combat/Commander adjudication: **EXTERNALLY_RULE_VALIDATED**
+          - Global Q6: **NOT CLAIMED**
+
+          ## Committed evidence
+
+          - `actual-card-behavior/ws30/WS30_WITNESSES.jsonl`
+          - `actual-card-behavior/ws30/WS30_PATH_COVERAGE.json`
+          - `actual-card-behavior/ws30/WS30_COMBAT_INVENTORY.json`
+          - `actual-card-behavior/ws30/WS30_COMMANDER_INVENTORY.json`
+          - `actual-card-behavior/ws30/WS30_RULES_ADJUDICATION.json`
+          - `actual-card-behavior/ws30/WS30_GATE.json`
+          - `actual-card-behavior/ws30/WS30_HASHES.sha256`
+          EOF
+          sed -i 's/^          //' research/greenfield-qualification/WS30_HANDOFF.md
+
+      - name: Restore full qualifier, commit evidence, and dispatch final requalification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git show "${GITHUB_SHA}^:.github/workflows/ws30-v2-combat-commander.yml" > .github/workflows/ws30-v2-combat-commander.yml
+          grep -q '^name: WS30 V2 Combat Commander$' .github/workflows/ws30-v2-combat-commander.yml
+          grep -q '^  contents: read$' .github/workflows/ws30-v2-combat-commander.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/ws30-v2-combat-commander.yml research/greenfield-qualification/actual-card-behavior/ws30/WS30_WITNESSES.jsonl research/greenfield-qualification/actual-card-behavior/ws30/WS30_PATH_COVERAGE.json research/greenfield-qualification/actual-card-behavior/ws30/WS30_COMBAT_INVENTORY.json research/greenfield-qualification/actual-card-behavior/ws30/WS30_COMMANDER_INVENTORY.json research/greenfield-qualification/actual-card-behavior/ws30/WS30_RULES_ADJUDICATION.json research/greenfield-qualification/actual-card-behavior/ws30/WS30_GATE.json research/greenfield-qualification/actual-card-behavior/ws30/WS30_HASHES.sha256 research/greenfield-qualification/WS30_HANDOFF.md
+          test -n "$(git diff --cached --name-only)"
+          git commit -m "WS30: commit qualified combat commander evidence"
+          final_sha=$(git rev-parse HEAD)
+          final_tree=$(git rev-parse HEAD^{tree})
+          git push origin "HEAD:${BRANCH}"
+          remote_sha=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${BRANCH}" --jq '.object.sha')
+          test "$remote_sha" = "$final_sha"
+          echo "FINAL_EVIDENCE_HEAD=$final_sha"
+          echo "FINAL_EVIDENCE_TREE=$final_tree"
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/workflows/ws30-v2-combat-commander.yml/dispatches" -f ref="$BRANCH"
