@@ -2,6 +2,7 @@
   "schema":"commander-simulator-next.ws26.shared-harness-contract.v2",
   "forge_pin":"8c7e9afb8e6caee88644b94e25da5852e36f8928",
   "oracle_corpus_identity_count":1678,
+  "positive_inherited_fixture":{"card_name":"Jwar Isle Refuge","oracle_id":"8b96f837-7c32-473a-b5ae-1d66527eaf7b","forge_source_path":"forge-gui/res/cardsfolder/j/jwar_isle_refuge.txt","forge_source_sha256_bytes":"a3b5399bc0ddeaecb9f645d0e9bf91e6cfb328605d93bd5d3935f0c079869168"},
   "rules_core_authority":["legal_actions","costs","mana_legality","targets","stack","priority","combat_legality","trigger_replacement_resolution","continuous_effects","state_based_actions","zones","commander_rules"],
   "pilot_boundary":{"input":"authoritative legal options only","may_infer_legality":false,"silent_fallbacks":0},
   "required_witness_evidence":["actual_corpus_card","valid_rules_state","initial_semantic_state","final_semantic_state","state_assertions","path_exercise","immutable_trace_sha256","decision_tape_when_required","rng_tape_when_required","principal_observation_evidence_when_required"],

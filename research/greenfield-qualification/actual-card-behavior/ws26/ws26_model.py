@@ -230,9 +230,33 @@ def main():
                 if v:vv.add(v)
         for u in ub[i['oracle_id']]:vv.update(u.get('v2_path_ids',[]));vv.update((u.get('alias_target') or {}).get('target_v2_path_ids',[]))
         per.append({'schema':'commander-simulator-next.behavior-path-v2.identity','oracle_identity':i['oracle_id'],'oracle_name':i['oracle_name'],'forge_pin':PIN,'v2_path_ids':sorted(vv),'unresolved_v1_occurrence_count':len(ub[i['oracle_id']]),'unknown_v2_binding_count':sum(x['v2_binding_state']=='UNKNOWN' for x in ub[i['oracle_id']]),'evidence_class':'CODE_DERIVED'})
-    ws16p=next(a.ws16_dir.rglob('ws16-jwar-isle-refuge.witness.json'));ws16t=next(a.ws16_dir.rglob('ws16-jwar-isle-refuge.trace.json'));ws16=lj(ws16p);jwar=sorted(oracle_by_source['forge-gui/res/cardsfolder/j/jwar_isle_refuge.txt']);gran={x['parent_ws14_primitive_id']:x for x in grans};compat=[];inherited=[]
+    ws16p=next(a.ws16_dir.rglob('ws16-jwar-isle-refuge.witness.json'));ws16t=next(a.ws16_dir.rglob('ws16-jwar-isle-refuge.trace.json'));ws16=lj(ws16p)
+    contract=lj(Path(__file__).with_name('WS26_HARNESS_CONTRACT.json'));fixture=contract.get('positive_inherited_fixture')
+    if not isinstance(fixture,dict) or set(fixture)!={'card_name','oracle_id','forge_source_path','forge_source_sha256_bytes'}:raise SystemExit('WS16 inherited fixture contract invalid')
+    fsp=fixture['forge_source_path'];fp=a.forge_root/fsp
+    if not fp.is_file() or sha(fp)!=fixture['forge_source_sha256_bytes']:raise SystemExit('WS16 inherited fixture source mismatch')
+    flines=fp.read_text(encoding='utf-8').splitlines()
+    if not flines or flines[0]!='Name:'+fixture['card_name']:raise SystemExit('WS16 inherited fixture name mismatch')
+    jwar=[fixture['oracle_id']];gran={x['parent_ws14_primitive_id']:x for x in grans};compat=[];inherited=[];ws16_v2={}
     for pid in ws16['primitive_ids']:
-        cand=[x['v2_path_id'] for x in paths if x.get('parent_ws14_primitive_id')==pid and set(x['representative_actual_oracle_identities'])&set(jwar)];exact=cand[0] if len(cand)==1 else None;res=('REUSED_EXACT' if exact and gran[pid]['result']=='ATOMIC_SUFFICIENT' else 'REUSED_FOR_ONE_CHILD_PATH' if exact else 'UNKNOWN')
+        p=prim.get(pid);field={'TRIGGER':'Mode','REPLACEMENT':'Event'}.get(p.get('dispatch_domain') if p else None)
+        if not p or not field:raise SystemExit('WS16 primitive lacks dispatch mapping '+pid)
+        matches=[(n,line) for n,line in enumerate(flines,1) if fields(line).get(field)==p['dispatch_token']]
+        if len(matches)!=1:raise SystemExit('WS16 fixture dispatch source is not exact '+pid)
+        ln,line=matches[0];wb={'source_directive':p['dispatch_domain'],'source_value':p['dispatch_token']};prof=profile(wb,line,p['implementation_target'],a.forge_root,pcache)
+        d={'parent_ws14_primitive_id':pid,'dispatch_domain':p['dispatch_domain'],'dispatch_token':p['dispatch_token'],'implementation_target':p['implementation_target'],'semantic_selector_profile':prof,'owner_family':p['owner_family'],'model_origin':'WS14_V1_GRANULARITY'};v=vid(d);entry=pathmap.get(v)
+        rq=reqs([line],impl_text(p['implementation_target'],a.forge_root));cross=set(p.get('cross_family_dependencies',[]))
+        if rq['decision'] and p['owner_family']!='ACTION_COST_DECISION':cross.add('ACTION_COST_DECISION')
+        if (rq['rng'] or rq['hidden_info']) and p['owner_family']!='HIDDEN_RNG_REPLAY':cross.add('HIDDEN_RNG_REPLAY')
+        prov={'oracle_identity':fixture['oracle_id'],'forge_source_path':fsp,'source_line':ln,'source_directive':p['dispatch_domain'],'source_token':field+'$','source_value':p['dispatch_token']}
+        if entry is None:
+            entry={'v2_path_id':v,**d,'cross_family_dependencies':sorted(cross),'source_provenance':[prov],'representative_actual_oracle_identities':[fixture['oracle_id']],'source_occurrence_count':1,'required_decision_evidence':rq['decision'],'required_rng_evidence':rq['rng'],'required_hidden_info_evidence':rq['hidden_info'],'required_replay_evidence':rq['replay'],'evidence_class':'CODE_DERIVED','current_witness_status':'UNPROVED'};paths.append(entry);pathmap[v]=entry;parent_paths[pid].append(v)
+            g=gran[pid];g['v2_child_path_ids']=sorted(set(g['v2_child_path_ids']+[v]));g['selector_profile_count']=len(g['v2_child_path_ids']);g['result']='SPLIT_REQUIRED' if g['selector_profile_count']>1 else g['result']
+        elif prov not in entry['source_provenance']:
+            entry['source_provenance'].append(prov);entry['source_provenance'].sort(key=lambda x:(x['oracle_identity'],x['forge_source_path'],x['source_line']));entry['representative_actual_oracle_identities']=sorted(set(entry['representative_actual_oracle_identities']+[fixture['oracle_id']]))[:12];entry['source_occurrence_count']+=1
+        ws16_v2[pid]=v
+    for pid in ws16['primitive_ids']:
+        exact=ws16_v2.get(pid);res=('REUSED_EXACT' if exact and gran[pid]['result']=='ATOMIC_SUFFICIENT' else 'REUSED_FOR_ONE_CHILD_PATH' if exact else 'UNKNOWN')
         if exact:inherited.append(exact);pathmap[exact]['current_witness_status']='PASS_INHERITED_WS16'
         compat.append({'source_workstream':'WS16','v1_primitive_id':pid,'v2_compatibility':res,'exact_v2_path_exercised':exact,'v1_split':gran[pid]['result']=='SPLIT_REQUIRED','additional_sibling_paths_unproved':sorted(set(parent_paths[pid])-({exact} if exact else set())),'reason':'Actual Jwar Isle Refuge source-bound pinned-Forge execution; inheritance limited to exact matching V2 child.','evidence_class':'DIRECTLY_VERIFIED'})
     ws17_lines=[x.split('\t',2) for x in (a.ws17_dir/'ws17-runtime-trace.tsv').read_text().splitlines() if x.strip()]
