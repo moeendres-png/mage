@@ -1,0 +1,84 @@
+name: WS31 dependency single-target decision adapter
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - work/ws31-dep-single-target-decision-20260830
+    paths:
+      - '.github/workflows/ws31-dep-single-target-decision.yml'
+      - 'research/greenfield-qualification/action-cost-decision/ws31-single-target-dependency/**'
+
+permissions:
+  contents: read
+
+jobs:
+  compile-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+      FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+    steps:
+      - name: Checkout dependency revision
+        uses: actions/checkout@v4
+        with:
+          path: dep
+          fetch-depth: 0
+
+      - name: Verify dependency ancestry and scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C dep merge-base "$WS01_HEAD" HEAD)" = "$WS01_HEAD"
+          bad=0
+          while IFS= read -r p; do
+            case "$p" in
+              .github/workflows/ws31-dep-single-target-decision.yml|research/greenfield-qualification/action-cost-decision/ws31-single-target-dependency/*) ;;
+              *) echo "OUT_OF_SCOPE_PATH=$p"; bad=1 ;;
+            esac
+          done < <(git -C dep diff --name-only "$WS01_HEAD" HEAD)
+          test "$bad" -eq 0
+
+      - uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: bf089ea806f54a9bbb64ede205915729e3629684
+          path: ws01
+          fetch-depth: 1
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          path: forge
+          fetch-depth: 1
+
+      - name: Apply exact WS01 decision boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch
+
+      - name: Apply single-target dependency overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 dep/research/greenfield-qualification/action-cost-decision/ws31-single-target-dependency/apply-single-target-overlay.py forge | tee overlay.log
+          grep -Fx 'WS31_SINGLE_TARGET_DECISION_OVERLAY_APPLIED=TRUE' overlay.log
+          ! grep -F 'rejectExternalDecision("TARGET_SELECTION")' forge/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java
+          grep -F 'only mandatory single non-stack targets are qualified by this adapter' forge/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java
+
+      - name: Compile exact pinned Forge with adapter
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          mvn -B -DskipTests -pl forge-gui-desktop -am test-compile
+
+      - name: Contract result
+        shell: bash
+        run: |
+          echo 'ACTION_COST_DECISION_SINGLE_TARGET_ADAPTER=TECHNICALLY_CONFORMANT'
+          echo "DEPENDENCY_HEAD=$GITHUB_SHA"
