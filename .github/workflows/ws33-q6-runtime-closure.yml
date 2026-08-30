@@ -125,10 +125,13 @@ jobs:
             forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
           cp "$ROOT/runtime-tests/Ws33InputConfirmExternalizationTest.java" \
             forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
+          cp "$ROOT/runtime-tests/Ws33SwiftwaterCliffsWitnessTest.java" \
+            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
           (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
-            -Dtest=forge.gamesimulationtests.Ws32CardBehaviorFailureQualificationTest,forge.gamesimulationtests.Ws33IntegratedOverlayCompatibilityTest,forge.gamesimulationtests.Ws33InputConfirmExternalizationTest \
+            -Dtest=forge.gamesimulationtests.Ws32CardBehaviorFailureQualificationTest,forge.gamesimulationtests.Ws33IntegratedOverlayCompatibilityTest,forge.gamesimulationtests.Ws33InputConfirmExternalizationTest,forge.gamesimulationtests.Ws33SwiftwaterCliffsWitnessTest \
             -Dsurefire.failIfNoSpecifiedTests=false \
-            -Dws32.out="$GITHUB_WORKSPACE/$runtime_evidence/WS32_RUNTIME_WITNESS.json" test) \
+            -Dws32.out="$GITHUB_WORKSPACE/$runtime_evidence/WS32_RUNTIME_WITNESS.json" \
+            -Dws33.swiftwaterTraceOut="$GITHUB_WORKSPACE/$runtime_evidence/WS33_SWIFTWATER_CLIFFS_TRACE.json" test) \
             2>&1 | tee "$runtime_evidence/integrated-runtime.log"
           cp forge/forge-gui-desktop/target/surefire-reports/TEST-TestSuite.xml \
             "$runtime_evidence/WS33_INTEGRATED_RUNTIME_TESTS.xml"
@@ -145,7 +148,8 @@ jobs:
           python -m pip install --disable-pip-version-check jsonschema==4.25.1
           tree="$(git rev-parse 'HEAD^{tree}')"
           python "$ROOT/ws33_build.py" --evidence evidence --out generated/ws33 --source-head "$GITHUB_SHA" --source-tree "$tree" --forge-root forge \
-            --overlay-evidence generated/ws33/runtime-evidence/WS33_OVERLAY_MATERIALIZATION.json
+            --overlay-evidence generated/ws33/runtime-evidence/WS33_OVERLAY_MATERIALIZATION.json \
+            --swiftwater-trace generated/ws33/runtime-evidence/WS33_SWIFTWATER_CLIFFS_TRACE.json
           python "$ROOT/ws33_verify.py" --root generated/ws33
 
       - name: Upload immutable WS33 evidence

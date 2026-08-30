@@ -139,6 +139,7 @@ def main() -> None:
     parser.add_argument("--source-tree", required=True)
     parser.add_argument("--forge-root", type=Path)
     parser.add_argument("--overlay-evidence", type=Path)
+    parser.add_argument("--swiftwater-trace", type=Path)
     args = parser.parse_args()
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
@@ -311,6 +312,86 @@ def main() -> None:
         },
     }
     write_json(abi_dir / "WS33_SUCCESSOR_PROVENANCE.json", provenance)
+    campaign_witnesses = []
+    if args.swiftwater_trace:
+        if not args.swiftwater_trace.is_file():
+            raise SystemExit("declared Swiftwater trace is missing")
+        trace = load(args.swiftwater_trace)
+        swiftwater_id = "forge-behavior-v2:ede58d662fddba65852ba12b8bb699c33eb8e708"
+        swiftwater = by_id[swiftwater_id]
+        if (
+            trace.get("forge_pin") != PIN
+            or trace.get("v2_path_id") != swiftwater_id
+            or trace.get("oracle_identity") not in swiftwater["representative_actual_oracle_identities"]
+            or trace.get("actual_card_execution") is not True
+            or trace.get("actual_rules_core_path") is not True
+            or trace.get("authoritative_decision_boundary") != "NOT_REQUIRED"
+            or trace.get("silent_fallbacks") != 0
+            or trace.get("stdout_only") is not False
+        ):
+            raise SystemExit("Swiftwater runtime trace failed provenance or execution checks")
+        swiftwater_trace = abi_dir / "fixtures/WS33_SWIFTWATER_CLIFFS_TRACE.json"
+        write_json(swiftwater_trace, trace)
+        assertions = [
+            ("swiftwater-entered-battlefield", "Battlefield", trace["after_move"]["zone"], "after_move.zone"),
+            ("swiftwater-entered-tapped", True, trace["after_move"]["tapped"], "after_move.tapped"),
+            ("swiftwater-left-hand", trace["initial"]["hand_size"] - 1, trace["after_move"]["hand_size"], "after_move.hand_size"),
+            ("swiftwater-trigger-deferred", trace["initial"]["life"], trace["after_move"]["life"], "after_move.life"),
+            ("swiftwater-trigger-collected", True, trace["after_move"]["simultaneous_stack_entries"], "after_move.simultaneous_stack_entries"),
+            ("swiftwater-trigger-stacked", True, trace["after_stack_transfer"]["regular_stack_nonempty"], "after_stack_transfer.regular_stack_nonempty"),
+            ("swiftwater-gained-exactly-one-life", trace["initial"]["life"] + 1, trace["final"]["life"], "final.life"),
+            ("swiftwater-stack-drained", True, trace["final"]["stack_empty"], "final.stack_empty"),
+            ("swiftwater-simultaneous-drained", False, trace["final"]["simultaneous_stack_entries"], "final.simultaneous_stack_entries"),
+        ]
+        state_assertions = [
+            {"assertion_id": assertion_id, "expected": expected, "actual": actual, "result": "PASS" if expected == actual else "FAIL", "semantic_path": semantic_path}
+            for assertion_id, expected, actual, semantic_path in assertions
+        ]
+        if any(item["result"] != "PASS" for item in state_assertions):
+            raise SystemExit("Swiftwater semantic assertion failed")
+        parent = swiftwater.get("parent_ws14_primitive_id")
+        campaign_witnesses.append({
+            "schema": "commander-simulator-next.actual-card-witness.v2.1",
+            "witness_id": "ws33-swiftwater-cliffs-lifegain-v2.1",
+            "source_head": args.source_head, "source_tree": args.source_tree,
+            "qualification_source_head": args.source_head, "qualification_source_tree": args.source_tree,
+            "model_base_head": BASE_HEAD, "model_base_tree": BASE_TREE,
+            "ws26_manifest_sha256": digest(raw_manifest_path),
+            "effective_model_sha256": digest(effective_manifest_path),
+            "forge_pin": PIN,
+            "runtime_overlay_manifest": "WS33_RUNTIME_OVERLAY_MANIFEST.json",
+            "runtime_overlay_manifest_sha256": overlay_sha,
+            "patched_forge_digest": patched_forge_digest,
+            "execution_environment_identity": {"runner_os": "ubuntu-24.04", "java_version": "17", "process_isolation": "FRESH_JVM_TARGETED_TEST"},
+            "oracle_identities": [trace["oracle_identity"]],
+            "parent_ws14_primitive_ids": [parent] if parent else [],
+            "v2_path_ids": [swiftwater_id], "owner_family": swiftwater["owner_family"],
+            "initial_semantic_state": trace["initial"], "final_semantic_state": trace["final"],
+            "state_assertions": state_assertions,
+            "primitive_exercise": ([{"primitive_id": parent, "exercised": True}] if parent else []),
+            "path_exercise": [{
+                "v2_path_id": swiftwater_id, "exercised": True,
+                "trace_event_ids": trace["trace_event_ids"],
+                "assertion_ids": [item["assertion_id"] for item in state_assertions],
+                "parent_ws14_primitive_id": parent,
+            }],
+            "decision_tape_ref": None, "rng_tape_ref": None,
+            "observation_evidence_ref": None, "semantic_replay_evidence_ref": None,
+            "execution": {
+                "engine": "pinned-forge", "actual_card_execution": "PASS",
+                "actual_rules_core_path": True, "authoritative_decision_boundary": "NOT_REQUIRED",
+                "silent_fallbacks": 0, "runtime_overlays_declared": True,
+            },
+            "trace_ref": "abi/fixtures/WS33_SWIFTWATER_CLIFFS_TRACE.json",
+            "trace_sha256": digest(swiftwater_trace), "stdout_only": False,
+            "rules_authority_refs": [
+                "https://magic.wizards.com/en/rules (current Comprehensive Rules), 119",
+                "https://magic.wizards.com/en/rules (current Comprehensive Rules), 603.3",
+                "https://magic.wizards.com/en/rules (current Comprehensive Rules), 608",
+            ],
+            "evidence_class": "EXTERNALLY_RULE_VALIDATED", "status": "PASS",
+        })
+        write_json(abi_dir / "fixtures/positive-swiftwater-cliffs.json", campaign_witnesses[-1])
     illegal_tape = {"events": [{
         "decision_id": "negative", "decision_kind": "CONFIRM", "game_id": "fixture",
         "actor": "P1", "principal": "P1", "visibility_scope": "PUBLIC",
@@ -383,7 +464,10 @@ def main() -> None:
     validator = abi_dir / "WS33_WITNESS_SEMANTIC_VALIDATOR.py"
     schema = abi_dir / "WS33_WITNESS_ABI_V2_1.schema.json"
     commands = []
-    for fixture in (abi_dir / "fixtures/positive-inherited.json", abi_dir / "fixtures/positive-successor.json"):
+    positive_fixtures = [abi_dir / "fixtures/positive-inherited.json", abi_dir / "fixtures/positive-successor.json"]
+    if campaign_witnesses:
+        positive_fixtures.append(abi_dir / "fixtures/positive-swiftwater-cliffs.json")
+    for fixture in positive_fixtures:
         commands.append((fixture, 0, None))
     for item in negatives:
         commands.append((out / item["witness"], 2, item["expected_error"]))
@@ -402,11 +486,15 @@ def main() -> None:
         "WS33_WITNESS_ABI_V2_1_GATE": "PASS" if abi_pass else "FAIL_CLOSED",
         "positive_inherited_accepted": results[0]["intended_result"],
         "successor_positive_accepted": results[1]["intended_result"],
-        "negative_fixtures_rejected_for_intended_reason": all(item["intended_result"] for item in results[2:]),
+        "campaign_positive_count": len(campaign_witnesses),
+        "campaign_positives_accepted": all(item["intended_result"] for item in results[2:len(positive_fixtures)]),
+        "negative_fixtures_rejected_for_intended_reason": all(item["intended_result"] for item in results[len(positive_fixtures):]),
         "results": results,
     })
 
     pass_ids = set(positive["v2_path_ids"])
+    for witness in campaign_witnesses:
+        pass_ids.update(witness["v2_path_ids"])
     admission = []
     def admission_row(ws, disposition, path_ids, reason, **extra):
         head, tree, run, job, artifact, artifact_digest = PREDECESSORS[ws]
@@ -422,10 +510,14 @@ def main() -> None:
             "replay_evidence": extra.pop("replay_evidence", False), "rules_refs": extra.pop("rules_refs", []),
             "trace_hash": extra.pop("trace_hash", None), "disposition": disposition, "reason": reason, **extra,
         })
-    admission_row("WS26", "ABI_ADMISSIBLE", sorted(pass_ids), "Exact immutable WS16 execution already accepted by WS26 ABI and V2.1 rematerialization.", oracle_identities=positive["oracle_identities"], execution_route="actual GameAction zone move plus real replacement/trigger stack lifecycle", state_evidence=True, rules_refs=positive["rules_authority_refs"], trace_hash=positive["trace_sha256"])
-    admission_row("WS28", "ABI_ADMISSIBLE", sorted(pass_ids), "WS28's two exact reuses are the canonical WS26 positive witness; no rerun.", oracle_identities=positive["oracle_identities"], execution_route="reuse WS26 immutable execution", state_evidence=True, rules_refs=positive["rules_authority_refs"], trace_hash=positive["trace_sha256"])
+    admission_row("WS26", "ABI_ADMISSIBLE", sorted(positive["v2_path_ids"]), "Exact immutable WS16 execution already accepted by WS26 ABI and V2.1 rematerialization.", oracle_identities=positive["oracle_identities"], execution_route="actual GameAction zone move plus real replacement/trigger stack lifecycle", state_evidence=True, rules_refs=positive["rules_authority_refs"], trace_hash=positive["trace_sha256"])
+    admission_row("WS28", "ABI_ADMISSIBLE", sorted(positive["v2_path_ids"]), "WS28's two exact reuses are the canonical WS26 positive witness; no rerun.", oracle_identities=positive["oracle_identities"], execution_route="reuse WS26 immutable execution", state_evidence=True, rules_refs=positive["rules_authority_refs"], trace_hash=positive["trace_sha256"])
     ws27_witness = load_jsonl(e / "ws27/research/greenfield-qualification/actual-card-behavior/ws27/WS27_WITNESSES.jsonl")[0]
-    admission_row("WS27", "REEXECUTION_REQUIRED", ws27_witness["v2_path_ids"], "Rematerialization rejected: state assertions omit expected/actual values, primitive_exercise is absent, and authoritative_decision_boundary is outside ABI V2.1.", oracle_identities=ws27_witness["oracle_identities"], execution_route="actual-card family test", state_evidence=False, trace_hash=ws27_witness["trace_sha256"])
+    if campaign_witnesses:
+        admitted = campaign_witnesses[0]
+        admission_row("WS27", "REEXECUTED_ABI_ADMISSIBLE", admitted["v2_path_ids"], "WS27 semantics re-executed on the integrated WS33 overlay and rematerialized with complete ABI V2.1 state, primitive, path, and trace evidence.", oracle_identities=admitted["oracle_identities"], execution_route="actual-card GameAction move, trigger transfer, and normal stack resolution", state_evidence=True, rules_refs=admitted["rules_authority_refs"], trace_hash=admitted["trace_sha256"])
+    else:
+        admission_row("WS27", "REEXECUTION_REQUIRED", ws27_witness["v2_path_ids"], "Rematerialization rejected: state assertions omit expected/actual values, primitive_exercise is absent, and authoritative_decision_boundary is outside ABI V2.1.", oracle_identities=ws27_witness["oracle_identities"], execution_route="actual-card family test", state_evidence=False, trace_hash=ws27_witness["trace_sha256"])
     for migration in migrations:
         admission_row("WS29", "MODEL_ERRATUM", [migration["historical_v2_path_id"]], "Mode$ Continuous SVar is consumed through AddStaticAbility and terminates at StaticAbilityMode#Continuous; old parseTrigger alias is not independent production behavior.", oracle_identities=migration["oracle_identities"], execution_route="pinned source/dataflow audit")
     ws30_witnesses = load_jsonl(e / "ws30/ws30/WS30_WITNESSES.jsonl")
@@ -463,7 +555,9 @@ def main() -> None:
     for index, ((family, target, profile), paths) in enumerate(sorted(template_groups.items()), 1):
         ids = sorted(path["v2_path_id"] for path in paths)
         admitted = sorted(set(ids) & pass_ids)
-        templates.append({"template_id": f"ws33-template-{index:03d}", "owner_family": family, "implementation_target": target, "evidence_profile": profile, "path_ids": ids, "status": "RETAINED_IMMUTABLE_EXECUTION" if admitted else "MISSING_SCENARIO_TEMPLATE", "admitted_path_ids": admitted})
+        remaining = sorted(set(ids) - pass_ids)
+        status = "FULLY_EXECUTED" if not remaining else ("PARTIALLY_EXECUTED" if admitted else "MISSING_SCENARIO_TEMPLATE")
+        templates.append({"template_id": f"ws33-template-{index:03d}", "owner_family": family, "implementation_target": target, "evidence_profile": profile, "path_ids": ids, "status": status, "admitted_path_ids": admitted, "remaining_path_ids": remaining})
     write_json(out / "WS33_SCENARIO_TEMPLATE_REGISTRY.json", {"schema": "commander-simulator-next.ws33-scenario-template-registry.v1", "templates": templates})
 
     cases, executions, coverage = [], [], []
@@ -471,24 +565,28 @@ def main() -> None:
         path_id = path["v2_path_id"]
         oracle = path["representative_actual_oracle_identities"][0]
         status = "PASS" if path_id in pass_ids else "UNKNOWN"
-        cases.append({"effective_v2_path_id": path_id, "historical_ws26_v2_ids": [path_id] + sorted(old for old in ERRATA if path_id == TERMINAL), "owner_family": path["owner_family"], "implementation_target": path["implementation_target"], "evidence_profile": evidence_profile(path), "selected_oracle_identity": oracle, "rejected_representatives": [], "scenario_status": "RETAINED_IMMUTABLE_EXECUTION" if status == "PASS" else "MISSING_SCENARIO_TEMPLATE"})
-        executions.append({"effective_v2_path_id": path_id, "status": status, "execution_source": "WS26_IMMUTABLE" if status == "PASS" else None, "overlay_digest": overlay_sha, "trace_sha": positive["trace_sha256"] if status == "PASS" else None, "witness_hash": digest(abi_dir / "fixtures/positive-inherited.json") if status == "PASS" else None, "blocker_class": None if status == "PASS" else "MISSING_SCENARIO_TEMPLATE"})
+        campaign = next((w for w in campaign_witnesses if path_id in w["v2_path_ids"]), None)
+        execution_source = "WS33_REEXECUTED" if campaign else ("WS26_IMMUTABLE" if status == "PASS" else None)
+        trace_sha = campaign["trace_sha256"] if campaign else (positive["trace_sha256"] if status == "PASS" else None)
+        witness_hash = digest(abi_dir / "fixtures/positive-swiftwater-cliffs.json") if campaign else (digest(abi_dir / "fixtures/positive-inherited.json") if status == "PASS" else None)
+        cases.append({"effective_v2_path_id": path_id, "historical_ws26_v2_ids": [path_id] + sorted(old for old in ERRATA if path_id == TERMINAL), "owner_family": path["owner_family"], "implementation_target": path["implementation_target"], "evidence_profile": evidence_profile(path), "selected_oracle_identity": oracle, "rejected_representatives": [], "scenario_status": execution_source if status == "PASS" else "MISSING_SCENARIO_TEMPLATE"})
+        executions.append({"effective_v2_path_id": path_id, "status": status, "execution_source": execution_source, "overlay_digest": overlay_sha, "trace_sha": trace_sha, "witness_hash": witness_hash, "blocker_class": None if status == "PASS" else "MISSING_SCENARIO_TEMPLATE"})
         coverage.append({
             "effective_v2_path_id": path_id, "historical_ws26_v2_ids": [path_id] + sorted(old for old in ERRATA if path_id == TERMINAL),
             "model_migration_status": "TERMINAL_FOR_DEPRECATED_ALIASES" if path_id == TERMINAL else "UNCHANGED",
             "owner_family": path["owner_family"], "implementation_target": path["implementation_target"],
             "oracle_identity": oracle, "source_provenance": path.get("source_provenance", []),
-            "execution_source": "WS26_IMMUTABLE" if status == "PASS" else None, "overlay_digest": overlay_sha,
+            "execution_source": execution_source, "overlay_digest": overlay_sha,
             "state_evidence": status == "PASS", "decision_tape": None, "rng_tape": None,
             "observation_evidence": None, "replay_evidence": None,
-            "trace_sha": positive["trace_sha256"] if status == "PASS" else None,
-            "rules_refs": positive["rules_authority_refs"] if status == "PASS" else [],
+            "trace_sha": trace_sha,
+            "rules_refs": campaign["rules_authority_refs"] if campaign else (positive["rules_authority_refs"] if status == "PASS" else []),
             "evidence_classification": "EXTERNALLY_RULE_VALIDATED" if status == "PASS" else "UNKNOWN", "status": status,
         })
     write_jsonl(out / "WS33_CASE_LEDGER.jsonl", cases)
     write_jsonl(out / "WS33_EXECUTION_LEDGER.jsonl", executions)
     write_json(out / "WS33_PATH_COVERAGE.json", {"schema": "commander-simulator-next.ws33-path-coverage.v1", "paths": coverage, "status_counts": dict(Counter(row["status"] for row in coverage))})
-    write_jsonl(out / "WS33_WITNESSES.jsonl", [inherited])
+    write_jsonl(out / "WS33_WITNESSES.jsonl", [inherited] + campaign_witnesses)
 
     identity_rows = []
     for identity in load_jsonl(ws26 / "WS26_PER_IDENTITY_V2.jsonl"):
@@ -517,24 +615,37 @@ def main() -> None:
         "reason": None if materialization else "Integrated candidate runtime overlay has not executed; WS32 cannot be promoted from its standalone artifact.",
     })
     status_counts = Counter(row["status"] for row in coverage)
+    template_counts = Counter(row["status"] for row in templates)
     family_gate = {}
     for family in sorted(family_counts):
         rows = [row for row in coverage if row["owner_family"] == family]
         counts = Counter(row["status"] for row in rows)
         family_gate[family] = {"gate": "PASS" if counts.get("PASS") == len(rows) else "FAIL_CLOSED", "counts": dict(counts), "effective_path_count": len(rows)}
+    campaign_complete = status_counts == Counter({"PASS": len(effective_paths)})
+    candidate = bool(
+        campaign_complete
+        and abi_pass
+        and model_gate["WS33_MODEL_ERRATA_GATE"] == "PASS"
+        and materialization
+        and ws32_status == "PASS"
+    )
     q6_gate = {
-        "schema": "commander-simulator-next.ws33-q6-candidate-gate.v1", "WORKSTREAM_COMPLETE": False,
+        "schema": "commander-simulator-next.ws33-q6-candidate-gate.v1", "WORKSTREAM_COMPLETE": candidate,
         "WS33_MODEL_ERRATA_GATE": model_gate["WS33_MODEL_ERRATA_GATE"],
         "WS33_WITNESS_ABI_V2_1_GATE": "PASS" if abi_pass else "FAIL_CLOSED",
-        "WS33_ACTUAL_CARD_CAMPAIGN": "FAIL_CLOSED", "Q6_CANDIDATE_FOR_CROSS_QUALIFICATION": False,
-        "WS32_COMPATIBILITY": ws32_status, "WS34_ELIGIBLE": False,
+        "WS33_ACTUAL_CARD_CAMPAIGN": "PASS" if campaign_complete else "FAIL_CLOSED",
+        "Q6_CANDIDATE_FOR_CROSS_QUALIFICATION": candidate,
+        "WS32_COMPATIBILITY": ws32_status, "WS34_ELIGIBLE": candidate,
         "oracle_identity_count": len(identity_rows), "identity_counts": dict(Counter(row["status"] for row in identity_rows)),
         "effective_path_count": len(effective_paths), "path_status_counts": {key: status_counts.get(key, 0) for key in ("PASS", "FAIL", "UNSUPPORTED", "UNKNOWN")},
         "family_gates": family_gate, "silent_fallback_count": 0, "stdout_only_PASS_count": 0,
         "card_name_production_hacks": 0, "second_pilot_rules_engine": 0,
-        "remaining_blockers": ([{"class": "MISSING_SCENARIO_TEMPLATE", "path_count": status_counts.get("UNKNOWN", 0)}]
+        "scenario_group_counts": {key: template_counts.get(key, 0) for key in ("FULLY_EXECUTED", "PARTIALLY_EXECUTED", "MISSING_SCENARIO_TEMPLATE")},
+        "incomplete_scenario_group_count": sum(count for key, count in template_counts.items() if key != "FULLY_EXECUTED"),
+        "remaining_blockers": ([{"class": "MISSING_SCENARIO_TEMPLATE", "path_count": status_counts.get("UNKNOWN", 0), "incomplete_group_count": sum(count for key, count in template_counts.items() if key != "FULLY_EXECUTED")}]
+            if status_counts.get("UNKNOWN", 0) else [])
             + ([] if materialization else [{"class": "INTEGRATED_RUNTIME_OVERLAY_NOT_EXECUTED", "path_count": status_counts.get("UNKNOWN", 0)}])
-            + ([] if ws32_status == "PASS" else [{"class": "WS32_COMPATIBILITY_NOT_RUN", "path_count": 0}])),
+            + ([] if ws32_status == "PASS" else [{"class": "WS32_COMPATIBILITY_NOT_RUN", "path_count": 0}]),
         "WS13_ELIGIBLE": False, "INITIAL_ARCHITECTURE_DECISION_FROZEN": False,
         "READY_FOR_GREENFIELD_BUILD": False, "PRODUCTION_REPOSITORY_CREATED": False,
         "Q6_ACTUAL_CARD_BEHAVIOR_CANONICAL": "NOT_ADJUDICATED_BY_WS33",
