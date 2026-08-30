@@ -253,6 +253,16 @@ def main() -> None:
     positive = load(ws26 / "WS26_POSITIVE_WITNESS.json")
     trace_src = ws26 / positive["trace_ref"]
     abi_dir = out / "abi"
+    source_abi_dir = Path(__file__).resolve().parent / "abi"
+    abi_dir.mkdir(parents=True, exist_ok=True)
+    for abi_name in (
+        "WS33_WITNESS_ABI_V2_1.schema.json",
+        "WS33_WITNESS_SEMANTIC_VALIDATOR.py",
+    ):
+        abi_source = source_abi_dir / abi_name
+        abi_destination = abi_dir / abi_name
+        if abi_source.resolve() != abi_destination.resolve():
+            shutil.copyfile(abi_source, abi_destination)
     trace_dst = abi_dir / "fixtures/WS26_POSITIVE_TRACE.json"
     trace_dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(trace_src, trace_dst)
