@@ -25,11 +25,11 @@ PRODUCTION_REPOSITORY_CREATED = FALSE
 
 ## Exact evidence boundary
 
-- WS33 authoritative evidence source: `f2ae96970d8f9ce5df2dfd71782a1940be17b31d` / tree `76ed6a2b961362e2ec611b89c8544746faccbddc`.
+- WS33 authoritative evidence source: `65a84789b1406b2a9174ed814aaf12390b9c2deb` / tree `ad416be8602883df397b1db99972f3c3022a4e48`.
 - Exact WS26 ancestry: `206a39cbaa3eeb98b10c2ddc36d51fe5b1b2f5ef` / tree `837f445f78bb26462653c58baf1532e294151b10`.
 - Exact Forge pin: `8c7e9afb8e6caee88644b94e25da5852e36f8928`.
 - Integrated runtime overlay content digest: `7b65af1d174c8acd75229cb0c6817b7801d02569131f9c73505ef84b38a1e8e9` across 57 explicitly hashed files; undeclared patches: 0.
-- Workflow: run `33325306639`, job `99294270157`, artifact `9736093826`, artifact digest `sha256:304cec37571710542d49a3bdd557dbacf693f9fe6fbd203d3875763dd9558347`.
+- Workflow: run `33326660578`, job `99297898436`, artifact `9736465061`, artifact digest `sha256:bd0fe2ee6da4804fe59dc6e6944c740af08e437173ddad594c308a1c745a919f`.
 - The final branch publication HEAD/TREE is the GitHub branch tip containing this handoff; the evidence source above is intentionally immutable and is the revision actually executed by the cited workflow.
 
 ## Consumed immutable predecessors
@@ -51,27 +51,28 @@ The runtime overlay additionally consumes WS01 `bf089ea806f54a9bbb64ede205915729
 - Raw WS26 paths: 4,280. Effective post-erratum production-required paths: 4,276.
 - Family counts: ACTION_COST_DECISION 2,697; TRIGGER_REPLACEMENT_ZONE_SBA 1,174; CONTINUOUS_COPY_CONTROL 297; COMBAT_COMMANDER 27; HIDDEN_RNG_REPLAY 81.
 - The four WS29 SVar aliases remain immutable deprecated provenance and resolve through `AddStaticAbility` to terminal `StaticAbilityMode.Continuous`; no replacement IDs were invented.
-- ABI V2.1 accepts the inherited and successor positive fixtures and rejects all 17 negative fixtures for their intended reason.
-- WS26/WS28 contribute the same two ABI-admissible WS16-derived executions. WS27 requires reexecution. WS29 contributes model errata only. All 27 WS30 records require reexecution. All 81 admitted-start WS31 records remain nonqualifying diagnostics. WS32 is compatibility evidence, not a Q6 witness source.
+- ABI V2.1 accepts the inherited and successor positive fixtures, accepts the new campaign witness, and rejects all 17 negative fixtures for their intended reason.
+- WS26/WS28 contribute the same two ABI-admissible WS16-derived executions. The WS27 Swiftwater Cliffs LifeGain path was necessarily re-executed on the integrated WS33 overlay and is now ABI V2.1-admissible with complete state, primitive, path, trace, and rules evidence. WS29 contributes model errata only. All 27 WS30 records still require lifecycle-complete reexecution. All 81 admitted-start WS31 records remain nonqualifying diagnostics. WS32 is compatibility evidence, not a Q6 witness source.
 
 ## Integrated runtime and focused requalification
 
 - One exact-pin overlay materializes WS01 decision/target boundaries, Q2 observation, Q3 RNG/replay, WS12 typed outcomes, WS32 generic post-resolution verification, and the WS33 generic typed `INPUT_CONFIRM` adapter.
 - `INPUT_CONFIRM` emits two authoritative server-mapped option IDs, records actor/principal, requires exactly one response, consumes it once, rejects ambiguous forms as `UNSUPPORTED_DECISION_PATH`, and has no GUI/default/card-name fallback in external mode.
 - Focused CI tests passed for normal actual-card Mulldrifter resolution, verifier disabled by default, controlled semantic mismatch to `CARD_BEHAVIOR_FAILURE`, distinct engine failure, `state_committed=false`, failed result not promoted, `fallback_used=false`, sanitized public payload, typed INPUT_CONFIRM acceptance, and ambiguous-form fail-closed behavior.
+- The actual Swiftwater Cliffs card was moved through Forge zone movement, waiting-trigger collection, simultaneous-to-regular stack transfer, and normal resolution. Its V2.1 witness proves the exact +1 life state transition and stack drainage without a discretionary decision or fallback.
 - Q1/Q2/Q3/Q4/Q5/Q7 were not invalidated beyond those focused common-overlay checks. No broad reassurance rerun was performed.
 
 ## Effective campaign result
 
-- Paths: PASS 2; FAIL 0; UNSUPPORTED 0; UNKNOWN 4,274.
+- Paths: PASS 3; FAIL 0; UNSUPPORTED 0; UNKNOWN 4,273.
 - Identities: FULL 0; PARTIAL 1,678.
-- Required evidence frontiers: Decision 2,632 missing; RNG 1,150 missing; Hidden 1,436 missing; Replay 2,644 missing. The two admitted PASS paths require none of those tapes.
-- Implementation targets: 203. Evidence-profile scenario groups: 249. Missing scenario-template groups: 247.
+- Required evidence frontiers: Decision 2,632 missing; RNG 1,150 missing; Hidden 1,436 missing; Replay 2,644 missing. The three admitted PASS paths require none of those tapes.
+- Implementation targets: 203. Evidence-profile scenario groups: 249. All 249 groups remain incomplete: 3 are correctly classified `PARTIALLY_EXECUTED` and 246 remain `MISSING_SCENARIO_TEMPLATE`. The earlier 247 count was an accounting defect caused by treating a group as retained when only one member path was admitted; no sibling path was promoted.
 - No parser/source-presence result, predecessor-local family PASS, or global Q1/Q2/Q3 result was promoted to Q6 behavior PASS.
 - Card-name production hacks: 0. Second pilot Rules Engine: 0. Silent fallbacks: 0. Stdout-only PASS: 0.
 
 ## Remaining blocker and next action
 
-The exact machine-listed blocker is `MISSING_SCENARIO_TEMPLATE` for 4,274 effective paths. This remains actionable, so WS33 does not claim fail-closed workstream completion, Q6 candidacy, or WS34 eligibility. The smallest justified continuation is implementation-target-first actual-card scenario execution on the already-qualified overlay digest, starting with ACTION_COST_DECISION high-fanout targets, then attaching the manifest-required Decision/RNG/Hidden/Replay evidence and applying only proven generic repairs.
+The exact machine-listed blocker is `MISSING_SCENARIO_TEMPLATE` for 4,273 effective paths across 249 incomplete scenario groups. This remains actionable, so WS33 does not claim fail-closed workstream completion, Q6 candidacy, or WS34 eligibility. The next admissible continuation is implementation-target-first actual-card scenario execution on the already-qualified overlay digest, starting with ACTION_COST_DECISION high-fanout targets, then attaching the manifest-required Decision/RNG/Hidden/Replay evidence and applying only proven generic repairs. The WS30 controller is not admitted wholesale because it contains deterministic selection behavior and several direct-resolution shortcuts; its green records are scenario knowledge, not successor witnesses.
 
-Every committed machine output is hash-bound by `actual-card-behavior/ws33/WS33_HASHES.sha256`; the full runtime logs, test XML, RNG inventory, overlay file hashes, ABI fixtures, ledgers, and coverage registries are retained in artifact `9736093826`.
+Every generated machine output is hash-bound by `WS33_HASHES.sha256`; the full runtime logs, test XML, RNG inventory, overlay file hashes, ABI fixtures, ledgers, coverage registries, and new Swiftwater trace are retained in artifact `9736465061`.
