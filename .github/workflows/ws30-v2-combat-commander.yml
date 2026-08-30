@@ -107,9 +107,15 @@ jobs:
           import sys
           p=Path(sys.argv[1])
           s=p.read_text()
+          s=s.replace('import forge.LobbyPlayer;\n', 'import forge.LobbyPlayer;\nimport forge.GuiDesktop;\n')
           s=s.replace('import forge.game.card.CardCollectionView;\n','')
           s=s.replace('import forge.game.player.IGameEntitiesFactory;\n', 'import forge.game.player.DelayedReveal;\nimport forge.game.player.IGameEntitiesFactory;\n')
+          s=s.replace('import forge.item.PaperCard;\n', 'import forge.item.PaperCard;\nimport forge.gui.GuiBase;\nimport forge.model.FModel;\n')
           s=s.replace('import forge.util.Localizer;\n', 'import forge.util.Localizer;\nimport forge.util.collect.FCollectionView;\n')
+          init='            Localizer.getInstance().initialize("en-US", dir(res.resolve("languages")));\n'
+          bootstrap='''            Localizer.getInstance().initialize("en-US", dir(res.resolve("languages")));\n            if (GuiBase.getInterface() == null) GuiBase.setInterface(new GuiDesktop());\n            FModel.loadDynamicGamedata();\n            Assert.assertTrue(forge.card.CardType.Constant.LOADED.isSet(), "Forge dynamic type registry not loaded");\n'''
+          assert init in s
+          s=s.replace(init,bootstrap,1)
           controller_ctor='        Ws30Controller(Game game, Player player, LobbyPlayer lobbyPlayer) { super(game, player, lobbyPlayer); }\n'
           controller_choice='''        private GameEntity expectedEntityChoice;\n        Ws30Controller(Game game, Player player, LobbyPlayer lobbyPlayer) { super(game, player, lobbyPlayer); }\n        void expectEntityChoice(GameEntity entity) {\n            if (expectedEntityChoice != null) throw new IllegalStateException("unconsumed expected entity choice");\n            expectedEntityChoice = entity;\n        }\n        @Override public <T extends GameEntity> T chooseSingleEntityForEffect(FCollectionView<T> optionList, DelayedReveal delayedReveal, SpellAbility sa, String title, boolean isOptional, Player relatedPlayer, Map<String,Object> params) {\n            System.out.println("WS30_ENTITY_CHOICE title="+title+" options="+optionList.size()+" expected="+expectedEntityChoice);\n            if (delayedReveal != null) reveal(delayedReveal);\n            GameEntity expected = expectedEntityChoice;\n            if (expected == null) throw new IllegalStateException("unexpected discretionary entity choice: " + title);\n            expectedEntityChoice = null;\n            for (T option : optionList) if (option.equals(expected)) return option;\n            throw new IllegalStateException("expected entity is not Forge-legal: " + expected + " options=" + optionList);\n        }\n'''
           assert controller_ctor in s
@@ -138,7 +144,7 @@ jobs:
           assert first in s
           s=s.replace(first,diag,1)
           p.write_text(s)
-          print(f'PhaseHandler-bound combat substitutions={count}; instrumented Aura preconditions and Forge-filtered entity choice')
+          print(f'PhaseHandler-bound combat substitutions={count}; initialized Forge dynamic game data; instrumented Aura preconditions and Forge-filtered entity choice')
           PY
           : > "$WS30_TRACE_PATH"
 
