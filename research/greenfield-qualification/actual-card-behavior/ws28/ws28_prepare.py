@@ -143,7 +143,7 @@ def main():
         if root is None:
             unresolved.append({"v2_path_id":pid,"reason":"NO_PRODUCTION_ROOT","path":rel,"line":ln,"raw":target["raw"]})
         cols=[
-            pid,path["parent_ws14_primitive_id"],oid,b64(name),
+            pid,path.get("parent_ws14_primitive_id") or "",oid,b64(name),
             path["dispatch_domain"],path["dispatch_token"],b64(path["implementation_target"]),
             "1" if path.get("required_decision_evidence") else "0",
             "1" if path.get("required_rng_evidence") else "0",
