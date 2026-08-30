@@ -121,10 +121,10 @@ jobs:
             --forge-root forge | tee "$runtime_evidence/ws32-overlay.log"
           cp "$ROOT/runtime-tests/Ws33IntegratedOverlayCompatibilityTest.java" \
             forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
-          xvfb-run -a mvn -B -f forge/pom.xml -pl forge-gui-desktop -am \
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
             -Dtest=forge.gamesimulationtests.Ws32CardBehaviorFailureQualificationTest,forge.gamesimulationtests.Ws33IntegratedOverlayCompatibilityTest \
             -Dsurefire.failIfNoSpecifiedTests=false \
-            -Dws32.out="$GITHUB_WORKSPACE/$runtime_evidence/WS32_RUNTIME_WITNESS.json" test \
+            -Dws32.out="$GITHUB_WORKSPACE/$runtime_evidence/WS32_RUNTIME_WITNESS.json" test) \
             2>&1 | tee "$runtime_evidence/integrated-runtime.log"
           cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws32CardBehaviorFailureQualificationTest.xml "$runtime_evidence/"
           cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws33IntegratedOverlayCompatibilityTest.xml "$runtime_evidence/"
