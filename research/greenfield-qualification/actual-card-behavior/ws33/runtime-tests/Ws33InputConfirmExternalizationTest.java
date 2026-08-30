@@ -7,6 +7,7 @@ import forge.game.player.Player;
 import forge.gamemodes.match.input.ExternalDecisionRequest;
 import forge.gamemodes.match.input.ExternalDecisionResponse;
 import forge.gamemodes.match.input.ExternalDecisionTape;
+import forge.gamemodes.match.input.ExternalDecisionValidationException;
 import forge.gamemodes.match.input.InputConfirm;
 import forge.player.LobbyPlayerHuman;
 import forge.player.PlayerControllerHuman;
@@ -49,5 +50,24 @@ public class Ws33InputConfirmExternalizationTest extends AITest {
         Assert.assertEquals(tape.get(0).getResponseStatus(), ExternalDecisionTape.ResponseStatus.ACCEPTED);
         Assert.assertEquals(tape.get(0).getSelectedOptionIds(), List.of("choice:0"));
         System.out.println("WS33_INPUT_CONFIRM_TYPED_ADAPTER=PASS");
+    }
+
+    @Test
+    public void ambiguousConfirmationOptionsFailClosedBeforeProviderInvocation() {
+        final Game game = initAndCreateGame();
+        final Player actor = game.getPlayers().get(0);
+        final PlayerControllerHuman controller = new PlayerControllerHuman(
+                game, actor, new LobbyPlayerHuman("ws33-external-principal"));
+        controller.setExternalDecisionProvider(request -> {
+            throw new AssertionError("provider must not receive an ambiguous authoritative option set");
+        });
+        final ExternalDecisionValidationException error = Assert.expectThrows(
+                ExternalDecisionValidationException.class,
+                () -> InputConfirm.confirm(controller, (CardView) null,
+                        "qualification-only prompt", false, List.of("same", "same")));
+        Assert.assertEquals(error.getCode(),
+                ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH);
+        Assert.assertTrue(controller.getExternalDecisionTapeSnapshot().isEmpty());
+        System.out.println("WS33_INPUT_CONFIRM_UNSUPPORTED_FORM_FAIL_CLOSED=PASS");
     }
 }
