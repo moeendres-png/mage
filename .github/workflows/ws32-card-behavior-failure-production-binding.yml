@@ -1,0 +1,157 @@
+name: WS32 CARD_BEHAVIOR_FAILURE production binding
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - work/ws32-card-behavior-failure-production-binding-20260830
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  WS26_HEAD: 206a39cbaa3eeb98b10c2ddc36d51fe5b1b2f5ef
+  WS26_TREE: 837f445f78bb26462653c58baf1532e294151b10
+  WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+  WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws32
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact WS32 revision
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+
+      - name: Verify WS26 boundary and WS32 ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
+          git -C qual merge-base --is-ancestor "$WS26_HEAD" HEAD
+          test "$(git -C qual rev-parse "$WS26_HEAD^{tree}")" = "$WS26_TREE"
+          bad="$(git -C qual diff --name-only "$WS26_HEAD"...HEAD | grep -Ev '^(research/greenfield-qualification/actual-card-behavior/ws32/|research/greenfield-qualification/WS32_HANDOFF\.md$|\.github/workflows/ws32-card-behavior-failure-production-binding\.yml$)' || true)"
+          test -z "$bad" || { echo "out-of-scope WS32 changes:" >&2; echo "$bad" >&2; exit 1; }
+          mkdir -p evidence generated artifact
+          {
+            echo "source_head=$(git -C qual rev-parse HEAD)"
+            echo "source_tree=$(git -C qual rev-parse 'HEAD^{tree}')"
+            echo "ws26_head=$WS26_HEAD"
+            echo "ws26_tree=$WS26_TREE"
+            echo "forge_pin=$FORGE_PIN"
+          } | tee evidence/provenance.env
+
+      - name: Checkout exact WS01 prerequisite
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS01_HEAD }}
+          path: ws01
+          fetch-depth: 1
+
+      - name: Checkout exact WS12 failure contract
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS12_HEAD }}
+          path: ws12
+          fetch-depth: 1
+
+      - name: Checkout exact pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Verify exact prerequisite revisions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C ws01 rev-parse HEAD)" = "$WS01_HEAD"
+          test "$(git -C ws12 rev-parse HEAD)" = "$WS12_HEAD"
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          test "$(git -C ws12 rev-parse 'HEAD^{tree}')" = 9a2a52932a0d69dcf06c2392cddcf40b47e810cc
+          grep -Fq '"CARD_BEHAVIOR_FAILURE"' ws12/research/greenfield-qualification/failure-semantics/outcome-contract.schema.json
+
+      - name: Apply retained WS01 and WS12 contracts plus WS32 production binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee evidence/ws01-overlay.log
+          python3 ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py \
+            --forge-root forge | tee evidence/ws12-overlay.log
+          python3 "qual/$ROOT/apply_ws32_card_behavior_production_binding.py" \
+            --forge-root forge | tee evidence/ws32-overlay.log
+          grep -Fx 'WS32_FORGE_OVERLAY=APPLIED' evidence/ws32-overlay.log
+          grep -Fx 'WS32_CARD_NAME_PRODUCTION_BRANCHES=0' evidence/ws32-overlay.log
+          grep -Fq 'game.verifyResolvedCardBehavior(sa);' forge/forge-game/src/main/java/forge/game/zone/MagicStack.java
+          grep -Fq 'fromCardBehaviorFailure' forge/forge-gui/src/main/java/forge/gamemodes/match/input/UnifiedOutcomeMapper.java
+
+      - name: Execute actual-card production runtime witness
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/evidence/WS32_RUNTIME_WITNESS.json"
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.gamesimulationtests.Ws32CardBehaviorFailureQualificationTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws32.out="$out" \
+            test) 2>&1 | tee evidence/ws32-forge-runtime.log
+          test -s evidence/WS32_RUNTIME_WITNESS.json
+          grep -Fx 'WS32_RUNTIME_HOOK_EXECUTED=TRUE' evidence/ws32-forge-runtime.log
+          grep -Fx 'WS32_POSITIVE_CONTROL=PASS' evidence/ws32-forge-runtime.log
+          grep -Fx 'WS32_CONTROLLED_SEMANTIC_MISMATCH=DETECTED' evidence/ws32-forge-runtime.log
+          grep -Fx 'WS32_TYPED_OUTCOME=CARD_BEHAVIOR_FAILURE' evidence/ws32-forge-runtime.log
+          grep -Fx 'WS32_STATE_COMMITTED=FALSE' evidence/ws32-forge-runtime.log
+          grep -Fx 'WS32_FALLBACK_USED=FALSE' evidence/ws32-forge-runtime.log
+          ! grep -q '<failure\|<error' forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws32CardBehaviorFailureQualificationTest.xml
+          cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws32CardBehaviorFailureQualificationTest.xml evidence/
+
+      - name: Materialize WS32 hard gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          source evidence/provenance.env
+          python3 "qual/$ROOT/qualify_ws32.py" \
+            --contract ws12/research/greenfield-qualification/failure-semantics/outcome-contract.schema.json \
+            --runtime evidence/WS32_RUNTIME_WITNESS.json \
+            --forge-root forge \
+            --overlay-source "qual/$ROOT/apply_ws32_card_behavior_production_binding.py" \
+            --source-head "$source_head" --source-tree "$source_tree" \
+            --out generated | tee evidence/ws32-gate.log
+          jq -e '.CARD_BEHAVIOR_FAILURE=="PASS" and .FAILURE_SEMANTICS_BLOCKER_CLOSED==true and .WORKSTREAM_COMPLETE==true and .state_committed==false and .fallback_used==false and .production_reachable==true and .integration_status=="Q5_PENDING_INTEGRATION" and ([.hard_gates[]] | all)' generated/WS32_GATE.json >/dev/null
+          jq -e '.category=="CARD_BEHAVIOR_FAILURE" and .state_committed==false and .public_message=="card behavior verification failed" and (has("expected")|not) and (has("actual")|not)' generated/CARD_BEHAVIOR_FAILURE.json >/dev/null
+          (cd generated && sha256sum -c WS32_HASHES.sha256)
+
+      - name: Package immutable WS32 evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a generated/. artifact/ 2>/dev/null || true
+          mkdir -p artifact/workflow-evidence
+          cp -a evidence/. artifact/workflow-evidence/ 2>/dev/null || true
+          printf '%s\n' "$GITHUB_SHA" > artifact/workflow-evidence/tested_source_head.txt
+          git -C qual rev-parse 'HEAD^{tree}' > artifact/workflow-evidence/tested_source_tree.txt
+          printf '%s\n' "$FORGE_PIN" > artifact/workflow-evidence/forge_pin.txt
+          printf '%s\n' "$WS12_HEAD" > artifact/workflow-evidence/ws12_contract_head.txt
+          if test -f artifact/WS32_HASHES.sha256; then (cd artifact && sha256sum -c WS32_HASHES.sha256); fi
+
+      - name: Upload immutable WS32 qualification artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws32-card-behavior-failure-production-binding
+          path: artifact
+          if-no-files-found: error
+          retention-days: 90
