@@ -104,7 +104,10 @@ def main() -> None:
         if not fields or "$" not in fields[0]:
             skipped["non_ability_line"] += 1
             continue
-        prefix, api = [part.strip() for part in fields[0].split("$", 1)]
+        ability_field = fields[0]
+        if ability_field.startswith("A:"):
+            ability_field = ability_field[2:].strip()
+        prefix, api = [part.strip() for part in ability_field.split("$", 1)]
         if prefix not in {"SP", "AB"} or not api:
             skipped["non_sp_ab_line"] += 1
             continue
