@@ -1,0 +1,418 @@
+{
+  "baseline": {
+    "direct_rng_bypasses": [
+      {
+        "kind": "COLLECTIONS_SHUFFLE",
+        "line": 2282,
+        "path": "forge-game/src/main/java/forge/game/GameAction.java",
+        "text": "Collections.shuffle(shuffledCards, MyRandom.getRandom());"
+      },
+      {
+        "kind": "COLLECTIONS_SHUFFLE",
+        "line": 2412,
+        "path": "forge-game/src/main/java/forge/game/GameAction.java",
+        "text": "Collections.shuffle(players, MyRandom.getRandom());"
+      },
+      {
+        "kind": "COLLECTIONS_SHUFFLE",
+        "line": 1619,
+        "path": "forge-game/src/main/java/forge/game/player/Player.java",
+        "text": "Collections.shuffle(list, MyRandom.getRandom());"
+      },
+      {
+        "kind": "COLLECTIONS_SHUFFLE",
+        "line": 165,
+        "path": "forge-game/src/main/java/forge/game/card/CardLists.java",
+        "text": "Collections.shuffle(list, MyRandom.getRandom());"
+      },
+      {
+        "kind": "COLLECTIONS_SHUFFLE",
+        "line": 262,
+        "path": "forge-game/src/main/java/forge/game/zone/Zone.java",
+        "text": "Collections.shuffle(cardList, MyRandom.getRandom());"
+      },
+      {
+        "kind": "COLLECTIONS_SHUFFLE",
+        "line": 46,
+        "path": "forge-game/src/main/java/forge/game/ability/effects/DraftEffect.java",
+        "text": "Collections.shuffle(spellbook, MyRandom.getRandom());"
+      },
+      {
+        "kind": "COLLECTIONS_SHUFFLE",
+        "line": 284,
+        "path": "forge-game/src/main/java/forge/game/ability/effects/DigUntilEffect.java",
+        "text": "Collections.shuffle(revealed, MyRandom.getRandom());"
+      },
+      {
+        "kind": "COLLECTIONS_SHUFFLE",
+        "line": 37,
+        "path": "forge-game/src/main/java/forge/game/ability/effects/ReorderZoneEffect.java",
+        "text": "Collections.shuffle(list, MyRandom.getRandom());"
+      }
+    ],
+    "myrandom_calls": [
+      {
+        "kind": "MY_RANDOM",
+        "line": 1089,
+        "path": "forge-game/src/main/java/forge/game/Game.java",
+        "text": "CardRarity anteRarity = validRarities.get(MyRandom.getRandom().nextInt(validRarities.size()));"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 1119,
+        "path": "forge-game/src/main/java/forge/game/Game.java",
+        "text": "Card ante = library.get(MyRandom.getRandom().nextInt(library.size()));"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 2282,
+        "path": "forge-game/src/main/java/forge/game/GameAction.java",
+        "text": "Collections.shuffle(shuffledCards, MyRandom.getRandom());"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 2412,
+        "path": "forge-game/src/main/java/forge/game/GameAction.java",
+        "text": "Collections.shuffle(players, MyRandom.getRandom());"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 209,
+        "path": "forge-game/src/main/java/forge/game/Match.java",
+        "text": "if (cp.isFoil() || (canRandomFoil && MyRandom.percentTrue(5))) {"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 45,
+        "path": "forge-game/src/main/java/forge/game/PlanarDice.java",
+        "text": "int i = forge.util.MyRandom.getRandom().nextInt(6);"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 1619,
+        "path": "forge-game/src/main/java/forge/game/player/Player.java",
+        "text": "Collections.shuffle(list, MyRandom.getRandom());"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 165,
+        "path": "forge-game/src/main/java/forge/game/card/CardLists.java",
+        "text": "Collections.shuffle(list, MyRandom.getRandom());"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 262,
+        "path": "forge-game/src/main/java/forge/game/zone/Zone.java",
+        "text": "Collections.shuffle(cardList, MyRandom.getRandom());"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 2765,
+        "path": "forge-game/src/main/java/forge/game/ability/AbilityUtils.java",
+        "text": "return MyRandom.getRandom().nextInt(1+max-min) + min;"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 51,
+        "path": "forge-game/src/main/java/forge/game/ability/effects/FlipOntoBattlefieldEffect.java",
+        "text": "flippedOnce = MyRandom.getRandom().nextFloat() <= chanceToFlip; // 20% chance that the card won't flip even once"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 57,
+        "path": "forge-game/src/main/java/forge/game/ability/effects/FlipOntoBattlefieldEffect.java",
+        "text": "int flippedTimes = MyRandom.getRandom().nextInt(maxFlipTimes) + 1;"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 64,
+        "path": "forge-game/src/main/java/forge/game/ability/effects/FlipOntoBattlefieldEffect.java",
+        "text": "float outcome = MyRandom.getRandom().nextFloat();"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 121,
+        "path": "forge-game/src/main/java/forge/game/ability/effects/FlipOntoBattlefieldEffect.java",
+        "text": "if (!attachments.isEmpty() && direction < 0 && MyRandom.getRandom().nextFloat() <= hitAttachment) {"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 46,
+        "path": "forge-game/src/main/java/forge/game/ability/effects/DraftEffect.java",
+        "text": "Collections.shuffle(spellbook, MyRandom.getRandom());"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 211,
+        "path": "forge-game/src/main/java/forge/game/ability/effects/FlipCoinEffect.java",
+        "text": "flipResults.add(MyRandom.getRandom().nextBoolean());"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 284,
+        "path": "forge-game/src/main/java/forge/game/ability/effects/DigUntilEffect.java",
+        "text": "Collections.shuffle(revealed, MyRandom.getRandom());"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 426,
+        "path": "forge-game/src/main/java/forge/game/ability/effects/RollDiceEffect.java",
+        "text": "int roll = MyRandom.getRandom().nextInt(sides) + 1;"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 37,
+        "path": "forge-game/src/main/java/forge/game/ability/effects/ReorderZoneEffect.java",
+        "text": "Collections.shuffle(list, MyRandom.getRandom());"
+      },
+      {
+        "kind": "MY_RANDOM",
+        "line": 66,
+        "path": "forge-game/src/main/java/forge/game/ability/effects/ChooseNumberEffect.java",
+        "text": "chosen = MyRandom.getRandom().nextInt((max - min) + 1) + min;"
+      }
+    ],
+    "rules_game_direct_rng_bypass_count": 8,
+    "rules_game_myrandom_callsite_count": 20,
+    "transitive_core_unnamed_myrandom_calls": [
+      {
+        "control": "STACK_QUALIFIED_NAMED_STREAM",
+        "kind": "TRANSITIVE_UNNAMED_MY_RANDOM",
+        "line": 119,
+        "path": "forge-core/src/main/java/forge/util/Aggregates.java",
+        "text": "default: return source[MyRandom.getRandom().nextInt(source.length)];"
+      },
+      {
+        "control": "STACK_QUALIFIED_NAMED_STREAM",
+        "kind": "TRANSITIVE_UNNAMED_MY_RANDOM",
+        "line": 140,
+        "path": "forge-core/src/main/java/forge/util/Aggregates.java",
+        "text": "default: return src.get(MyRandom.getRandom().nextInt(len));"
+      },
+      {
+        "control": "STACK_QUALIFIED_NAMED_STREAM",
+        "kind": "TRANSITIVE_UNNAMED_MY_RANDOM",
+        "line": 147,
+        "path": "forge-core/src/main/java/forge/util/Aggregates.java",
+        "text": "int next = MyRandom.getRandom().nextInt();"
+      },
+      {
+        "control": "STACK_QUALIFIED_NAMED_STREAM",
+        "kind": "TRANSITIVE_UNNAMED_MY_RANDOM",
+        "line": 169,
+        "path": "forge-core/src/main/java/forge/util/Aggregates.java",
+        "text": "int j = MyRandom.getRandom().nextInt(i);"
+      },
+      {
+        "control": "STACK_QUALIFIED_NAMED_STREAM",
+        "kind": "TRANSITIVE_UNNAMED_MY_RANDOM",
+        "line": 183,
+        "path": "forge-core/src/main/java/forge/util/Aggregates.java",
+        "text": "index = MyRandom.getRandom().nextInt(source.size());"
+      },
+      {
+        "control": "STACK_QUALIFIED_NAMED_STREAM",
+        "kind": "TRANSITIVE_UNNAMED_MY_RANDOM",
+        "line": 192,
+        "path": "forge-core/src/main/java/forge/util/Aggregates.java",
+        "text": "return MyRandom.getRandom().nextInt(max - min + 1) + min;"
+      },
+      {
+        "control": "STACK_QUALIFIED_NAMED_STREAM",
+        "kind": "TRANSITIVE_UNNAMED_MY_RANDOM",
+        "line": 119,
+        "path": "forge-core/src/main/java/forge/util/StreamUtil.java",
+        "text": "int j = MyRandom.getRandom().nextInt(sampleCount);"
+      }
+    ],
+    "transitive_core_unnamed_myrandom_callsite_count": 7
+  },
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "overlay": {
+    "named_game_rng_streams": "PASS",
+    "pilot_rng_note": "WS06 pilot/replay source does not call MyRandom; rules RNG tape contains only named game streams.",
+    "pilot_rng_separation": "PASS",
+    "rewritten_sites": [
+      {
+        "before": "CardRarity anteRarity = validRarities.get(MyRandom.getRandom().nextInt(validRarities.size()));",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/Game.java",
+        "stream": "rules.forge.game.Game.my_random.1"
+      },
+      {
+        "before": "Card ante = library.get(MyRandom.getRandom().nextInt(library.size()));",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/Game.java",
+        "stream": "rules.forge.game.Game.my_random.2"
+      },
+      {
+        "before": "Collections.shuffle(shuffledCards, MyRandom.getRandom());",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/GameAction.java",
+        "stream": "rules.forge.game.GameAction.my_random.1"
+      },
+      {
+        "before": "Collections.shuffle(shuffledCards, MyRandom.getRandom(\"rules.forge.game.GameAction.my_random.1\"));",
+        "kind": "COLLECTIONS_SHUFFLE",
+        "path": "forge-game/src/main/java/forge/game/GameAction.java",
+        "stream": "rules.forge.game.GameAction.collections_shuffle.1"
+      },
+      {
+        "before": "Collections.shuffle(players, MyRandom.getRandom());",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/GameAction.java",
+        "stream": "rules.forge.game.GameAction.my_random.2"
+      },
+      {
+        "before": "Collections.shuffle(players, MyRandom.getRandom(\"rules.forge.game.GameAction.my_random.2\"));",
+        "kind": "COLLECTIONS_SHUFFLE",
+        "path": "forge-game/src/main/java/forge/game/GameAction.java",
+        "stream": "rules.forge.game.GameAction.collections_shuffle.2"
+      },
+      {
+        "before": "if (cp.isFoil() || (canRandomFoil && MyRandom.percentTrue(5))) {",
+        "kind": "MY_RANDOM_PERCENT",
+        "path": "forge-game/src/main/java/forge/game/Match.java",
+        "stream": "rules.forge.game.Match.my_random_percent.1"
+      },
+      {
+        "before": "int i = forge.util.MyRandom.getRandom().nextInt(6);",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/PlanarDice.java",
+        "stream": "rules.forge.game.PlanarDice.my_random.1"
+      },
+      {
+        "before": "return MyRandom.getRandom().nextInt(1+max-min) + min;",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/ability/AbilityUtils.java",
+        "stream": "rules.forge.game.ability.AbilityUtils.my_random.1"
+      },
+      {
+        "before": "chosen = MyRandom.getRandom().nextInt((max - min) + 1) + min;",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/ability/effects/ChooseNumberEffect.java",
+        "stream": "rules.forge.game.ability.effects.ChooseNumberEffect.my_random.1"
+      },
+      {
+        "before": "Collections.shuffle(revealed, MyRandom.getRandom());",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/ability/effects/DigUntilEffect.java",
+        "stream": "rules.forge.game.ability.effects.DigUntilEffect.my_random.1"
+      },
+      {
+        "before": "Collections.shuffle(revealed, MyRandom.getRandom(\"rules.forge.game.ability.effects.DigUntilEffect.my_random.1\"));",
+        "kind": "COLLECTIONS_SHUFFLE",
+        "path": "forge-game/src/main/java/forge/game/ability/effects/DigUntilEffect.java",
+        "stream": "rules.forge.game.ability.effects.DigUntilEffect.collections_shuffle.1"
+      },
+      {
+        "before": "Collections.shuffle(spellbook, MyRandom.getRandom());",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/ability/effects/DraftEffect.java",
+        "stream": "rules.forge.game.ability.effects.DraftEffect.my_random.1"
+      },
+      {
+        "before": "Collections.shuffle(spellbook, MyRandom.getRandom(\"rules.forge.game.ability.effects.DraftEffect.my_random.1\"));",
+        "kind": "COLLECTIONS_SHUFFLE",
+        "path": "forge-game/src/main/java/forge/game/ability/effects/DraftEffect.java",
+        "stream": "rules.forge.game.ability.effects.DraftEffect.collections_shuffle.1"
+      },
+      {
+        "before": "flipResults.add(MyRandom.getRandom().nextBoolean());",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/ability/effects/FlipCoinEffect.java",
+        "stream": "rules.forge.game.ability.effects.FlipCoinEffect.my_random.1"
+      },
+      {
+        "before": "flippedOnce = MyRandom.getRandom().nextFloat() <= chanceToFlip; // 20% chance that the card won't flip even once",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/ability/effects/FlipOntoBattlefieldEffect.java",
+        "stream": "rules.forge.game.ability.effects.FlipOntoBattlefieldEffect.my_random.1"
+      },
+      {
+        "before": "int flippedTimes = MyRandom.getRandom().nextInt(maxFlipTimes) + 1;",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/ability/effects/FlipOntoBattlefieldEffect.java",
+        "stream": "rules.forge.game.ability.effects.FlipOntoBattlefieldEffect.my_random.2"
+      },
+      {
+        "before": "float outcome = MyRandom.getRandom().nextFloat();",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/ability/effects/FlipOntoBattlefieldEffect.java",
+        "stream": "rules.forge.game.ability.effects.FlipOntoBattlefieldEffect.my_random.3"
+      },
+      {
+        "before": "if (!attachments.isEmpty() && direction < 0 && MyRandom.getRandom().nextFloat() <= hitAttachment) {",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/ability/effects/FlipOntoBattlefieldEffect.java",
+        "stream": "rules.forge.game.ability.effects.FlipOntoBattlefieldEffect.my_random.4"
+      },
+      {
+        "before": "Collections.shuffle(list, MyRandom.getRandom());",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/ability/effects/ReorderZoneEffect.java",
+        "stream": "rules.forge.game.ability.effects.ReorderZoneEffect.my_random.1"
+      },
+      {
+        "before": "Collections.shuffle(list, MyRandom.getRandom(\"rules.forge.game.ability.effects.ReorderZoneEffect.my_random.1\"));",
+        "kind": "COLLECTIONS_SHUFFLE",
+        "path": "forge-game/src/main/java/forge/game/ability/effects/ReorderZoneEffect.java",
+        "stream": "rules.forge.game.ability.effects.ReorderZoneEffect.collections_shuffle.1"
+      },
+      {
+        "before": "int roll = MyRandom.getRandom().nextInt(sides) + 1;",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/ability/effects/RollDiceEffect.java",
+        "stream": "rules.forge.game.ability.effects.RollDiceEffect.my_random.1"
+      },
+      {
+        "before": "Collections.shuffle(list, MyRandom.getRandom());",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/card/CardLists.java",
+        "stream": "rules.forge.game.card.CardLists.my_random.1"
+      },
+      {
+        "before": "Collections.shuffle(list, MyRandom.getRandom(\"rules.forge.game.card.CardLists.my_random.1\"));",
+        "kind": "COLLECTIONS_SHUFFLE",
+        "path": "forge-game/src/main/java/forge/game/card/CardLists.java",
+        "stream": "rules.forge.game.card.CardLists.collections_shuffle.1"
+      },
+      {
+        "before": "Collections.shuffle(list, MyRandom.getRandom());",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/player/Player.java",
+        "stream": "rules.forge.game.player.Player.my_random.1"
+      },
+      {
+        "before": "Collections.shuffle(list, MyRandom.getRandom(\"rules.forge.game.player.Player.my_random.1\"));",
+        "kind": "COLLECTIONS_SHUFFLE",
+        "path": "forge-game/src/main/java/forge/game/player/Player.java",
+        "stream": "rules.forge.game.player.Player.collections_shuffle.1"
+      },
+      {
+        "before": "Collections.shuffle(cardList, MyRandom.getRandom());",
+        "kind": "MY_RANDOM",
+        "path": "forge-game/src/main/java/forge/game/zone/Zone.java",
+        "stream": "rules.forge.game.zone.Zone.my_random.1"
+      },
+      {
+        "before": "Collections.shuffle(cardList, MyRandom.getRandom(\"rules.forge.game.zone.Zone.my_random.1\"));",
+        "kind": "COLLECTIONS_SHUFFLE",
+        "path": "forge-game/src/main/java/forge/game/zone/Zone.java",
+        "stream": "rules.forge.game.zone.Zone.collections_shuffle.1"
+      }
+    ],
+    "strict_runtime_unnamed_rng_guard": "PASS",
+    "strict_runtime_unnamed_rng_note": "Qualified Aggregates/StreamUtil calls with a forge.game.* caller are bridged to rules.transitive.<helper>.<method>; every other unnamed forge.game RNG fails closed; non-rules UI/lobby callers remain outside the game RNG tape.",
+    "transitive_core_control": "STACK_QUALIFIED_NAMED_STREAM",
+    "transitive_core_guarded_callsite_count": 7,
+    "transitive_core_rng_helpers": [
+      "forge-core/src/main/java/forge/util/Aggregates.java",
+      "forge-core/src/main/java/forge/util/StreamUtil.java"
+    ],
+    "transitive_core_uncontrolled_rng_paths": 0,
+    "uncontrolled_decision_relevant_rng_paths": 0,
+    "uncontrolled_sites": []
+  },
+  "schema": "commander-simulator-next.ws06-rng-inventory.v1"
+}
