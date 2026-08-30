@@ -1,0 +1,75 @@
+name: WS29 source analysis helper
+
+on:
+  push:
+    branches:
+      - work/ws29-v2-continuous-copy-control-20260830
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  WS26_ARTIFACT_ID: '9723722686'
+  WS26_ARTIFACT_DIGEST: sha256:b9e1fc4fd792b0baa1da1c17e3bbc9e01b2557d4b73b8590e680679f53b59883
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: qual
+      - uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+      - name: Verify and download WS26 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS26_ARTIFACT_ID" --jq '.digest')" = "$WS26_ARTIFACT_DIGEST"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS26_ARTIFACT_ID/zip" > /tmp/ws26.zip
+          mkdir -p ws26
+          unzip -q /tmp/ws26.zip -d ws26
+      - name: Package exact WS29 referenced source corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib, shutil
+          root=pathlib.Path('ws26/research/greenfield-qualification/actual-card-behavior/ws26')
+          manifest=json.loads((root/'WS26_BEHAVIOR_PATH_MANIFEST_V2.json').read_text())
+          paths=[p for p in manifest['paths'] if p['owner_family']=='CONTINUOUS_COPY_CONTROL']
+          assert len(paths)==301
+          out=pathlib.Path('artifact')
+          (out/'forge-sources').mkdir(parents=True)
+          source_paths=sorted({s['forge_source_path'] for p in paths for s in p['source_provenance']})
+          missing=[]
+          for rel in source_paths:
+              src=pathlib.Path('forge')/rel
+              if not src.is_file():
+                  missing.append(rel); continue
+              dst=out/'forge-sources'/rel
+              dst.parent.mkdir(parents=True,exist_ok=True)
+              shutil.copy2(src,dst)
+          assert not missing, missing
+          for name in ['WS26_BEHAVIOR_PATH_MANIFEST_V2.json','WS26_OWNER_PARTITIONS.json','WS26_EXISTING_WITNESS_COMPATIBILITY.json','WS26_HARNESS_CONTRACT.json','WS26_WITNESS_ABI_V2.schema.json','WS26_WITNESS_SEMANTIC_VALIDATOR.py']:
+              shutil.copy2(root/name,out/name)
+          (out/'SOURCE_INDEX.json').write_text(json.dumps({'path_count':len(paths),'source_file_count':len(source_paths),'source_paths':source_paths},indent=2)+'\n')
+          PY
+          printf '%s\n' "$(git -C forge rev-parse HEAD)" > artifact/forge_pin.txt
+          printf '%s\n' "$(git -C qual rev-parse HEAD)" > artifact/ws29_head.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ws29-source-analysis
+          path: artifact
+          if-no-files-found: error
+          retention-days: 7
