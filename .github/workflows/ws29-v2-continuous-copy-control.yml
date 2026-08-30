@@ -118,7 +118,26 @@ jobs:
           cp forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws29SourceBindingTest.xml evidence/
           ! grep -q '<failure\|<error' evidence/TEST-forge.gamesimulationtests.Ws29SourceBindingTest.xml
 
-      - name: Record interim provenance
+      - name: Materialize terminal WS29 adjudication
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="inputs/ws26/research/greenfield-qualification/actual-card-behavior/ws26"
+          python3 "qual/$ROOT/ws29_finalize.py" \
+            --ws26-root "$base" \
+            --cases inputs/ws29-cases.jsonl \
+            --binding evidence/WS29_SOURCE_BINDING_TRACE.jsonl \
+            --out generated \
+            --source-head "$(git -C qual rev-parse HEAD)" \
+            --source-tree "$(git -C qual rev-parse 'HEAD^{tree}')"
+          test "$(jq -r '.assigned_path_count' generated/WS29_PATH_COVERAGE.json)" = 301
+          test "$(jq -r '.source_binding_status_counts.PASS' generated/WS29_PATH_COVERAGE.json)" = 301
+          test "$(jq -r '.semantic_status_counts.UNKNOWN' generated/WS29_PATH_COVERAGE.json)" = 301
+          jq -e '.WS29_FAMILY_GATE == "FAIL_CLOSED" and .WORKSTREAM_COMPLETE == false and .WORKSTREAM_CLOSED_FAIL_CLOSED == true and .qualification_execution_complete == true and .hard_gate.global_q6_adjudicated == false' generated/WS29_GATE.json >/dev/null
+          (cd generated && sha256sum -c WS29_HASHES.sha256)
+          cp generated/WS29_* evidence/
+
+      - name: Record final provenance
         if: always()
         shell: bash
         run: |
@@ -127,7 +146,7 @@ jobs:
           {"schema":"commander-simulator-next.ws29.provenance.v1","tested_source_head":"$(git -C qual rev-parse HEAD)","tested_source_tree":"$(git -C qual rev-parse 'HEAD^{tree}')","ws26_final_head":"$WS26_FINAL_HEAD","ws26_final_tree":"$WS26_FINAL_TREE","ws26_artifact_id":$WS26_ARTIFACT_ID,"ws26_artifact_digest":"$WS26_ARTIFACT_DIGEST","forge_pin":"$FORGE_PIN","qualification_test_dependency":{"group":"com.google.code.gson","artifact":"gson","version":"2.11.0","scope":"test","semantic_engine_change":false}}
           JSON
 
-      - name: Upload WS29 interim evidence
+      - name: Upload WS29 evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
