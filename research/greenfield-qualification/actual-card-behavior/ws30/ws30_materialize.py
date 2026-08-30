@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import re
 from pathlib import Path
 
 FAMILY="COMBAT_COMMANDER"
@@ -11,6 +12,7 @@ RULES_URL="https://media.wizards.com/2026/downloads/MagicCompRules%2020260807.pd
 DISPATCH_TO_RULES={
 "STATIC_MODE:CantAttack":["508.1c"],"STATIC_MODE:MustAttack":["508.1d"],"STATIC_MODE:CantAttackUnless":["508.1c","508.1d"],"STATIC_MODE:CanAttackDefender":["508.1c"],"STATIC_MODE:CantBlock":["509.1"],"STATIC_MODE:CantBlockBy":["509.1","702.9"],"ABILITY_API:Goad":["701.15","508.1d"],"ABILITY_API:Goad(NoLonger)":["701.15"],"ABILITY_API:Fight":["701.12"],"ABILITY_API:EachDamage":["120","704"],"ABILITY_API:RemoveFromCombat":["506.4"],"KEYWORD_TRIGGER:BATTLE_CRY":["702.91"],"KEYWORD_TRIGGER:EXALTED":["702.83"],"KEYWORD_TRIGGER:MELEE":["702.121","702.7","510.4"],"SVAR_RUNTIME_EXPRESSION:X":["508.1d"]}
 COMMANDER_PATHS={"forge-behavior-v2:945cb309bfe37e292fbecc172efa4789ff1156d1"}
+JVM_COMBAT_IDENTITY=re.compile(r"(forge\.game\.combat\.(?:AttackRestriction|AttackRequirement))@[0-9a-fA-F]+")
 
 def read_jsonl(path):
  rows=[]
@@ -18,13 +20,20 @@ def read_jsonl(path):
   if line.strip(): rows.append(json.loads(line))
  return rows
 
+def normalize_trace_row(row):
+ row=dict(row)
+ rr=row.get("restrictions_requirements")
+ if isinstance(rr,str):
+  row["restrictions_requirements"]=JVM_COMBAT_IDENTITY.sub(r"\1[present]",rr)
+ return row
+
 def write_json(path,obj): Path(path).write_text(json.dumps(obj,indent=2,sort_keys=True)+"\n",encoding="utf-8")
 
 def main():
  ap=argparse.ArgumentParser(); ap.add_argument("--owner-partitions",required=True); ap.add_argument("--trace",required=True); ap.add_argument("--out-dir",required=True); a=ap.parse_args()
  owner=json.loads(Path(a.owner_partitions).read_text(encoding="utf-8")); fam=owner["families"][FAMILY]; assigned=fam["v2_path_ids"]
  if fam["path_count"]!=27 or len(assigned)!=27 or len(set(assigned))!=27: raise SystemExit("WS26 COMBAT_COMMANDER partition must be exactly 27 unique paths")
- trace=read_jsonl(a.trace); assigned_rows=[r for r in trace if r.get("path_id","").startswith("forge-behavior-v2:")]; supplemental=[r for r in trace if r.get("path_id","").startswith("SUPPLEMENTAL:")]
+ trace=[normalize_trace_row(r) for r in read_jsonl(a.trace)]; assigned_rows=[r for r in trace if r.get("path_id","").startswith("forge-behavior-v2:")]; supplemental=[r for r in trace if r.get("path_id","").startswith("SUPPLEMENTAL:")]
  ids=[r["path_id"] for r in assigned_rows]; missing=sorted(set(assigned)-set(ids)); extra=sorted(set(ids)-set(assigned)); dup=sorted({x for x in ids if ids.count(x)>1})
  if missing or extra or dup or len(ids)!=27: raise SystemExit(f"coverage invalid missing={missing} extra={extra} duplicates={dup} rows={len(ids)}")
  if any(r.get("result")!="PASS" for r in assigned_rows): raise SystemExit("assigned witness failure")
