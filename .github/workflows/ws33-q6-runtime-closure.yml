@@ -150,6 +150,8 @@ jobs:
           python "$ROOT/ws33_build.py" --evidence evidence --out generated/ws33 --source-head "$GITHUB_SHA" --source-tree "$tree" --forge-root forge \
             --overlay-evidence generated/ws33/runtime-evidence/WS33_OVERLAY_MATERIALIZATION.json \
             --swiftwater-trace generated/ws33/runtime-evidence/WS33_SWIFTWATER_CLIFFS_TRACE.json
+          python "$ROOT/ws33_merge_campaign.py" --root generated/ws33 --campaign-root generated/ws33-runtime-campaign \
+            --source-head "$GITHUB_SHA" --source-tree "$tree"
           python "$ROOT/ws33_verify.py" --root generated/ws33
 
       - name: Upload immutable WS33 evidence
