@@ -97,7 +97,8 @@ def main():
     reusable={}
     for e in compat["entries"]:
         if e.get("v2_compatibility")=="REUSED_FOR_ONE_CHILD_PATH":
-            for pid in e.get("reused_v2_path_ids",[]):
+            pid=e.get("exact_v2_path_exercised")
+            if pid:
                 reusable[pid]=e
     if set(REUSE)!=set(reusable):
         raise SystemExit(f"unexpected compatibility reuse set: {sorted(reusable)}")
