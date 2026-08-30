@@ -1,0 +1,172 @@
+name: WS27 target selection dependency qualification
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - work/ws27-dep-target-selection-20260830
+    paths:
+      - '.github/workflows/ws27-target-selection-dependency.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/ws27/dependencies/target-selection/**'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  qualify-target-selection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      WS27_BASE_HEAD: 3f42def33d25c7f03f4a2b612ac1cce129180e7c
+      WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+      FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+
+    steps:
+      - name: Checkout dependency revision
+        uses: actions/checkout@v4
+        with:
+          path: dep
+          fetch-depth: 0
+
+      - name: Verify dependency ownership and base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C dep merge-base "$WS27_BASE_HEAD" HEAD)" = "$WS27_BASE_HEAD"
+          bad=0
+          while IFS= read -r p; do
+            case "$p" in
+              .github/workflows/ws27-target-selection-dependency.yml|research/greenfield-qualification/actual-card-behavior/ws27/dependencies/target-selection/*) ;;
+              *) echo "OUT_OF_SCOPE_PATH=$p"; bad=1 ;;
+            esac
+          done < <(git -C dep diff --name-only "$WS27_BASE_HEAD" HEAD)
+          test "$bad" -eq 0
+          mkdir -p evidence/artifact
+          {
+            echo "source_head=$(git -C dep rev-parse HEAD)"
+            echo "source_tree=$(git -C dep rev-parse 'HEAD^{tree}')"
+            echo "ws27_base_head=$WS27_BASE_HEAD"
+            echo "ws01_head=$WS01_HEAD"
+            echo "forge_pin=$FORGE_PIN"
+          } | tee evidence/provenance.env
+
+      - name: Checkout strict decision prerequisite
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: bf089ea806f54a9bbb64ede205915729e3629684
+          path: ws01
+          fetch-depth: 1
+
+      - name: Checkout exact Forge pin
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          path: forge
+          fetch-depth: 1
+
+      - name: Apply strict decision and target-selection overlays
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee evidence/ws01-overlay.log
+          grep -Fx 'STRICT_DECISION_PATCH_APPLIED=TRUE' evidence/ws01-overlay.log
+          python3 dep/research/greenfield-qualification/actual-card-behavior/ws27/dependencies/target-selection/apply-ws27-target-selection-overlay.py forge \
+            | tee evidence/target-overlay.log
+          grep -Fx 'WS27_TARGET_SELECTION_OVERLAY_APPLIED=TRUE' evidence/target-overlay.log
+          grep -Fx 'WS27_TARGET_SELECTION_COMPLEX_PATHS_FAIL_CLOSED=TRUE' evidence/target-overlay.log
+          cp dep/research/greenfield-qualification/actual-card-behavior/ws27/dependencies/target-selection/Ws27TargetSelectionDependencyTest.java \
+            forge/forge-gui-desktop/src/test/java/forge/net/Ws27TargetSelectionDependencyTest.java
+          ! grep -R -F 'rejectExternalDecision("TARGET_SELECTION")' forge/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java
+          grep -F 'chooseExternalTargets()' forge/forge-gui/src/main/java/forge/player/TargetSelection.java
+
+      - name: Compile exact pinned Forge dependency target
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          mvn -B '-DskipTests' -pl forge-gui-desktop -am test-compile \
+            | tee ../evidence/compile.log
+
+      - name: Execute 4P Commander actual-card target witness
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          mkdir -p ../evidence/runtime
+          xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws27TargetSelectionDependencyTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws27.targetTraceOut="$GITHUB_WORKSPACE/evidence/runtime/target-selection-trace.json" \
+            test | tee ../evidence/test.log
+          test -s ../evidence/runtime/target-selection-trace.json
+
+      - name: Materialize dependency gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          TRACE=evidence/runtime/target-selection-trace.json
+          test "$(jq -r '.status' "$TRACE")" = PASS
+          test "$(jq -r '.player_count' "$TRACE")" = 4
+          test "$(jq -r '.format' "$TRACE")" = Commander
+          test "$(jq -r '.authoritative_option_count' "$TRACE")" = 3
+          test "$(jq -r '.target_tape_events' "$TRACE")" = 1
+          test "$(jq -r '.test_side_legality_reconstruction' "$TRACE")" = false
+          test "$(jq -r '.silent_fallbacks' "$TRACE")" = 0
+          test "$(jq -r '.complex_target_paths_fail_closed' "$TRACE")" = true
+          HEAD=$(git -C dep rev-parse HEAD)
+          TREE=$(git -C dep rev-parse 'HEAD^{tree}')
+          TRACE_SHA=$(sha256sum "$TRACE" | awk '{print $1}')
+          cat > evidence/artifact/WS27_TARGET_SELECTION_DEPENDENCY_GATE.json <<JSON
+          {
+            "schema": "commander-simulator-next.ws27-target-selection-dependency-gate.v1",
+            "owner_family": "ACTION_COST_DECISION",
+            "source_head": "$HEAD",
+            "source_tree": "$TREE",
+            "ws27_base_head": "$WS27_BASE_HEAD",
+            "ws01_head": "$WS01_HEAD",
+            "forge_pin": "$FORGE_PIN",
+            "actual_card": "Keen Duelist",
+            "player_count": 4,
+            "format": "Commander",
+            "authoritative_options_from_rules_core": true,
+            "external_response_membership_validated": true,
+            "principal_scoped": true,
+            "test_side_legality_reconstruction": false,
+            "silent_fallbacks": 0,
+            "complex_target_paths_fail_closed": true,
+            "trace_sha256": "$TRACE_SHA",
+            "TARGET_SELECTION_DEPENDENCY_GATE": "PASS",
+            "DEPENDENCY_COMPLETE": true,
+            "WS27_FAMILY_GATE": "NOT_ADJUDICATED"
+          }
+          JSON
+          cp "$TRACE" evidence/artifact/target-selection-trace.json
+          cp evidence/provenance.env evidence/artifact/provenance.env
+          (cd evidence/artifact && sha256sum WS27_TARGET_SELECTION_DEPENDENCY_GATE.json target-selection-trace.json provenance.env > WS27_TARGET_SELECTION_DEPENDENCY_HASHES.sha256)
+
+      - name: Hard gate dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          G=evidence/artifact/WS27_TARGET_SELECTION_DEPENDENCY_GATE.json
+          test "$(jq -r '.TARGET_SELECTION_DEPENDENCY_GATE' "$G")" = PASS
+          test "$(jq -r '.DEPENDENCY_COMPLETE' "$G")" = true
+          test "$(jq -r '.WS27_FAMILY_GATE' "$G")" = NOT_ADJUDICATED
+          test "$(jq -r '.silent_fallbacks' "$G")" = 0
+          test "$(jq -r '.test_side_legality_reconstruction' "$G")" = false
+          (cd evidence/artifact && sha256sum -c WS27_TARGET_SELECTION_DEPENDENCY_HASHES.sha256)
+          echo 'WS27_TARGET_SELECTION_DEPENDENCY_GATE=PASS'
+          echo 'DEPENDENCY_COMPLETE=TRUE'
+
+      - name: Upload immutable target-selection dependency artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws27-target-selection-dependency-${{ github.sha }}
+          path: evidence/artifact
+          if-no-files-found: error
+          retention-days: 90
