@@ -1,0 +1,259 @@
+name: WS31 V2 hidden information RNG semantic replay closure
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - work/ws31-v2-hidden-rng-replay-20260830
+    paths:
+      - '.github/workflows/ws31-v2-hidden-rng-replay.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/ws31/**'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      WS26_FINAL_HEAD: 206a39cbaa3eeb98b10c2ddc36d51fe5b1b2f5ef
+      WS26_FINAL_TREE: 837f445f78bb26462653c58baf1532e294151b10
+      WS26_ARTIFACT_ID: '9723722686'
+      WS26_ARTIFACT_SHA256: b9e1fc4fd792b0baa1da1c17e3bbc9e01b2557d4b73b8590e680679f53b59883
+      WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+      WS05_HEAD: 554bb06af0dd5e542ff8bbfd5e96054a74642d3a
+      WS06_HEAD: e23af2b621f2e318014491b8a84146ed4ad3bed6
+      FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout WS31 revision
+        uses: actions/checkout@v4
+        with:
+          path: qual
+          fetch-depth: 0
+
+      - name: Verify WS26 boundary and WS31 ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qual rev-parse HEAD)" = "$GITHUB_SHA"
+          git -C qual cat-file -e "$WS26_FINAL_HEAD^{commit}"
+          test "$(git -C qual rev-parse "$WS26_FINAL_HEAD^{tree}")" = "$WS26_FINAL_TREE"
+          test "$(git -C qual merge-base "$WS26_FINAL_HEAD" HEAD)" = "$WS26_FINAL_HEAD"
+          bad=0
+          while IFS= read -r p; do
+            case "$p" in
+              .github/workflows/ws31-v2-hidden-rng-replay.yml|research/greenfield-qualification/actual-card-behavior/ws31/*|research/greenfield-qualification/WS31_HANDOFF.md) ;;
+              *) echo "OUT_OF_SCOPE_PATH=$p"; bad=1 ;;
+            esac
+          done < <(git -C qual diff --name-only "$WS26_FINAL_HEAD" HEAD)
+          test "$bad" -eq 0
+          mkdir -p evidence
+          {
+            echo "source_head=$(git -C qual rev-parse HEAD)"
+            echo "source_tree=$(git -C qual rev-parse 'HEAD^{tree}')"
+            echo "ws26_final_head=$WS26_FINAL_HEAD"
+            echo "ws26_final_tree=$WS26_FINAL_TREE"
+            echo "ws01_head=$WS01_HEAD"
+            echo "ws05_head=$WS05_HEAD"
+            echo "ws06_head=$WS06_HEAD"
+            echo "forge_pin=$FORGE_PIN"
+          } | tee evidence/provenance.env
+
+      - name: Download and verify immutable WS26 artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${WS26_ARTIFACT_ID}/zip" \
+            -o evidence/ws26.zip
+          echo "$WS26_ARTIFACT_SHA256  evidence/ws26.zip" | sha256sum -c -
+          mkdir -p evidence/ws26-artifact
+          unzip -q evidence/ws26.zip -d evidence/ws26-artifact
+          WS26_DIR=evidence/ws26-artifact/research/greenfield-qualification/actual-card-behavior/ws26
+          test -d "$WS26_DIR"
+          (cd "$WS26_DIR" && sha256sum -c WS26_HASHES.sha256)
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=Path('evidence/ws26-artifact/research/greenfield-qualification/actual-card-behavior/ws26')
+          g=json.loads((d/'WS26_GATE.json').read_text())
+          p=json.loads((d/'WS26_OWNER_PARTITIONS.json').read_text())
+          if g.get('WS26_FAMILY_GATE') not in ('PASS', None) and g.get('WORKSTREAM_COMPLETE') is not True:
+              raise SystemExit('WS26 gate not qualified')
+          ids=p['families']['HIDDEN_RNG_REPLAY']['v2_path_ids']
+          if len(ids)!=81: raise SystemExit(f'partition changed: {len(ids)}')
+          print('WS31_PARTITION_UNCHANGED=TRUE')
+          print('WS31_ASSIGNED_PATHS=81')
+          PY
+
+      - name: Checkout immutable prerequisite overlays and exact Forge pin
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: bf089ea806f54a9bbb64ede205915729e3629684
+          path: ws01
+          fetch-depth: 1
+
+      - uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: 554bb06af0dd5e542ff8bbfd5e96054a74642d3a
+          path: ws05
+          fetch-depth: 1
+
+      - uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: e23af2b621f2e318014491b8a84146ed4ad3bed6
+          path: ws06
+          fetch-depth: 1
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+          path: forge
+          fetch-depth: 1
+
+      - name: Verify exact prerequisite commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C ws01 rev-parse HEAD)" = "$WS01_HEAD"
+          test "$(git -C ws05 rev-parse HEAD)" = "$WS05_HEAD"
+          test "$(git -C ws06 rev-parse HEAD)" = "$WS06_HEAD"
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+
+      - name: Materialize exact WS31 cases from WS26 provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 qual/research/greenfield-qualification/actual-card-behavior/ws31/ws31_prepare_cases.py \
+            --ws26-dir evidence/ws26-artifact/research/greenfield-qualification/actual-card-behavior/ws26 \
+            --forge-root forge \
+            --out-json evidence/WS31_CASES.json \
+            --out-tsv evidence/ws31-cases.tsv \
+            | tee evidence/ws31-prepare.log
+          grep -Fx 'WS31_CASES=81' evidence/ws31-prepare.log
+          grep -Fx 'WS31_PARTITION_UNCHANGED=TRUE' evidence/ws31-prepare.log
+
+      - name: Apply qualified strict decision hidden-info RNG replay overlays
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee evidence/ws01-overlay.log
+          grep -Fx 'STRICT_DECISION_PATCH_APPLIED=TRUE' evidence/ws01-overlay.log
+          python3 ws05/research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge \
+            | tee evidence/ws05-overlay.log
+          grep -Fx 'WS05_HIDDEN_INFO_OVERLAY_APPLIED=TRUE' evidence/ws05-overlay.log
+          python3 ws06/research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py \
+            forge --inventory evidence/WS31_BASE_RNG_INVENTORY.json | tee evidence/ws06-overlay.log
+          grep -Fx 'WS06_UNCONTROLLED_DECISION_RELEVANT_RNG_PATHS=0' evidence/ws06-overlay.log
+          cp ws05/research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java \
+            forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          cp qual/research/greenfield-qualification/actual-card-behavior/ws31/forge-overlay/Ws31HiddenRngReplayQualificationTest.java \
+            forge/forge-gui-desktop/src/test/java/forge/net/Ws31HiddenRngReplayQualificationTest.java
+
+      - name: Compile patched Forge WS31 target
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          mvn -B '-DskipTests' -pl forge-gui-desktop -am test-compile \
+            | tee ../evidence/forge-test-compile.log
+
+      - name: Process A record exact-card campaign
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          mkdir -p ../evidence/process-A
+          xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws31HiddenRngReplayQualificationTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws31.cases="$GITHUB_WORKSPACE/evidence/ws31-cases.tsv" \
+            -Dws31.outDir="$GITHUB_WORKSPACE/evidence/process-A" \
+            -Dws31.mode=record \
+            test | tee ../evidence/process-A.log
+          test -s ../evidence/process-A/case-summary.tsv
+          test -s ../evidence/process-A/rng-tape.tsv
+          test -s ../evidence/process-A/decision-tape.tsv
+
+      - name: Process B fresh-process semantic replay
+        shell: bash
+        working-directory: forge
+        run: |
+          set -euo pipefail
+          mkdir -p ../evidence/process-B
+          xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws31HiddenRngReplayQualificationTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws31.cases="$GITHUB_WORKSPACE/evidence/ws31-cases.tsv" \
+            -Dws31.outDir="$GITHUB_WORKSPACE/evidence/process-B" \
+            -Dws31.mode=replay \
+            -Dws31.rngReplay="$GITHUB_WORKSPACE/evidence/process-A/rng-tape.tsv" \
+            -Dws31.decisionReplay="$GITHUB_WORKSPACE/evidence/process-A/decision-tape.tsv" \
+            test | tee ../evidence/process-B.log
+          test -s ../evidence/process-B/case-summary.tsv
+
+      - name: Materialize WS31 public and qualification-private evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=evidence/artifact/research/greenfield-qualification/actual-card-behavior/ws31
+          mkdir -p "$OUT"
+          python3 qual/research/greenfield-qualification/actual-card-behavior/ws31/ws31_finalize.py \
+            --cases evidence/WS31_CASES.json \
+            --record-dir evidence/process-A \
+            --replay-dir evidence/process-B \
+            --out-dir "$OUT" \
+            --ws26-head "$WS26_FINAL_HEAD" \
+            --ws26-tree "$WS26_FINAL_TREE" \
+            | tee evidence/ws31-finalize.log
+          cp evidence/provenance.env "$OUT/qualification-private/provenance.env"
+          cp evidence/WS31_CASES.json "$OUT/qualification-private/WS31_CASES.json"
+          cp evidence/WS31_BASE_RNG_INVENTORY.json "$OUT/qualification-private/WS31_BASE_RNG_INVENTORY.json"
+          mkdir -p "$OUT/qualification-private/logs"
+          cp evidence/*-overlay.log evidence/forge-test-compile.log evidence/process-A.log evidence/process-B.log evidence/ws31-prepare.log evidence/ws31-finalize.log "$OUT/qualification-private/logs/"
+          (cd "$OUT/qualification-private" && find . -type f ! -name HASHES.sha256 -print0 | sort -z | xargs -0 sha256sum > HASHES.sha256)
+
+      - name: WS31 hard gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=evidence/artifact/research/greenfield-qualification/actual-card-behavior/ws31
+          test "$(jq -r '.WS31_FAMILY_GATE' "$OUT/WS31_GATE.json")" = PASS
+          test "$(jq -r '.WORKSTREAM_COMPLETE' "$OUT/WS31_GATE.json")" = true
+          test "$(jq -r '.private_paths_principal_scoped' "$OUT/WS31_GATE.json")" = true
+          test "$(jq -r '.unauthorized_private_leaks' "$OUT/WS31_GATE.json")" = 0
+          test "$(jq -r '.all_random_paths_named_rng' "$OUT/WS31_GATE.json")" = true
+          test "$(jq -r '.all_random_paths_have_rng_tape' "$OUT/WS31_GATE.json")" = true
+          test "$(jq -r '.all_replay_required_paths_zero_divergence' "$OUT/WS31_GATE.json")" = true
+          test "$(jq -r '.decision_tape_missing_where_required' "$OUT/WS31_GATE.json")" = 0
+          test "$(jq -r '.stdout_equality_used_for_replay' "$OUT/WS31_GATE.json")" = false
+          test "$(jq -r '.global_q6_claim' "$OUT/WS31_GATE.json")" = false
+          test "$(jq -r '.failed_path_count' "$OUT/WS31_PATH_COVERAGE.json")" = 0
+          test "$(wc -l < "$OUT/WS31_WITNESSES.jsonl")" -eq 81
+          (cd "$OUT" && sha256sum -c WS31_HASHES.sha256)
+          ! grep -R -F 'Black Lotus' \
+            "$OUT/WS31_WITNESSES.jsonl" "$OUT/WS31_PATH_COVERAGE.json" "$OUT/WS31_HIDDEN_INFO_INVENTORY.json" \
+            "$OUT/WS31_RNG_INVENTORY.json" "$OUT/WS31_REPLAY_INVENTORY.json" "$OUT/WS31_RULES_ADJUDICATION.json" "$OUT/WS31_GATE.json"
+          echo 'WS31_FAMILY_GATE=PASS'
+          echo 'WORKSTREAM_COMPLETE=TRUE'
+
+      - name: Upload immutable WS31 qualification artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws31-v2-hidden-rng-replay-${{ github.sha }}
+          path: evidence/artifact
+          if-no-files-found: error
+          retention-days: 90
