@@ -112,6 +112,10 @@ jobs:
           new='        f.game.getAction().changeZone(null,controller.getZone(ZoneType.Battlefield),card,null,null); return card;\n'
           assert old in s
           s=s.replace(old,new,1)
+          force_old='        Card aura=putPermanent(f,p,p,"Furor of the Bitten"); aura.attachToEntity(creature,null,true); creature.setSickness(false);\n'
+          force_new='''        Card aura=putPermanent(f,p,p,"Furor of the Bitten");\n        aura.attachToEntity(creature,null,true);\n        f.game.getAction().checkStaticAbilities();\n        System.out.println("WS30_ATTACH attached="+aura.isAttachedToEntity()+" target="+(aura.getEntityAttachedTo()==creature)+" inPlay="+aura.isInPlay()+" enchantedBy="+creature.getEnchantedBy().size()+" direct="+creature.isEnchantedBy(aura)+" power="+creature.getNetPower());\n        creature.setSickness(false);\n'''
+          assert force_old in s
+          s=s.replace(force_old,force_new,1)
           marker='    private Pair<Map<Card,GameEntity>,Integer> legal(Combat c){return c.getAttackConstraints().getLegalAttackers();}\n'
           helper='''    private Combat beginCombat(Fixture f, Player attacker) {\n        f.game.getPhaseHandler().devModeSet(PhaseType.MAIN1, attacker);\n        f.game.getAction().checkStateEffects(true);\n        Assert.assertTrue(f.game.getPhaseHandler().devAdvanceToPhase(PhaseType.COMBAT_BEGIN));\n        Combat combat=f.game.getPhaseHandler().getCombat();\n        Assert.assertNotNull(combat);\n        return combat;\n    }\n'''
           assert marker in s
@@ -125,7 +129,7 @@ jobs:
           assert first in s
           s=s.replace(first,diag,1)
           p.write_text(s)
-          print(f'PhaseHandler-bound combat substitutions={count}; Forge changeZone fixture path; first-combat diagnostics enabled')
+          print(f'PhaseHandler-bound combat substitutions={count}; Forge changeZone + attachment static refresh; diagnostics enabled')
           PY
           : > "$WS30_TRACE_PATH"
 
