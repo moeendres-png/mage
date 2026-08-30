@@ -109,7 +109,7 @@ jobs:
           s=p.read_text()
           s=s.replace('import forge.game.card.CardCollectionView;\n','')
           marker='    private Pair<Map<Card,GameEntity>,Integer> legal(Combat c){return c.getAttackConstraints().getLegalAttackers();}\n'
-          helper='''    private Combat beginCombat(Fixture f, Player attacker) {\n        f.game.getPhaseHandler().devModeSet(PhaseType.MAIN1, attacker);\n        Assert.assertTrue(f.game.getPhaseHandler().devAdvanceToPhase(PhaseType.COMBAT_BEGIN));\n        Combat combat=f.game.getPhaseHandler().getCombat();\n        Assert.assertNotNull(combat);\n        return combat;\n    }\n'''
+          helper='''    private Combat beginCombat(Fixture f, Player attacker) {\n        f.game.getPhaseHandler().devModeSet(PhaseType.MAIN1, attacker);\n        f.game.getAction().checkStateEffects(true);\n        Assert.assertTrue(f.game.getPhaseHandler().devAdvanceToPhase(PhaseType.COMBAT_BEGIN));\n        Combat combat=f.game.getPhaseHandler().getCombat();\n        Assert.assertNotNull(combat);\n        return combat;\n    }\n'''
           assert marker in s
           s=s.replace(marker, helper + marker, 1)
           count=s.count('new Combat(p0)')
