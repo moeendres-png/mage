@@ -127,6 +127,31 @@ def source_refs(token,path,line,source_lines):
         out.append({'path':path,'line':n,'fields':sorted(used),'source':s.strip()[:300]})
     return out
 
+def svar_reachability(token,path,source_lines):
+    """Resolve a card-local SVar dependency graph without treating AI hints as rules paths."""
+    lines=source_lines[path]; defs={}
+    for n,s in enumerate(lines,1):
+        m=re.match(r'^\s*SVar:([A-Za-z0-9_]+):(.*)$',s)
+        if m:defs[m.group(1)]=(n,m.group(2))
+    seen=set(); pending=[token]; semantic=[]; metadata=[]; edges=[]
+    while pending:
+        cur=pending.pop()
+        if cur in seen:continue
+        seen.add(cur); pat=re.compile(rf'(?<![A-Za-z0-9_]){re.escape(cur)}(?![A-Za-z0-9_])')
+        for n,s in enumerate(lines,1):
+            m=re.match(r'^\s*SVar:([A-Za-z0-9_]+):(.*)$',s)
+            if m:
+                name,rhs=m.group(1),m.group(2)
+                if not pat.search(rhs):continue
+                row={'from_token':cur,'to_svar':name,'line':n,'source':s.strip()[:300]};edges.append(row)
+                if name.lower().startswith('needstoplay'):
+                    metadata.append(row)
+                else:pending.append(name)
+            elif pat.search(s) and re.match(r'^\s*[ATRSK]:',s):
+                semantic.append({'from_token':cur,'line':n,'source':s.strip()[:300]})
+    key=lambda x:(x['line'],x.get('from_token',''),x.get('to_svar',''))
+    return {'edges':sorted({json.dumps(x,sort_keys=True):x for x in edges}.values(),key=key),'semantic_terminals':sorted({json.dumps(x,sort_keys=True):x for x in semantic}.values(),key=key),'metadata_terminals':sorted({json.dumps(x,sort_keys=True):x for x in metadata}.values(),key=key)}
+
 def keyword_static_refs(enum_name,raw,docs):
     out=[]; needle='Keyword.'+enum_name if enum_name!='UNDEFINED' else None; prefix=raw.split(':',1)[0]
     for path,t in docs:
@@ -182,7 +207,7 @@ def main():
         grans.append({'parent_ws14_primitive_id':p['primitive_id'],'dispatch_domain':p['dispatch_domain'],'dispatch_token':p['dispatch_token'],'implementation_target':p['implementation_target'],'owner_family':p['owner_family'],'result':result,'v2_child_path_ids':childs,'selector_profile_count':len(childs),'occurrence_count':len(os),'justification':'Exact pinned source occurrence control profile, including implementation-consumed selectors and cost/mana shape.','evidence_class':'CODE_DERIVED'})
     line_v2=collections.defaultdict(set)
     for (pid,sp,ln),v in occ_v2.items():line_v2[(sp,ln)].add(v)
-    newpaths={}; binds=[]; traces=[]; states=collections.Counter(); dirs=collections.Counter(); dir_states=collections.defaultdict(collections.Counter); computed_risks=0
+    newpaths={}; binds=[]; traces=[]; states=collections.Counter(); dirs=collections.Counter(); dir_states=collections.defaultdict(collections.Counter); computed_risks=0; path_by_id={x['v2_path_id']:x for x in paths}
     for idx,r in enumerate(unr):
         sp=r['forge_source_path'];ln=r['source_line'];directive=r['source_directive'];dirs[directive]+=1;base={'ws14_occurrence_index':idx,'oracle_identity':r['oracle_id'],'forge_source_path':sp,'source_line':ln,'source_directive':directive,'source_token':r['source_token'],'source_value':r['source_value'],'ws14_reason':r['reason'],'ws14_binding_status':r['binding_status']};st='UNKNOWN';alias=None;target=None;owner=None;cross=[];selector={};ev={};vids=[]
         if directive=='KEYWORD':
@@ -194,15 +219,20 @@ def main():
                 for ch in (children or [{'kind':'KEYWORD','implementation_target':target}]):
                     po=owner_for(ch['implementation_target']) if children else owner; d={'parent_ws14_primitive_id':None,'dispatch_domain':'KEYWORD_'+ch['kind'],'dispatch_token':rt['keyword_enum'],'implementation_target':ch['implementation_target'],'semantic_selector_profile':{**selector,'generated_child_kind':ch['kind'],'generated_child_target':ch['implementation_target']},'owner_family':po,'model_origin':'WS14_UNRESOLVED_FRONTIER_V2'};v=add_path(newpaths,d,r,source_lines,a.forge_root,cross);vids.append(v);line_v2[(sp,ln)].add(v)
         elif directive=='ALTERNATE_MODE':
-            mode=r['source_value'];refs=[]
+            mode=r['source_value'];canonical={'DoubleFaced':'Transform'}.get(mode,mode);refs=[]
             for path,t in docs:
                 for n,line in enumerate(t.splitlines(),1):
-                    if ('CardSplitType' in line and mode in line) or ('AlternateMode' in line and mode in line):refs.append({'path':path,'line':n,'source':norm(line)[:240]})
+                    if path.endswith('forge/card/CardSplitType.java') and (re.match(rf'\s*{re.escape(canonical)}\(',line) or (mode=='DoubleFaced' and '"DoubleFaced".equals(text)' in line)):refs.append({'path':path,'line':n,'source':norm(line)[:240]})
             if refs:
-                st='RESOLVED_EXECUTABLE';owner='ACTION_COST_DECISION';target='forge.card.CardSplitType#'+mode+' -> forge.game.card.CardFactory';selector={'alternate_mode':mode};ev={'runtime_construction_path':['card script AlternateMode','CardRules/CardSplitType','CardFactory state construction'],'runtime_object_type':'forge.game.card.CardState','implementation_callsites':refs,'binding_basis':'Exact alternate-mode token matched to pinned CardSplitType/CardFactory implementation.'};d={'parent_ws14_primitive_id':None,'dispatch_domain':'ALTERNATE_MODE','dispatch_token':mode,'implementation_target':target,'semantic_selector_profile':selector,'owner_family':owner,'model_origin':'WS14_UNRESOLVED_FRONTIER_V2'};v=add_path(newpaths,d,r,source_lines,a.forge_root);vids=[v];line_v2[(sp,ln)].add(v)
+                st='RESOLVED_EXECUTABLE';owner='ACTION_COST_DECISION';target='forge.card.CardSplitType#'+canonical+' -> forge.game.card.CardFactory';selector={'alternate_mode_source_token':mode,'card_split_type':canonical};ev={'runtime_construction_path':['card script AlternateMode','CardRules.Builder CardSplitType.smartValueOf','CardFactory state construction'],'runtime_object_type':'forge.game.card.CardState','implementation_callsites':refs,'binding_basis':'Exact pinned CardSplitType declaration, with its explicit DoubleFaced-to-Transform normalization when applicable.'};d={'parent_ws14_primitive_id':None,'dispatch_domain':'ALTERNATE_MODE','dispatch_token':mode,'implementation_target':target,'semantic_selector_profile':selector,'owner_family':owner,'model_origin':'WS14_UNRESOLVED_FRONTIER_V2'};v=add_path(newpaths,d,r,source_lines,a.forge_root);vids=[v];line_v2[(sp,ln)].add(v)
         elif directive=='SVAR':
-            tok=r['source_token'];srefs=source_refs(tok,sp,ln,source_lines);jrefs=direct_svar.get(tok,[]);game=[x for x in jrefs if x['path'].startswith('forge-game/')];non=[x for x in jrefs if not x['path'].startswith('forge-game/')]
-            if srefs:st='RESOLVED_ALIAS';alias={'source_references':srefs,'target_v2_path_ids':[]};target='forge.game.IHasSVars#getSVar -> exact parent consumer';ev={'card_source_references':srefs,'direct_named_java_consumers':jrefs,'binding_basis':'Exact same-card token reference; definition introduces no independent semantic dispatch and resolves through the referenced parent path.'}
+            tok=r['source_token'];reach=svar_reachability(tok,sp,source_lines);jrefs=direct_svar.get(tok,[]);game=[x for x in jrefs if x['path'].startswith('forge-game/')];non=[x for x in jrefs if not x['path'].startswith('forge-game/')];terminal_ids=sorted({v for x in reach['semantic_terminals'] for v in line_v2.get((sp,x['line']),set())})
+            if reach['semantic_terminals'] and terminal_ids:
+                st='RESOLVED_EXECUTABLE';oc=collections.Counter(path_by_id[v]['owner_family'] for v in terminal_ids);owner=sorted(oc,key=lambda x:(-oc[x],OWNERS.index(x)))[0];cross=sorted(set(oc)-{owner},key=lambda x:OWNERS.index(x));target='forge.game.trigger.TriggerHandler#parseTrigger' if r['source_value'].startswith('Mode$') else 'forge.game.ability.AbilityUtils#calculateAmount';selector={'svar_token':tok,'svar_expression_shape':shape('SVar',r['source_value']),'semantic_terminal_lines':[x['line'] for x in reach['semantic_terminals']],'terminal_v2_path_ids':terminal_ids};ev={'svar_dependency_edges':reach['edges'],'semantic_terminals':reach['semantic_terminals'],'metadata_terminals':reach['metadata_terminals'],'direct_named_java_consumers':jrefs,'binding_basis':'Exact card-local, cycle-safe SVar dependency closure reaches a V2-covered production record; dynamic amount expressions resolve through AbilityUtils.calculateAmount, while Mode expressions resolve through TriggerHandler.parseTrigger.'};d={'parent_ws14_primitive_id':None,'dispatch_domain':'SVAR_RUNTIME_EXPRESSION','dispatch_token':tok,'implementation_target':target,'semantic_selector_profile':selector,'owner_family':owner,'model_origin':'WS14_UNRESOLVED_FRONTIER_V2'};v=add_path(newpaths,d,r,source_lines,a.forge_root,cross);vids=[v];line_v2[(sp,ln)].add(v)
+            elif reach['semantic_terminals']:
+                ev={'svar_dependency_edges':reach['edges'],'semantic_terminals':reach['semantic_terminals'],'binding_basis':'A production record references this SVar, but that record has no exact V2 path.'}
+            elif reach['metadata_terminals']:
+                st='PROVEN_NON_EXECUTABLE_METADATA';ev={'svar_dependency_edges':reach['edges'],'metadata_terminals':reach['metadata_terminals'],'direct_named_java_consumers':jrefs,'binding_basis':'Exact card-local closure reaches only NeedsToPlayVar AI metadata and no production record.'}
             elif game:
                 st='RESOLVED_EXECUTABLE';owner,cross=majority_owner([x['path'] for x in game]);target=';'.join(sorted({x['path'] for x in game}));selector={'direct_svar_token':tok};ev={'direct_game_getSVar_callsites':game,'binding_basis':'Exact quoted SVar key consumed directly by pinned forge-game code.'};d={'parent_ws14_primitive_id':None,'dispatch_domain':'SVAR_DIRECT_CONSUMER','dispatch_token':tok,'implementation_target':target,'semantic_selector_profile':selector,'owner_family':owner,'model_origin':'WS14_UNRESOLVED_FRONTIER_V2'};v=add_path(newpaths,d,r,source_lines,a.forge_root,cross);vids=[v];line_v2[(sp,ln)].add(v)
             elif non:st='PROVEN_NON_EXECUTABLE_METADATA';ev={'non_rules_callsites':non,'binding_basis':'No card-source semantic consumer and all exact named Java consumers are outside forge-game Rules Core.'}
