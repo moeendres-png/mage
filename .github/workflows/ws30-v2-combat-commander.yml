@@ -3,8 +3,7 @@ name: WS30 V2 Combat Commander
 on:
   workflow_dispatch:
   push:
-    branches:
-      - work/ws30-v2-combat-commander-20260830
+    branches: [work/ws30-v2-combat-commander-20260830]
     paths:
       - '.github/workflows/ws30-v2-combat-commander.yml'
       - 'research/greenfield-qualification/actual-card-behavior/ws30/**'
@@ -50,7 +49,6 @@ jobs:
           cd qualification
           test "$(git rev-parse "$WS26_HEAD^{tree}")" = "$WS26_TREE"
           git merge-base --is-ancestor "$WS26_HEAD" HEAD
-
           meta=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${WS26_ARTIFACT_ID}")
           test "$(jq -r '.id' <<< "$meta")" = "$WS26_ARTIFACT_ID"
           test "$(jq -r '.name' <<< "$meta")" = "ws26-runtime-behavior-binding-v2"
@@ -64,34 +62,21 @@ jobs:
           python3 - "$owner" <<'PY'
           import json,sys
           from pathlib import Path
-          p=Path(sys.argv[1])
-          obj=json.loads(p.read_text())
-          fam=obj["families"]["COMBAT_COMMANDER"]
+          fam=json.loads(Path(sys.argv[1]).read_text())["families"]["COMBAT_COMMANDER"]
           assert fam["path_count"] == 27
           assert len(fam["v2_path_ids"]) == 27 == len(set(fam["v2_path_ids"]))
           PY
-
           changed=$(git diff --name-only "$WS26_HEAD"...HEAD)
           while IFS= read -r path; do
             test -z "$path" && continue
             case "$path" in
-              .github/workflows/ws30-v2-combat-commander.yml) ;;
-              research/greenfield-qualification/actual-card-behavior/ws30/*) ;;
-              research/greenfield-qualification/WS30_HANDOFF.md) ;;
+              .github/workflows/ws30-v2-combat-commander.yml|research/greenfield-qualification/actual-card-behavior/ws30/*|research/greenfield-qualification/WS30_HANDOFF.md) ;;
               *) echo "Out-of-scope WS30 change: $path" >&2; exit 1 ;;
             esac
           done <<< "$changed"
           echo "owner_partitions=$owner" >> "$GITHUB_OUTPUT"
           echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "tree=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
-
-      - name: Set up Java 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
-          cache-dependency-path: forge/pom.xml
 
       - name: Checkout exact pinned Forge
         uses: actions/checkout@v4
@@ -100,6 +85,12 @@ jobs:
           ref: ${{ env.FORGE_PIN }}
           path: forge
           fetch-depth: 1
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
 
       - name: Verify Forge pin and inject qualification-only overlay
         shell: bash
@@ -120,13 +111,10 @@ jobs:
           cd forge
           xvfb-run -a mvn -B -pl forge-gui-desktop -am \
             -Dtest=forge.gamesimulationtests.Ws30CombatCommanderWitnessTest \
-            -Dsurefire.failIfNoSpecifiedTests=false \
-            -DfailIfNoTests=false test \
+            -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test \
             2>&1 | tee "$GITHUB_WORKSPACE/artifacts/ws30/ws30-maven.log"
           rc=${PIPESTATUS[0]}
-          if [ -d forge-gui-desktop/target/surefire-reports ]; then
-            cp -R forge-gui-desktop/target/surefire-reports "$GITHUB_WORKSPACE/artifacts/ws30/surefire-reports"
-          fi
+          test ! -d forge-gui-desktop/target/surefire-reports || cp -R forge-gui-desktop/target/surefire-reports "$GITHUB_WORKSPACE/artifacts/ws30/"
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           exit 0
 
@@ -136,11 +124,8 @@ jobs:
         run: |
           set +e
           python3 qualification/research/greenfield-qualification/actual-card-behavior/ws30/ws30_materialize.py \
-            --owner-partitions "${{ steps.source.outputs.owner_partitions }}" \
-            --trace "$WS30_TRACE_PATH" --out-dir artifacts/ws30
-          rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
-          exit 0
+            --owner-partitions "${{ steps.source.outputs.owner_partitions }}" --trace "$WS30_TRACE_PATH" --out-dir artifacts/ws30
+          rc=$?; echo "exit_code=$rc" >> "$GITHUB_OUTPUT"; exit 0
 
       - name: Enforce WS30 hard gate
         id: gate
@@ -151,9 +136,7 @@ jobs:
             --dir artifacts/ws30 \
             --java-source qualification/research/greenfield-qualification/actual-card-behavior/ws30/forge-overlay/Ws30CombatCommanderWitnessTest.java \
             2>&1 | tee artifacts/ws30/ws30-gate.log
-          rc=${PIPESTATUS[0]}
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
-          exit 0
+          rc=${PIPESTATUS[0]}; echo "exit_code=$rc" >> "$GITHUB_OUTPUT"; exit 0
 
       - name: Semantic replay run
         id: replay
@@ -166,15 +149,12 @@ jobs:
           cd forge
           xvfb-run -a mvn -B -pl forge-gui-desktop \
             -Dtest=forge.gamesimulationtests.Ws30CombatCommanderWitnessTest \
-            -Dsurefire.failIfNoSpecifiedTests=false \
-            -DfailIfNoTests=false test \
+            -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test \
             2>&1 | tee "$GITHUB_WORKSPACE/artifacts/ws30-replay/ws30-maven.log"
-          rc=${PIPESTATUS[0]}
-          cd "$GITHUB_WORKSPACE"
+          rc=${PIPESTATUS[0]}; cd "$GITHUB_WORKSPACE"
           if [ "$rc" = 0 ]; then
             python3 qualification/research/greenfield-qualification/actual-card-behavior/ws30/ws30_materialize.py \
-              --owner-partitions "${{ steps.source.outputs.owner_partitions }}" \
-              --trace "$WS30_TRACE_PATH" --out-dir artifacts/ws30-replay
+              --owner-partitions "${{ steps.source.outputs.owner_partitions }}" --trace "$WS30_TRACE_PATH" --out-dir artifacts/ws30-replay
             rc=$?
           fi
           if [ "$rc" = 0 ]; then
@@ -182,8 +162,7 @@ jobs:
               cmp "artifacts/ws30/$f" "artifacts/ws30-replay/$f" || rc=1
             done
           fi
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
-          exit 0
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"; exit 0
 
       - name: Generate hashes and execution metadata
         if: always()
@@ -195,25 +174,7 @@ jobs:
             (cd artifacts/ws30 && sha256sum WS30_WITNESSES.jsonl WS30_PATH_COVERAGE.json WS30_COMBAT_INVENTORY.json WS30_COMMANDER_INVENTORY.json WS30_RULES_ADJUDICATION.json WS30_GATE.json > WS30_HASHES.sha256)
           fi
           cat > artifacts/ws30/WS30_EXECUTION.json <<EOF
-          {
-            "qualification_head": "${{ steps.source.outputs.head }}",
-            "qualification_tree": "${{ steps.source.outputs.tree }}",
-            "ws26_final_head": "$WS26_HEAD",
-            "ws26_final_tree": "$WS26_TREE",
-            "ws26_run_id": "$WS26_RUN_ID",
-            "ws26_job_id": "$WS26_JOB_ID",
-            "ws26_artifact_id": "$WS26_ARTIFACT_ID",
-            "ws26_artifact_digest": "$WS26_ARTIFACT_DIGEST",
-            "forge_pin": "$FORGE_PIN",
-            "test_exit_code": ${{ steps.tests.outputs.exit_code || '999' }},
-            "materialize_exit_code": ${{ steps.materialize.outputs.exit_code || '999' }},
-            "gate_exit_code": ${{ steps.gate.outputs.exit_code || '999' }},
-            "replay_exit_code": ${{ steps.replay.outputs.exit_code || '999' }},
-            "workflow_run_id": "${{ github.run_id }}",
-            "workflow_run_attempt": "${{ github.run_attempt }}",
-            "global_q5_rerun": false,
-            "global_q6_claim": false
-          }
+          {"qualification_head":"${{ steps.source.outputs.head }}","qualification_tree":"${{ steps.source.outputs.tree }}","ws26_final_head":"$WS26_HEAD","ws26_final_tree":"$WS26_TREE","ws26_run_id":"$WS26_RUN_ID","ws26_job_id":"$WS26_JOB_ID","ws26_artifact_id":"$WS26_ARTIFACT_ID","ws26_artifact_digest":"$WS26_ARTIFACT_DIGEST","forge_pin":"$FORGE_PIN","test_exit_code":${{ steps.tests.outputs.exit_code || '999' }},"materialize_exit_code":${{ steps.materialize.outputs.exit_code || '999' }},"gate_exit_code":${{ steps.gate.outputs.exit_code || '999' }},"replay_exit_code":${{ steps.replay.outputs.exit_code || '999' }},"workflow_run_id":"${{ github.run_id }}","workflow_run_attempt":"${{ github.run_attempt }}","global_q5_rerun":false,"global_q6_claim":false}
           EOF
 
       - name: Print hard-gate evidence
@@ -221,9 +182,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          for f in WS30_PATH_COVERAGE.json WS30_COMBAT_INVENTORY.json WS30_COMMANDER_INVENTORY.json WS30_RULES_ADJUDICATION.json WS30_GATE.json WS30_HASHES.sha256 WS30_EXECUTION.json; do
-            echo "=== $f ==="; cat "artifacts/ws30/$f" 2>/dev/null || true
-          done
+          for f in WS30_PATH_COVERAGE.json WS30_COMBAT_INVENTORY.json WS30_COMMANDER_INVENTORY.json WS30_RULES_ADJUDICATION.json WS30_GATE.json WS30_HASHES.sha256 WS30_EXECUTION.json; do echo "=== $f ==="; cat "artifacts/ws30/$f" 2>/dev/null || true; done
 
       - name: Upload WS30 immutable evidence
         if: always()
@@ -241,20 +200,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "${{ steps.tests.outputs.exit_code || '999' }}" = "0"
-          test "${{ steps.materialize.outputs.exit_code || '999' }}" = "0"
-          test "${{ steps.gate.outputs.exit_code || '999' }}" = "0"
-          test "${{ steps.replay.outputs.exit_code || '999' }}" = "0"
+          test "${{ steps.tests.outputs.exit_code || '999' }}" = 0
+          test "${{ steps.materialize.outputs.exit_code || '999' }}" = 0
+          test "${{ steps.gate.outputs.exit_code || '999' }}" = 0
+          test "${{ steps.replay.outputs.exit_code || '999' }}" = 0
           python3 - <<'PY'
           import json
           from pathlib import Path
-          g=json.loads(Path("artifacts/ws30/WS30_GATE.json").read_text())
-          assert g["combat_legality_from_rules_core"] is True
-          assert g["manual_combat_legality_in_harness"] == 0
-          assert g["combat_state_assertions_complete"] is True
-          assert g["commander_specific_paths_rules_validated"] is True
-          assert g["actual_card_pass_count"] == 27
-          assert g["WS30_FAMILY_GATE"] == "PASS"
-          assert g["WORKSTREAM_COMPLETE"] is True
-          assert g["global_q6_claim"] is False
+          g=json.loads(Path('artifacts/ws30/WS30_GATE.json').read_text())
+          assert g['combat_legality_from_rules_core'] is True
+          assert g['manual_combat_legality_in_harness'] == 0
+          assert g['combat_state_assertions_complete'] is True
+          assert g['commander_specific_paths_rules_validated'] is True
+          assert g['actual_card_pass_count'] == 27
+          assert g['WS30_FAMILY_GATE'] == 'PASS'
+          assert g['WORKSTREAM_COMPLETE'] is True
+          assert g['global_q6_claim'] is False
           PY
