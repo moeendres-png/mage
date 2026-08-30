@@ -87,7 +87,7 @@ jobs:
             forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws28RealChangesZoneSmokeTest.java
           test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
 
-      - name: Execute pinned Forge real ChangesZone smoke
+      - name: Execute pinned Forge real ChangesZone census
         id: engine
         continue-on-error: true
         shell: bash
@@ -100,10 +100,10 @@ jobs:
             xvfb-run -a mvn -pl forge-gui-desktop -am \
               '-Dtest=forge.gamesimulationtests.Ws28RealChangesZoneSmokeTest' \
               '-Dsurefire.failIfNoSpecifiedTests=false' \
-              "-Dws28.cases=$CASES" '-Dws28.cz.limit=40' test
+              "-Dws28.cases=$CASES" '-Dws28.cz.limit=400' test
           ) 2>&1 | tee engine-artifact/maven.log
 
-      - name: Package real-event smoke evidence
+      - name: Package real-event census evidence
         if: always()
         shell: bash
         run: |
@@ -114,23 +114,23 @@ jobs:
           printf '%s\n' "$GITHUB_SHA" > engine-artifact/tested_source_head.txt
           sha256sum engine-artifact/* > engine-artifact/ENGINE_HASHES.sha256 2>/dev/null || true
 
-      - name: Upload real-event smoke evidence
+      - name: Upload real-event census evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ws28-real-changes-zone-smoke
+          name: ws28-real-changes-zone-census
           path: engine-artifact
           if-no-files-found: error
           retention-days: 30
 
-      - name: Enforce real ChangesZone smoke success
+      - name: Enforce complete real ChangesZone census success
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           test '${{ steps.engine.outcome }}' = success
           test -s engine-artifact/WS28_REAL_CHANGES_ZONE_RESULTS.tsv
-          test "$(wc -l < engine-artifact/WS28_REAL_CHANGES_ZONE_RESULTS.tsv)" = 40
+          test "$(wc -l < engine-artifact/WS28_REAL_CHANGES_ZONE_RESULTS.tsv)" = 327
           test "$(awk -F '\t' '$2 != "PASS" {n++} END {print n+0}' engine-artifact/WS28_REAL_CHANGES_ZONE_RESULTS.tsv)" = 0
 
       - name: Package preparation evidence
