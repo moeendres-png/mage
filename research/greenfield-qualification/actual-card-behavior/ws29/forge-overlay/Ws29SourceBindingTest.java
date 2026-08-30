@@ -83,8 +83,11 @@ public class Ws29SourceBindingTest extends AITest {
 
             final Card card = createCard(cardName, player);
             Assert.assertNotNull(card, pathId + " card must load from pinned Forge database");
-            Assert.assertEquals(card.getState(CardStateName.Original).getName(), cardName,
-                    pathId + " card identity must bind to actual source");
+            final String originalName = card.getState(CardStateName.Original).getName();
+            Assert.assertTrue(originalName.equals(cardName)
+                            || originalName.startsWith(cardName + " // ")
+                            || originalName.endsWith(" // " + cardName),
+                    pathId + " card identity must bind to actual source: " + originalName);
             final CardState state = findSourceState(card, sourceDirective, sourceSVar, sourceText);
             Assert.assertNotNull(state, pathId + " exact source must bind to one actual CardState");
 
@@ -100,9 +103,6 @@ public class Ws29SourceBindingTest extends AITest {
                 boolean exactSVarMaterialized = false;
                 int sourceGraphNodes = 0;
                 if (!graphBound && "SVAR".equals(sourceDirective) && !sourceSVar.isEmpty()) {
-                    // Some exact source SVars are reachable only after runtime creation of a delayed
-                    // trigger/effect. Materialize that exact CardState-owned SVar through Forge's own
-                    // actual-card parser rather than constructing a definition in the qualification code.
                     final List<SpellAbility> sourceGraph = new ArrayList<>();
                     final Set<SpellAbility> sourceSeen = Collections.newSetFromMap(new IdentityHashMap<>());
                     try {
