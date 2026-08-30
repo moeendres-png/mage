@@ -98,10 +98,27 @@ jobs:
           set -euo pipefail
           test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
           src=qualification/research/greenfield-qualification/actual-card-behavior/ws30/forge-overlay/Ws30CombatCommanderWitnessTest.java
+          dst=forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws30CombatCommanderWitnessTest.java
           test -f "$src"
-          mkdir -p forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests
-          cp "$src" forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
-          sed -i '/import forge.game.card.CardCollectionView;/d' forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws30CombatCommanderWitnessTest.java
+          mkdir -p "$(dirname "$dst")"
+          cp "$src" "$dst"
+          python3 - "$dst" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1])
+          s=p.read_text()
+          s=s.replace('import forge.game.card.CardCollectionView;\n','')
+          marker='    private Pair<Map<Card,GameEntity>,Integer> legal(Combat c){return c.getAttackConstraints().getLegalAttackers();}\n'
+          helper='''    private Combat beginCombat(Fixture f, Player attacker) {\n        f.game.getPhaseHandler().devModeSet(PhaseType.MAIN1, attacker);\n        Assert.assertTrue(f.game.getPhaseHandler().devAdvanceToPhase(PhaseType.COMBAT_BEGIN));\n        Combat combat=f.game.getPhaseHandler().getCombat();\n        Assert.assertNotNull(combat);\n        return combat;\n    }\n'''
+          assert marker in s
+          s=s.replace(marker, helper + marker, 1)
+          count=s.count('new Combat(p0)')
+          assert count >= 1
+          s=s.replace('new Combat(p0)', 'beginCombat(f,p0)')
+          assert 'new Combat(p0)' not in s
+          p.write_text(s)
+          print(f'PhaseHandler-bound combat substitutions={count}')
+          PY
           : > "$WS30_TRACE_PATH"
 
       - name: Run exactly the WS30 Forge witness test
