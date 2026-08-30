@@ -75,7 +75,7 @@ jobs:
             --ws26-dir inputs/ws26-artifact/research/greenfield-qualification/actual-card-behavior/ws26 \
             --forge-root forge --out prepared
           test "$(wc -l < prepared/WS28_CASES.tsv)" = 1172
-          jq -e '.family_path_count==1174 and .reused_exact_ws16_child_count==2 and .new_execution_case_count==1172' prepared/WS28_PREPARE_SUMMARY.json >/dev/null
+          jq -e '.family_path_count==1174 and .reused_exact_ws16_child_count==2 and .new_execution_case_count==1172 and .unresolved_root_count==0' prepared/WS28_PREPARE_SUMMARY.json >/dev/null
 
       - name: Package preparation evidence
         if: always()
