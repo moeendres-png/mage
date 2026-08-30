@@ -88,7 +88,7 @@ jobs:
           from pathlib import Path
           p = Path('forge/forge-gui-desktop/pom.xml')
           text = p.read_text()
-          marker = '    </dependencies>\n</project>'
+          marker = '    </dependencies>\n\n    <profiles>'
           assert marker in text
           dependency = '''        <!-- WS29 qualification-harness-only JSONL parser; exact version pinned. -->
                   <dependency>
