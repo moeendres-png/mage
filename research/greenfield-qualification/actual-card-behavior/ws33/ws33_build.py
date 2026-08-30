@@ -138,6 +138,7 @@ def main() -> None:
     parser.add_argument("--source-head", required=True)
     parser.add_argument("--source-tree", required=True)
     parser.add_argument("--forge-root", type=Path)
+    parser.add_argument("--overlay-evidence", type=Path)
     args = parser.parse_args()
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
@@ -230,16 +231,20 @@ def main() -> None:
             "sha256": WS32_OVERLAY_SHA256[name],
             "status": "APPROVED_INPUT_NOT_CAMPAIGN_EXECUTED",
         })
+    materialization = load(args.overlay_evidence) if args.overlay_evidence else None
     overlay_manifest = {
         "schema": "commander-simulator-next.ws33-runtime-overlay-manifest.v1",
         "forge_pin": PIN, "qualified_runtime_anchor_head": QUALIFIED_RUNTIME_HEAD,
         "qualified_runtime_anchor_tree": QUALIFIED_RUNTIME_TREE,
         "entries": overlay_entries, "new_ws33_runtime_fixes": [],
-        "materialization_status": "NOT_EXECUTED", "undeclared_runtime_patches": 0,
+        "materialization_status": materialization["materialization_status"] if materialization else "NOT_EXECUTED",
+        "patched_forge_content_digest": materialization["patched_forge_content_digest"] if materialization else None,
+        "changed_files": materialization["files"] if materialization else [],
+        "undeclared_runtime_patches": materialization["undeclared_runtime_patches"] if materialization else 0,
     }
     write_json(out / "WS33_RUNTIME_OVERLAY_MANIFEST.json", overlay_manifest)
     overlay_sha = digest(out / "WS33_RUNTIME_OVERLAY_MANIFEST.json")
-    patched_forge_digest = hashlib.sha256((PIN + ":" + overlay_sha).encode()).hexdigest()
+    patched_forge_digest = materialization["patched_forge_content_digest"] if materialization else hashlib.sha256((PIN + ":" + overlay_sha).encode()).hexdigest()
     impact = [{
         "changed_file_subsystem": "WS33 qualification model and validator only", "reason": "successor ABI and explicit model errata",
         "affected_v2_paths": sorted(ERRATA), "affected_owner_families": ["CONTINUOUS_COPY_CONTROL"],
@@ -500,7 +505,16 @@ def main() -> None:
         required_ids = sorted(path["v2_path_id"] for path in effective_paths if path.get(key))
         write_json(out / filename, {"schema": f"commander-simulator-next.ws33-{title}-evidence-index.v1", "required_path_ids": required_ids, "required_count": len(required_ids), "complete_pass_count": 0, "missing_count": len(required_ids), "entries": []})
     write_json(out / "WS33_RULES_ADJUDICATION.json", {"schema": "commander-simulator-next.ws33-rules-adjudication.v1", "official_rules_page": "https://magic.wizards.com/en/rules", "official_rules_text": RULES_URL, "effective_date": "2026-08-07", "live_checked_date": "2026-08-30", "model_errata_is_source_dataflow_not_rules_adjudication": True, "new_path_semantic_adjudications": []})
-    write_json(out / "WS33_WS32_COMPATIBILITY.json", {"schema": "commander-simulator-next.ws33-ws32-compatibility.v1", "status": "NOT_RUN", "reason": "Integrated candidate runtime overlay has not executed; WS32 cannot be promoted from its standalone artifact.", "required_controls": ["normal actual-card result unchanged", "verifier disabled by default", "controlled mismatch CARD_BEHAVIOR_FAILURE", "ENGINE_FAILURE distinct", "state_committed=false", "failed result not promoted", "fallback_used=false", "sanitized public payload"]})
+    ws32_status = materialization["ws32_compatibility"] if materialization else "NOT_RUN"
+    write_json(out / "WS33_WS32_COMPATIBILITY.json", {
+        "schema": "commander-simulator-next.ws33-ws32-compatibility.v1",
+        "status": ws32_status,
+        "overlay_digest": patched_forge_digest if materialization else None,
+        "controls": materialization["ws32_controls"] if materialization else {},
+        "runtime_witness_sha256": materialization["ws32_runtime_witness_sha256"] if materialization else None,
+        "compatibility_test_xml_sha256": materialization["ws32_compatibility_test_xml_sha256"] if materialization else None,
+        "reason": None if materialization else "Integrated candidate runtime overlay has not executed; WS32 cannot be promoted from its standalone artifact.",
+    })
     status_counts = Counter(row["status"] for row in coverage)
     family_gate = {}
     for family in sorted(family_counts):
@@ -512,12 +526,14 @@ def main() -> None:
         "WS33_MODEL_ERRATA_GATE": model_gate["WS33_MODEL_ERRATA_GATE"],
         "WS33_WITNESS_ABI_V2_1_GATE": "PASS" if abi_pass else "FAIL_CLOSED",
         "WS33_ACTUAL_CARD_CAMPAIGN": "FAIL_CLOSED", "Q6_CANDIDATE_FOR_CROSS_QUALIFICATION": False,
-        "WS32_COMPATIBILITY": "NOT_RUN", "WS34_ELIGIBLE": False,
+        "WS32_COMPATIBILITY": ws32_status, "WS34_ELIGIBLE": False,
         "oracle_identity_count": len(identity_rows), "identity_counts": dict(Counter(row["status"] for row in identity_rows)),
         "effective_path_count": len(effective_paths), "path_status_counts": {key: status_counts.get(key, 0) for key in ("PASS", "FAIL", "UNSUPPORTED", "UNKNOWN")},
         "family_gates": family_gate, "silent_fallback_count": 0, "stdout_only_PASS_count": 0,
         "card_name_production_hacks": 0, "second_pilot_rules_engine": 0,
-        "remaining_blockers": [{"class": "MISSING_SCENARIO_TEMPLATE", "path_count": status_counts.get("UNKNOWN", 0)}, {"class": "INTEGRATED_RUNTIME_OVERLAY_NOT_EXECUTED", "path_count": status_counts.get("UNKNOWN", 0)}, {"class": "WS32_COMPATIBILITY_NOT_RUN", "path_count": 0}],
+        "remaining_blockers": ([{"class": "MISSING_SCENARIO_TEMPLATE", "path_count": status_counts.get("UNKNOWN", 0)}]
+            + ([] if materialization else [{"class": "INTEGRATED_RUNTIME_OVERLAY_NOT_EXECUTED", "path_count": status_counts.get("UNKNOWN", 0)}])
+            + ([] if ws32_status == "PASS" else [{"class": "WS32_COMPATIBILITY_NOT_RUN", "path_count": 0}])),
         "WS13_ELIGIBLE": False, "INITIAL_ARCHITECTURE_DECISION_FROZEN": False,
         "READY_FOR_GREENFIELD_BUILD": False, "PRODUCTION_REPOSITORY_CREATED": False,
         "Q6_ACTUAL_CARD_BEHAVIOR_CANONICAL": "NOT_ADJUDICATED_BY_WS33",
