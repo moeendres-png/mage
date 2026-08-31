@@ -54,7 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p generated/ws33d
-          python "$SHARD/ws33d_prepare.py" \
+          python "$SHARD/ws33d_prepare_v2.py" \
             --manifest "$ROOT/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json" \
             --coverage "$ROOT/WS33_PATH_COVERAGE.json" \
             --forge-root forge \
