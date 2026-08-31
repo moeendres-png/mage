@@ -198,6 +198,7 @@ jobs:
           : > "$WS30_TRACE_PATH"
           (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
             -Dtest=forge.gamesimulationtests.Ws30CombatCommanderWitnessTest \
+            -Dws30.trace.path="$WS30_TRACE_PATH" \
             -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) \
             2>&1 | tee "$GITHUB_WORKSPACE/generated/h-state/ws30-fresh-runtime.log"
           test -s "$WS30_TRACE_PATH"
