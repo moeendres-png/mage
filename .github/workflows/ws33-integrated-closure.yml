@@ -16,6 +16,7 @@ env:
   GENERATION2_JOB_ID: '99482482207'
   GENERATION2_ARTIFACT_ID: '9757382012'
   GENERATION2_ARTIFACT_DIGEST: sha256:abb5d509d17b2c9fae798f19a049792b4f16a6695e94ffd36b87ffb3db0d947c
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
   ROOT: research/greenfield-qualification/actual-card-behavior/ws33
 
 jobs:
@@ -78,6 +79,32 @@ jobs:
             .WS34_ELIGIBLE == false and
             .ARCHITECTURE_FREEZE_ELIGIBLE == false
           ' generated/integrated/WS33_INTEGRATED_FRONTIER_GATE.json
+
+      - name: Checkout exact pinned Forge for requirement projection audit
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge-requirement-audit
+          fetch-depth: 1
+
+      - name: Audit path-local evidence requirement projection
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge-requirement-audit rev-parse HEAD)" = "$FORGE_PIN"
+          python "$ROOT/ws33_requirement_projection_audit.py" \
+            --manifest generated/generation2/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json \
+            --coverage generated/generation2/WS33_PATH_COVERAGE.json \
+            --forge-root forge-requirement-audit \
+            --out generated/integrated/WS33_REQUIREMENT_PROJECTION_AUDIT.json
+          jq -e '
+            .status == "PASS" and
+            .effective_path_count == 4188 and
+            .unknown_path_count == 3929 and
+            .pass_upgrade_candidate_count == 0 and
+            .disposition == "AUDIT_ONLY_NO_MANIFEST_MUTATION"
+          ' generated/integrated/WS33_REQUIREMENT_PROJECTION_AUDIT.json
 
       - name: Upload immutable integrated frontier evidence
         uses: actions/upload-artifact@v4
