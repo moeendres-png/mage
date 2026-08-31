@@ -1,0 +1,173 @@
+name: WS33B cost-amount shared-blocker evidence
+
+on:
+  push:
+    branches:
+      - work/ws33b-cost-amount-closure-20260831
+    paths:
+      - "research/greenfield-qualification/actual-card-behavior/ws33/shards/ws33b/**"
+      - ".github/workflows/ws33b-cost-amount-closure.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  BASE_HEAD: c69686431c7296cb3e1a2f9e0de8b82886c92c46
+  BASE_TREE: 6b885d02e9a0bc8cad2f93af08db99bda75955a5
+  BASE_RUN: "33370369458"
+  BASE_JOB: "99419848606"
+  BASE_ARTIFACT_ID: "9750186364"
+  BASE_ARTIFACT_NAME: ws33-q6-runtime-closure-33370369458
+  BASE_ARTIFACT_DIGEST: sha256:b156241094eb14f8270f07ee7338a30768a20f0ec077d8f68b3c7e097c89dacd
+  BASE_ARTIFACT_SHA256: b156241094eb14f8270f07ee7338a30768a20f0ec077d8f68b3c7e097c89dacd
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  SHARD: research/greenfield-qualification/actual-card-behavior/ws33/shards/ws33b
+
+jobs:
+  shared-blocker-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact WS33B source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact parallel base and child ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "${BASE_HEAD}^{tree}")" = "${BASE_TREE}"
+          test "$(git merge-base HEAD "${BASE_HEAD}")" = "${BASE_HEAD}"
+          changed="$(git diff --name-only "${BASE_HEAD}...HEAD")"
+          test -n "${changed}"
+          while IFS= read -r path; do
+            case "${path}" in
+              research/greenfield-qualification/actual-card-behavior/ws33/shards/ws33b/*) ;;
+              .github/workflows/ws33b-cost-amount-closure.yml) ;;
+              *)
+                echo "OUT_OF_SCOPE_CHILD_CHANGE=${path}" >&2
+                exit 1
+                ;;
+            esac
+          done <<< "${changed}"
+          echo "WS33B_CHILD_OWNERSHIP=PASS"
+
+      - name: Verify immutable base run job artifact and digest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${BASE_RUN}")"
+          jq -e --arg head "${BASE_HEAD}" \
+            '.head_sha == $head and .status == "completed" and .conclusion == "failure"' \
+            <<<"${run_json}" >/dev/null
+
+          jobs_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${BASE_RUN}/jobs?per_page=100")"
+          jq -e --argjson job "${BASE_JOB}" '
+            [.jobs[] | select(.id == $job)] | length == 1
+          ' <<<"${jobs_json}" >/dev/null
+          jq -e --argjson job "${BASE_JOB}" '
+            .jobs[] | select(.id == $job)
+            | .conclusion == "failure"
+              and ([.steps[] | select(.conclusion == "failure") | .name] == ["Enforce candidate hard gate"])
+              and ([.steps[] | select(.name == "Upload immutable WS33 evidence") | .conclusion] == ["success"])
+          ' <<<"${jobs_json}" >/dev/null
+
+          artifact_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${BASE_ARTIFACT_ID}")"
+          jq -e --arg name "${BASE_ARTIFACT_NAME}" --arg digest "${BASE_ARTIFACT_DIGEST}" --arg head "${BASE_HEAD}" '
+            .name == $name
+            and .digest == $digest
+            and .expired == false
+            and .workflow_run.head_sha == $head
+          ' <<<"${artifact_json}" >/dev/null
+          echo "WS33_PARALLEL_BASE_METADATA=PASS"
+
+          curl --fail --silent --show-error --location --retry 3 \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -o ws33-base.zip \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${BASE_ARTIFACT_ID}/zip"
+          echo "${BASE_ARTIFACT_SHA256}  ws33-base.zip" | sha256sum -c -
+
+          mkdir ws33-base
+          unzip -q ws33-base.zip -d ws33-base
+          (
+            cd ws33-base
+            sha256sum -c WS33_HASHES.sha256
+          )
+          echo "WS33_PARALLEL_BASE_ARTIFACT=PASS"
+
+      - name: Checkout exact pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Derive and verify WS33B shared blocker
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_head="$(git rev-parse HEAD)"
+          source_tree="$(git rev-parse 'HEAD^{tree}')"
+          python3 "${SHARD}/ws33b_verify_shared_blocker.py" \
+            --base-artifact ws33-base \
+            --forge-root forge \
+            --out ws33b-evidence \
+            --source-head "${source_head}" \
+            --source-tree "${source_tree}"
+
+      - name: Generate and verify internal hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd ws33b-evidence
+            find . -type f ! -name WS33B_HASHES.sha256 -print0 \
+              | sort -z \
+              | xargs -0 sha256sum > WS33B_HASHES.sha256
+            sha256sum -c WS33B_HASHES.sha256
+          )
+
+      - name: Enforce fail-closed child disposition
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .CROSS_SHARD_SHARED_BLOCKER == true
+            and .CHILD_COMPLETE == false
+            and .assigned_paths_total == 598
+            and .PASS == 0
+            and .UNKNOWN == 598
+            and .FAIL == 0
+            and .UNSUPPORTED == 0
+            and .OUT_OF_SCOPE_ADMISSIONS == 0
+            and .affected_shared_model_paths == 10
+          ' ws33b-evidence/WS33B_GATE.json >/dev/null
+          jq -e '
+            .CROSS_SHARD_SHARED_BLOCKER == true
+            and .affected_path_count == 10
+            and .required_shared_repair.required == true
+            and .required_shared_repair.child_may_patch_around == false
+          ' ws33b-evidence/WS33B_SHARED_BLOCKER.json >/dev/null
+          jq -e '
+            .assigned_paths_total == 598
+            and .implementation_target_counts["forge.game.cost.Cost"] == 396
+            and .implementation_target_counts["forge.game.ability.AbilityUtils#calculateAmount"] == 202
+            and .scenario_template_count == 5
+          ' ws33b-evidence/WS33B_FRONTIER_AUDIT.json >/dev/null
+          echo "CROSS_SHARD_SHARED_BLOCKER=TRUE"
+          echo "WS33B_CHILD_COMPLETE=FALSE"
+
+      - name: Upload immutable WS33B blocker evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33b-shared-blocker-${{ github.run_id }}
+          path: ws33b-evidence
+          if-no-files-found: error
+          retention-days: 90
