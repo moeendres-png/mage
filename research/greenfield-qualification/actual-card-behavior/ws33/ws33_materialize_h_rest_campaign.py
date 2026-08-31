@@ -175,6 +175,12 @@ def main() -> None:
         replay_state_sha = digest_bytes(replay_trace)
         if record_state_sha != replay_state_sha:
             replay_divergences += 1
+            diff = {
+                key: {"record": record_trace.get(key), "replay": replay_trace.get(key)}
+                for key in SEMANTIC_FIELDS
+                if record_trace.get(key) != replay_trace.get(key)
+            }
+            print("WS33_H_REST_SEMANTIC_DIFF=" + json.dumps({"path_id": pid, "fields": diff}, sort_keys=True, ensure_ascii=False))
         require(record_state_sha == replay_state_sha, "semantic replay divergence for " + pid)
 
         rec_dec = record_decisions.get(pid, [])
