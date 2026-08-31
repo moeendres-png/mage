@@ -2,8 +2,9 @@
 """Prepare the remaining WS33H actual-card harness without direct resolution/target injection.
 
 The historical WS30 source remains metadata/test-fixture input only.  First reuse the
-already-qualified Generation-2 compatibility transformations, then replace the two
-historical qualification shortcuts that are not admissible for the H remainder:
+already-qualified Generation-2 compatibility transformations, including canonical
+rule-relation trace serialization, then replace the two historical qualification
+shortcuts that are not admissible for the H remainder:
 
 * AbilityUtils.resolve(sa) -> normal MagicStack add/resolveStack execution;
 * test-side SpellAbility target injection -> PlayerController.chooseTargetsFor using
