@@ -21,7 +21,19 @@ def canonical(value) -> bytes:
 
 
 def load(path: Path):
-    return json.loads(path.read_text(encoding="utf-8"))
+    value = json.loads(path.read_text(encoding="utf-8"))
+    # Generation-1 ABI gate fixtures were serialized relative to the enclosing
+    # artifact directory ("ws33/...").  A consumer operating with that ws33
+    # directory as its root must resolve the same reference as "..." rather
+    # than append the artifact root a second time.  Normalize only this
+    # serialized artifact-root convention; all filesystem safety checks remain
+    # in the caller.
+    if path.name == "WS33_WITNESS_ABI_GATE.json" and isinstance(value, dict):
+        for result in value.get("results", []):
+            fixture = result.get("fixture")
+            if isinstance(fixture, str) and fixture.startswith("ws33/"):
+                result["fixture"] = fixture[len("ws33/"):]
+    return value
 
 
 def write(path: Path, value) -> None:
