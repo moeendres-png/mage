@@ -179,6 +179,31 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
                         "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
                 relation = "OPPONENT";
                 break;
+            case "OWN_ENCHANTMENT":
+                intended = addCardToZone("Glorious Anthem", actor,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
+                relation = "ACTOR";
+                break;
+            case "OPPONENT_ENCHANTMENT":
+                intended = addCardToZone("Glorious Anthem", opponent,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
+                relation = "OPPONENT";
+                break;
+            case "OWN_LAND":
+                intended = addCardToZone("Island", actor,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
+                relation = "ACTOR";
+                break;
+            case "OPPONENT_LAND":
+                intended = addCardToZone("Island", opponent,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
+                relation = "OPPONENT";
+                break;
+            case "OPPONENT_NONBASIC_LAND":
+                intended = addCardToZone("Swiftwater Cliffs", opponent,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
+                relation = "OPPONENT";
+                break;
             case "OWN_ELEMENTAL":
                 intended = addCardToZone("Air Elemental", actor,
                         "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
