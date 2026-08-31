@@ -64,9 +64,13 @@ def main() -> None:
     s = s.replace('"unpaid attacker omitted","not-applicable","no combat damage","Forge exposes attack cost and requirements do not bypass it"',
                   '"taxed defender excluded; attacker redirected by rules core","not-applicable","no combat damage","Forge exposes defender-scoped attack cost and selects an untaxed legal defender"', 1)
 
+    trace_transport = '        String output=System.getenv("WS30_TRACE_PATH"); if(output==null||output.isBlank())return;\n'
+    trace_transport_explicit = '        String output=System.getProperty("ws30.trace.path"); if(output==null||output.isBlank())output=System.getenv("WS30_TRACE_PATH"); if(output==null||output.isBlank())return;\n'
+    s = must_replace(s, trace_transport, trace_transport_explicit, "explicit trace transport")
+
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(s, encoding="utf-8")
-    print(f"WS33_H_HARNESS_PREP=PASS phase_handler_substitutions={combat_count}")
+    print(f"WS33_H_HARNESS_PREP=PASS phase_handler_substitutions={combat_count} trace_transport=JVM_PROPERTY_WITH_ENV_FALLBACK")
 
 
 if __name__ == "__main__":
