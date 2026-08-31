@@ -1,0 +1,281 @@
+name: WS33 integrated H state closure
+
+on:
+  push:
+    branches: [work/ws33-integrated-closure-20260831]
+    paths:
+      - '.github/workflows/ws33-integrated-h-state-closure.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_authorize_integrated_successor.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/test_ws33_integrated_successor.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_h_state_harness.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_materialize_h_state_campaign.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_merge_campaign.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_integrated_frontier.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  GENERATION2_BASE_HEAD: 991486fd012463d29173a9aba15ebb3296d64dda
+  GENERATION2_BASE_TREE: c8ba229cf428973bd7711844563987d69517b5b8
+  GENERATION2_ARTIFACT_ID: '9757382012'
+  GENERATION2_ARTIFACT_DIGEST: sha256:abb5d509d17b2c9fae798f19a049792b4f16a6695e94ffd36b87ffb3db0d947c
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+  WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+  WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
+  WS30_HIST_HEAD: b5bc3803ca04e37bd9223e3505e4a748ce03404c
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+
+jobs:
+  h-state-actual-card:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout integrated qualification source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact Generation2 ancestry and scoped ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "$GENERATION2_BASE_HEAD^{tree}")" = "$GENERATION2_BASE_TREE"
+          git merge-base --is-ancestor "$GENERATION2_BASE_HEAD" "$GITHUB_SHA"
+          bad="$(git diff --name-only "$GENERATION2_BASE_HEAD" "$GITHUB_SHA" | grep -Ev '^(.github/workflows/ws33-|research/greenfield-qualification/actual-card-behavior/ws33/)' || true)"
+          test -z "$bad" || { printf '%s\n' "$bad"; exit 1; }
+          python "$ROOT/test_ws33_integrated_successor.py"
+
+      - name: Download exact immutable Generation2 state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$GENERATION2_ARTIFACT_ID" --jq '.digest')"
+          test "$actual" = "$GENERATION2_ARTIFACT_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' \
+            "repos/$GITHUB_REPOSITORY/actions/artifacts/$GENERATION2_ARTIFACT_ID/zip" > generation2.zip
+          mkdir -p generated/ws33 generated/h-state generated/h-campaign generated/integrated
+          unzip -q generation2.zip -d generated/ws33
+          test "$(jq -r .source_head generated/ws33/WS33_GENERATION2_BASE_GATE.json)" = "$GENERATION2_BASE_HEAD"
+          test "$(jq -r .source_tree generated/ws33/WS33_GENERATION2_BASE_GATE.json)" = "$GENERATION2_BASE_TREE"
+
+      - name: Checkout exact pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Checkout exact retained WS01
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS01_HEAD }}
+          path: ws01
+          fetch-depth: 1
+
+      - name: Checkout exact retained WS12
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS12_HEAD }}
+          path: ws12
+          fetch-depth: 1
+
+      - name: Checkout exact retained WS32
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS32_HEAD }}
+          path: ws32
+          fetch-depth: 1
+
+      - name: Checkout historical WS30 harness source only
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS30_HIST_HEAD }}
+          path: ws30-historical
+          fetch-depth: 1
+          sparse-checkout: |
+            research/greenfield-qualification/actual-card-behavior/ws30/forge-overlay/Ws30CombatCommanderWitnessTest.java
+            research/greenfield-qualification/actual-card-behavior/ws30/WS30_WITNESSES.jsonl
+
+      - name: Verify all exact source pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          test "$(git -C ws01 rev-parse HEAD)" = "$WS01_HEAD"
+          test "$(git -C ws12 rev-parse HEAD)" = "$WS12_HEAD"
+          test "$(git -C ws32 rev-parse HEAD)" = "$WS32_HEAD"
+          test "$(git -C ws30-historical rev-parse HEAD)" = "$WS30_HIST_HEAD"
+
+      - name: Apply exact Generation2 production runtime overlay stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p generated/h-state/overlay-logs
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee generated/h-state/overlay-logs/ws01.log
+          python research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge \
+            | tee generated/h-state/overlay-logs/ws05.log
+          cp research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java \
+            forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          python research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py \
+            forge --inventory generated/h-state/RNG_INVENTORY.json \
+            | tee generated/h-state/overlay-logs/ws06.log
+          python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge \
+            | tee generated/h-state/overlay-logs/ws33-input-confirm.log
+          python "$ROOT/runtime-overlays/apply-ws33-stack-target.py" --forge-root forge \
+            | tee generated/h-state/overlay-logs/ws33-stack-target.log
+          python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py \
+            --forge-root forge | tee generated/h-state/overlay-logs/ws12.log
+          python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py \
+            --forge-root forge | tee generated/h-state/overlay-logs/ws32.log
+
+      - name: Prove production Forge overlay equals frozen Generation2 overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,subprocess
+          from pathlib import Path
+          root=Path('forge')
+          manifest=json.loads(Path('generated/ws33/WS33_RUNTIME_OVERLAY_MANIFEST.json').read_text())
+          expected={row['path']:row['sha256'] for row in manifest['changed_files']}
+          tracked=set(subprocess.check_output(['git','-C',str(root),'diff','--name-only','HEAD'],text=True).splitlines())
+          untracked=set(subprocess.check_output(['git','-C',str(root),'ls-files','--others','--exclude-standard'],text=True).splitlines())
+          actual=tracked|untracked
+          assert actual==set(expected),(sorted(set(expected)-actual),sorted(actual-set(expected)))
+          for rel,want in expected.items():
+              p=root/rel
+              assert p.is_file(),rel
+              got=hashlib.sha256(p.read_bytes()).hexdigest()
+              assert got==want,(rel,want,got)
+          assert manifest['patched_forge_content_digest']=='baef1e6b91e4d92722e1f136a0bcc011f5bcfaa71f95473d92efffdb2ff597df'
+          print('WS33_H_G2_OVERLAY=PASS files='+str(len(expected)))
+          PY
+
+      - name: Prepare historical harness as qualification-only source
+        shell: bash
+        run: |
+          set -euo pipefail
+          src=ws30-historical/research/greenfield-qualification/actual-card-behavior/ws30/forge-overlay/Ws30CombatCommanderWitnessTest.java
+          dst=forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws30CombatCommanderWitnessTest.java
+          python "$ROOT/ws33_prepare_h_state_harness.py" --source "$src" --out "$dst"
+          sha256sum "$dst" | tee generated/h-state/harness.sha256
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Fresh execute WS30 actual-card 4P Commander harness
+        shell: bash
+        env:
+          WS30_TRACE_PATH: ${{ github.workspace }}/generated/h-state/ws30-fresh-trace.jsonl
+        run: |
+          set -euo pipefail
+          : > "$WS30_TRACE_PATH"
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.gamesimulationtests.Ws30CombatCommanderWitnessTest \
+            -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) \
+            2>&1 | tee "$GITHUB_WORKSPACE/generated/h-state/ws30-fresh-runtime.log"
+          test -s "$WS30_TRACE_PATH"
+          report=forge/forge-gui-desktop/target/surefire-reports/TEST-TestSuite.xml
+          test -f "$report"
+          cp "$report" generated/h-state/WS33_H_STATE_TESTS.xml
+
+      - name: Materialize only the 15 safe current H traces
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_materialize_h_state_campaign.py" \
+            --manifest generated/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json \
+            --coverage generated/ws33/WS33_PATH_COVERAGE.json \
+            --trace generated/h-state/ws30-fresh-trace.jsonl \
+            --historical-witnesses ws30-historical/research/greenfield-qualification/actual-card-behavior/ws30/WS30_WITNESSES.jsonl \
+            --harness forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws30CombatCommanderWitnessTest.java \
+            --out generated/h-campaign
+          jq -e '.status=="PASS" and .path_count==15 and .historical_pass_status_reused==false and .direct_resolution_paths_admitted==0' \
+            generated/h-campaign/WS33_H_STATE_CAMPAIGN_GATE.json
+
+      - name: Authorize exact Generation2 descendant qualification source
+        shell: bash
+        run: |
+          set -euo pipefail
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          python "$ROOT/ws33_authorize_integrated_successor.py" \
+            --root generated/ws33 --repo-root . --source-head "$GITHUB_SHA" --source-tree "$tree"
+
+      - name: Import via ABI V2.1 campaign merger
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check jsonschema==4.25.1
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          python "$ROOT/ws33_merge_campaign.py" \
+            --root generated/ws33 --campaign-root generated/h-campaign \
+            --source-head "$GITHUB_SHA" --source-tree "$tree" --java-version 21
+
+      - name: Rebuild and verify integrated frontier after H state batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_integrated_frontier.py" \
+            --root generated/ws33 --output-root generated/integrated \
+            --repair-commit "$GENERATION2_BASE_HEAD" \
+            --generation2-run-id 33390404824 --generation2-job-id 99482482207 \
+            --generation2-artifact-id "$GENERATION2_ARTIFACT_ID" \
+            --generation2-artifact-digest "$GENERATION2_ARTIFACT_DIGEST"
+          python - <<'PY'
+          import hashlib,json,os
+          from collections import Counter
+          from pathlib import Path
+          root=Path('generated/ws33')
+          manifest=json.loads((root/'WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json').read_text())
+          coverage=json.loads((root/'WS33_PATH_COVERAGE.json').read_text())
+          status={r['effective_v2_path_id']:r['status'] for r in coverage['paths']}
+          counts=Counter(status.values())
+          assert counts['PASS']==274,counts
+          assert counts['UNKNOWN']==3914,counts
+          assert counts['FAIL']==0 and counts['UNSUPPORTED']==0,counts
+          h=[p for p in manifest['paths'] if p['owner_family']=='COMBAT_COMMANDER']
+          hc=Counter(status[p['v2_path_id']] for p in h)
+          assert hc['PASS']==15 and hc['UNKNOWN']==11,hc
+          witnesses=[json.loads(x) for x in (root/'WS33_WITNESSES.jsonl').read_text().splitlines() if x.strip()]
+          current=[w for w in witnesses if w['witness_id'].startswith('ws33-h-state-')]
+          assert len(current)==15
+          assert all(w['source_head']==os.environ['GITHUB_SHA'] for w in current)
+          hashes=(root/'WS33_HASHES.sha256').read_text().splitlines()
+          for line in hashes:
+              want,rel=line.split('  ',1)
+              got=hashlib.sha256((root/rel).read_bytes()).hexdigest()
+              assert got==want,rel
+          gate=json.loads(Path('generated/integrated/WS33_INTEGRATED_FRONTIER_GATE.json').read_text())
+          assert gate['path_status_counts']['PASS']==274,gate
+          assert gate['path_status_counts']['UNKNOWN']==3914,gate
+          assert gate['GLOBAL_Q6_PASS'] is False
+          print('WS33_H_STATE_INTEGRATED_GATE=PASS')
+          PY
+
+      - name: Upload immutable integrated H state evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-integrated-h-state-${{ github.run_id }}
+          path: |
+            generated/ws33
+            generated/h-state
+            generated/h-campaign
+            generated/integrated
+          if-no-files-found: error
+          retention-days: 90
