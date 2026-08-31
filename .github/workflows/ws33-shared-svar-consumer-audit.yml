@@ -71,11 +71,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python "$ROOT/ws33_consumer_model_v3.py" \
+          python "$ROOT/ws33_consumer_model_v4.py" \
             --manifest evidence/ws26/research/greenfield-qualification/actual-card-behavior/ws26/WS26_BEHAVIOR_PATH_MANIFEST_V2.json \
             --forge-root forge \
-            --out generated/audit/WS33_SVAR_CONSUMER_MODEL_V3.json
-          sha256sum generated/audit/WS33_SVAR_CONSUMER_MODEL_V3.json | tee generated/audit/WS33_SVAR_CONSUMER_MODEL_V3.sha256
+            --out generated/audit/WS33_SVAR_CONSUMER_MODEL_V4.json
+          sha256sum generated/audit/WS33_SVAR_CONSUMER_MODEL_V4.json | tee generated/audit/WS33_SVAR_CONSUMER_MODEL_V4.sha256
 
       - name: Upload immutable audit evidence
         if: always()
