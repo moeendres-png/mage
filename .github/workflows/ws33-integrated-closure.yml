@@ -1,0 +1,88 @@
+name: WS33 integrated closure
+
+on:
+  push:
+    branches: [work/ws33-integrated-closure-20260831]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  GENERATION2_BASE_HEAD: 991486fd012463d29173a9aba15ebb3296d64dda
+  GENERATION2_BASE_TREE: c8ba229cf428973bd7711844563987d69517b5b8
+  GENERATION2_RUN_ID: '33390404824'
+  GENERATION2_JOB_ID: '99482482207'
+  GENERATION2_ARTIFACT_ID: '9757382012'
+  GENERATION2_ARTIFACT_DIGEST: sha256:abb5d509d17b2c9fae798f19a049792b4f16a6695e94ffd36b87ffb3db0d947c
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+
+jobs:
+  integrated-frontier:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout integrated source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact Generation2 ancestry and scoped ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$GENERATION2_BASE_HEAD"
+          test "$(git rev-parse "$GENERATION2_BASE_HEAD^{tree}")" = "$GENERATION2_BASE_TREE"
+          git merge-base --is-ancestor "$GENERATION2_BASE_HEAD" "$GITHUB_SHA"
+          bad="$(git diff --name-only "$GENERATION2_BASE_HEAD" "$GITHUB_SHA" | grep -Ev '^(.github/workflows/ws33-|research/greenfield-qualification/actual-card-behavior/ws33/)' || true)"
+          test -z "$bad" || { printf '%s\n' "$bad"; exit 1; }
+
+      - name: Download exact immutable Generation2 evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$GENERATION2_ARTIFACT_ID" --jq '.digest')"
+          test "$actual" = "$GENERATION2_ARTIFACT_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' \
+            "repos/$GITHUB_REPOSITORY/actions/artifacts/$GENERATION2_ARTIFACT_ID/zip" > generation2.zip
+          mkdir -p generated/generation2 generated/integrated
+          unzip -q generation2.zip -d generated/generation2
+          test "$(jq -r .source_head generated/generation2/WS33_GENERATION2_BASE_GATE.json)" = "$GENERATION2_BASE_HEAD"
+          test "$(jq -r .source_tree generated/generation2/WS33_GENERATION2_BASE_GATE.json)" = "$GENERATION2_BASE_TREE"
+
+      - name: Materialize and enforce integrated frontier ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_integrated_frontier.py" \
+            --root generated/generation2 \
+            --output-root generated/integrated \
+            --repair-commit "$GENERATION2_BASE_HEAD" \
+            --generation2-run-id "$GENERATION2_RUN_ID" \
+            --generation2-job-id "$GENERATION2_JOB_ID" \
+            --generation2-artifact-id "$GENERATION2_ARTIFACT_ID" \
+            --generation2-artifact-digest "$GENERATION2_ARTIFACT_DIGEST"
+          jq -e '
+            .status == "PASS" and
+            .PARTITION_DISJOINT == true and
+            .PARTITION_COMPLETE == true and
+            .NO_GROUP_SPLIT == true and
+            .NO_PASS_OVERLAP == true and
+            .NO_DEPRECATED_ALIAS_AS_ACTIVE_PATH == true and
+            .effective_path_count == 4188 and
+            .path_status_counts.PASS == 259 and
+            .path_status_counts.UNKNOWN == 3929 and
+            .GLOBAL_Q6_PASS == false and
+            .WS34_ELIGIBLE == false and
+            .ARCHITECTURE_FREEZE_ELIGIBLE == false
+          ' generated/integrated/WS33_INTEGRATED_FRONTIER_GATE.json
+
+      - name: Upload immutable integrated frontier evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-integrated-frontier-${{ github.run_id }}
+          path: generated/integrated
+          if-no-files-found: error
+          retention-days: 90
