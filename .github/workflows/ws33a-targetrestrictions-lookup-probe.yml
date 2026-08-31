@@ -1,0 +1,200 @@
+name: WS33A TargetRestrictions lookup probe
+
+on:
+  push:
+    branches: [work/ws33a-targetrestrictions-closure-20260831]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  BASE_HEAD: c69686431c7296cb3e1a2f9e0de8b82886c92c46
+  BASE_TREE: 6b885d02e9a0bc8cad2f93af08db99bda75955a5
+  BASE_RUN: '33370369458'
+  BASE_JOB: '99419848606'
+  BASE_ARTIFACT_ID: '9750186364'
+  BASE_ARTIFACT_DIGEST: sha256:b1562410d7bc74eaa5acee5d282faae3c2e19d74383efd896dab631e312be9fa
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+  WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+  WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+  SHARD: research/greenfield-qualification/actual-card-behavior/ws33/shards/ws33a
+
+jobs:
+  lookup-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout child source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact base ancestry and child ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "$BASE_HEAD^{tree}")" = "$BASE_TREE"
+          git merge-base --is-ancestor "$BASE_HEAD" "$GITHUB_SHA"
+          bad="$(git diff --name-only "$BASE_HEAD" "$GITHUB_SHA" | grep -Ev '^(.github/workflows/ws33a-[^/]+\.yml|research/greenfield-qualification/actual-card-behavior/ws33/shards/ws33a/)' || true)"
+          test -z "$bad" || { echo "OUT_OF_SCOPE_ADMISSIONS"; printf '%s\n' "$bad"; exit 1; }
+
+      - name: Download and verify exact WS33 parallel base artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p base-artifact
+          meta_digest="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$BASE_ARTIFACT_ID" --jq '.digest')"
+          test "$meta_digest" = "$BASE_ARTIFACT_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$BASE_ARTIFACT_ID/zip" > /tmp/ws33-base.zip
+          unzip -q /tmp/ws33-base.zip -d base-artifact
+          (cd base-artifact && sha256sum -c WS33_HASHES.sha256)
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path('base-artifact')
+          gate=json.loads((root/'WS33_Q6_CANDIDATE_GATE.json').read_text())
+          assert gate['path_status_counts']['UNKNOWN'] == 4397, gate['path_status_counts']
+          print('WS33_PARALLEL_BASE_ARTIFACT=VERIFIED')
+          print('BASE_RUN='+os.environ['BASE_RUN'])
+          print('BASE_JOB='+os.environ['BASE_JOB'])
+          PY
+
+      - name: Checkout exact pinned Forge and retained prerequisite refs
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS01_HEAD }}
+          path: ws01
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS12_HEAD }}
+          path: ws12
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS32_HEAD }}
+          path: ws32
+          fetch-depth: 1
+
+      - name: Materialize exact integrated rules runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=generated/ws33a-lookup
+          mkdir -p "$out/runtime-evidence"
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee "$out/runtime-evidence/ws01-overlay.log"
+          python "$ROOT/../../hidden-info/../forge-patches/apply-ws05-hidden-info-overlay.py" forge \
+            | tee "$out/runtime-evidence/ws05-overlay.log"
+          cp research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java \
+            forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          python research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py \
+            forge --inventory "$out/runtime-evidence/RNG_INVENTORY.json" \
+            | tee "$out/runtime-evidence/ws06-overlay.log"
+          python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge \
+            | tee "$out/runtime-evidence/ws33-input-confirm-overlay.log"
+          python "$ROOT/runtime-overlays/apply-ws33-stack-target.py" --forge-root forge \
+            | tee "$out/runtime-evidence/ws33-stack-target-overlay.log"
+          python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py \
+            --forge-root forge | tee "$out/runtime-evidence/ws12-overlay.log"
+          python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py \
+            --forge-root forge | tee "$out/runtime-evidence/ws32-overlay.log"
+
+      - name: Prepare exact base-UNKNOWN lookup probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$SHARD/ws33a_prepare_lookup_probe.py" \
+            --base-root base-artifact --source-root "$ROOT" --forge-root forge \
+            --out-root generated/ws33a-lookup/campaign
+          cp "$ROOT/runtime-tests/Ws33TargetRestrictionsCampaignTest.java" \
+            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
+          python "$SHARD/apply_ws33a_lookup_probe.py" \
+            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws33TargetRestrictionsCampaignTest.java
+
+      - name: Record lookup probe in fresh JVM
+        shell: bash
+        run: |
+          set -euo pipefail
+          campaign="$GITHUB_WORKSPACE/generated/ws33a-lookup/campaign"
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.gamesimulationtests.Ws33TargetRestrictionsCampaignTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws33.targetMode=record \
+            -Dws33.targetCases="$campaign/target-cases.tsv" \
+            -Dws33.targetOut="$campaign" test) \
+            2>&1 | tee generated/ws33a-lookup/record-runtime.log
+
+      - name: Replay lookup probe in separate fresh JVM
+        shell: bash
+        run: |
+          set -euo pipefail
+          campaign="$GITHUB_WORKSPACE/generated/ws33a-lookup/campaign"
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.gamesimulationtests.Ws33TargetRestrictionsCampaignTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws33.targetMode=replay \
+            -Dws33.targetCases="$campaign/target-cases.tsv" \
+            -Dws33.targetOut="$campaign" test) \
+            2>&1 | tee generated/ws33a-lookup/replay-runtime.log
+
+      - name: Adjudicate lookup hypothesis
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root=Path('generated/ws33a-lookup')
+          campaign=root/'campaign'
+          plan=json.loads((campaign/'WS33A_LOOKUP_PROBE_PLAN.json').read_text())
+          rec=[json.loads(x) for x in (campaign/'target-record-diagnostics.jsonl').read_text().splitlines() if x.strip()]
+          rep=[json.loads(x) for x in (campaign/'target-replay-diagnostics.jsonl').read_text().splitlines() if x.strip()]
+          success_markers=list(campaign.glob('records/*/record-success.marker'))
+          index=json.loads((campaign/'campaign-index.json').read_text()) if (campaign/'campaign-index.json').is_file() else {'records':[]}
+          result={
+            'schema':'commander-simulator-next.ws33a-lookup-probe-result.v1',
+            'base_head':'c69686431c7296cb3e1a2f9e0de8b82886c92c46',
+            'assigned_paths_total':plan['assigned_paths_total'],
+            'probe_paths_total':plan['probe_paths_total'],
+            'record_success_count':len(success_markers),
+            'replay_success_count':len(index['records']),
+            'record_failure_count':len(rec),
+            'replay_failure_count':len(rep),
+            'out_of_scope_admissions':0,
+            'lookup_hypothesis':'PASS' if not rec and not rep and len(index['records'])==plan['probe_paths_total'] else 'PARTIAL',
+          }
+          (root/'WS33A_LOOKUP_PROBE_RESULT.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+          files=sorted(p for p in root.rglob('*') if p.is_file() and p.name!='WS33A_LOOKUP_HASHES.sha256')
+          with (root/'WS33A_LOOKUP_HASHES.sha256').open('w') as f:
+            for p in files:
+              f.write(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.relative_to(root).as_posix()+'\n')
+          print(json.dumps(result,sort_keys=True))
+          if result['lookup_hypothesis'] != 'PASS':
+            raise SystemExit('WS33A_LOOKUP_PROBE=PARTIAL')
+          PY
+
+      - name: Upload immutable lookup probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33a-targetrestrictions-lookup-probe-${{ github.run_id }}
+          path: generated/ws33a-lookup
+          if-no-files-found: error
+          retention-days: 90
