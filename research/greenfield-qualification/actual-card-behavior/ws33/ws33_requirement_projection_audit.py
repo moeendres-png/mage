@@ -37,26 +37,32 @@ HIDDEN_INTRINSIC = (
     "Search", "ManifestEffect", "RearrangeTopOfLibraryEffect", "TwoPilesEffect",
 )
 
+# Parser/classification parameters are not themselves pilot decisions. Random target
+# selection is RNG, not discretion. Hidden information is value-sensitive: merely
+# having Origin/Destination does not make a public Battlefield zone transition hidden.
 DECISION_KEYS = {
-    "Optional", "OptionalDecider", "Choices", "Choice", "Chooser", "Mode",
-    "TargetingPlayer", "UnlessPayer", "TargetsAtRandom", "RandomNumTargets",
+    "Optional", "OptionalDecider", "Choices", "Choice", "Chooser",
+    "TargetingPlayer", "UnlessPayer",
 }
 RNG_KEYS = {"Random", "Shuffle", "TargetsAtRandom", "RandomNumTargets", "FlipCoin", "RollDice"}
-HIDDEN_KEYS = {
-    "Origin", "Destination", "ChoiceZone", "Reveal", "Search", "Library", "Hand",
-    "DigNum", "ScryNum",
-}
+HIDDEN_OPERATION_KEYS = {"Reveal", "Search", "DigNum", "ScryNum"}
+PRIVATE_ZONE_KEYS = {"Origin", "Destination", "ChoiceZone"}
+PRIVATE_ZONES = {"Library", "Hand"}
+
 
 def load(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
+
 
 def write(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
+
 def require(cond: bool, msg: str) -> None:
     if not cond:
         raise SystemExit("WS33_REQUIREMENT_PROJECTION_AUDIT=FAIL " + msg)
+
 
 def class_source(target: str, root: Path) -> Path | None:
     base = target.split("#", 1)[0]
@@ -68,6 +74,7 @@ def class_source(target: str, root: Path) -> Path | None:
         if p.is_file():
             return p
     return None
+
 
 def impl_params(target: str, root: Path, cache: dict[str, set[str]]) -> set[str]:
     if target in cache:
@@ -83,29 +90,39 @@ def impl_params(target: str, root: Path, cache: dict[str, set[str]]) -> set[str]
     cache[target] = keys
     return keys
 
-def selector_strings(path: dict[str, Any], consumed_keys: set[str]) -> list[str]:
+
+def path_local_data(path: dict[str, Any], consumed_keys: set[str]) -> tuple[dict[str, str], list[str]]:
+    """Return consumed selector values separately from free-form consumer evidence.
+
+    Keeping selector key names out of free-form semantic text prevents false positives
+    such as Trigger Mode=ChangesZone becoming a discretionary choice or
+    Destination=Battlefield becoming hidden-information evidence.
+    """
     profile = path.get("semantic_selector_profile") or {}
     selectors = profile.get("selectors") or {}
-    out: list[str] = []
+    active_selectors: dict[str, str] = {}
     if isinstance(selectors, dict):
         for key, value in selectors.items():
             if key in consumed_keys:
-                out.extend((str(key), str(value)))
+                active_selectors[str(key)] = str(value)
+
+    evidence_strings: list[str] = []
     if profile.get("consumer_model") == "WS33_CONSUMER_AWARE_SVAR_V4":
         for key in ("first_consumer_field", "first_consumer_kind", "svar_expression_shape", "svar_token"):
             value = profile.get(key)
             if value is not None:
-                out.append(str(value))
+                evidence_strings.append(str(value))
     for evidence in path.get("consumer_evidence", []) or []:
         for key in ("consumer_field", "consumer_kind", "consumer_text", "source_value"):
             value = evidence.get(key)
             if value is not None:
-                out.append(str(value))
+                evidence_strings.append(str(value))
     for prov in path.get("source_provenance", []) or []:
         value = prov.get("source_value")
         if value is not None:
-            out.append(str(value))
-    return out
+            evidence_strings.append(str(value))
+    return active_selectors, evidence_strings
+
 
 def amount_signals(strings: list[str]) -> dict[str, bool]:
     text = "\n".join(strings)
@@ -115,15 +132,27 @@ def amount_signals(strings: list[str]) -> dict[str, bool]:
         "hidden": bool(re.search(r"\b(Library|Hand|CardsInHand|ValidHand|TopCard|Search)\b", text, re.I)),
     }
 
+
+def truthy_selector(value: str) -> bool:
+    return value.strip().lower() not in {"", "false", "no", "none", "0"}
+
+
+def private_zone_value(value: str) -> bool:
+    tokens = {token for token in re.split(r"[^A-Za-z]+", value) if token}
+    return bool(tokens & PRIVATE_ZONES)
+
+
 def project(path: dict[str, Any], forge_root: Path, cache: dict[str, set[str]]) -> tuple[dict[str, bool], dict[str, Any]]:
     target = path["implementation_target"]
     keys = impl_params(target, forge_root, cache)
-    strings = selector_strings(path, keys)
-    joined = "\n".join(strings)
+    selectors, evidence_strings = path_local_data(path, keys)
+    values_text = "\n".join(selectors.values())
+    evidence_text = "\n".join(evidence_strings)
+    semantic_text = "\n".join([values_text, evidence_text])
     simple = target.rsplit(".", 1)[-1]
 
     if target == "forge.game.ability.AbilityUtils#calculateAmount":
-        sig = amount_signals(strings)
+        sig = amount_signals(list(selectors.values()) + evidence_strings)
         decision, rng, hidden = sig["decision"], sig["rng"], sig["hidden"]
         basis = "AMOUNT_EXPRESSION_AND_FIRST_CONSUMER"
     else:
@@ -131,23 +160,31 @@ def project(path: dict[str, Any], forge_root: Path, cache: dict[str, set[str]]) 
         rng = any(x in simple for x in RNG_INTRINSIC)
         hidden = any(x in simple for x in HIDDEN_INTRINSIC)
 
-        active_keys = {k for k in keys if re.search(rf"(?<![A-Za-z0-9_]){re.escape(k)}(?![A-Za-z0-9_])", joined)}
-        decision |= bool(active_keys & DECISION_KEYS) or bool(re.search(r"\b(choose|choice|optional|targetingplayer)\b", joined, re.I))
-        rng |= bool(active_keys & RNG_KEYS) or bool(re.search(r"\b(random|shuffle|flipcoin|rolldice)\b", joined, re.I))
-        hidden |= bool(active_keys & HIDDEN_KEYS) or bool(re.search(r"\b(library|hand|reveal|search|scry|surveil|dig)\b", joined, re.I))
+        active_keys = set(selectors)
+        decision |= bool(active_keys & DECISION_KEYS)
+        decision |= bool(re.search(r"\b(Chosen|Selected|Optional)\b", semantic_text, re.I))
+
+        rng |= any(key in RNG_KEYS and truthy_selector(value) for key, value in selectors.items())
+        rng |= bool(re.search(r"\b(Random|Shuffle|FlipCoin|RollDice)\b", evidence_text, re.I))
+
+        hidden |= any(key in HIDDEN_OPERATION_KEYS and truthy_selector(value) for key, value in selectors.items())
+        hidden |= any(key in PRIVATE_ZONE_KEYS and private_zone_value(value) for key, value in selectors.items())
+        hidden |= bool(re.search(r"\b(Library|Hand|CardsInHand|ValidHand|TopCard|Search|Scry|Surveil|Dig)\b", evidence_text, re.I))
 
         if target == "forge.game.cost.Cost":
             decision = True
-        basis = "TARGET_CONSUMED_PARAMS_AND_INTRINSIC_OPERATION"
+        basis = "TARGET_CONSUMED_PARAM_VALUES_AND_INTRINSIC_OPERATION"
 
     replay = decision or rng
     projected = {"decision": decision, "rng": rng, "hidden": hidden, "replay": replay}
     detail = {
         "basis": basis,
         "implementation_param_keys": sorted(keys),
-        "active_path_local_strings": strings[:40],
+        "active_consumed_selectors": dict(sorted(selectors.items())),
+        "path_local_evidence_strings": evidence_strings[:40],
     }
     return projected, detail
+
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -206,7 +243,7 @@ def main() -> None:
             })
 
     result = {
-        "schema": "commander-simulator-next.ws33-requirement-projection-audit.v1",
+        "schema": "commander-simulator-next.ws33-requirement-projection-audit.v2",
         "forge_pin": PIN,
         "manifest_sha256": hashlib.sha256(args.manifest.read_bytes()).hexdigest(),
         "effective_path_count": len(paths),
@@ -222,6 +259,9 @@ def main() -> None:
         "candidates": rows,
     }
     write(args.out, result)
+    if pass_upgrades:
+        first = next(row for row in rows if row["effective_path_id"] == pass_upgrades[0])
+        print("FIRST_PASS_UPGRADE_CANDIDATE=" + json.dumps(first, sort_keys=True))
     require(not pass_upgrades, "projection would strengthen existing PASS requirements")
     print(json.dumps({
         "WS33_REQUIREMENT_PROJECTION_AUDIT": "PASS",
@@ -231,6 +271,7 @@ def main() -> None:
         "removals": dict(removals),
         "upgrades": dict(upgrades),
     }, sort_keys=True))
+
 
 if __name__ == "__main__":
     main()
