@@ -61,12 +61,14 @@ jobs:
           assert str(meta['id']) == os.environ['BASE_ARTIFACT_ID'], meta
           assert meta['workflow_run']['id'] == int(os.environ['BASE_RUN']), meta.get('workflow_run')
           gate=json.loads((root/'WS33_Q6_CANDIDATE_GATE.json').read_text())
-          assert gate['path_status_counts']['UNKNOWN'] == 4397, gate['path_status_counts']
+          assert gate['path_status_counts']['PASS'] == 259, gate['path_status_counts']
+          assert gate['path_status_counts']['UNKNOWN'] == 4017, gate['path_status_counts']
           provenance={
             'base_head':os.environ['BASE_HEAD'], 'base_tree':os.environ['BASE_TREE'],
             'base_run':int(os.environ['BASE_RUN']), 'base_job':int(os.environ['BASE_JOB']),
             'base_artifact_id':int(os.environ['BASE_ARTIFACT_ID']),
             'base_artifact_digest':os.environ['BASE_ARTIFACT_DIGEST'],
+            'base_status_counts':gate['path_status_counts'],
             'internal_hashes':'PASS'
           }
           Path('generated/ws33a-lookup/runtime-evidence/WS33A_BASE_PROVENANCE.json').write_text(json.dumps(provenance,indent=2,sort_keys=True)+'\n')
