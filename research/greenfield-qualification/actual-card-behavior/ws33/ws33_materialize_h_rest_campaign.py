@@ -76,6 +76,7 @@ def decision_map(rows: list[dict]) -> dict[str, list[dict]]:
         require(row.get("decision_kind") == "TARGET_SELECTION", "unexpected decision kind")
         require(row.get("validation_result") == "ACCEPTED", "decision was not accepted")
         require(row.get("fallback_used") is False, "decision fallback used")
+        require(isinstance(row.get("game_id"), str) and row["game_id"], "decision event missing game_id")
         options = row.get("legal_options")
         require(isinstance(options, list) and options, "empty authoritative legal option set")
         require(len(options) == len(set(options)), "duplicate semantic legal option")
@@ -187,7 +188,7 @@ def main() -> None:
         rep_dec = replay_decisions.get(pid, [])
         require(len(rec_dec) == len(rep_dec), "record/replay decision count mismatch for " + pid)
         for left, right in zip(rec_dec, rep_dec):
-            for key in ("decision_index", "decision_kind", "actor", "principal", "visibility_scope", "legal_options", "response_semantic_value", "validation_result", "fallback_used"):
+            for key in ("game_id", "decision_index", "decision_kind", "actor", "principal", "visibility_scope", "legal_options", "response_semantic_value", "validation_result", "fallback_used"):
                 require(left.get(key) == right.get(key), f"record/replay decision mismatch {pid} field={key}")
         if pid in decision_required:
             require(bool(rec_dec), "required decision path has no authoritative decision events: " + pid)
@@ -219,6 +220,7 @@ def main() -> None:
                     {
                         "decision_id": row["decision_index"] + 1,
                         "decision_kind": row["decision_kind"],
+                        "game_id": row["game_id"],
                         "actor": row["actor"],
                         "principal": row["principal"],
                         "visibility_scope": row["visibility_scope"],
