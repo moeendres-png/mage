@@ -100,7 +100,7 @@ jobs:
           bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
             forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
             | tee "$out/runtime-evidence/ws01-overlay.log"
-          python "$ROOT/../../hidden-info/../forge-patches/apply-ws05-hidden-info-overlay.py" forge \
+          python research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge \
             | tee "$out/runtime-evidence/ws05-overlay.log"
           cp research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java \
             forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
