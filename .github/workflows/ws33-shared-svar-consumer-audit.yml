@@ -67,7 +67,18 @@ jobs:
             --out generated/audit/WS33_SVAR_CONSUMER_AUDIT.json
           sha256sum generated/audit/WS33_SVAR_CONSUMER_AUDIT.json | tee generated/audit/WS33_SVAR_CONSUMER_AUDIT.sha256
 
+      - name: Derive consumer-aware SVar model
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_consumer_model_v2.py" \
+            --manifest evidence/ws26/research/greenfield-qualification/actual-card-behavior/ws26/WS26_BEHAVIOR_PATH_MANIFEST_V2.json \
+            --forge-root forge \
+            --out generated/audit/WS33_SVAR_CONSUMER_MODEL_V2.json
+          sha256sum generated/audit/WS33_SVAR_CONSUMER_MODEL_V2.json | tee generated/audit/WS33_SVAR_CONSUMER_MODEL_V2.sha256
+
       - name: Upload immutable audit evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ws33-svar-consumer-audit-${{ github.run_id }}
