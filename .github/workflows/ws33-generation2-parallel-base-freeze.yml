@@ -1,0 +1,250 @@
+name: WS33 generation2 parallel base freeze
+
+on:
+  push:
+    branches: [work/ws33-parallel-base-repair-1-20260831]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  OLD_PARALLEL_BASE_HEAD: c69686431c7296cb3e1a2f9e0de8b82886c92c46
+  OLD_PARALLEL_BASE_TREE: 6b885d02e9a0bc8cad2f93af08db99bda75955a5
+  WS26_HEAD: 206a39cbaa3eeb98b10c2ddc36d51fe5b1b2f5ef
+  WS26_TREE: 837f445f78bb26462653c58baf1532e294151b10
+  WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+  WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+  WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  CONSUMER_MODEL_SHA256: 82638e6b3e4408cc5bddedc49372b6357d3c2bdce6fba7bfab7ed119678f9a48
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+
+jobs:
+  generation2-base:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout repair source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact generation1 base ancestry and ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$OLD_PARALLEL_BASE_HEAD"
+          test "$(git rev-parse "$OLD_PARALLEL_BASE_HEAD^{tree}")" = "$OLD_PARALLEL_BASE_TREE"
+          git merge-base --is-ancestor "$OLD_PARALLEL_BASE_HEAD" "$GITHUB_SHA"
+          bad="$(git diff --name-only "$OLD_PARALLEL_BASE_HEAD" "$GITHUB_SHA" | grep -Ev '^(.github/workflows/ws33-|research/greenfield-qualification/actual-card-behavior/ws33/)' || true)"
+          test -z "$bad" || { printf '%s\n' "$bad"; exit 1; }
+
+      - name: Checkout exact pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Checkout exact retained runtime prerequisites WS01
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS01_HEAD }}
+          path: ws01
+          fetch-depth: 1
+
+      - name: Checkout exact retained runtime prerequisites WS12
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS12_HEAD }}
+          path: ws12
+          fetch-depth: 1
+
+      - name: Checkout exact retained runtime prerequisites WS32
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS32_HEAD }}
+          path: ws32
+          fetch-depth: 1
+
+      - name: Verify exact pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          test "$(git -C ws01 rev-parse HEAD)" = "$WS01_HEAD"
+          test "$(git -C ws12 rev-parse HEAD)" = "$WS12_HEAD"
+          test "$(git -C ws32 rev-parse HEAD)" = "$WS32_HEAD"
+          test "$(git rev-parse "$WS26_HEAD^{tree}")" = "$WS26_TREE"
+
+      - name: Download and verify immutable predecessor artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          fetch_artifact() {
+            id="$1" expected="$2" dest="$3"
+            actual="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" --jq '.digest')"
+            test "$actual" = "$expected"
+            gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "/tmp/$id.zip"
+            mkdir -p "evidence/$dest"
+            unzip -q "/tmp/$id.zip" -d "evidence/$dest"
+          }
+          fetch_artifact 9723722686 sha256:b9e1fc4fd792b0baa1da1c17e3bbc9e01b2557d4b73b8590e680679f53b59883 ws26
+          fetch_artifact 9730143001 sha256:e8b8a690161c464599269cbd7caed0680291f35428163c6e43c5fe3f71d592be ws27
+          fetch_artifact 9732209789 sha256:e96df123f562773f5dc7e3495ea41c30183d62aed9a829ca5f2668a954fa1eaa ws28
+          fetch_artifact 9732414644 sha256:b30415583c2b8c16c6b7cc523e69f5241922aa34d0d3fff17af942dba9c87f62 ws29
+          fetch_artifact 9733716966 sha256:9bd386e63983b8d20ea3a2901bd2cdf351c5914ad2379c51477da6fb4987e2ab ws30
+          fetch_artifact 9734159178 sha256:d1af7b9c348af2a56ebf9b398d29f06d0f2794df089bdd3caa4b18ebf471cffc ws31
+          fetch_artifact 9733547137 sha256:6eb2f0078bf8473571b10433211957e44ef3af93b7bf233e1072e7e12364578e ws32
+
+      - name: Materialize deterministic generation2 model before campaign
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p generated/ws33-generation2-pre
+          raw=evidence/ws26/research/greenfield-qualification/actual-card-behavior/ws26/WS26_BEHAVIOR_PATH_MANIFEST_V2.json
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          python "$ROOT/ws33_consumer_model_v4.py" \
+            --manifest "$raw" \
+            --forge-root forge \
+            --out generated/ws33-generation2-pre/WS33_SVAR_CONSUMER_MODEL_V4.json
+          actual="$(sha256sum generated/ws33-generation2-pre/WS33_SVAR_CONSUMER_MODEL_V4.json | cut -d' ' -f1)"
+          test "$actual" = "$CONSUMER_MODEL_SHA256"
+          python "$ROOT/ws33_generation2_model.py" \
+            --raw-manifest "$raw" \
+            --consumer-model generated/ws33-generation2-pre/WS33_SVAR_CONSUMER_MODEL_V4.json \
+            --source-head "$GITHUB_SHA" --source-tree "$tree" \
+            --out generated/ws33-generation2-pre/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json
+
+      - name: Materialize integrated runtime and execute TargetRestrictions record replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime_evidence=generated/ws33/runtime-evidence
+          campaign_root=generated/ws33-runtime-campaign
+          mkdir -p "$runtime_evidence" "$campaign_root"
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee "$runtime_evidence/ws01-overlay.log"
+          python research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge \
+            | tee "$runtime_evidence/ws05-overlay.log"
+          cp research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java \
+            forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          python research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py \
+            forge --inventory "$runtime_evidence/RNG_INVENTORY.json" \
+            | tee "$runtime_evidence/ws06-overlay.log"
+          python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge \
+            | tee "$runtime_evidence/ws33-input-confirm-overlay.log"
+          python "$ROOT/runtime-overlays/apply-ws33-stack-target.py" --forge-root forge \
+            | tee "$runtime_evidence/ws33-stack-target-overlay.log"
+          python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py \
+            --forge-root forge | tee "$runtime_evidence/ws12-overlay.log"
+          python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py \
+            --forge-root forge | tee "$runtime_evidence/ws32-overlay.log"
+
+          python "$ROOT/ws33_prepare_target_campaign.py" \
+            --manifest generated/ws33-generation2-pre/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json \
+            --forge-root forge \
+            --out-tsv "$campaign_root/target-cases.tsv" \
+            --out-plan "$campaign_root/target-plan.json"
+          cp "$campaign_root/target-plan.json" "$runtime_evidence/WS33_TARGET_CAMPAIGN_PLAN.json"
+
+          cp "$ROOT/runtime-tests/Ws33IntegratedOverlayCompatibilityTest.java" \
+            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
+          cp "$ROOT/runtime-tests/Ws33InputConfirmExternalizationTest.java" \
+            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
+          cp "$ROOT/runtime-tests/Ws33SwiftwaterCliffsWitnessTest.java" \
+            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
+          cp "$ROOT/runtime-tests/Ws33TargetRestrictionsCampaignTest.java" \
+            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
+
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.gamesimulationtests.Ws32CardBehaviorFailureQualificationTest,forge.gamesimulationtests.Ws33IntegratedOverlayCompatibilityTest,forge.gamesimulationtests.Ws33InputConfirmExternalizationTest,forge.gamesimulationtests.Ws33SwiftwaterCliffsWitnessTest,forge.gamesimulationtests.Ws33TargetRestrictionsCampaignTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws32.out="$GITHUB_WORKSPACE/$runtime_evidence/WS32_RUNTIME_WITNESS.json" \
+            -Dws33.swiftwaterTraceOut="$GITHUB_WORKSPACE/$runtime_evidence/WS33_SWIFTWATER_CLIFFS_TRACE.json" \
+            -Dws33.targetMode=record \
+            -Dws33.targetCases="$GITHUB_WORKSPACE/$campaign_root/target-cases.tsv" \
+            -Dws33.targetOut="$GITHUB_WORKSPACE/$campaign_root" test) \
+            2>&1 | tee "$runtime_evidence/integrated-runtime.log"
+          cp forge/forge-gui-desktop/target/surefire-reports/TEST-TestSuite.xml \
+            "$runtime_evidence/WS33_INTEGRATED_RUNTIME_TESTS.xml"
+          cp "$campaign_root/target-record-diagnostics.jsonl" \
+            "$runtime_evidence/WS33_TARGET_RECORD_DIAGNOSTICS.jsonl"
+
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.gamesimulationtests.Ws33TargetRestrictionsCampaignTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws33.targetMode=replay \
+            -Dws33.targetCases="$GITHUB_WORKSPACE/$campaign_root/target-cases.tsv" \
+            -Dws33.targetOut="$GITHUB_WORKSPACE/$campaign_root" test) \
+            2>&1 | tee "$runtime_evidence/target-replay-runtime.log"
+          cp "$campaign_root/target-replay-diagnostics.jsonl" \
+            "$runtime_evidence/WS33_TARGET_REPLAY_DIAGNOSTICS.jsonl"
+
+          python "$ROOT/ws33_capture_overlay.py" \
+            --forge-root forge \
+            --runtime-witness "$runtime_evidence/WS32_RUNTIME_WITNESS.json" \
+            --compatibility-xml "$runtime_evidence/WS33_INTEGRATED_RUNTIME_TESTS.xml" \
+            --out "$runtime_evidence/WS33_OVERLAY_MATERIALIZATION.json"
+
+      - name: Build merge migrate and verify generation2 shared state
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check jsonschema==4.25.1
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          python "$ROOT/ws33_build.py" --evidence evidence --out generated/ws33 --source-head "$GITHUB_SHA" --source-tree "$tree" --forge-root forge \
+            --overlay-evidence generated/ws33/runtime-evidence/WS33_OVERLAY_MATERIALIZATION.json \
+            --swiftwater-trace generated/ws33/runtime-evidence/WS33_SWIFTWATER_CLIFFS_TRACE.json
+          python "$ROOT/ws33_bind_campaign_replay.py" \
+            --campaign-root generated/ws33-runtime-campaign \
+            --overlay-manifest generated/ws33/WS33_RUNTIME_OVERLAY_MANIFEST.json
+          python "$ROOT/ws33_merge_campaign.py" --root generated/ws33 --campaign-root generated/ws33-runtime-campaign \
+            --source-head "$GITHUB_SHA" --source-tree "$tree"
+          python "$ROOT/ws33_generation2_rebuild.py" \
+            --root generated/ws33 \
+            --raw-manifest evidence/ws26/research/greenfield-qualification/actual-card-behavior/ws26/WS26_BEHAVIOR_PATH_MANIFEST_V2.json \
+            --ws26-identities evidence/ws26/research/greenfield-qualification/actual-card-behavior/ws26/WS26_PER_IDENTITY_V2.jsonl \
+            --consumer-model generated/ws33-generation2-pre/WS33_SVAR_CONSUMER_MODEL_V4.json \
+            --source-head "$GITHUB_SHA" --source-tree "$tree"
+          python "$ROOT/ws33_verify.py" --root generated/ws33
+
+      - name: Upload immutable generation2 WS33 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-generation2-parallel-base-${{ github.run_id }}
+          path: generated/ws33
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Enforce generation2 parallel base gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          gate=json.loads(Path('generated/ws33/WS33_GENERATION2_BASE_GATE.json').read_text())
+          assert gate['PARALLEL_CHILDREN_ELIGIBLE'] is True, gate
+          assert gate['PARTITION_DISJOINT'] is True
+          assert gate['PARTITION_COMPLETE'] is True
+          assert gate['ABI_V2_1'] == 'PASS'
+          assert gate['ABI_NEGATIVE_COUNT'] == 17
+          assert gate['WS32_COMPATIBILITY'] == 'PASS'
+          assert gate['TARGET_RESTRICTIONS_RECORD_REPLAY'] == 'PASS'
+          assert gate['CAMPAIGN_MERGE'] == 'PASS'
+          assert gate['SEMANTIC_REPLAY'] == 'PASS'
+          assert gate['GLOBAL_Q6_PASS'] is False
+          assert gate['WS34_ELIGIBLE'] is False
+          assert gate['ARCHITECTURE_FREEZE_ELIGIBLE'] is False
+          PY
