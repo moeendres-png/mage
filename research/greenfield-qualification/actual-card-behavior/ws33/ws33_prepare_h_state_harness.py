@@ -64,6 +64,10 @@ def main() -> None:
     s = s.replace('"unpaid attacker omitted","not-applicable","no combat damage","Forge exposes attack cost and requirements do not bypass it"',
                   '"taxed defender excluded; attacker redirected by rules core","not-applicable","no combat damage","Forge exposes defender-scoped attack cost and selects an untaxed legal defender"', 1)
 
+    goad_trace = '''        emit(path,sourceName,"ABILITY_API:Goad","actual Goad resolved; target ready",stableAttackMap(e.getLeft()),"",restrictionsRequirements(c),stableAttackMap(e.getLeft()),"rules-core legal","goaded=true; defender="+defender.getName(),"not-applicable","no combat damage","Actual Goad state feeds Forge attack requirements");\n'''
+    goad_trace_canonical = '''        emit(path,sourceName,"ABILITY_API:Goad","actual Goad resolved; target ready",target.getName()+"->NON_GOADER","",restrictionsRequirements(c),target.getName()+"->NON_GOADER","rules-core legal","goaded=true; defender_is_goader=false","not-applicable","no combat damage","Actual Goad state feeds Forge attack requirements");\n'''
+    s = must_replace(s, goad_trace, goad_trace_canonical, "canonical Goad semantic trace")
+
     trace_transport = '        String output=System.getenv("WS30_TRACE_PATH"); if(output==null||output.isBlank())return;\n'
     trace_transport_explicit = '        String output=System.getProperty("ws30.trace.path"); if(output==null||output.isBlank())output=System.getenv("WS30_TRACE_PATH"); if(output==null||output.isBlank())return;\n'
     s = must_replace(s, trace_transport, trace_transport_explicit, "explicit trace transport")
