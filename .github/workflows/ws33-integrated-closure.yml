@@ -10,12 +10,12 @@ permissions:
   actions: read
 
 env:
-  GENERATION2_BASE_HEAD: 991486fd012463d29173a9aba15ebb3296d64dda
-  GENERATION2_BASE_TREE: c8ba229cf428973bd7711844563987d69517b5b8
-  GENERATION2_RUN_ID: '33390404824'
-  GENERATION2_JOB_ID: '99482482207'
-  GENERATION2_ARTIFACT_ID: '9757382012'
-  GENERATION2_ARTIFACT_DIGEST: sha256:abb5d509d17b2c9fae798f19a049792b4f16a6695e94ffd36b87ffb3db0d947c
+  CURRENT_PREDECESSOR_HEAD: 4596a58287ccd0f2b432ebeca2b4fd0d8bec4df3
+  CURRENT_PREDECESSOR_TREE: 422beaa5199305efb933f5866207ff2338841a93
+  CURRENT_PREDECESSOR_RUN_ID: '33414000812'
+  CURRENT_PREDECESSOR_JOB_ID: '99560193066'
+  CURRENT_PREDECESSOR_ARTIFACT_ID: '9766400471'
+  CURRENT_PREDECESSOR_ARTIFACT_DIGEST: sha256:a28834e59b86468dc8855c5db5b1f433cfa17b5eded2bc4061092566f95f4372
   FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
   ROOT: research/greenfield-qualification/actual-card-behavior/ws33
 
@@ -28,57 +28,53 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify exact Generation2 ancestry and scoped ownership
+      - name: Verify exact current predecessor and scoped ownership
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --no-tags origin "$GENERATION2_BASE_HEAD"
-          test "$(git rev-parse "$GENERATION2_BASE_HEAD^{tree}")" = "$GENERATION2_BASE_TREE"
-          git merge-base --is-ancestor "$GENERATION2_BASE_HEAD" "$GITHUB_SHA"
-          bad="$(git diff --name-only "$GENERATION2_BASE_HEAD" "$GITHUB_SHA" | grep -Ev '^(.github/workflows/ws33-|research/greenfield-qualification/actual-card-behavior/ws33/)' || true)"
+          git fetch --no-tags origin "$CURRENT_PREDECESSOR_HEAD"
+          test "$(git rev-parse "$CURRENT_PREDECESSOR_HEAD^{tree}")" = "$CURRENT_PREDECESSOR_TREE"
+          git merge-base --is-ancestor "$CURRENT_PREDECESSOR_HEAD" "$GITHUB_SHA"
+          bad="$(git diff --name-only "$CURRENT_PREDECESSOR_HEAD" "$GITHUB_SHA" | grep -Ev '^(.github/workflows/ws33-|research/greenfield-qualification/actual-card-behavior/ws33/)' || true)"
           test -z "$bad" || { printf '%s\n' "$bad"; exit 1; }
 
-      - name: Download exact immutable Generation2 evidence
+      - name: Download exact immutable current successor
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          actual="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$GENERATION2_ARTIFACT_ID" --jq '.digest')"
-          test "$actual" = "$GENERATION2_ARTIFACT_DIGEST"
+          actual="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$CURRENT_PREDECESSOR_ARTIFACT_ID" --jq '.digest')"
+          test "$actual" = "$CURRENT_PREDECESSOR_ARTIFACT_DIGEST"
           gh api -H 'Accept: application/vnd.github+json' \
-            "repos/$GITHUB_REPOSITORY/actions/artifacts/$GENERATION2_ARTIFACT_ID/zip" > generation2.zip
-          mkdir -p generated/generation2 generated/integrated
-          unzip -q generation2.zip -d generated/generation2
-          test "$(jq -r .source_head generated/generation2/WS33_GENERATION2_BASE_GATE.json)" = "$GENERATION2_BASE_HEAD"
-          test "$(jq -r .source_tree generated/generation2/WS33_GENERATION2_BASE_GATE.json)" = "$GENERATION2_BASE_TREE"
+            "repos/$GITHUB_REPOSITORY/actions/artifacts/$CURRENT_PREDECESSOR_ARTIFACT_ID/zip" > predecessor.zip
+          mkdir -p generated/predecessor generated/current
+          unzip -q predecessor.zip -d generated/predecessor
 
-      - name: Materialize and enforce integrated frontier ledger
+      - name: Materialize sole current operational frontier
         shell: bash
         run: |
           set -euo pipefail
-          python "$ROOT/ws33_integrated_frontier.py" \
-            --root generated/generation2 \
-            --output-root generated/integrated \
-            --repair-commit "$GENERATION2_BASE_HEAD" \
-            --generation2-run-id "$GENERATION2_RUN_ID" \
-            --generation2-job-id "$GENERATION2_JOB_ID" \
-            --generation2-artifact-id "$GENERATION2_ARTIFACT_ID" \
-            --generation2-artifact-digest "$GENERATION2_ARTIFACT_DIGEST"
+          python "$ROOT/ws33_materialize_current_operational_state.py" \
+            --artifact-root generated/predecessor \
+            --out generated/current/WS33_CURRENT_OPERATIONAL_STATE.json \
+            --source-head "$CURRENT_PREDECESSOR_HEAD" \
+            --source-tree "$CURRENT_PREDECESSOR_TREE" \
+            --run-id "$CURRENT_PREDECESSOR_RUN_ID" \
+            --job-id "$CURRENT_PREDECESSOR_JOB_ID" \
+            --artifact-id "$CURRENT_PREDECESSOR_ARTIFACT_ID" \
+            --artifact-digest "$CURRENT_PREDECESSOR_ARTIFACT_DIGEST"
           jq -e '
-            .status == "PASS" and
-            .PARTITION_DISJOINT == true and
-            .PARTITION_COMPLETE == true and
-            .NO_GROUP_SPLIT == true and
-            .NO_PASS_OVERLAP == true and
-            .NO_DEPRECATED_ALIAS_AS_ACTIVE_PATH == true and
-            .effective_path_count == 4188 and
-            .path_status_counts.PASS == 259 and
-            .path_status_counts.UNKNOWN == 3929 and
-            .GLOBAL_Q6_PASS == false and
-            .WS34_ELIGIBLE == false and
-            .ARCHITECTURE_FREEZE_ELIGIBLE == false
-          ' generated/integrated/WS33_INTEGRATED_FRONTIER_GATE.json
+            .classification == "DIRECTLY_VERIFIED_IMMUTABLE_SUCCESSOR" and
+            .effective_path_count == ([.path_status_counts[]] | add) and
+            .path_status_counts.FAIL == 0 and
+            .path_status_counts.UNSUPPORTED == 0 and
+            .path_status_counts.UNKNOWN == ([.unknown_by_shard[]] | add) and
+            .predecessor.source_head == env.CURRENT_PREDECESSOR_HEAD and
+            .predecessor.source_tree == env.CURRENT_PREDECESSOR_TREE and
+            .predecessor.artifact_id == env.CURRENT_PREDECESSOR_ARTIFACT_ID and
+            .predecessor.artifact_digest == env.CURRENT_PREDECESSOR_ARTIFACT_DIGEST
+          ' generated/current/WS33_CURRENT_OPERATIONAL_STATE.json
 
       - name: Checkout exact pinned Forge for requirement projection audit
         uses: actions/checkout@v4
@@ -94,22 +90,24 @@ jobs:
           set -euo pipefail
           test "$(git -C forge-requirement-audit rev-parse HEAD)" = "$FORGE_PIN"
           python "$ROOT/ws33_requirement_projection_audit.py" \
-            --manifest generated/generation2/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json \
-            --coverage generated/generation2/WS33_PATH_COVERAGE.json \
+            --manifest generated/predecessor/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json \
+            --coverage generated/predecessor/ws33/WS33_PATH_COVERAGE.json \
             --forge-root forge-requirement-audit \
-            --out generated/integrated/WS33_REQUIREMENT_PROJECTION_AUDIT.json
-          jq -e '
+            --out generated/current/WS33_REQUIREMENT_PROJECTION_AUDIT.json
+          expected_effective="$(jq -r .effective_path_count generated/current/WS33_CURRENT_OPERATIONAL_STATE.json)"
+          expected_unknown="$(jq -r .path_status_counts.UNKNOWN generated/current/WS33_CURRENT_OPERATIONAL_STATE.json)"
+          jq -e --argjson expected_effective "$expected_effective" --argjson expected_unknown "$expected_unknown" '
             .status == "PASS" and
-            .effective_path_count == 4188 and
-            .unknown_path_count == 3929 and
+            .effective_path_count == $expected_effective and
+            .unknown_path_count == $expected_unknown and
             .pass_upgrade_candidate_count == 0 and
             .disposition == "AUDIT_ONLY_NO_MANIFEST_MUTATION"
-          ' generated/integrated/WS33_REQUIREMENT_PROJECTION_AUDIT.json
+          ' generated/current/WS33_REQUIREMENT_PROJECTION_AUDIT.json
 
       - name: Upload immutable integrated frontier evidence
         uses: actions/upload-artifact@v4
         with:
-          name: ws33-integrated-frontier-${{ github.run_id }}
-          path: generated/integrated
+          name: ws33-current-operational-state-${{ github.run_id }}
+          path: generated/current
           if-no-files-found: error
           retention-days: 90
