@@ -84,14 +84,13 @@ jobs:
       - name: Checkout retained WS32
         uses: actions/checkout@v4
         with: {ref: '${{ env.WS32_HEAD }}', path: ws32, fetch-depth: 1}
-      - name: Checkout historical WS31 infrastructure only
+      - name: Checkout historical WS31 harness infrastructure only
         uses: actions/checkout@v4
         with:
           ref: ${{ env.WS31_HIST_HEAD }}
           path: ws31-historical
           fetch-depth: 1
           sparse-checkout: |
-            research/greenfield-qualification/actual-card-behavior/ws31/WS31_CASES.json
             research/greenfield-qualification/actual-card-behavior/ws31/forge-overlay/Ws31HiddenRngReplayQualificationTest.java
       - name: Verify exact pins
         run: |
@@ -113,30 +112,39 @@ jobs:
           python "$ROOT/runtime-overlays/apply-ws33-stack-target.py" --forge-root forge | tee generated/overlay-logs/ws33-stack-target.log
           python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py --forge-root forge | tee generated/overlay-logs/ws12.log
           python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py --forge-root forge | tee generated/overlay-logs/ws32.log
-      - name: Materialize exact current 28 direct-ABILITY cases
+      - name: Materialize exact current 28 direct-ABILITY cases from Gen2 plus pinned Forge
         run: |
           set -euo pipefail
           python - <<'PY'
-          import base64,json
+          import base64,json,re
           from pathlib import Path
-          old=json.loads(Path('ws31-historical/research/greenfield-qualification/actual-card-behavior/ws31/WS31_CASES.json').read_text())['cases']
           manifest=json.loads(Path('generated/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json').read_text())
           coverage=json.loads(Path('generated/ws33/WS33_PATH_COVERAGE.json').read_text())
           st={r['effective_v2_path_id']:r['status'] for r in coverage['paths']}
-          current={p['v2_path_id']:p for p in manifest['paths'] if p['owner_family']=='HIDDEN_RNG_REPLAY' and st[p['v2_path_id']]=='UNKNOWN'}
+          direct=[p for p in manifest['paths'] if p['owner_family']=='HIDDEN_RNG_REPLAY' and st[p['v2_path_id']]=='UNKNOWN' and {x['source_directive'] for x in p['source_provenance']}=={'ABILITY'}]
+          direct.sort(key=lambda p:p['v2_path_id'])
+          assert len(direct)==28,len(direct)
           rows=[]
-          for c in old:
-              pid=c['v2_path_id']
-              if pid not in current or c['source_directive']!='ABILITY': continue
-              p=current[pid]
-              assert p['implementation_target']==c['implementation_target']
-              assert p['dispatch_token']==c['dispatch_token']
-              assert c['oracle_identity'] in p['representative_actual_oracle_identities']
-              fields=[c['ordinal'],pid,c['oracle_identity'],c['card_name'],c['dispatch_token'],c['implementation_target'],c['source_path'],c['source_line'],c['source_directive'],c['source_token'],int(p['required_hidden_info_evidence']),int(p['required_rng_evidence']),int(p['required_replay_evidence']),int(p['required_decision_evidence']),base64.b64encode(c['exact_script'].encode()).decode()]
+          ids=set()
+          for ordinal,p in enumerate(direct,1):
+              pid=p['v2_path_id']; assert pid not in ids; ids.add(pid)
+              prov=sorted(p['source_provenance'],key=lambda x:(x['forge_source_path'],int(x['source_line']),x['oracle_identity']))[0]
+              assert prov['source_directive']=='ABILITY'
+              src=Path('forge')/prov['forge_source_path']; assert src.is_file(),src
+              lines=src.read_text(encoding='utf-8').splitlines(); ln=int(prov['source_line']); assert 1<=ln<=len(lines),(pid,ln)
+              raw=lines[ln-1]
+              assert ':' in raw,(pid,raw)
+              script=raw.split(':',1)[1].strip()
+              token=prov['source_token']; assert script.startswith(token),(pid,token,script)
+              m=re.search(r'(?:^|\s\|\s)(?:AB|SP|DB)\$\s*([^|]+)',script); assert m,(pid,script)
+              assert m.group(1).strip()==p['dispatch_token'],(pid,m.group(1).strip(),p['dispatch_token'])
+              name=next((x.split(':',1)[1].strip() for x in lines if x.startswith('Name:')),None); assert name,(pid,src)
+              oid=prov['oracle_identity']; assert oid in p['representative_actual_oracle_identities'],(pid,oid)
+              fields=[ordinal,pid,oid,name,p['dispatch_token'],p['implementation_target'],prov['forge_source_path'],ln,prov['source_directive'],token,int(p['required_hidden_info_evidence']),int(p['required_rng_evidence']),int(p['required_replay_evidence']),int(p['required_decision_evidence']),base64.b64encode(script.encode()).decode()]
               rows.append('\t'.join(map(str,fields)))
-          assert len(rows)==28,len(rows)
           Path('generated/g-ability-cases.tsv').write_text('\n'.join(rows)+'\n')
-          print('WS33_G_ABILITY_CASES=PASS paths=28 historical_pass_reused=0')
+          Path('generated/diagnostic/G_DIRECT_ABILITY_PATH_IDS.txt').write_text('\n'.join(sorted(ids))+'\n')
+          print('WS33_G_ABILITY_CASES=PASS paths=28 source=CURRENT_GEN2_PLUS_PINNED_FORGE historical_pass_reused=0')
           PY
       - name: Prepare admissible G harness
         run: |
@@ -175,7 +183,7 @@ jobs:
               if not Path(p).is_file(): return []
               return [x.split('\t') for x in Path(p).read_text().splitlines() if x.strip()]
           rec=rows('generated/record/case-summary.tsv'); rep=rows('generated/replay/case-summary.tsv')
-          out={'schema':'commander-simulator-next.ws33-g-ability-diagnostic.v1','coverage_mutated':False,'historical_pass_status_reused':False,'expected_paths':28,'record_rows':len(rec),'replay_rows':len(rep),'record_status':dict(Counter(x[4] for x in rec)),'replay_status':dict(Counter(x[4] for x in rep)),'record_private_leak_paths':sum(int(x[9])>0 or int(x[10])>0 for x in rec),'replay_private_leak_paths':sum(int(x[9])>0 or int(x[10])>0 for x in rep),'record_missing_decision_paths':sum(int(x[7])==0 for x in rec),'record_missing_rng_paths':sum(int(x[8])==0 for x in rec)}
+          out={'schema':'commander-simulator-next.ws33-g-ability-diagnostic.v2','coverage_mutated':False,'historical_pass_status_reused':False,'case_source':'CURRENT_GEN2_PLUS_PINNED_FORGE','expected_paths':28,'record_rows':len(rec),'replay_rows':len(rep),'record_status':dict(Counter(x[4] for x in rec)),'replay_status':dict(Counter(x[4] for x in rep)),'record_private_leak_paths':sum(int(x[9])>0 or int(x[10])>0 for x in rec),'replay_private_leak_paths':sum(int(x[9])>0 or int(x[10])>0 for x in rep),'record_missing_decision_paths':sum(int(x[7])==0 for x in rec),'record_missing_rng_paths':sum(int(x[8])==0 for x in rec)}
           Path('generated/diagnostic/WS33_G_ABILITY_DIAGNOSTIC.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
           print(json.dumps(out,sort_keys=True))
           PY
