@@ -64,7 +64,9 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
                 } else {
                     final Path dir = caseDir(out, c.pathId);
                     if (!Files.isRegularFile(dir.resolve("record-success.marker"))) {
-                        continue;
+                        executeCase(c, null);
+                        throw new IllegalStateException(
+                                "record-rejected case unexpectedly succeeded during replay alignment");
                     }
                     final List<ReplayDecision> replay = loadReplayDecisions(dir.resolve("decision-replay.tsv"));
                     final Result result = executeCase(c, replay);

@@ -41,16 +41,6 @@ SUPPORTED = {
     "Creature.toughnessGE4": "OPPONENT_ELEMENTAL",
     "Permanent.nonLand+OppCtrl": "OPPONENT_CREATURE",
 }
-COMPLEX_TARGET_KEYS = {
-    "TargetMax", "TargetMin", "TargetUnique", "TargetsWithoutSameCreatureType",
-    "TargetsWithSameCreatureType", "TargetsWithSameCardType", "TargetsWithSameController",
-    "TargetsWithDifferentControllers", "TargetsForEachPlayer", "TargetsWithDifferentCMC",
-    "TargetsWithDifferentNames", "TargetsWithEqualToughness", "MaxTotalTargetCMC",
-    "MaxTotalTargetPower", "TgtZone", "TargetValidTargeting", "TargetsAtRandom",
-    "RandomNumTargets", "TargetingPlayer",
-}
-
-
 def load(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -102,11 +92,6 @@ def main() -> None:
         if selector.get("record") not in {"A", "SVAR"}:
             skipped["unsupported_record"] += 1
             continue
-        selectors = selector.get("selectors", {})
-        if COMPLEX_TARGET_KEYS & set(selectors):
-            skipped["complex_target_shape"] += 1
-            continue
-
         provenance = [
             item for item in path.get("source_provenance", [])
             if item.get("source_token") == "ValidTgts$" and item.get("source_value") in SUPPORTED
@@ -220,9 +205,8 @@ def main() -> None:
             "owner_family": "ACTION_COST_DECISION",
             "implementation_target": "forge.game.spellability.TargetRestrictions",
             "evidence_profile": "DECISION+REPLAY",
-            "record": "A",
-            "cost_shape": "NONE",
-            "default_single_target_shape_only": True,
+            "record": ["A", "SVAR"],
+            "actual_single_target_shape_required_at_runtime": True,
             "supported_valid_tgts": SUPPORTED,
             "pilot_policy": "select the fixture-designated target only if Forge emits it; then select DONE only if Forge emits it",
         },
