@@ -180,7 +180,7 @@ def main() -> None:
                 parsed_fields[key] = value
         valid_tgts = chosen["source_value"]
         target_type = parsed_fields.get("TargetType", "Card")
-        origin = parsed_fields.get("Origin", "Battlefield")
+        target_zone = parsed_fields.get("TgtZone", parsed_fields.get("Origin", "Battlefield"))
         if any(token in target_type for token in ("Activated", "Triggered")):
             fixture_context = "STACK_TRIGGERED_ABILITY"
         elif api in {"Counter", "CopySpellAbility"} and not target_type.startswith("Spell"):
@@ -196,7 +196,7 @@ def main() -> None:
                 fixture_context = "STACK_CREATURE_SPELL"
         elif any(token in target_type for token in ("Activated", "Triggered")):
             pass
-        elif origin == "Graveyard":
+        elif target_zone == "Graveyard":
             fixture_context = "GRAVEYARD"
         else:
             fixture_context = "BATTLEFIELD_OR_PLAYER"
