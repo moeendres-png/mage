@@ -4,6 +4,8 @@ import forge.ai.AITest;
 import forge.card.CardStateName;
 import forge.game.Game;
 import forge.game.GameObject;
+import forge.game.ability.AbilityKey;
+import forge.game.ability.AbilityFactory;
 import forge.game.card.Card;
 import forge.game.player.Player;
 import forge.game.spellability.SpellAbility;
@@ -102,6 +104,9 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
         final Card source = createCard(c.cardName, actor);
         final SpellAbility ability = findAbility(source, c);
         ability.setActivatingPlayer(actor);
+        if ("TriggeredTarget".equals(ability.getParam("TargetsWithDefinedController"))) {
+            ability.setTriggeringObject(AbilityKey.Target, opponent);
+        }
         if ("SP".equals(c.abilityKind)) {
             actor.getZone(ZoneType.Hand).add(source);
         } else {
@@ -110,15 +115,26 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
 
         final GameObject intended;
         final String relation;
-        if ("STACK_CREATURE_SPELL".equals(c.fixtureContext)
-                || "STACK_SINGLE_TARGET_SPELL".equals(c.fixtureContext)) {
-            final Card stackTarget = createCard(
-                    "STACK_SINGLE_TARGET_SPELL".equals(c.fixtureContext) ? "Shock" : "Runeclaw Bear",
-                    opponent);
-            opponent.getZone(ZoneType.Hand).add(stackTarget);
+        if ("STACK_TRIGGERED_ABILITY".equals(c.fixtureContext)) {
+            final Card triggerSource = addCardToZone("Swiftwater Cliffs", actor, ZoneType.Hand);
+            game.getAction().moveTo(ZoneType.Battlefield, triggerSource, null, null);
+            if (!game.getTriggerHandler().runWaitingTriggers()
+                    || !game.getStack().addAllTriggeredAbilitiesToStack() || game.getStack().isEmpty()) {
+                throw new IllegalStateException("actual trigger fixture did not reach the stack");
+            }
+            intended = game.getStack().peekAbility();
+            relation = "ACTOR";
+        } else if (c.fixtureContext.startsWith("STACK_")) {
+            final Player stackOwner = c.targetRole.startsWith("OWN_") ? actor : opponent;
+            final String stackCardName = "STACK_ARTIFACT_SPELL".equals(c.fixtureContext)
+                    ? "Sol Ring"
+                    : ("STACK_INSTANT_SPELL".equals(c.fixtureContext)
+                    || "STACK_SINGLE_TARGET_SPELL".equals(c.fixtureContext)) ? "Shock" : "Runeclaw Bear";
+            final Card stackTarget = createCard(stackCardName, stackOwner);
+            stackOwner.getZone(ZoneType.Hand).add(stackTarget);
             final SpellAbility stackAbility = stackTarget.getSpells().get(0);
-            stackAbility.setActivatingPlayer(opponent);
-            if ("STACK_SINGLE_TARGET_SPELL".equals(c.fixtureContext)) {
+            stackAbility.setActivatingPlayer(stackOwner);
+            if ("Shock".equals(stackCardName)) {
                 final Card shockTarget = addCard("Runeclaw Bear", actor);
                 stackAbility.getTargets().add(shockTarget);
                 if (!stackAbility.isTargetNumberValid()) {
@@ -129,7 +145,7 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
             stackAbility.setHostCard(game.getAction().moveToStack(stackTarget, stackAbility));
             game.getStack().addAndUnfreeze(stackAbility);
             intended = stackAbility;
-            relation = "OPPONENT";
+            relation = stackOwner == actor ? "ACTOR" : "OPPONENT";
         } else switch (c.targetRole) {
             case "OPPONENT_PLAYER":
                 intended = opponent;
@@ -138,11 +154,45 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
             case "OWN_CREATURE":
                 intended = addCardToZone("Runeclaw Bear", actor,
                         "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
+                if ("GRAVEYARD".equals(c.fixtureContext)) {
+                    addCardToZone("Runeclaw Bear", actor, ZoneType.Graveyard);
+                }
                 relation = "ACTOR";
                 break;
             case "OPPONENT_CREATURE":
                 intended = addCardToZone("Runeclaw Bear", opponent,
                         "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
+                if ("GRAVEYARD".equals(c.fixtureContext)) {
+                    addCardToZone("Runeclaw Bear", opponent, ZoneType.Graveyard);
+                }
+                relation = "OPPONENT";
+                break;
+            case "OWN_ARTIFACT":
+                intended = addCardToZone("Sol Ring", actor,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
+                relation = "ACTOR";
+                break;
+            case "OPPONENT_ARTIFACT":
+                intended = addCardToZone("Sol Ring", opponent,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
+                relation = "OPPONENT";
+                break;
+            case "OWN_ELEMENTAL":
+                intended = addCardToZone("Air Elemental", actor,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
+                relation = "ACTOR";
+                break;
+            case "OPPONENT_ELEMENTAL":
+                intended = addCardToZone("Air Elemental", opponent,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
+                relation = "OPPONENT";
+                break;
+            case "OWN_INSTANT":
+                intended = addCardToZone("Shock", actor, ZoneType.Graveyard);
+                relation = "ACTOR";
+                break;
+            case "OPPONENT_INSTANT":
+                intended = addCardToZone("Shock", opponent, ZoneType.Graveyard);
                 relation = "OPPONENT";
                 break;
             default:
@@ -220,11 +270,19 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
     }
 
     private SpellAbility findAbility(final Card source, final Case c) {
-        final List<SpellAbility> matches = new ArrayList<>();
         if (!source.hasState(CardStateName.valueOf(c.abilityState))) {
             throw new IllegalStateException("actual card lacks source-bound ability state " + c.abilityState);
         }
-        for (final SpellAbility ability : source.getState(CardStateName.valueOf(c.abilityState)).getSpellAbilities()) {
+        final List<SpellAbility> candidates = new ArrayList<>();
+        if (c.svarName.isBlank()) {
+            candidates.addAll(source.getState(CardStateName.valueOf(c.abilityState)).getSpellAbilities());
+        } else {
+            candidates.add(AbilityFactory.getAbility(
+                    source.getState(CardStateName.valueOf(c.abilityState)), c.svarName,
+                    source.getState(CardStateName.valueOf(c.abilityState))));
+        }
+        final List<SpellAbility> matches = new ArrayList<>();
+        for (final SpellAbility ability : candidates) {
             if (!ability.usesTargeting() || ability.getTargetRestrictions() == null) {
                 continue;
             }
@@ -232,6 +290,9 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
                 continue;
             }
             if ("AB".equals(c.abilityKind) && !ability.isActivatedAbility()) {
+                continue;
+            }
+            if ("DB".equals(c.abilityKind) && (ability.isSpell() || ability.isActivatedAbility())) {
                 continue;
             }
             if (ability.getApi() == null || !c.api.equals(ability.getApi().name())) {
@@ -512,13 +573,13 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
         for (final String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
             if (line.isBlank() || line.startsWith("#")) continue;
             final String[] fields = line.split("\\t", -1);
-            if (fields.length != 12) {
+            if (fields.length != 13) {
                 throw new IllegalArgumentException("malformed WS33 target case line");
             }
             result.add(new Case(
                     fields[0], fields[1], unb64(fields[2]), unb64(fields[3]),
-                    fields[4], fields[5], unb64(fields[6]), fields[7], fields[8], unb64(fields[9]),
-                    unb64(fields[10]), Integer.parseInt(fields[11])));
+                    fields[4], fields[5], unb64(fields[6]), unb64(fields[7]), fields[8], fields[9],
+                    unb64(fields[10]), unb64(fields[11]), Integer.parseInt(fields[12])));
         }
         if (result.isEmpty()) {
             throw new IllegalArgumentException("WS33 target campaign case set is empty");
@@ -597,6 +658,7 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
         final String targetRole;
         final String abilityKind;
         final String api;
+        final String svarName;
         final String abilityState;
         final String fixtureContext;
         final String spellDescription;
@@ -604,7 +666,8 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
         final int sourceLine;
 
         Case(String pathId, String oracleId, String cardName, String validTgts,
-             String targetRole, String abilityKind, String api, String abilityState, String fixtureContext,
+             String targetRole, String abilityKind, String api, String svarName,
+             String abilityState, String fixtureContext,
              String spellDescription, String sourcePath, int sourceLine) {
             this.pathId = pathId;
             this.oracleId = oracleId;
@@ -613,6 +676,7 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
             this.targetRole = targetRole;
             this.abilityKind = abilityKind;
             this.api = api;
+            this.svarName = svarName;
             this.abilityState = abilityState;
             this.fixtureContext = fixtureContext;
             this.spellDescription = spellDescription;
