@@ -20,8 +20,8 @@ TEXT_FIELDS = {
     "TgtPrompt", "ValidTgtsDesc", "AILogic", "PrecostDesc", "CostDesc",
 }
 DESTINATION_NAME_FIELDS = {"SVar"}
-REPLACEMENT_FIELDS = {"ReplacementEffects"}
-TRIGGER_FIELDS = {"Triggers", "AddTrigger", "TriggersWhenSpent"}
+REPLACEMENT_FIELDS = {"ReplacementEffects", "Replacements", "AddReplacements"}
+TRIGGER_FIELDS = {"Triggers", "AddTrigger", "AddTriggers", "TriggersWhenSpent", "ExtraPhaseDelayedTrigger"}
 STATIC_FIELDS = {"StaticAbilities", "staticAbilities", "AddStaticAbility", "StaticEffect"}
 ABILITY_FIELDS = {
     "Execute", "SubAbility", "RepeatSubAbility", "ReplaceWith", "PreventionSubAbility",
@@ -30,7 +30,7 @@ ABILITY_FIELDS = {
     "UnmatchedAbility", "HeadsSubAbility", "TailsSubAbility", "LoseSubAbility",
     "TrueSubAbility", "FalseSubAbility", "ChosenPile", "UnchosenPile", "FallbackAbility",
     "ChooseSubAbility", "CantChooseSubAbility", "RegenerationAbility", "ReturnAbility",
-    "GiftAbility", "VoteSubAbility", "VoteTiedAbility", "Abilities",
+    "GiftAbility", "VoteSubAbility", "VoteTiedAbility", "Abilities", "AddAbilities", "ExtraPhaseDelayedTriggerExcute",
 }
 COST_FIELDS = {"Cost", "UnlessCost"}
 AMOUNT_FIELDS = {
@@ -40,13 +40,14 @@ AMOUNT_FIELDS = {
     "ConditionCheckSVar", "RepeatCheckSVar", "LifeAmount", "Announce", "Count", "Number",
     "Max", "Min", "Power", "Toughness", "DamageAmount", "CounterAmount", "RemoveAmount",
     "SacAmount", "DiscardAmount", "ExileAmount", "DrawAmount", "DiscardNum", "PayLifeAmount",
-    "ManaAmount", "X", "Y", "Z", "CharmNum",
+    "ManaAmount", "X", "Y", "Z", "CharmNum", "CanBlockAmount", "TokenPower", "TokenToughness",
+    "BranchConditionSVar", "BranchConditionSVarCompare", "ConditionSVarCompare", "SVarCompare",
 }
 SELECTOR_FIELDS = {
     "Defined", "DefinedCards", "DefinedPlayers", "DefinedObjects", "AffectedDefined", "RememberObjects",
     "RememberLKI", "ValidCard", "ValidCards", "ValidPlayer", "ValidSource", "ValidTarget", "Choices",
 }
-STATIC_ASSIGN_FIELDS = {"AddSVar"}
+STATIC_ASSIGN_FIELDS = {"AddSVar", "AddSVars", "sVars"}
 
 
 def load(path: Path):
@@ -67,7 +68,13 @@ def path_id(desc: dict) -> str:
 
 
 def token_match(value: str, token: str) -> bool:
-    return re.search(r"(?<![A-Za-z0-9_])" + re.escape(token) + r"(?![A-Za-z0-9_])", value) is not None
+    if re.search(r"(?<![A-Za-z0-9_])" + re.escape(token) + r"(?![A-Za-z0-9_])", value):
+        return True
+    # Forge comparison grammars encode an SVar operand immediately after EQ/NE/GE/GT/LE/LT
+    # (for example cmcLEX or ConditionSVarCompare$ LTLimit). This is a read, not prose text.
+    if re.search(r"(?:EQ|NE|GE|GT|LE|LT)" + re.escape(token) + r"(?![A-Za-z0-9_])", value):
+        return True
+    return False
 
 
 def parse_fields(body: str) -> dict[str, str]:
@@ -193,7 +200,10 @@ def direct_consumers(token: str, own_line: int, card: dict, value_kind: str, sta
         for field, value in decl["fields"].items():
             if not token_match(value, token):
                 continue
-            consumer = consumer_for(field, value_kind, "SVAR", statics)
+            if field == "SVar":
+                consumer = ("AMOUNT_SVAR_RECURSION", "forge.game.ability.AbilityUtils#calculateAmount", OWNER_ACTION)
+            else:
+                consumer = consumer_for(field, value_kind, "SVAR", statics)
             if consumer:
                 rows.append({
                     "consumer_kind": consumer[0], "implementation_target": consumer[1], "owner_family": consumer[2],
