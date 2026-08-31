@@ -212,7 +212,7 @@ jobs:
           python "$ROOT/ws33_merge_campaign.py" --root generated/ws33 --campaign-root generated/ws33-runtime-campaign \
             --source-head "$GITHUB_SHA" --source-tree "$tree"
           python "$ROOT/ws33_generation2_rebuild.py" \
-            --root generated/ws33 \
+            --root "$GITHUB_WORKSPACE/generated/ws33" \
             --raw-manifest evidence/ws26/research/greenfield-qualification/actual-card-behavior/ws26/WS26_BEHAVIOR_PATH_MANIFEST_V2.json \
             --ws26-identities evidence/ws26/research/greenfield-qualification/actual-card-behavior/ws26/WS26_PER_IDENTITY_V2.jsonl \
             --consumer-model generated/ws33-generation2-pre/WS33_SVAR_CONSUMER_MODEL_V4.json \
