@@ -141,7 +141,17 @@ jobs:
           python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py \
             --forge-root forge | tee generated/h-state/overlay-logs/ws32.log
 
-      - name: Prove production Forge overlay equals frozen Generation2 overlay
+      - name: Materialize frozen Generation2 qualification-side test sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          dst=forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests
+          cp "$ROOT/runtime-tests/Ws33IntegratedOverlayCompatibilityTest.java" "$dst/"
+          cp "$ROOT/runtime-tests/Ws33InputConfirmExternalizationTest.java" "$dst/"
+          cp "$ROOT/runtime-tests/Ws33SwiftwaterCliffsWitnessTest.java" "$dst/"
+          cp "$ROOT/runtime-tests/Ws33TargetRestrictionsCampaignTest.java" "$dst/"
+
+      - name: Prove full Forge materialization equals frozen Generation2 overlay
         shell: bash
         run: |
           set -euo pipefail
