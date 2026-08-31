@@ -29,6 +29,10 @@ def main() -> None:
     args = ap.parse_args()
     s = args.source.read_text(encoding="utf-8")
 
+    # The historical target helper used GameObject for test-side target search. Gen2
+    # removes that helper entirely and delegates target legality/selection to Forge,
+    # so keeping the import makes the generated Java fail the pinned checkstyle gate.
+    s = replace_once(s, "import forge.game.GameObject;\n", "", "obsolete GameObject import")
     s = replace_once(
         s,
         'if(cases.size()!=81)throw new IllegalStateException("WS31 expected 81 cases, got "+cases.size());',
@@ -60,6 +64,7 @@ def main() -> None:
     require("getStack().add(sa)" in s and "getStack().resolveStack()" in s, "MagicStack route missing")
     require("sa.getTargets().add(" not in s, "manual target injection remains")
     require("actor.getController().chooseTargetsFor(sa)" in s, "Forge controller target boundary missing")
+    require("import forge.game.GameObject;" not in s, "obsolete target-search import remains")
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(s, encoding="utf-8")
     print("WS33_G_ABILITY_HARNESS_PREP=PASS cases=28 direct_resolution=0 manual_target_injection=0 target_authority=FORGE_CONTROLLER stack=MagicStack")
