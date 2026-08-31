@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/ws33-integrated-g-ability-diagnostic.yml'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_g_ability_harness.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-target-selection.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-tests/Ws33TargetSelectionExternalizationTest.java'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/WS33_POST_GEN2_CLOSURE_INTELLIGENCE_AUDIT_*.md'
   workflow_dispatch:
 
@@ -110,6 +112,7 @@ jobs:
           python research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/record/RNG_INVENTORY.json | tee generated/overlay-logs/ws06.log
           python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge | tee generated/overlay-logs/ws33-input-confirm.log
           python "$ROOT/runtime-overlays/apply-ws33-stack-target.py" --forge-root forge | tee generated/overlay-logs/ws33-stack-target.log
+          python "$ROOT/runtime-overlays/apply-ws33-target-selection.py" --forge-root forge | tee generated/overlay-logs/ws33-target-selection.log
           python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py --forge-root forge | tee generated/overlay-logs/ws12.log
           python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py --forge-root forge | tee generated/overlay-logs/ws32.log
       - name: Materialize exact current 28 direct-ABILITY cases from Gen2 plus pinned Forge
@@ -156,6 +159,8 @@ jobs:
           ! grep -F 'sa.getTargets().add(' "$dst"
           grep -F 'getStack().add(sa)' "$dst"
           grep -F 'actor.getController().chooseTargetsFor(sa)' "$dst"
+          cp "$ROOT/runtime-tests/Ws33TargetSelectionExternalizationTest.java" \
+            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
           sha256sum "$dst" | tee generated/diagnostic/harness.sha256
       - name: Set up Java 21
         uses: actions/setup-java@v5
@@ -163,7 +168,10 @@ jobs:
       - name: Fresh Gen2 record execution
         run: |
           set -euo pipefail
-          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am -Dtest=forge.net.Ws33GAbilityQualificationTest -Dws31.cases="$GITHUB_WORKSPACE/generated/g-ability-cases.tsv" -Dws31.outDir="$GITHUB_WORKSPACE/generated/record" -Dws31.mode=record -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) 2>&1 | tee generated/record/runtime.log
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am -Dtest=forge.gamesimulationtests.Ws33TargetSelectionExternalizationTest,forge.net.Ws33GAbilityQualificationTest -Dws31.cases="$GITHUB_WORKSPACE/generated/g-ability-cases.tsv" -Dws31.outDir="$GITHUB_WORKSPACE/generated/record" -Dws31.mode=record -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) 2>&1 | tee generated/record/runtime.log
+          java -cp forge/forge-gui/target/test-classes:forge/forge-gui/target/classes \
+            forge.gamemodes.match.input.ExternalDecisionValidatorContractTest \
+            | tee generated/record/validator-contract.log
           test -s generated/record/case-summary.tsv
           test -s generated/record/decision-tape.tsv
           test -s generated/record/rng-tape.tsv
