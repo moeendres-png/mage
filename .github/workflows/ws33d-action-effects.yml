@@ -1,0 +1,80 @@
+name: WS33D action effects closure
+
+on:
+  push:
+    branches: [work/ws33d-action-effects-closure-20260831]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  WS33D_BASE_HEAD: c69686431c7296cb3e1a2f9e0de8b82886c92c46
+  WS33D_BASE_TREE: 6b885d02e9a0bc8cad2f93af08db99bda75955a5
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+  SHARD: research/greenfield-qualification/actual-card-behavior/ws33/shards/ws33d
+
+jobs:
+  ws33d:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact WS33D source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact parallel base ancestry and ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "$WS33D_BASE_HEAD^{tree}")" = "$WS33D_BASE_TREE"
+          git merge-base --is-ancestor "$WS33D_BASE_HEAD" "$GITHUB_SHA"
+          bad="$(git diff --name-only "$WS33D_BASE_HEAD" "$GITHUB_SHA" | grep -Ev '^(.github/workflows/ws33d-action-effects.yml|research/greenfield-qualification/actual-card-behavior/ws33/shards/ws33d/)' || true)"
+          test -z "$bad" || { printf '%s\n' "$bad"; exit 1; }
+
+      - name: Checkout exact pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Verify Forge pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+
+      - name: Materialize exact WS33D frontier
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p generated/ws33d
+          python "$SHARD/ws33d_prepare.py" \
+            --manifest "$ROOT/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json" \
+            --coverage "$ROOT/WS33_PATH_COVERAGE.json" \
+            --forge-root forge \
+            --out generated/ws33d
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('generated/ws33d/WS33D_CAMPAIGN_PLAN.json').read_text())
+          print('WS33D_ASSIGNED_PATHS_TOTAL=',p['assigned_paths_total'])
+          print('WS33D_IMPLEMENTATION_TARGET_COUNTS=',json.dumps(p['implementation_target_counts'],sort_keys=False))
+          print('WS33D_DISPATCH_DOMAIN_COUNTS=',json.dumps(p['dispatch_domain_counts'],sort_keys=True))
+          print('WS33D_ROOT_KIND_COUNTS=',json.dumps(p['root_kind_counts'],sort_keys=True))
+          print('WS33D_ABILITY_API_DIRECTLY_ROOTABLE=',p['ability_api_directly_rootable_count'])
+          PY
+
+      - name: Upload WS33D diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33d-action-effects-${{ github.run_id }}
+          path: generated/ws33d
+          if-no-files-found: error
+          retention-days: 90
