@@ -48,9 +48,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p base-artifact
-          meta_digest="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$BASE_ARTIFACT_ID" --jq '.digest')"
-          test "$meta_digest" = "$BASE_ARTIFACT_DIGEST"
+          mkdir -p base-artifact generated/ws33a-lookup/runtime-evidence
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$BASE_ARTIFACT_ID" > generated/ws33a-lookup/runtime-evidence/base-artifact-metadata.json
           gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$BASE_ARTIFACT_ID/zip" > /tmp/ws33-base.zip
           unzip -q /tmp/ws33-base.zip -d base-artifact
           (cd base-artifact && sha256sum -c WS33_HASHES.sha256)
@@ -58,11 +57,20 @@ jobs:
           import json, os
           from pathlib import Path
           root=Path('base-artifact')
+          meta=json.loads(Path('generated/ws33a-lookup/runtime-evidence/base-artifact-metadata.json').read_text())
+          assert str(meta['id']) == os.environ['BASE_ARTIFACT_ID'], meta
+          assert meta['workflow_run']['id'] == int(os.environ['BASE_RUN']), meta.get('workflow_run')
           gate=json.loads((root/'WS33_Q6_CANDIDATE_GATE.json').read_text())
           assert gate['path_status_counts']['UNKNOWN'] == 4397, gate['path_status_counts']
+          provenance={
+            'base_head':os.environ['BASE_HEAD'], 'base_tree':os.environ['BASE_TREE'],
+            'base_run':int(os.environ['BASE_RUN']), 'base_job':int(os.environ['BASE_JOB']),
+            'base_artifact_id':int(os.environ['BASE_ARTIFACT_ID']),
+            'base_artifact_digest':os.environ['BASE_ARTIFACT_DIGEST'],
+            'internal_hashes':'PASS'
+          }
+          Path('generated/ws33a-lookup/runtime-evidence/WS33A_BASE_PROVENANCE.json').write_text(json.dumps(provenance,indent=2,sort_keys=True)+'\n')
           print('WS33_PARALLEL_BASE_ARTIFACT=VERIFIED')
-          print('BASE_RUN='+os.environ['BASE_RUN'])
-          print('BASE_JOB='+os.environ['BASE_JOB'])
           PY
 
       - name: Checkout exact pinned Forge and retained prerequisite refs
@@ -96,7 +104,6 @@ jobs:
         run: |
           set -euo pipefail
           out=generated/ws33a-lookup
-          mkdir -p "$out/runtime-evidence"
           bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
             forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
             | tee "$out/runtime-evidence/ws01-overlay.log"
@@ -161,33 +168,19 @@ jobs:
           python - <<'PY'
           import hashlib, json
           from pathlib import Path
-          root=Path('generated/ws33a-lookup')
-          campaign=root/'campaign'
+          root=Path('generated/ws33a-lookup'); campaign=root/'campaign'
           plan=json.loads((campaign/'WS33A_LOOKUP_PROBE_PLAN.json').read_text())
           rec=[json.loads(x) for x in (campaign/'target-record-diagnostics.jsonl').read_text().splitlines() if x.strip()]
           rep=[json.loads(x) for x in (campaign/'target-replay-diagnostics.jsonl').read_text().splitlines() if x.strip()]
           success_markers=list(campaign.glob('records/*/record-success.marker'))
           index=json.loads((campaign/'campaign-index.json').read_text()) if (campaign/'campaign-index.json').is_file() else {'records':[]}
-          result={
-            'schema':'commander-simulator-next.ws33a-lookup-probe-result.v1',
-            'base_head':'c69686431c7296cb3e1a2f9e0de8b82886c92c46',
-            'assigned_paths_total':plan['assigned_paths_total'],
-            'probe_paths_total':plan['probe_paths_total'],
-            'record_success_count':len(success_markers),
-            'replay_success_count':len(index['records']),
-            'record_failure_count':len(rec),
-            'replay_failure_count':len(rep),
-            'out_of_scope_admissions':0,
-            'lookup_hypothesis':'PASS' if not rec and not rep and len(index['records'])==plan['probe_paths_total'] else 'PARTIAL',
-          }
+          result={'schema':'commander-simulator-next.ws33a-lookup-probe-result.v1','base_head':'c69686431c7296cb3e1a2f9e0de8b82886c92c46','assigned_paths_total':plan['assigned_paths_total'],'probe_paths_total':plan['probe_paths_total'],'record_success_count':len(success_markers),'replay_success_count':len(index['records']),'record_failure_count':len(rec),'replay_failure_count':len(rep),'out_of_scope_admissions':0,'lookup_hypothesis':'PASS' if not rec and not rep and len(index['records'])==plan['probe_paths_total'] else 'PARTIAL'}
           (root/'WS33A_LOOKUP_PROBE_RESULT.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
           files=sorted(p for p in root.rglob('*') if p.is_file() and p.name!='WS33A_LOOKUP_HASHES.sha256')
           with (root/'WS33A_LOOKUP_HASHES.sha256').open('w') as f:
-            for p in files:
-              f.write(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.relative_to(root).as_posix()+'\n')
+            for p in files: f.write(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.relative_to(root).as_posix()+'\n')
           print(json.dumps(result,sort_keys=True))
-          if result['lookup_hypothesis'] != 'PASS':
-            raise SystemExit('WS33A_LOOKUP_PROBE=PARTIAL')
+          if result['lookup_hypothesis'] != 'PASS': raise SystemExit('WS33A_LOOKUP_PROBE=PARTIAL')
           PY
 
       - name: Upload immutable lookup probe evidence
