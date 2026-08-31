@@ -57,8 +57,7 @@ jobs:
           set -euo pipefail
           actual="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$GENERATION2_ARTIFACT_ID" --jq '.digest')"
           test "$actual" = "$GENERATION2_ARTIFACT_DIGEST"
-          gh api -H 'Accept: application/vnd.github+json' \
-            "repos/$GITHUB_REPOSITORY/actions/artifacts/$GENERATION2_ARTIFACT_ID/zip" > generation2.zip
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$GENERATION2_ARTIFACT_ID/zip" > generation2.zip
           mkdir -p generated/ws33 generated/h-state generated/h-campaign generated/integrated
           unzip -q generation2.zip -d generated/ws33
           test "$(jq -r .source_head generated/ws33/WS33_GENERATION2_BASE_GATE.json)" = "$GENERATION2_BASE_HEAD"
@@ -122,24 +121,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p generated/h-state/overlay-logs
-          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
-            forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
-            | tee generated/h-state/overlay-logs/ws01.log
-          python research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge \
-            | tee generated/h-state/overlay-logs/ws05.log
-          cp research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java \
-            forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
-          python research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py \
-            forge --inventory generated/h-state/RNG_INVENTORY.json \
-            | tee generated/h-state/overlay-logs/ws06.log
-          python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge \
-            | tee generated/h-state/overlay-logs/ws33-input-confirm.log
-          python "$ROOT/runtime-overlays/apply-ws33-stack-target.py" --forge-root forge \
-            | tee generated/h-state/overlay-logs/ws33-stack-target.log
-          python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py \
-            --forge-root forge | tee generated/h-state/overlay-logs/ws12.log
-          python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py \
-            --forge-root forge | tee generated/h-state/overlay-logs/ws32.log
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch | tee generated/h-state/overlay-logs/ws01.log
+          python research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge | tee generated/h-state/overlay-logs/ws05.log
+          cp research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          python research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/h-state/RNG_INVENTORY.json | tee generated/h-state/overlay-logs/ws06.log
+          python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge | tee generated/h-state/overlay-logs/ws33-input-confirm.log
+          python "$ROOT/runtime-overlays/apply-ws33-stack-target.py" --forge-root forge | tee generated/h-state/overlay-logs/ws33-stack-target.log
+          python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py --forge-root forge | tee generated/h-state/overlay-logs/ws12.log
+          python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py --forge-root forge | tee generated/h-state/overlay-logs/ws32.log
 
       - name: Materialize frozen Generation2 qualification-side test sources
         shell: bash
@@ -201,9 +190,19 @@ jobs:
             -Dws30.trace.path="$WS30_TRACE_PATH" \
             -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) \
             2>&1 | tee "$GITHUB_WORKSPACE/generated/h-state/ws30-fresh-runtime.log"
-          test -s "$WS30_TRACE_PATH"
-          report=forge/forge-gui-desktop/target/surefire-reports/TEST-TestSuite.xml
-          test -f "$report"
+          if ! test -s "$WS30_TRACE_PATH"; then
+            echo 'WS33_H_TRACE=FAIL_EMPTY'
+            ls -l generated/h-state || true
+            exit 1
+          fi
+          echo "WS33_H_TRACE=PASS lines=$(wc -l < "$WS30_TRACE_PATH") bytes=$(wc -c < "$WS30_TRACE_PATH")"
+          report=forge/forge-gui-desktop/target/surefire-reports/TEST-forge.gamesimulationtests.Ws30CombatCommanderWitnessTest.xml
+          if ! test -f "$report"; then
+            echo 'WS33_H_SUREFIRE_REPORT=FAIL_MISSING'
+            find forge/forge-gui-desktop/target/surefire-reports -maxdepth 1 -type f -printf '%f\n' | sort || true
+            exit 1
+          fi
+          echo 'WS33_H_SUREFIRE_REPORT=PASS'
           cp "$report" generated/h-state/WS33_H_STATE_TESTS.xml
 
       - name: Materialize only the 15 safe current H traces
@@ -217,16 +216,14 @@ jobs:
             --historical-witnesses ws30-historical/research/greenfield-qualification/actual-card-behavior/ws30/WS30_WITNESSES.jsonl \
             --harness forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/Ws30CombatCommanderWitnessTest.java \
             --out generated/h-campaign
-          jq -e '.status=="PASS" and .path_count==15 and .historical_pass_status_reused==false and .direct_resolution_paths_admitted==0' \
-            generated/h-campaign/WS33_H_STATE_CAMPAIGN_GATE.json
+          jq -e '.status=="PASS" and .path_count==15 and .historical_pass_status_reused==false and .direct_resolution_paths_admitted==0' generated/h-campaign/WS33_H_STATE_CAMPAIGN_GATE.json
 
       - name: Authorize exact Generation2 descendant qualification source
         shell: bash
         run: |
           set -euo pipefail
           tree="$(git rev-parse 'HEAD^{tree}')"
-          python "$ROOT/ws33_authorize_integrated_successor.py" \
-            --root generated/ws33 --repo-root . --source-head "$GITHUB_SHA" --source-tree "$tree"
+          python "$ROOT/ws33_authorize_integrated_successor.py" --root generated/ws33 --repo-root . --source-head "$GITHUB_SHA" --source-tree "$tree"
 
       - name: Import via ABI V2.1 campaign merger
         shell: bash
@@ -234,9 +231,7 @@ jobs:
           set -euo pipefail
           python -m pip install --disable-pip-version-check jsonschema==4.25.1
           tree="$(git rev-parse 'HEAD^{tree}')"
-          python "$ROOT/ws33_merge_campaign.py" \
-            --root generated/ws33 --campaign-root generated/h-campaign \
-            --source-head "$GITHUB_SHA" --source-tree "$tree" --java-version 21
+          python "$ROOT/ws33_merge_campaign.py" --root generated/ws33 --campaign-root generated/h-campaign --source-head "$GITHUB_SHA" --source-tree "$tree" --java-version 21
 
       - name: Rebuild and verify integrated frontier after H state batch
         shell: bash
