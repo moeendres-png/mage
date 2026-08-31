@@ -218,6 +218,7 @@ def main() -> None:
         ("Q2_OBSERVATION", "forge-patches/apply-ws05-hidden-info-overlay.py"),
         ("Q3_RNG_REPLAY", "forge-patches/apply-ws06-rng-replay-overlay.py"),
         ("WS33_INPUT_CONFIRM", "actual-card-behavior/ws33/runtime-overlays/apply-ws33-input-confirm.py"),
+        ("WS33_STACK_TARGET", "actual-card-behavior/ws33/runtime-overlays/apply-ws33-stack-target.py"),
     ]
     for name, relative in overlay_sources:
         path = root / relative
@@ -238,7 +239,10 @@ def main() -> None:
         "schema": "commander-simulator-next.ws33-runtime-overlay-manifest.v1",
         "forge_pin": PIN, "qualified_runtime_anchor_head": QUALIFIED_RUNTIME_HEAD,
         "qualified_runtime_anchor_tree": QUALIFIED_RUNTIME_TREE,
-        "entries": overlay_entries, "new_ws33_runtime_fixes": ["generic typed INPUT_CONFIRM adapter"],
+        "entries": overlay_entries, "new_ws33_runtime_fixes": [
+            "generic typed INPUT_CONFIRM adapter",
+            "authoritative typed stack-target decision adapter",
+        ],
         "materialization_status": materialization["materialization_status"] if materialization else "NOT_EXECUTED",
         "patched_forge_content_digest": materialization["patched_forge_content_digest"] if materialization else None,
         "changed_files": materialization["files"] if materialization else [],

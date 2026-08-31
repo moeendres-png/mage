@@ -114,6 +114,33 @@ def main() -> None:
 
         name = next((line[5:].strip() for line in lines if line.startswith("Name:")), None)
         require(bool(name), "card source missing Name: " + chosen["forge_source_path"])
+        alternate_mode = next((line.split(":", 1)[1].strip() for line in lines if line.startswith("AlternateMode:")), "None")
+        alternate_line = next((index + 1 for index, line in enumerate(lines) if line.strip() == "ALTERNATE"), None)
+        on_alternate = alternate_line is not None and line_no > alternate_line
+        state_by_mode = {
+            "Split": ("LeftSplit", "RightSplit"),
+            "Prepare": ("Original", "PreparedSpell"),
+            "Adventure": ("Original", "Secondary"),
+            "Omen": ("Original", "Secondary"),
+            "Modal": ("Original", "Backside"),
+            "Transform": ("Original", "Backside"),
+            "DoubleFaced": ("Original", "Backside"),
+        }
+        primary_state, alternate_state = state_by_mode.get(alternate_mode, ("Original", "Original"))
+        ability_state = alternate_state if on_alternate else primary_state
+        parsed_fields = {}
+        for field in fields[1:]:
+            if "$" in field:
+                key, value = [part.strip() for part in field.split("$", 1)]
+                parsed_fields[key] = value
+        target_type = parsed_fields.get("TargetType", "Card")
+        origin = parsed_fields.get("Origin", "Battlefield")
+        if target_type.startswith("Spell"):
+            fixture_context = "STACK_SINGLE_TARGET_SPELL" if ".singleTarget" in target_type else "STACK_CREATURE_SPELL"
+        elif origin == "Graveyard":
+            fixture_context = "GRAVEYARD"
+        else:
+            fixture_context = "BATTLEFIELD_OR_PLAYER"
         valid_tgts = chosen["source_value"]
         rows.append({
             "path_id": path["v2_path_id"],
@@ -123,6 +150,9 @@ def main() -> None:
             "target_role": SUPPORTED[valid_tgts],
             "ability_kind": prefix,
             "api": api,
+            "ability_state": ability_state,
+            "fixture_context": fixture_context,
+            "spell_description": parsed_fields.get("SpellDescription", ""),
             "source_path": chosen["forge_source_path"],
             "source_line": line_no,
         })
@@ -130,11 +160,12 @@ def main() -> None:
     require(rows, "no conservative TargetRestrictions cases selected")
     args.out_tsv.parent.mkdir(parents=True, exist_ok=True)
     with args.out_tsv.open("w", encoding="utf-8", newline="\n") as handle:
-        handle.write("# path_id\toracle_id\tcard_name_b64\tvalid_tgts_b64\ttarget_role\tability_kind\tapi_b64\tsource_path_b64\tsource_line\n")
+        handle.write("# path_id\toracle_id\tcard_name_b64\tvalid_tgts_b64\ttarget_role\tability_kind\tapi_b64\tability_state\tfixture_context\tspell_description_b64\tsource_path_b64\tsource_line\n")
         for row in rows:
             handle.write("\t".join([
                 row["path_id"], row["oracle_id"], b64(row["card_name"]), b64(row["valid_tgts"]),
-                row["target_role"], row["ability_kind"], b64(row["api"]), b64(row["source_path"]),
+                row["target_role"], row["ability_kind"], b64(row["api"]), row["ability_state"], row["fixture_context"],
+                b64(row["spell_description"]), b64(row["source_path"]),
                 str(row["source_line"]),
             ]) + "\n")
 

@@ -1,8 +1,9 @@
 package forge.gamesimulationtests;
 
 import forge.ai.AITest;
+import forge.card.CardStateName;
 import forge.game.Game;
-import forge.game.GameEntity;
+import forge.game.GameObject;
 import forge.game.card.Card;
 import forge.game.player.Player;
 import forge.game.spellability.SpellAbility;
@@ -94,7 +95,7 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
     }
 
     private Result executeCase(final Case c, final List<ReplayDecision> replay) {
-        final Game game = initAndCreateGame();
+        final Game game = initAndCreateThreePlayerGame();
         final Player actor = game.getPlayers().get(0);
         final Player opponent = game.getPlayers().get(1);
 
@@ -107,19 +108,41 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
             actor.getZone(ZoneType.Battlefield).add(source);
         }
 
-        final GameEntity intended;
+        final GameObject intended;
         final String relation;
-        switch (c.targetRole) {
+        if ("STACK_CREATURE_SPELL".equals(c.fixtureContext)
+                || "STACK_SINGLE_TARGET_SPELL".equals(c.fixtureContext)) {
+            final Card stackTarget = createCard(
+                    "STACK_SINGLE_TARGET_SPELL".equals(c.fixtureContext) ? "Shock" : "Runeclaw Bear",
+                    opponent);
+            opponent.getZone(ZoneType.Hand).add(stackTarget);
+            final SpellAbility stackAbility = stackTarget.getSpells().get(0);
+            stackAbility.setActivatingPlayer(opponent);
+            if ("STACK_SINGLE_TARGET_SPELL".equals(c.fixtureContext)) {
+                final Card shockTarget = addCard("Runeclaw Bear", actor);
+                stackAbility.getTargets().add(shockTarget);
+                if (!stackAbility.isTargetNumberValid()) {
+                    throw new IllegalStateException("fixture spell target count is invalid before stack admission");
+                }
+            }
+            game.getStack().freezeStack(stackAbility);
+            stackAbility.setHostCard(game.getAction().moveToStack(stackTarget, stackAbility));
+            game.getStack().addAndUnfreeze(stackAbility);
+            intended = stackAbility;
+            relation = "OPPONENT";
+        } else switch (c.targetRole) {
             case "OPPONENT_PLAYER":
                 intended = opponent;
                 relation = "OPPONENT";
                 break;
             case "OWN_CREATURE":
-                intended = addCard("Runeclaw Bear", actor);
+                intended = addCardToZone("Runeclaw Bear", actor,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
                 relation = "ACTOR";
                 break;
             case "OPPONENT_CREATURE":
-                intended = addCard("Runeclaw Bear", opponent);
+                intended = addCardToZone("Runeclaw Bear", opponent,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
                 relation = "OPPONENT";
                 break;
             default:
@@ -166,9 +189,12 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
             }
         }
 
-        final String selectedKind = intended instanceof Player ? "PLAYER" : "CARD";
+        final String selectedKind = intended instanceof Player ? "PLAYER"
+                : intended instanceof SpellAbility ? "SPELL" : "CARD";
         final String selectedName = intended instanceof Player
-                ? ((Player) intended).getName() : ((Card) intended).getName();
+                ? ((Player) intended).getName()
+                : intended instanceof SpellAbility ? ((SpellAbility) intended).getHostCard().getName()
+                : ((Card) intended).getName();
         final String canonical = "target_count=1"
                 + "|target_number_valid=true"
                 + "|selected_kind=" + selectedKind
@@ -195,7 +221,10 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
 
     private SpellAbility findAbility(final Card source, final Case c) {
         final List<SpellAbility> matches = new ArrayList<>();
-        for (final SpellAbility ability : source.getSpellAbilities()) {
+        if (!source.hasState(CardStateName.valueOf(c.abilityState))) {
+            throw new IllegalStateException("actual card lacks source-bound ability state " + c.abilityState);
+        }
+        for (final SpellAbility ability : source.getState(CardStateName.valueOf(c.abilityState)).getSpellAbilities()) {
             if (!ability.usesTargeting() || ability.getTargetRestrictions() == null) {
                 continue;
             }
@@ -217,6 +246,9 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
             }
             matches.add(ability);
         }
+        if (matches.size() > 1 && !c.spellDescription.isBlank()) {
+            matches.removeIf(candidate -> !candidate.getDescription().endsWith(c.spellDescription));
+        }
         if (matches.size() != 1) {
             throw new IllegalStateException("expected exactly one actual top-level target ability; matches="
                     + matches.size() + " card=" + c.cardName + " api=" + c.api
@@ -226,20 +258,22 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
     }
 
     private static final class Provider {
-        private final GameEntity intended;
+        private final GameObject intended;
         private final List<ReplayDecision> replay;
         private int replayIndex;
         private boolean selected;
         private boolean sawIntended;
         private final List<CapturedDecision> captured = new ArrayList<>();
 
-        Provider(final Case c, final GameEntity intended, final List<ReplayDecision> replay) {
+        Provider(final Case c, final GameObject intended, final List<ReplayDecision> replay) {
             this.intended = intended;
             this.replay = replay;
         }
 
         ExternalDecisionResponse decide(final ExternalDecisionRequest request) {
-            if (!"TARGET_SELECTION".equals(request.getDecisionKind())) {
+            final String expectedKind = intended instanceof SpellAbility
+                    ? "STACK_TARGET_SELECTION" : "TARGET_SELECTION";
+            if (!expectedKind.equals(request.getDecisionKind())) {
                 throw new IllegalStateException("unexpected decision kind " + request.getDecisionKind());
             }
             final ExternalDecisionRequest.Option chosen;
@@ -261,8 +295,10 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
                 final String desiredSemantic;
                 if (!selected) {
                     desiredSemantic = intended instanceof Player
-                            ? "PLAYER:" + intended.getId()
-                            : "CARD:" + intended.getId();
+                            ? "PLAYER:" + ((Player) intended).getId()
+                            : intended instanceof SpellAbility
+                            ? "STACK:" + ((SpellAbility) intended).getId()
+                            : "CARD:" + ((Card) intended).getId();
                 } else {
                     desiredSemantic = "DONE";
                 }
@@ -274,7 +310,8 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
             }
 
             if (chosen.getSemanticValue().startsWith("CARD:")
-                    || chosen.getSemanticValue().startsWith("PLAYER:")) {
+                    || chosen.getSemanticValue().startsWith("PLAYER:")
+                    || chosen.getSemanticValue().startsWith("STACK:")) {
                 sawIntended = true;
                 selected = true;
             }
@@ -475,13 +512,13 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
         for (final String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
             if (line.isBlank() || line.startsWith("#")) continue;
             final String[] fields = line.split("\\t", -1);
-            if (fields.length != 9) {
+            if (fields.length != 12) {
                 throw new IllegalArgumentException("malformed WS33 target case line");
             }
             result.add(new Case(
                     fields[0], fields[1], unb64(fields[2]), unb64(fields[3]),
-                    fields[4], fields[5], unb64(fields[6]), unb64(fields[7]),
-                    Integer.parseInt(fields[8])));
+                    fields[4], fields[5], unb64(fields[6]), fields[7], fields[8], unb64(fields[9]),
+                    unb64(fields[10]), Integer.parseInt(fields[11])));
         }
         if (result.isEmpty()) {
             throw new IllegalArgumentException("WS33 target campaign case set is empty");
@@ -560,11 +597,15 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
         final String targetRole;
         final String abilityKind;
         final String api;
+        final String abilityState;
+        final String fixtureContext;
+        final String spellDescription;
         final String sourcePath;
         final int sourceLine;
 
         Case(String pathId, String oracleId, String cardName, String validTgts,
-             String targetRole, String abilityKind, String api, String sourcePath, int sourceLine) {
+             String targetRole, String abilityKind, String api, String abilityState, String fixtureContext,
+             String spellDescription, String sourcePath, int sourceLine) {
             this.pathId = pathId;
             this.oracleId = oracleId;
             this.cardName = cardName;
@@ -572,6 +613,9 @@ public final class Ws33TargetRestrictionsCampaignTest extends AITest {
             this.targetRole = targetRole;
             this.abilityKind = abilityKind;
             this.api = api;
+            this.abilityState = abilityState;
+            this.fixtureContext = fixtureContext;
+            this.spellDescription = spellDescription;
             this.sourcePath = sourcePath;
             this.sourceLine = sourceLine;
         }

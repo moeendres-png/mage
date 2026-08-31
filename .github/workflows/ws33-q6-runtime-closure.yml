@@ -118,6 +118,8 @@ jobs:
             | tee "$runtime_evidence/ws06-overlay.log"
           python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge \
             | tee "$runtime_evidence/ws33-input-confirm-overlay.log"
+          python "$ROOT/runtime-overlays/apply-ws33-stack-target.py" --forge-root forge \
+            | tee "$runtime_evidence/ws33-stack-target-overlay.log"
           python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py \
             --forge-root forge | tee "$runtime_evidence/ws12-overlay.log"
           python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py \
