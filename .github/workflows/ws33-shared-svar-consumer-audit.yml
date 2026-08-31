@@ -25,14 +25,15 @@ jobs:
       - name: Checkout repair source
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 1
 
-      - name: Verify exact old parallel base parent
+      - name: Verify exact old parallel base object
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "$OLD_BASE_HEAD"
-          test "$(git rev-parse 'HEAD^^{tree}')" = "$OLD_BASE_TREE"
+          git fetch --no-tags --depth=1 origin "$OLD_BASE_HEAD"
+          test "$(git rev-parse "$OLD_BASE_HEAD")" = "$OLD_BASE_HEAD"
+          test "$(git rev-parse "$OLD_BASE_HEAD^{tree}")" = "$OLD_BASE_TREE"
 
       - name: Checkout exact pinned Forge
         uses: actions/checkout@v4
