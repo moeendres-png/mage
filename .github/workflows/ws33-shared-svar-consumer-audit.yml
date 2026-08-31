@@ -1,0 +1,75 @@
+name: WS33 shared SVar consumer audit
+
+on:
+  push:
+    branches: [work/ws33-parallel-base-repair-1-20260831]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  OLD_BASE_HEAD: c69686431c7296cb3e1a2f9e0de8b82886c92c46
+  OLD_BASE_TREE: 6b885d02e9a0bc8cad2f93af08db99bda75955a5
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  WS26_ARTIFACT: '9723722686'
+  WS26_DIGEST: sha256:b9e1fc4fd792b0baa1da1c17e3bbc9e01b2557d4b73b8590e680679f53b59883
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repair source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact old parallel base ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "$OLD_BASE_HEAD^{tree}")" = "$OLD_BASE_TREE"
+          test "$(git merge-base "$OLD_BASE_HEAD" "$GITHUB_SHA")" = "$OLD_BASE_HEAD"
+
+      - name: Checkout exact pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Fetch immutable WS26 model artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS26_ARTIFACT" --jq '.digest')"
+          test "$actual" = "$WS26_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$WS26_ARTIFACT/zip" > /tmp/ws26.zip
+          mkdir -p evidence/ws26
+          unzip -q /tmp/ws26.zip -d evidence/ws26
+          test -f evidence/ws26/research/greenfield-qualification/actual-card-behavior/ws26/WS26_BEHAVIOR_PATH_MANIFEST_V2.json
+
+      - name: Derive corpus-wide SVar consumer audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p generated/audit
+          python "$ROOT/ws33_svar_consumer_audit.py" \
+            --manifest evidence/ws26/research/greenfield-qualification/actual-card-behavior/ws26/WS26_BEHAVIOR_PATH_MANIFEST_V2.json \
+            --forge-root forge \
+            --out generated/audit/WS33_SVAR_CONSUMER_AUDIT.json
+          sha256sum generated/audit/WS33_SVAR_CONSUMER_AUDIT.json | tee generated/audit/WS33_SVAR_CONSUMER_AUDIT.sha256
+
+      - name: Upload immutable audit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-svar-consumer-audit-${{ github.run_id }}
+          path: generated/audit
+          if-no-files-found: error
+          retention-days: 90
