@@ -1,0 +1,154 @@
+name: WS33 integrated G requirement current successor
+
+on:
+  push:
+    branches: [work/ws33-integrated-closure-20260831]
+    paths:
+      - '.github/workflows/ws33-integrated-g-requirement-current-successor.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+  INPUT_MODEL_SHA: c967f3aa330a6190095c367e2d4a4ea78140d01ef28a4d1d81f0f61b2bd1013b
+  SUCCESSOR_MODEL_SHA: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  H_SOURCE_HEAD: 4596a58287ccd0f2b432ebeca2b4fd0d8bec4df3
+  H_ARTIFACT_ID: '9766400471'
+  H_ARTIFACT_DIGEST: sha256:a28834e59b86468dc8855c5db5b1f433cfa17b5eded2bc4061092566f95f4372
+  ERRATA_SOURCE_HEAD: e6bdab170ea9050fb86f2f9f948bab9bf92a6e38
+  ERRATA_ARTIFACT_ID: '9822685407'
+  ERRATA_ARTIFACT_DIGEST: sha256:81e1e24551403453e4dd32e9ed65951cbaca2776cc993eddf475b4214a67a424
+  PROJECTION_SOURCE_HEAD: d8af15cb879bdfc3c40ce4cba3462da24ee3f272
+  PROJECTION_SOURCE_TREE: 857dc01e04f58ca59437e08710bcb194bf030ea4
+
+jobs:
+  migrate-current-successor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout current integrated successor
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact current input state
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(sha256sum "$ROOT/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json" | cut -d' ' -f1)" = "$INPUT_MODEL_SHA"
+          jq -e '.status_counts.PASS==285 and .status_counts.UNKNOWN==3903 and (.status_counts.FAIL // 0)==0 and (.status_counts.UNSUPPORTED // 0)==0' "$ROOT/WS33_PATH_COVERAGE.json"
+          test ! -e "$ROOT/WS33_CAMPAIGN_MERGE_GATE.json"
+          test ! -e "$ROOT/WS33_PARALLEL_BASE_REPAIR_DIFF.json"
+          cp "$ROOT/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json" /tmp/ws33-manifest-before.json
+          cp "$ROOT/WS33_PATH_COVERAGE.json" /tmp/ws33-coverage-before.json
+
+      - name: Download exact immutable qualification inputs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf generated
+          mkdir -p generated/h generated/errata generated/qualification
+          hmeta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$H_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$hmeta")" = "$H_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$hmeta")" = "$H_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$H_ARTIFACT_ID/zip" > generated/h.zip
+          test "sha256:$(sha256sum generated/h.zip | cut -d' ' -f1)" = "$H_ARTIFACT_DIGEST"
+          unzip -q generated/h.zip -d generated/h
+
+          emeta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ERRATA_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$emeta")" = "$ERRATA_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$emeta")" = "$ERRATA_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$ERRATA_ARTIFACT_ID/zip" > generated/errata.zip
+          test "sha256:$(sha256sum generated/errata.zip | cut -d' ' -f1)" = "$ERRATA_ARTIFACT_DIGEST"
+          unzip -q generated/errata.zip -d generated/errata
+          jq -e '.status=="PASS" and .corrected_path_count==60 and .pass_paths_changed==0 and .coverage_mutated==false' generated/errata/qualification/WS33_G_REQUIREMENT_ERRATA_GATE.json
+          jq -e '.schema=="commander-simulator-next.ws33-requirement-projection-audit.v4" and .status=="PASS" and .candidate_row_count==60 and .changed_unknown_path_count==60 and .pass_upgrade_candidate_count==0' generated/errata/qualification/G_REQUIREMENT_PROJECTION.json
+
+      - name: Apply qualified errata transform to current successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp generated/h/ws33/WS33_CAMPAIGN_MERGE_GATE.json "$ROOT/WS33_CAMPAIGN_MERGE_GATE.json"
+          cp generated/h/ws33/WS33_PARALLEL_BASE_REPAIR_DIFF.json "$ROOT/WS33_PARALLEL_BASE_REPAIR_DIFF.json"
+          python "$ROOT/ws33_apply_g_requirement_errata.py" \
+            --root "$ROOT" \
+            --projection generated/errata/qualification/G_REQUIREMENT_PROJECTION.json \
+            --source-head "$PROJECTION_SOURCE_HEAD" \
+            --source-tree "$PROJECTION_SOURCE_TREE" | tee generated/qualification/transform.log
+          test "$(sha256sum "$ROOT/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json" | cut -d' ' -f1)" = "$SUCCESSOR_MODEL_SHA"
+          rm -f "$ROOT/WS33_CAMPAIGN_MERGE_GATE.json" "$ROOT/WS33_PARALLEL_BASE_REPAIR_DIFF.json"
+          find "$ROOT" -type d -name __pycache__ -prune -exec rm -rf {} +
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          root=Path('research/greenfield-qualification/actual-card-behavior/ws33')
+          hp=root/'WS33_HASHES.sha256'
+          hp.unlink(missing_ok=True)
+          def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
+          files=sorted(p for p in root.rglob('*') if p.is_file() and p.name!='WS33_HASHES.sha256' and '__pycache__' not in p.parts)
+          hp.write_text(''.join(f'{sha(p)}  {p.relative_to(root).as_posix()}\n' for p in files),encoding='utf-8')
+          PY
+
+      - name: Prove transformation scope and invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          before=json.loads(Path('/tmp/ws33-manifest-before.json').read_text())
+          after=json.loads(Path('research/greenfield-qualification/actual-card-behavior/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json').read_text())
+          cov=json.loads(Path('/tmp/ws33-coverage-before.json').read_text())
+          status={r['effective_v2_path_id']:r['status'] for r in cov['paths']}
+          b={p['v2_path_id']:p for p in before['paths']}; a={p['v2_path_id']:p for p in after['paths']}
+          assert set(a)==set(b) and len(a)==4188
+          fields=('required_hidden_info_evidence','required_rng_evidence','required_replay_evidence','required_decision_evidence')
+          changed=[]
+          for pid in sorted(a):
+              if a[pid]['owner_family']!='HIDDEN_RNG_REPLAY':
+                  assert a[pid]==b[pid],('non-G path changed',pid)
+              dif=[f for f in fields if a[pid].get(f)!=b[pid].get(f)]
+              if dif: changed.append(pid)
+              if status[pid]=='PASS':
+                  assert not dif,('PASS requirement changed',pid,dif)
+              for key in ('v2_path_id','owner_family','implementation_target','representative_actual_oracle_identities'):
+                  assert a[pid].get(key)==b[pid].get(key),(pid,key)
+          assert len(changed)==60,len(changed)
+          g=[p for p in after['paths'] if p['owner_family']=='HIDDEN_RNG_REPLAY']
+          got={
+            'hidden':sum(bool(p['required_hidden_info_evidence']) for p in g),
+            'rng':sum(bool(p['required_rng_evidence']) for p in g),
+            'replay':sum(bool(p['required_replay_evidence']) for p in g),
+            'decision':sum(bool(p['required_decision_evidence']) for p in g),
+          }
+          assert got=={'hidden':74,'rng':21,'replay':57,'decision':50},got
+          print('WS33_G_CURRENT_SUCCESSOR_SCOPE=PASS changed=60 non_g_unchanged=TRUE pass_requirement_changes=0 totals='+str(got))
+          PY
+          jq -e '.status_counts.PASS==285 and .status_counts.UNKNOWN==3903 and (.status_counts.FAIL // 0)==0 and (.status_counts.UNSUPPORTED // 0)==0' "$ROOT/WS33_PATH_COVERAGE.json"
+          jq -e '.PARTITION_DISJOINT==true and .PARTITION_COMPLETE==true and .authoritative_unknown_count==3903 and .scenario_group_split_count==0 and (.pass_overlap|length)==0 and (.legacy_ws29_alias_overlap|length)==0' "$ROOT/WS33_PARALLEL_PARTITION_INVARIANTS.json"
+          jq -e '.WS33_WITNESS_ABI_V2_1_GATE=="PASS" and .negative_fixtures_rejected_for_intended_reason==true and .campaign_positives_accepted==true and .evidence_requirement_errata_generation==1 and ([.results[]|select(.expected_exit!=0)]|length)==17 and ([.results[]|select(.intended_result!=true)]|length)==0' "$ROOT/abi/WS33_WITNESS_ABI_GATE.json"
+          python "$ROOT/ws33_verify.py" --root "$ROOT" | tee generated/qualification/ws33-verify.log
+          (cd "$ROOT" && sha256sum -c WS33_HASHES.sha256) > generated/qualification/internal-hashes.log
+          test ! -e "$ROOT/WS33_CAMPAIGN_MERGE_GATE.json"
+          test ! -e "$ROOT/WS33_PARALLEL_BASE_REPAIR_DIFF.json"
+
+      - name: Commit transformed canonical successor with remote-head CAS
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add "$ROOT"
+          git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
+          ! git diff --cached --name-only | grep -E 'WS33_CAMPAIGN_MERGE_GATE.json|WS33_PARALLEL_BASE_REPAIR_DIFF.json|__pycache__'
+          git fetch --no-tags origin work/ws33-integrated-closure-20260831
+          test "$(git rev-parse origin/work/ws33-integrated-closure-20260831)" = "$GITHUB_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'ws33: apply G requirement errata to canonical successor'
+          git push origin "HEAD:work/ws33-integrated-closure-20260831"
