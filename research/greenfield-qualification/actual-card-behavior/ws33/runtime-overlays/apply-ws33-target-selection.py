@@ -248,7 +248,36 @@ def main() -> None:
     private boolean chooseCardFromList(final List<Card> choices, final boolean targeted, final boolean mandatory) {
 """,
     )
+
+    # G-only diagnostic instrumentation.  The copied WS05 probe remains a test observer;
+    # this emits only transport metadata and identity-field classes, never hidden values.
+    probe = forge / "forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java"
+    if probe.is_file():
+        replace_once(
+            probe,
+            '                            example("transport:" + source + ":client=" + clientName + ":zone=" + zone + ":phase=" + phase);\n',
+            '''                            StringBuilder ws33Kinds = new StringBuilder();
+                            if (meaningful(card.getName(), "Card", "Face Down Card", "Face-down card")) ws33Kinds.append("CARD_NAME,");
+                            if (meaningful(card.getOracleName())) ws33Kinds.append("CARD_ORACLE_NAME,");
+                            try {
+                                CardView.CardStateView ws33State = card.getCurrentState();
+                                if (ws33State != null) {
+                                    if (meaningful(ws33State.getName(), "Card", "Face Down Card", "Face-down card")) ws33Kinds.append("STATE_NAME,");
+                                    if (meaningful(ws33State.getOracleName())) ws33Kinds.append("STATE_ORACLE_NAME,");
+                                    if (meaningful(ws33State.getTrackableImageKey())) ws33Kinds.append("STATE_IMAGE_KEY,");
+                                    if (meaningful(ws33State.getOracleText())) ws33Kinds.append("STATE_ORACLE_TEXT,");
+                                    if (meaningful(ws33State.getRulesText())) ws33Kinds.append("STATE_RULES_TEXT,");
+                                }
+                            } catch (RuntimeException ignored) { }
+                            System.out.println("[WS33HiddenLeak] source=" + source + " phase=" + phase
+                                    + " client=" + clientName + " ownerId=" + owner.getId() + " zone=" + zone
+                                    + " cardId=" + card.getId() + " fields=" + ws33Kinds);
+                            example("transport:" + source + ":client=" + clientName + ":zone=" + zone + ":phase=" + phase);
+''',
+        )
+
     print("WS33_TARGET_SELECTION_EXTERNALIZATION_APPLIED=TRUE")
+    print("WS33_G_HIDDEN_LEAK_METADATA_INSTRUMENTATION=TRUE")
 
 
 if __name__ == "__main__":
