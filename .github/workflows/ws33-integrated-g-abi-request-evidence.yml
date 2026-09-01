@@ -1,0 +1,297 @@
+name: WS33 integrated G ABI request evidence
+
+on:
+  push:
+    branches: [work/ws33-integrated-closure-20260831]
+    paths:
+      - '.github/workflows/ws33-integrated-g-abi-request-evidence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  BEHAVIOR_SOURCE_HEAD: d8af15cb879bdfc3c40ce4cba3462da24ee3f272
+  BEHAVIOR_SOURCE_TREE: 857dc01e04f58ca59437e08710bcb194bf030ea4
+  BEHAVIOR_ARTIFACT_ID: '9803814288'
+  BEHAVIOR_ARTIFACT_DIGEST: sha256:493f3549b6483d4fea9644f3a0216deb108a9ac581b651ff3e083499bcb14b5a
+  MODEL_SOURCE_HEAD: c5d6cb8f4831e61b4ee8a1176ccbe4f6b98479ea
+  MODEL_ARTIFACT_ID: '9823383539'
+  MODEL_ARTIFACT_DIGEST: sha256:aab73ba2ede151bbd0b803c2164d3067ddd65f17d49cf655c34eef67d903595d
+  MODEL_SHA: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+  WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+  WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
+  WS31_HIST_HEAD: b09fe7c16845cddbbfe30fd1f855b59234bbf007
+
+jobs:
+  request-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Checkout current qualification tooling
+        uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+
+      - name: Download exact immutable model and behavior evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf generated
+          mkdir -p generated/model generated/source generated/record generated/replay generated/diagnostic generated/overlay-logs
+
+          bmeta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$BEHAVIOR_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$bmeta")" = "$BEHAVIOR_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$bmeta")" = "$BEHAVIOR_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$BEHAVIOR_ARTIFACT_ID/zip" > generated/behavior.zip
+          test "sha256:$(sha256sum generated/behavior.zip | cut -d' ' -f1)" = "$BEHAVIOR_ARTIFACT_DIGEST"
+          unzip -q generated/behavior.zip -d generated/source
+          test -s generated/source/g-ability-cases.tsv
+          jq -e '.status=="PASS" and .expected_paths==28 and .failure_count==0 and .record_pass==28 and .replay_pass==28 and .semantic_replay=="PASS" and .coverage_mutated==false' generated/source/diagnostic/WS33_G_ABILITY_DIAGNOSTIC.json
+
+          mmeta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$mmeta")" = "$MODEL_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$mmeta")" = "$MODEL_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID/zip" > generated/model.zip
+          test "sha256:$(sha256sum generated/model.zip | cut -d' ' -f1)" = "$MODEL_ARTIFACT_DIGEST"
+          unzip -q generated/model.zip -d generated/model
+          test -d generated/model/ws33
+          test "$(sha256sum generated/model/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)" = "$MODEL_SHA"
+          jq -e '.status_counts.PASS==285 and .status_counts.UNKNOWN==3903' generated/model/ws33/WS33_PATH_COVERAGE.json
+
+      - name: Checkout exact green behavior source and retained dependencies
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BEHAVIOR_SOURCE_HEAD }}
+          path: behavior-source
+          fetch-depth: 1
+      - name: Checkout pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+      - name: Checkout retained WS01
+        uses: actions/checkout@v4
+        with: {ref: '${{ env.WS01_HEAD }}', path: ws01, fetch-depth: 1}
+      - name: Checkout retained WS12
+        uses: actions/checkout@v4
+        with: {ref: '${{ env.WS12_HEAD }}', path: ws12, fetch-depth: 1}
+      - name: Checkout retained WS32
+        uses: actions/checkout@v4
+        with: {ref: '${{ env.WS32_HEAD }}', path: ws32, fetch-depth: 1}
+      - name: Checkout historical WS31 harness infrastructure only
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.WS31_HIST_HEAD }}
+          path: ws31-historical
+          fetch-depth: 1
+          sparse-checkout: |
+            research/greenfield-qualification/actual-card-behavior/ws31/forge-overlay/Ws31HiddenRngReplayQualificationTest.java
+
+      - name: Verify exact source pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C behavior-source rev-parse HEAD)" = "$BEHAVIOR_SOURCE_HEAD"
+          test "$(git -C behavior-source rev-parse 'HEAD^{tree}')" = "$BEHAVIOR_SOURCE_TREE"
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          test "$(git -C ws01 rev-parse HEAD)" = "$WS01_HEAD"
+          test "$(git -C ws12 rev-parse HEAD)" = "$WS12_HEAD"
+          test "$(git -C ws32 rev-parse HEAD)" = "$WS32_HEAD"
+          test "$(git -C ws31-historical rev-parse HEAD)" = "$WS31_HIST_HEAD"
+
+      - name: Apply exact green behavior runtime overlay stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch | tee generated/overlay-logs/ws01.log
+          python behavior-source/research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge | tee generated/overlay-logs/ws05.log
+          cp behavior-source/research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          python behavior-source/research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/record/RNG_INVENTORY.json | tee generated/overlay-logs/ws06.log
+          python behavior-source/$ROOT/runtime-overlays/apply-ws33-input-confirm.py --forge-root forge | tee generated/overlay-logs/ws33-input-confirm.log
+          python behavior-source/$ROOT/runtime-overlays/apply-ws33-stack-target.py --forge-root forge | tee generated/overlay-logs/ws33-stack-target.log
+          python behavior-source/$ROOT/runtime-overlays/apply-ws33-target-selection.py --forge-root forge | tee generated/overlay-logs/ws33-target-selection.log
+          python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py --forge-root forge | tee generated/overlay-logs/ws12.log
+          python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py --forge-root forge | tee generated/overlay-logs/ws32.log
+
+      - name: Prepare exact green harness plus observer-only request trace
+        shell: bash
+        run: |
+          set -euo pipefail
+          src=ws31-historical/research/greenfield-qualification/actual-card-behavior/ws31/forge-overlay/Ws31HiddenRngReplayQualificationTest.java
+          dst=forge/forge-gui-desktop/src/test/java/forge/net/Ws33GAbilityQualificationTest.java
+          python behavior-source/$ROOT/ws33_prepare_g_ability_harness.py --source "$src" --out "$dst"
+          python "$ROOT/ws33_instrument_g_authoritative_requests.py" --harness "$dst"
+          cp behavior-source/$ROOT/runtime-tests/Ws33TargetSelectionExternalizationTest.java forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
+          ! grep -F 'sa.resolve()' "$dst"
+          ! grep -F 'sa.getTargets().add(' "$dst"
+          grep -F 'getStack().addAndUnfreeze(sa)' "$dst"
+          grep -F 'getStack().resolveStack()' "$dst"
+          grep -F 'decision-requests-with-path.tsv' "$dst"
+          sha256sum "$dst" | tee generated/diagnostic/instrumented-harness.sha256
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with: {distribution: temurin, java-version: '21'}
+
+      - name: Supplemental record capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.gamesimulationtests.Ws33TargetSelectionExternalizationTest,forge.net.Ws33GAbilityQualificationTest \
+            -Dws31.cases="$GITHUB_WORKSPACE/generated/source/g-ability-cases.tsv" \
+            -Dws31.outDir="$GITHUB_WORKSPACE/generated/record" \
+            -Dws31.mode=record \
+            -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) \
+            2>&1 | tee generated/record/runtime.log
+          test -s generated/record/decision-requests-with-path.tsv
+          test -s generated/record/case-summary.tsv
+          test -s generated/record/decision-tape.tsv
+          test -s generated/record/rng-tape.tsv
+
+      - name: Prove observer did not perturb immutable green record
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmp generated/source/record/case-summary.tsv generated/record/case-summary.tsv
+          cmp generated/source/record/decision-tape.tsv generated/record/decision-tape.tsv
+          cmp generated/source/record/decision-events-with-path.tsv generated/record/decision-events-with-path.tsv
+          cmp generated/source/record/rng-tape.tsv generated/record/rng-tape.tsv
+          cmp generated/source/record/rng-events-with-path.tsv generated/record/rng-events-with-path.tsv
+          echo 'WS33_G_REQUEST_TRACE_RECORD_NONPERTURBATION=PASS'
+
+      - name: Supplemental replay capture using immutable green tapes
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws33GAbilityQualificationTest \
+            -Dws31.cases="$GITHUB_WORKSPACE/generated/source/g-ability-cases.tsv" \
+            -Dws31.outDir="$GITHUB_WORKSPACE/generated/replay" \
+            -Dws31.mode=replay \
+            -Dws31.decisionReplay="$GITHUB_WORKSPACE/generated/source/record/decision-tape.tsv" \
+            -Dws31.rngReplay="$GITHUB_WORKSPACE/generated/source/record/rng-tape.tsv" \
+            -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) \
+            2>&1 | tee generated/replay/runtime.log
+          test -s generated/replay/decision-requests-with-path.tsv
+          cmp generated/source/replay/case-summary.tsv generated/replay/case-summary.tsv
+          cmp generated/source/replay/decision-tape.tsv generated/replay/decision-tape.tsv
+          cmp generated/source/replay/decision-events-with-path.tsv generated/replay/decision-events-with-path.tsv
+          cmp generated/source/replay/rng-tape.tsv generated/replay/rng-tape.tsv
+          cmp generated/source/replay/rng-events-with-path.tsv generated/replay/rng-events-with-path.tsv
+          cmp generated/record/decision-requests-with-path.tsv generated/replay/decision-requests-with-path.tsv
+          echo 'WS33_G_REQUEST_TRACE_REPLAY_NONPERTURBATION=PASS'
+
+      - name: Strictly adjudicate authoritative request evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, json
+          from collections import defaultdict
+          from pathlib import Path
+
+          def dec(s): return base64.b64decode(s).decode()
+          cases={}
+          for line in Path('generated/source/g-ability-cases.tsv').read_text().splitlines():
+              f=line.split('\t')
+              cases[f[1]]={'decision':f[13]=='1','rng':f[11]=='1'}
+          assert len(cases)==28
+          req_dec={p for p,x in cases.items() if x['decision']}
+          req_rng={p for p,x in cases.items() if x['rng']}
+          assert len(req_dec)==19, len(req_dec)
+          assert len(req_rng)==7, len(req_rng)
+
+          requests={}
+          path_requests=defaultdict(list)
+          for line in Path('generated/record/decision-requests-with-path.tsv').read_text().splitlines():
+              f=line.split('\t',-1)
+              assert len(f)==13,(len(f),line)
+              path=dec(f[0]); decision_id=int(f[1]); token=int(f[2]); kind=dec(f[3]); actor=int(f[4]); principal=int(f[5]); visibility=dec(f[6])
+              minimum=int(f[7]); maximum=int(f[8]); cancel=f[9]=='true'; response_schema=dec(f[10]); count=int(f[11])
+              options=[] if count==0 else [dec(x) for x in f[12].split(',')]
+              assert len(options)==count and len(set(options))==count,(path,decision_id)
+              assert visibility=='PRINCIPAL_ONLY',(path,visibility)
+              assert minimum>=0 and maximum>=minimum and maximum<=count,(path,minimum,maximum,count)
+              row={'path_id':path,'decision_id':decision_id,'token':token,'decision_kind':kind,'actor':actor,'principal':principal,'visibility_scope':visibility,'minimum_selection':minimum,'maximum_selection':maximum,'cancel_allowed':cancel,'response_schema':response_schema,'authoritative_legal_options':options}
+              assert decision_id not in requests,decision_id
+              requests[decision_id]=row; path_requests[path].append(row)
+
+          event_path={}
+          for line in Path('generated/record/decision-events-with-path.tsv').read_text().splitlines():
+              f=line.split('\t',-1); event_path[int(f[1])]=dec(f[0])
+          accepted=defaultdict(list)
+          for line in Path('generated/record/decision-tape.tsv').read_text().splitlines():
+              f=line.split('\t',-1); event_id=int(f[0]); decision_id=int(f[1]); selected=[] if int(f[6])==0 else [dec(x) for x in f[7].split(',')]
+              path=event_path.get(event_id)
+              if path in cases:
+                  assert decision_id in requests,(path,decision_id)
+                  legal=set(requests[decision_id]['authoritative_legal_options'])
+                  assert all(x in legal for x in selected),(path,decision_id,selected,legal)
+                  accepted[path].append((decision_id,selected))
+
+          missing=sorted(p for p in req_dec if not accepted[p])
+          assert not missing,missing
+          assert all(len(path_requests[p])>0 for p in req_dec)
+          # Minimum evidence semantics: non-required paths are allowed to have decisions.
+
+          rng_paths=defaultdict(list)
+          for line in Path('generated/source/record/rng-events-with-path.tsv').read_text().splitlines():
+              f=line.split('\t',-1); path=dec(f[0]);
+              if path in cases:
+                  event={'event_index':int(f[1]),'game_id':dec(f[2]),'stream':dec(f[3]),'draw_index':int(f[4]),'bits':int(f[5]),'result':int(f[6])}
+                  event['pre_state']=f"{event['game_id']}|{event['stream']}|draw={event['draw_index']}"
+                  event['post_state']=f"{event['game_id']}|{event['stream']}|draw={event['draw_index']+1}"
+                  event['operation']=f"next({event['bits']})"
+                  rng_paths[path].append(event)
+          missing_rng=sorted(p for p in req_rng if not rng_paths[p])
+          assert not missing_rng,missing_rng
+
+          out={
+            'schema':'commander-simulator-next.ws33-g-abi-request-evidence.v1',
+            'status':'PASS',
+            'behavior_artifact_id':'9803814288',
+            'behavior_artifact_digest':'sha256:493f3549b6483d4fea9644f3a0216deb108a9ac581b651ff3e083499bcb14b5a',
+            'behavior_source_head':'d8af15cb879bdfc3c40ce4cba3462da24ee3f272',
+            'model_artifact_id':'9823383539',
+            'effective_model_sha256':'cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224',
+            'path_count':28,
+            'decision_required_path_count':len(req_dec),
+            'decision_required_paths_observed':len([p for p in req_dec if accepted[p]]),
+            'rng_required_path_count':len(req_rng),
+            'rng_required_paths_observed':len([p for p in req_rng if rng_paths[p]]),
+            'request_event_count':sum(len(v) for v in path_requests.values()),
+            'record_replay_request_trace_equal':True,
+            'immutable_green_record_byte_equal':True,
+            'immutable_green_replay_byte_equal':True,
+            'authoritative_legal_options_captured_from_request':True,
+            'hidden_identity_payload_retained':False,
+            'minimum_requirement_semantics':True,
+            'rng_pre_post_state_basis':'CODE_DERIVED_NAMED_STREAM_DRAW_POSITION',
+            'coverage_mutated':False,
+          }
+          Path('generated/diagnostic/WS33_G_ABI_REQUEST_EVIDENCE.json').write_text(json.dumps(out,sort_keys=True,separators=(',',':'))+'\n')
+          Path('generated/diagnostic/decision-requests.json').write_text(json.dumps({'events':[x for p in sorted(path_requests) for x in path_requests[p]]},sort_keys=True,separators=(',',':'))+'\n')
+          Path('generated/diagnostic/rng-abi-events.json').write_text(json.dumps({'events':[{'path_id':p,**e} for p in sorted(rng_paths) for e in rng_paths[p]]},sort_keys=True,separators=(',',':'))+'\n')
+          print('WS33_G_ABI_REQUEST_EVIDENCE=PASS',out)
+          PY
+          jq -e '.status=="PASS" and .path_count==28 and .decision_required_path_count==19 and .decision_required_paths_observed==19 and .rng_required_path_count==7 and .rng_required_paths_observed==7 and .record_replay_request_trace_equal==true and .immutable_green_record_byte_equal==true and .immutable_green_replay_byte_equal==true and .authoritative_legal_options_captured_from_request==true and .hidden_identity_payload_retained==false and .coverage_mutated==false' generated/diagnostic/WS33_G_ABI_REQUEST_EVIDENCE.json
+
+      - name: Upload immutable supplemental ABI evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-g-abi-request-evidence-${{ github.run_id }}
+          path: |
+            generated/diagnostic
+            generated/record/decision-requests-with-path.tsv
+            generated/replay/decision-requests-with-path.tsv
+          if-no-files-found: error
+          retention-days: 90
