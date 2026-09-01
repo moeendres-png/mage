@@ -102,28 +102,28 @@ def main() -> None:
         "setup-failure evidence guard",
     )
 
-    # RemoteClientGuiGame.updateGameView() only enqueues network transport. The headless
-    # clients process those packets asynchronously, so a server-thread currentPath can
-    # otherwise change before the corresponding principal view is inspected. A full-state
-    # message is ordered after earlier deltas on each Netty channel. Wait until the WS05
-    # decoded-client observer has processed one such full state per remote principal.
-    # This is a qualification transport barrier only; it does not mutate game/rules state.
+    # RemoteClientGuiGame.updateGameView() only enqueues network transport. A server-side
+    # flush is therefore not a path evidence barrier. sendFullState() is channel-ordered
+    # after prior deltas; the derived WS05 probe below counts the full-state callback only
+    # after the headless client has applied it. Waiting on that dedicated counter prevents
+    # unrelated in-flight deltas from satisfying the barrier.
     s = replace_once(
         s,
         'private static void seedCommon(Game game,Player actor,Player opponent){',
-        'private static void awaitRemoteTransport(List<Player> ps){long before=Ws05HiddenInfoProbe.transportSamples();int remotes=0;for(Player p:ps){if(p.getController() instanceof PlayerControllerHuman human&&human.getGui() instanceof RemoteClientGuiGame remoteGui){remoteGui.updateGameView();remoteGui.sendFullState();remotes++;}}long target=before+remotes,deadline=System.currentTimeMillis()+10000L;while(Ws05HiddenInfoProbe.transportSamples()<target&&System.currentTimeMillis()<deadline){try{Thread.sleep(10L);}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IllegalStateException("interrupted awaiting remote transport barrier",e);}}if(Ws05HiddenInfoProbe.transportSamples()<target)throw new IllegalStateException("remote transport barrier timeout got="+Ws05HiddenInfoProbe.transportSamples()+" expected="+target);}\n    private static void seedCommon(Game game,Player actor,Player opponent){',
-        "client-processed transport barrier",
+        'private static void awaitRemoteTransport(List<Player> ps){long before=Ws05HiddenInfoProbe.fullStateSamples();int remotes=0;for(Player p:ps){if(p.getController() instanceof PlayerControllerHuman human&&human.getGui() instanceof RemoteClientGuiGame remoteGui){remoteGui.updateGameView();remoteGui.sendFullState();remotes++;}}long target=before+remotes,deadline=System.currentTimeMillis()+10000L;while(Ws05HiddenInfoProbe.fullStateSamples()<target&&System.currentTimeMillis()<deadline){try{Thread.sleep(10L);}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IllegalStateException("interrupted awaiting remote transport barrier",e);}}if(Ws05HiddenInfoProbe.fullStateSamples()<target)throw new IllegalStateException("remote transport barrier timeout got="+Ws05HiddenInfoProbe.fullStateSamples()+" expected="+target);}\n    private static void seedCommon(Game game,Player actor,Player opponent){',
+        "client-processed full-state transport barrier",
     )
 
-    # A deterministic generic top-of-library fixture gives decision-bearing hidden-zone
-    # operations legal material without encoding any card-specific rule. Index zero is
-    # Forge's library top. The pattern land -> small creature exercises both reveal-until
-    # ordering and optional valid-card selection through Forge's own selectors.
+    # A deterministic generic top-of-library fixture gives the hidden/RNG family enough
+    # legal material without card-specific branching. Index zero is Forge's library top.
+    # Final top order is: Island, Plains, Runeclaw Bear, Sol Ring. This provides multiple
+    # pre-match cards for random-rest operations, a small creature selector hit, and a
+    # noncreature/nonland selector hit while leaving all legality to Forge.
     s = replace_once(
         s,
         'for(int i=0;i<3;i++){addCard("Runeclaw Bear",actor,ZoneType.Hand);addCard("Grizzly Bears",opponent,ZoneType.Hand);}}',
-        'for(int i=0;i<3;i++){addCard("Runeclaw Bear",actor,ZoneType.Hand);addCard("Grizzly Bears",opponent,ZoneType.Hand);}addCardAtTop("Runeclaw Bear",actor);addCardAtTop("Island",actor);addCardAtTop("Runeclaw Bear",opponent);addCardAtTop("Island",opponent);}',
-        "generic decision-bearing library fixture",
+        'for(int i=0;i<3;i++){addCard("Runeclaw Bear",actor,ZoneType.Hand);addCard("Grizzly Bears",opponent,ZoneType.Hand);}addCardAtTop("Sol Ring",actor);addCardAtTop("Runeclaw Bear",actor);addCardAtTop("Plains",actor);addCardAtTop("Island",actor);addCardAtTop("Sol Ring",opponent);addCardAtTop("Runeclaw Bear",opponent);addCardAtTop("Plains",opponent);addCardAtTop("Island",opponent);}',
+        "generic decision/RNG-bearing library fixture",
     )
     s = replace_once(
         s,
@@ -155,8 +155,8 @@ def main() -> None:
     require("!game.getStack().isEmpty()||game.getStack().isFrozen()||game.getStack().isResolving()" in s, "production-quiescent campaign gate missing")
     require("import forge.game.GameObject;" not in s, "obsolete target-search import remains")
     require("RemoteClientGuiGame" in s and "awaitRemoteTransport(ps)" in s, "client-processed transport barrier missing")
-    require("remoteGui.sendFullState()" in s and "Ws05HiddenInfoProbe.transportSamples()" in s, "transport barrier lacks ordered client observation")
-    require('addCardAtTop("Island",actor)' in s and 'addCardAtTop("Runeclaw Bear",actor)' in s, "generic decision-bearing library fixture missing")
+    require("remoteGui.sendFullState()" in s and "Ws05HiddenInfoProbe.fullStateSamples()" in s, "transport barrier lacks dedicated full-state acknowledgement")
+    require(all(token in s for token in ('addCardAtTop("Island",actor)','addCardAtTop("Plains",actor)','addCardAtTop("Runeclaw Bear",actor)','addCardAtTop("Sol Ring",actor)')), "generic decision/RNG library fixture missing")
 
     # Static regression gates: all setup, parsing and setup transport must finish before
     # path attribution; all path transport must be drained before the evidence delta is
@@ -169,9 +169,42 @@ def main() -> None:
     require(campaign.count("awaitRemoteTransport(ps)") >= 2, "path transport is not drained after execution")
     require("long leak0=-1,cross0=-1" in campaign, "setup-safe evidence baseline declaration missing")
 
+    # Derive a G-only qualification probe from the retained WS05 observer. The base WS05
+    # evidence contract remains untouched; this adds only a transport synchronization
+    # counter keyed to already-decoded full-state callbacks. It exposes no card identity.
+    probe_path = args.out.parent / "Ws05HiddenInfoProbe.java"
+    require(probe_path.is_file(), "copied WS05 hidden-info probe missing")
+    probe = probe_path.read_text(encoding="utf-8")
+    probe = replace_once(
+        probe,
+        "    private static final AtomicLong decodedTransportSamples = new AtomicLong();\n",
+        "    private static final AtomicLong decodedTransportSamples = new AtomicLong();\n    private static final AtomicLong fullStateSamples = new AtomicLong();\n",
+        "full-state sample counter field",
+    )
+    probe = replace_once(
+        probe,
+        "        identityBearingIdHashLeaks.set(0); faceDownHiddenSamples.set(0); decodedTransportSamples.set(0);\n",
+        "        identityBearingIdHashLeaks.set(0); faceDownHiddenSamples.set(0); decodedTransportSamples.set(0); fullStateSamples.set(0);\n",
+        "full-state sample counter reset",
+    )
+    probe = replace_once(
+        probe,
+        "        decodedTransportSamples.incrementAndGet();\n\n        for (PlayerView owner : gameView.getPlayers()) {\n",
+        "        decodedTransportSamples.incrementAndGet();\n        if (source != null && source.startsWith(\"full:\")) fullStateSamples.incrementAndGet();\n\n        for (PlayerView owner : gameView.getPlayers()) {\n",
+        "full-state decoded callback count",
+    )
+    probe = replace_once(
+        probe,
+        "    public static long transportSamples() { return decodedTransportSamples.get(); }\n",
+        "    public static long transportSamples() { return decodedTransportSamples.get(); }\n    public static long fullStateSamples() { return fullStateSamples.get(); }\n",
+        "full-state sample getter",
+    )
+    require("fullStateSamples" in probe and 'source.startsWith("full:")' in probe, "derived full-state probe missing")
+    probe_path.write_text(probe, encoding="utf-8")
+
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(s, encoding="utf-8")
-    print("WS33_G_ABILITY_HARNESS_PREP=PASS cases=28 direct_resolution=0 manual_target_injection=0 target_setup=SpellAbility.setupTargets stack_entry=MagicStack.addAndUnfreeze stack_resolution=MagicStack.resolveStack admission_gate=STRICT campaign_entry=PRODUCTION_QUIESCENT evidence_window=CLIENT_BARRIERED generic_library_fixture=TRUE observation_ui=EXTERNAL_OVERLAY")
+    print("WS33_G_ABILITY_HARNESS_PREP=PASS cases=28 direct_resolution=0 manual_target_injection=0 target_setup=SpellAbility.setupTargets stack_entry=MagicStack.addAndUnfreeze stack_resolution=MagicStack.resolveStack admission_gate=STRICT campaign_entry=PRODUCTION_QUIESCENT evidence_window=FULL_STATE_ACK_BARRIER generic_library_fixture=LAND_LAND_CREATURE_NONCREATURE observation_ui=EXTERNAL_OVERLAY")
 
 if __name__ == "__main__":
     main()
