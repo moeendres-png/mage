@@ -52,7 +52,7 @@ jobs:
           test "sha256:$(sha256sum generated/behavior.zip | cut -d' ' -f1)" = "$BEHAVIOR_ARTIFACT_DIGEST"
           unzip -q generated/behavior.zip -d generated/source
           test -s generated/source/g-ability-cases.tsv
-          jq -e '.status=="PASS" and .expected_paths==28 and .failure_count==0 and .record_pass==28 and .replay_pass==28 and .semantic_replay=="PASS" and .coverage_mutated==false' generated/source/diagnostic/WS33_G_ABILITY_DIAGNOSTIC.json
+          jq -e '.schema=="commander-simulator-next.ws33-g-ability-diagnostic.v4" and .status=="PASS" and .expected_paths==28 and .failure_count==0 and .record_rows==28 and .record_status.PASS==28 and .replay_rows==28 and .replay_status.PASS==28 and .stack_admission_required==true and .stack_resolution_required==true and .semantic_replay_equality_required_for_observed_decision_or_rng==true and .requirements_are_minimum_evidence_obligations==true and .coverage_mutated==false' generated/source/diagnostic/WS33_G_ABILITY_DIAGNOSTIC.json
 
           mmeta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID")"
           test "$(jq -r .digest <<<"$mmeta")" = "$MODEL_ARTIFACT_DIGEST"
@@ -241,11 +241,10 @@ jobs:
           missing=sorted(p for p in req_dec if not accepted[p])
           assert not missing,missing
           assert all(len(path_requests[p])>0 for p in req_dec)
-          # Minimum evidence semantics: non-required paths are allowed to have decisions.
 
           rng_paths=defaultdict(list)
           for line in Path('generated/source/record/rng-events-with-path.tsv').read_text().splitlines():
-              f=line.split('\t',-1); path=dec(f[0]);
+              f=line.split('\t',-1); path=dec(f[0])
               if path in cases:
                   event={'event_index':int(f[1]),'game_id':dec(f[2]),'stream':dec(f[3]),'draw_index':int(f[4]),'bits':int(f[5]),'result':int(f[6])}
                   event['pre_state']=f"{event['game_id']}|{event['stream']}|draw={event['draw_index']}"
