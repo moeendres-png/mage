@@ -43,14 +43,77 @@ def main() -> int:
         "InputConfirm external decision",
     )
 
+    # The WS33 qualification harness needs a transport barrier that proves the remote
+    # principal has processed all previously queued deltas without sending a full-state
+    # snapshot and without manufacturing a pilot/rules decision.  Add a payload-free,
+    # Boolean-returning protocol method.  GameClientHandler dispatches server protocol
+    # calls to the same GUI event queue as applyDelta; the reply is therefore emitted
+    # only after earlier deltas have been applied by the client-side GUI projection.
+    gui_interface = root / "forge-gui/src/main/java/forge/gui/interfaces/IGuiGame.java"
+    replace_once(
+        gui_interface,
+        """    default void setGameView(GameView gameView, long sequenceNumber) {
+        setGameView(gameView);
+    }
+    void setGameView(GameView gameView);
+""",
+        """    default void setGameView(GameView gameView, long sequenceNumber) {
+        setGameView(gameView);
+    }
+    default boolean ws33TransportBarrier() {
+        return true;
+    }
+    void setGameView(GameView gameView);
+""",
+        "WS33 payload-free transport barrier interface",
+    )
+
+    protocol = root / "forge-gui/src/main/java/forge/gamemodes/net/ProtocolMethod.java"
+    replace_once(
+        protocol,
+        """    setGameView         (Mode.SERVER, Void.TYPE, GameView.class, Long.TYPE),
+    openView            (Mode.SERVER, Void.TYPE, TrackableCollection/*PlayerView*/.class),
+""",
+        """    setGameView         (Mode.SERVER, Void.TYPE, GameView.class, Long.TYPE),
+    ws33TransportBarrier(Mode.SERVER, Boolean.TYPE),
+    openView            (Mode.SERVER, Void.TYPE, TrackableCollection/*PlayerView*/.class),
+""",
+        "WS33 payload-free transport barrier protocol",
+    )
+
+    remote = root / "forge-gui/src/main/java/forge/gamemodes/net/server/RemoteClientGuiGame.java"
+    replace_once(
+        remote,
+        """    public void updateGameView() {
+        updateGameView(true);
+    }
+    private void updateGameView(boolean flush) {
+""",
+        """    public void updateGameView() {
+        updateGameView(true);
+    }
+
+    public void awaitWs33TransportBarrier() {
+        final Boolean acknowledged = sender.sendAndWait(ProtocolMethod.ws33TransportBarrier);
+        if (!Boolean.TRUE.equals(acknowledged)) {
+            throw new IllegalStateException(\"WS33 remote transport barrier was not acknowledged\");
+        }
+    }
+
+    private void updateGameView(boolean flush) {
+""",
+        "WS33 remote client processed transport barrier",
+    )
+
     # PlayerControllerHuman.reveal() is not a discretionary rules choice.  In
     # stock Forge it temporarily grants look permission, renders a zone/dialog,
     # and blocks for an acknowledgement that can also install an auto-pass UI
     # preference.  Under an external pilot, keep only the principal-scoped
     # observation semantics: grant temporary visibility, flush the authoritative
     # principal projection through the real RemoteClientGuiGame delta transport,
-    # revoke visibility, and flush the revocation.  Never invoke the GUI dialog,
-    # never infer a decision, and never install an auto-pass side effect.
+    # wait until the entitled client has processed the grant, revoke visibility,
+    # flush again, and wait until revocation is processed. Never invoke the GUI
+    # dialog, infer a decision, or install an auto-pass side effect.
     human = root / "forge-gui/src/main/java/forge/player/PlayerControllerHuman.java"
     replace_once(
         human,
@@ -66,11 +129,13 @@ def main() -> int:
                 try {
                     if (gui instanceof RemoteClientGuiGame remoteGui) {
                         remoteGui.updateGameView();
+                        remoteGui.awaitWs33TransportBarrier();
                     }
                 } finally {
                     endTempShowCards();
                     if (gui instanceof RemoteClientGuiGame remoteGui) {
                         remoteGui.updateGameView();
+                        remoteGui.awaitWs33TransportBarrier();
                     }
                 }
             }
@@ -88,6 +153,9 @@ def main() -> int:
     print("WS33_REVEAL_GUI_BLOCK_EXTERNAL_MODE=0")
     print("WS33_REVEAL_AUTOPASS_SIDE_EFFECT_EXTERNAL_MODE=0")
     print("WS33_REVEAL_TRANSPORT=REMOTE_CLIENT_DELTA")
+    print("WS33_TRANSPORT_BARRIER=CLIENT_PROCESSED_REPLY")
+    print("WS33_TRANSPORT_BARRIER_FULL_STATE=0")
+    print("WS33_TRANSPORT_BARRIER_DECISION=0")
     return 0
 
 
