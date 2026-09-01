@@ -1,0 +1,109 @@
+name: WS33 integrated G requirement materialize
+
+on:
+  push:
+    branches: [work/ws33-integrated-closure-20260831]
+    paths:
+      - '.github/workflows/ws33-integrated-g-requirement-materialize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+  H_SOURCE_HEAD: 4596a58287ccd0f2b432ebeca2b4fd0d8bec4df3
+  H_ARTIFACT_ID: '9766400471'
+  H_ARTIFACT_DIGEST: sha256:a28834e59b86468dc8855c5db5b1f433cfa17b5eded2bc4061092566f95f4372
+  ERRATA_SOURCE_HEAD: e6bdab170ea9050fb86f2f9f948bab9bf92a6e38
+  ERRATA_ARTIFACT_ID: '9822685407'
+  ERRATA_ARTIFACT_DIGEST: sha256:81e1e24551403453e4dd32e9ed65951cbaca2776cc993eddf475b4214a67a424
+  SUCCESSOR_MODEL_SHA: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact integrated head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify source ancestry and branch head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git merge-base --is-ancestor "$H_SOURCE_HEAD" "$GITHUB_SHA"
+          git merge-base --is-ancestor "$ERRATA_SOURCE_HEAD" "$GITHUB_SHA"
+
+      - name: Download exact immutable H and qualified errata artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf generated
+          mkdir -p generated/h generated/errata generated/qualification
+
+          hmeta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$H_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$hmeta")" = "$H_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$hmeta")" = "$H_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$H_ARTIFACT_ID/zip" > generated/h.zip
+          test "sha256:$(sha256sum generated/h.zip | cut -d' ' -f1)" = "$H_ARTIFACT_DIGEST"
+          unzip -q generated/h.zip -d generated/h
+          test -d generated/h/ws33
+
+          emeta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ERRATA_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$emeta")" = "$ERRATA_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$emeta")" = "$ERRATA_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$ERRATA_ARTIFACT_ID/zip" > generated/errata.zip
+          test "sha256:$(sha256sum generated/errata.zip | cut -d' ' -f1)" = "$ERRATA_ARTIFACT_DIGEST"
+          unzip -q generated/errata.zip -d generated/errata
+          test -d generated/errata/successor/ws33
+          test "$(sha256sum generated/errata/successor/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)" = "$SUCCESSOR_MODEL_SHA"
+          jq -e '.status=="PASS" and .corrected_path_count==60 and .pass_paths_changed==0 and .coverage_mutated==false and .successor_effective_model_sha256=="cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224"' generated/errata/qualification/WS33_G_REQUIREMENT_ERRATA_GATE.json
+
+      - name: Materialize only qualified canonical deltas
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_materialize_g_requirement_successor.py" \
+            --root "$ROOT" \
+            --base generated/h/ws33 \
+            --successor generated/errata/successor/ws33 \
+            --out generated/qualification/materialized-files.txt
+
+      - name: Verify canonical migrated model
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(sha256sum "$ROOT/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json" | cut -d' ' -f1)" = "$SUCCESSOR_MODEL_SHA"
+          jq -e '.status_counts.PASS==285 and .status_counts.UNKNOWN==3903 and (.status_counts.FAIL // 0)==0 and (.status_counts.UNSUPPORTED // 0)==0' "$ROOT/WS33_PATH_COVERAGE.json"
+          jq -e '.WS33_MODEL_ERRATA_GATE=="PASS" and .evidence_requirement_errata_generation==1 and .evidence_requirement_corrected_path_count==60 and .evidence_requirement_pass_paths_changed==0' "$ROOT/WS33_MODEL_GATE.json"
+          jq -e '.PARTITION_DISJOINT==true and .PARTITION_COMPLETE==true and .authoritative_unknown_count==3903' "$ROOT/WS33_PARALLEL_PARTITION_INVARIANTS.json"
+          jq -e '.WS33_WITNESS_ABI_V2_1_GATE=="PASS" and .negative_fixtures_rejected_for_intended_reason==true and .campaign_positives_accepted==true and .evidence_requirement_errata_generation==1' "$ROOT/abi/WS33_WITNESS_ABI_GATE.json"
+          python "$ROOT/ws33_verify.py" --root "$ROOT" | tee generated/qualification/ws33-verify.log
+          (cd "$ROOT" && sha256sum -c WS33_HASHES.sha256) > generated/qualification/internal-hashes.log
+
+      - name: Commit canonical successor with remote-head CAS
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t rels < generated/qualification/materialized-files.txt
+          for rel in "${rels[@]}"; do
+            test -n "$rel" && git add "$ROOT/$rel"
+          done
+          git diff --cached --check
+          if test -z "$(git diff --cached --name-only)"; then
+            echo 'WS33_G_REQUIREMENT_CANONICAL_COMMIT=NOOP_ALREADY_MATERIALIZED'
+            exit 0
+          fi
+          git fetch --no-tags origin work/ws33-integrated-closure-20260831
+          test "$(git rev-parse origin/work/ws33-integrated-closure-20260831)" = "$GITHUB_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'ws33: canonicalize G requirement model successor'
+          git push origin "HEAD:work/ws33-integrated-closure-20260831"
