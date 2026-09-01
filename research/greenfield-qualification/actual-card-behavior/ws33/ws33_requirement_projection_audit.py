@@ -2,20 +2,21 @@
 """Audit WS33 evidence requirements against pinned Forge, conservatively.
 
 Generation 2 froze path identity correctly, but its required_* evidence flags inherited
-class-wide WS26 signals.  This audit is deliberately non-mutating.  It currently owns
-one source-proven correction scope only: HIDDEN_RNG_REPLAY (WS33G).  Every non-G path
+class-wide WS26 signals. This audit is deliberately non-mutating. It currently owns
+one source-proven correction scope only: HIDDEN_RNG_REPLAY (WS33G). Every non-G path
 is preserved byte-for-byte at the requirement level until an equally strong consumer
 model exists for that family.
 
 The G policy is derived from the actual pinned Forge effect implementations and active
-path selectors.  It therefore distinguishes, for example:
+path selectors. It therefore distinguishes, for example:
 * Scry/Surveil: hidden information + player arrangement decision, no intrinsic RNG.
 * FlipCoin: RNG plus a heads/tails call unless NoCall is active.
 * Dig: private-zone handling, selector-dependent card/order choices, RNG only when an
   active RandomChange/RestRandomOrder branch requests it.
 * Discover: public reveal from a hidden library, cast-vs-hand choice, random rest order.
-* DigUntil: selector-dependent optional/order choices and RNG only for Shuffle or
-  RevealRandomOrder.
+* DigUntil: optional/attachment/target choices plus ordering only when the actual
+  revealed destination is a known zone (or a non-random library reorder); RNG only for
+  Shuffle or RevealRandomOrder.
 No PASS path may acquire a stronger requirement through this audit; that fails closed.
 """
 from __future__ import annotations
@@ -128,6 +129,17 @@ def private_zone_value(value: str) -> bool:
     return bool(tokens & {"library", "hand"})
 
 
+def known_zone_value(value: str) -> bool:
+    # Pinned ZoneType marks these as hidden. DigUntil only asks the controller to
+    # order revealed cards when finalDest.isKnown(), except for an explicitly
+    # non-random Library destination handled by the adjacent source condition.
+    hidden = {
+        "hand", "library", "sideboard", "schemedeck", "planardeck",
+        "attractiondeck", "contraptiondeck", "subgame", "extrahand", "none",
+    }
+    return value.strip().lower() not in hidden
+
+
 def source_proof(target: str, forge_root: Path) -> dict[str, Any]:
     source = class_source(target, forge_root)
     require(source is not None, "missing pinned Forge source for G target " + target)
@@ -175,7 +187,7 @@ def project_g(path: dict[str, Any], forge_root: Path) -> tuple[dict[str, bool], 
         decision = truthy(selectors, "Optional") or truthy(selectors, "ValidTgts")
         reasons.append("ShuffleEffect delegates library randomization to Player.shuffle")
         if decision:
-            reasons.append("active Optional/target selector requires a player transition")
+            reasons.append("active Optional/target selector requires player choice")
     elif simple == "PeekAndRevealEffect":
         hidden = True
         decision = truthy(selectors, "RevealOptional") or truthy(selectors, "ValidTgts")
@@ -242,19 +254,28 @@ def project_g(path: dict[str, Any], forge_root: Path) -> tuple[dict[str, bool], 
     elif simple == "DigUntilEffect":
         dig_zone = selectors.get("DigZone", "Library")
         hidden = private_zone_value(dig_zone)
-        rng = truthy(selectors, "Shuffle") or truthy(selectors, "RevealRandomOrder")
+        shuffle = truthy(selectors, "Shuffle")
+        reveal_random = truthy(selectors, "RevealRandomOrder")
+        rng = shuffle or reveal_random
         decision = any(
             truthy(selectors, key)
             for key in ("Optional", "OptionalFoundMove", "AttachedTo", "ValidTgts")
         )
         if not truthy(selectors, "NoMoveRevealed"):
-            decision = True
+            revealed_dest = selectors.get("RevealedDestination", "")
+            order_revealed = bool(revealed_dest) and (
+                known_zone_value(revealed_dest)
+                or (revealed_dest.strip().lower() == "library" and not shuffle and not reveal_random)
+            )
+            decision = decision or order_revealed
+            if order_revealed:
+                reasons.append("active revealed destination reaches DigUntil orderMoveToZoneList when multiple cards are revealed")
         if hidden:
             reasons.append("active DigUntil source zone is private")
         if rng:
             reasons.append("active Shuffle/RevealRandomOrder branch consumes Forge RNG")
-        if decision:
-            reasons.append("active path reaches optional/target/attachment or revealed-card ordering")
+        if decision and not any("orderMoveToZoneList" in reason for reason in reasons):
+            reasons.append("active path reaches optional/target/attachment choice")
     elif simple == "RearrangeTopOfLibraryEffect":
         decision = True
         hidden = True
@@ -301,7 +322,7 @@ def project_g(path: dict[str, Any], forge_root: Path) -> tuple[dict[str, bool], 
     replay = decision or rng
     projected = {"decision": decision, "rng": rng, "hidden": hidden, "replay": replay}
     return projected, {
-        "basis": "PINNED_FORGE_G_EFFECT_BRANCH_POLICY_V1",
+        "basis": "PINNED_FORGE_G_EFFECT_BRANCH_POLICY_V2",
         "active_selectors": dict(sorted(selectors.items())),
         "projection_reasons": reasons,
         **proof,
@@ -391,7 +412,7 @@ def main() -> None:
             })
 
     result = {
-        "schema": "commander-simulator-next.ws33-requirement-projection-audit.v3",
+        "schema": "commander-simulator-next.ws33-requirement-projection-audit.v4",
         "forge_pin": PIN,
         "manifest_sha256": hashlib.sha256(args.manifest.read_bytes()).hexdigest(),
         "effective_path_count": len(paths),
