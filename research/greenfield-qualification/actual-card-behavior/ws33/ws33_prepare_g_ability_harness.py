@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Prepare a Generation-2-admissible direct-ABILITY subset of the historical WS31 harness.
+"""Prepare a fail-closed Generation-2 direct-ABILITY G harness.
 
 Historical WS31 contributes scenario/case infrastructure only. The historical direct
 SpellAbility.resolve() shortcut and manual target injection are explicitly removed.
-The prepared harness routes the actual parsed ability through MagicStack and delegates
-target legality/selection to the Forge controller/WS01 external decision boundary.
+The prepared harness uses Forge's own SpellAbility.setupTargets() traversal, admits the
+actual parsed ability through MagicStack.addAndUnfreeze(), and resolves through
+MagicStack.resolveStack(). Every case records explicit stack-admission and completed-
+resolution evidence; a silent MagicStack target rejection therefore cannot become PASS.
 """
 from __future__ import annotations
 import argparse
@@ -29,9 +31,9 @@ def main() -> None:
     args = ap.parse_args()
     s = args.source.read_text(encoding="utf-8")
 
-    # The historical target helper used GameObject for test-side target search. Gen2
-    # removes that helper entirely and delegates target legality/selection to Forge,
-    # so keeping the import makes the generated Java fail the pinned checkstyle gate.
+    # Historical WS31 manually scanned GameObjects and injected a target.  Gen2 must
+    # instead use the production SpellAbility target-setup traversal, so GameObject is
+    # no longer required by the generated harness.
     s = replace_once(s, "import forge.game.GameObject;\n", "", "obsolete GameObject import")
     s = replace_once(
         s,
@@ -45,15 +47,33 @@ def main() -> None:
         'Card source=addCard(spec.cardName,actor,"SP$".equals(spec.sourceToken)?ZoneType.Hand:ZoneType.Battlefield);',
         "source zone",
     )
-    s = replace_once(
-        s,
-        'bindTarget(sa,game,actor,opponent);ce.beforeState=semanticState(game);ce.beforeDigest=sha256(ce.beforeState);sa.resolve();game.getAction().checkStateEffects(true);',
-        'bindTarget(sa,actor);ce.beforeState=semanticState(game);ce.beforeDigest=sha256(ce.beforeState);game.getStack().add(sa);while(!game.getStack().isEmpty())game.getStack().resolveStack();game.getAction().checkStateEffects(true);',
-        "stack resolution",
+
+    old_evidence = 'final CaseSpec spec; String status="UNKNOWN",failureType="",failureMessage="",beforeDigest="",afterDigest="",beforeState="",afterState=""; long decisionEvents,rngEvents,leakDelta,crossPrincipalDelta;'
+    new_evidence = 'final CaseSpec spec; String status="UNKNOWN",failureType="",failureMessage="",beforeDigest="",afterDigest="",beforeState="",afterState=""; long decisionEvents,rngEvents,leakDelta,crossPrincipalDelta,stackAdmissions,stackResolutions;'
+    s = replace_once(s, old_evidence, new_evidence, "stack evidence fields")
+
+    old_resolution = 'bindTarget(sa,game,actor,opponent);ce.beforeState=semanticState(game);ce.beforeDigest=sha256(ce.beforeState);sa.resolve();game.getAction().checkStateEffects(true);'
+    new_resolution = (
+        'bindTargets(sa);'
+        'if(!game.getStack().isEmpty()||game.getStack().isFrozen()||game.getStack().isResolving())'
+        'throw new IllegalStateException("non-quiescent stack before exact path");'
+        'ce.beforeState=semanticState(game);ce.beforeDigest=sha256(ce.beforeState);'
+        'game.getStack().addAndUnfreeze(sa);'
+        'if(game.getStack().isEmpty())throw new IllegalStateException("MagicStack admission failed for exact path");'
+        'ce.stackAdmissions++;int stackSteps=0;'
+        'while(!game.getStack().isEmpty()){if(++stackSteps>256)throw new IllegalStateException("stack did not quiesce after exact path");game.getStack().resolveStack();}'
+        'if(game.getStack().isFrozen()||game.getStack().isResolving())throw new IllegalStateException("stack remained non-quiescent after exact path");'
+        'ce.stackResolutions++;game.getAction().checkStateEffects(true);'
     )
+    s = replace_once(s, old_resolution, new_resolution, "production stack resolution")
+
     old_target = 'private static void bindTarget(SpellAbility sa,Game game,Player actor,Player opponent){if(!sa.usesTargeting())return;List<GameObject>candidates=new ArrayList<>();candidates.add(opponent);candidates.add(actor);for(Player p:game.getPlayers())if(!candidates.contains(p))candidates.add(p);for(Card c:game.getCardsInGame())candidates.add(c);for(GameObject c:candidates){try{if(sa.canTarget(c)){sa.getTargets().add(c);return;}}catch(RuntimeException ignored){}}throw new IllegalStateException("no legal target available for exact path");}'
-    new_target = 'private static void bindTarget(SpellAbility sa,Player actor){if(!sa.usesTargeting())return;if(!sa.getTargets().isEmpty())throw new IllegalStateException("pre-populated targets forbidden");if(!actor.getController().chooseTargetsFor(sa))throw new IllegalStateException("Forge authoritative target selection rejected");if(!sa.isTargetNumberValid())throw new IllegalStateException("Forge target count invalid after authoritative selection");}'
-    s = replace_once(s, old_target, new_target, "authoritative target boundary")
+    new_target = 'private static void bindTargets(SpellAbility sa){for(SpellAbility cur=sa;cur!=null;cur=cur.getSubAbility())if(!cur.getTargets().isEmpty())throw new IllegalStateException("pre-populated targets forbidden");if(!sa.setupTargets())throw new IllegalStateException("Forge SpellAbility.setupTargets rejected exact path");for(SpellAbility cur=sa;cur!=null;cur=cur.getSubAbility())if(cur.usesTargeting()&&!cur.isTargetNumberValid())throw new IllegalStateException("Forge target count invalid after SpellAbility.setupTargets");}'
+    s = replace_once(s, old_target, new_target, "authoritative recursive target setup")
+
+    old_summary = 'enc(e.failureType),enc(e.failureMessage),enc(e.beforeState),enc(e.afterState)))'
+    new_summary = 'enc(e.failureType),enc(e.failureMessage),enc(e.beforeState),enc(e.afterState),Long.toString(e.stackAdmissions),Long.toString(e.stackResolutions)))'
+    s = replace_once(s, old_summary, new_summary, "case-summary stack evidence")
 
     s = s.replace("Ws31HiddenRngReplayQualificationTest", "Ws33GAbilityQualificationTest")
     s = s.replace("WS31 exact-path hidden/RNG/replay qualification campaign.", "WS33 Gen2 direct-ABILITY hidden/RNG/replay diagnostic campaign.")
@@ -61,13 +81,16 @@ def main() -> None:
     s = s.replace("WS31 campaign", "WS33 G-ABILITY campaign")
 
     require("sa.resolve()" not in s, "direct SpellAbility.resolve remains")
-    require("getStack().add(sa)" in s and "getStack().resolveStack()" in s, "MagicStack route missing")
+    require("getStack().add(sa)" not in s, "raw MagicStack.add remains")
+    require("getStack().addAndUnfreeze(sa)" in s and "getStack().resolveStack()" in s, "production MagicStack route missing")
     require("sa.getTargets().add(" not in s, "manual target injection remains")
-    require("actor.getController().chooseTargetsFor(sa)" in s, "Forge controller target boundary missing")
+    require("sa.setupTargets()" in s, "Forge recursive target-setup boundary missing")
+    require("chooseTargetsFor(sa)" not in s, "root-only target helper remains")
+    require("stackAdmissions" in s and "stackResolutions" in s, "stack admission/resolution evidence missing")
     require("import forge.game.GameObject;" not in s, "obsolete target-search import remains")
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(s, encoding="utf-8")
-    print("WS33_G_ABILITY_HARNESS_PREP=PASS cases=28 direct_resolution=0 manual_target_injection=0 target_authority=FORGE_CONTROLLER stack=MagicStack")
+    print("WS33_G_ABILITY_HARNESS_PREP=PASS cases=28 direct_resolution=0 manual_target_injection=0 target_setup=SpellAbility.setupTargets stack_entry=MagicStack.addAndUnfreeze stack_resolution=MagicStack.resolveStack admission_gate=STRICT")
 
 if __name__ == "__main__":
     main()
