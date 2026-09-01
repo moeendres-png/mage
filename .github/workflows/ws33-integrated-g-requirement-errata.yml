@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/ws33-integrated-g-requirement-errata.yml'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_apply_g_requirement_errata.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_verify.py'
   workflow_dispatch:
 
 permissions:
