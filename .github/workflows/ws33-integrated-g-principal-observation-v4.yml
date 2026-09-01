@@ -197,3 +197,5 @@ jobs:
             generated/replay/
             generated/overlay-logs/
           if-no-files-found: error
+
+# Requalification trigger: verifier-normalized direct-G principal observation.
