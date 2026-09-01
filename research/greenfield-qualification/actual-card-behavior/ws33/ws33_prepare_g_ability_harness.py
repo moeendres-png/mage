@@ -7,6 +7,8 @@ The prepared harness uses Forge's own SpellAbility.setupTargets() traversal, adm
 actual parsed ability through MagicStack.addAndUnfreeze(), and resolves through
 MagicStack.resolveStack(). Every case records explicit stack-admission and completed-
 resolution evidence; a silent MagicStack target rejection therefore cannot become PASS.
+Runtime observation-only UI paths (for example reveal/look presentation) are expected to
+be externalized by the Gen2 overlay stack without becoming pilot decisions.
 """
 from __future__ import annotations
 import argparse
@@ -100,7 +102,7 @@ def main() -> None:
     require("import forge.game.GameObject;" not in s, "obsolete target-search import remains")
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(s, encoding="utf-8")
-    print("WS33_G_ABILITY_HARNESS_PREP=PASS cases=28 direct_resolution=0 manual_target_injection=0 target_setup=SpellAbility.setupTargets stack_entry=MagicStack.addAndUnfreeze stack_resolution=MagicStack.resolveStack admission_gate=STRICT campaign_entry=PRODUCTION_QUIESCENT")
+    print("WS33_G_ABILITY_HARNESS_PREP=PASS cases=28 direct_resolution=0 manual_target_injection=0 target_setup=SpellAbility.setupTargets stack_entry=MagicStack.addAndUnfreeze stack_resolution=MagicStack.resolveStack admission_gate=STRICT campaign_entry=PRODUCTION_QUIESCENT observation_ui=EXTERNAL_OVERLAY")
 
 if __name__ == "__main__":
     main()
