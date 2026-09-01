@@ -60,6 +60,9 @@ jobs:
           gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID/zip" > generated/model.zip
           test "sha256:$(sha256sum generated/model.zip | cut -d' ' -f1)" = "$MODEL_ARTIFACT_DIGEST"
           unzip -q generated/model.zip -d generated/model
+          if test -d generated/model/output/ws33; then
+            mv generated/model/output/ws33 generated/model/ws33
+          fi
           test -d generated/model/ws33
           test "$(sha256sum generated/model/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)" = "$MODEL_SHA"
           jq -e '.status_counts.PASS==285 and .status_counts.UNKNOWN==3903' generated/model/ws33/WS33_PATH_COVERAGE.json
