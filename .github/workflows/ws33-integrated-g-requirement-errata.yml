@@ -150,3 +150,5 @@ jobs:
             generated/qualification
           if-no-files-found: error
           retention-days: 90
+
+# Requalification trigger: source-proven G evidence requirements.
