@@ -8,6 +8,7 @@ from collections import Counter
 from pathlib import Path
 
 ALLOWED_STATUS = {"PASS", "FAIL", "UNSUPPORTED", "UNKNOWN"}
+STATUS_KEYS = ("PASS", "FAIL", "UNSUPPORTED", "UNKNOWN")
 LEGACY_ERRATA_IDS = {
     "forge-behavior-v2:452495ff67d15f9989748411f5ec41067e039c7b",
     "forge-behavior-v2:6dfbc7e6fb17a15e4445462f4383e6ebcf7ffedf",
@@ -31,6 +32,13 @@ def digest(path: Path) -> str:
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise SystemExit("WS33_VERIFY=FAIL " + message)
+
+
+def normalized_status_counts(value: dict) -> dict[str, int]:
+    """Canonical WS33 JSON may omit zero-valued status keys; compare semantically."""
+    require(isinstance(value, dict), "status counts are not an object")
+    require(set(value) <= set(STATUS_KEYS), "status counts contain unknown key")
+    return {key: int(value.get(key, 0)) for key in STATUS_KEYS}
 
 
 def main() -> None:
@@ -70,7 +78,7 @@ def main() -> None:
     require(len({row["effective_v2_path_id"] for row in coverage_rows}) == len(paths), "duplicate authoritative coverage")
     require(all(row["status"] in ALLOWED_STATUS for row in coverage_rows), "invalid coverage status")
     actual_counts = Counter(row["status"] for row in coverage_rows)
-    require({key: actual_counts.get(key, 0) for key in ("PASS", "FAIL", "UNSUPPORTED", "UNKNOWN")} == coverage["status_counts"], "coverage status count mismatch")
+    require({key: actual_counts.get(key, 0) for key in STATUS_KEYS} == normalized_status_counts(coverage["status_counts"]), "coverage status count mismatch")
     for row in coverage_rows:
         if row["status"] == "PASS":
             require(row["state_evidence"] is True, "PASS without state evidence")
@@ -169,7 +177,7 @@ def main() -> None:
 
     gate = load(root / "WS33_Q6_CANDIDATE_GATE.json")
     require(gate["effective_path_count"] == len(paths), "Q6 effective count")
-    require(gate["path_status_counts"] == {key: actual_counts.get(key, 0) for key in ("PASS", "FAIL", "UNSUPPORTED", "UNKNOWN")}, "Q6 gate count mismatch")
+    require(normalized_status_counts(gate["path_status_counts"]) == {key: actual_counts.get(key, 0) for key in STATUS_KEYS}, "Q6 gate count mismatch")
     template_counts = Counter(row["status"] for row in templates)
     require(gate["scenario_group_counts"] == {key: template_counts.get(key, 0) for key in ("FULLY_EXECUTED", "PARTIALLY_EXECUTED", "MISSING_SCENARIO_TEMPLATE")}, "Q6 scenario counts")
     require(gate["incomplete_scenario_group_count"] == sum(count for key, count in template_counts.items() if key != "FULLY_EXECUTED"), "Q6 incomplete group count")
