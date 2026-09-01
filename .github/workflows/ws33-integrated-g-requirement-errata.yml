@@ -104,7 +104,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          jq -e '.status_counts.PASS == 285 and .status_counts.UNKNOWN == 3903 and .status_counts.FAIL == 0 and .status_counts.UNSUPPORTED == 0' generated/successor/ws33/WS33_PATH_COVERAGE.json
+          jq -e '.status_counts.PASS == 285 and .status_counts.UNKNOWN == 3903 and (.status_counts.FAIL // 0) == 0 and (.status_counts.UNSUPPORTED // 0) == 0' generated/successor/ws33/WS33_PATH_COVERAGE.json
           jq -e '.WS33_MODEL_ERRATA_GATE == "PASS" and .evidence_requirement_errata_generation == 1 and .evidence_requirement_corrected_path_count == 60 and .evidence_requirement_pass_paths_changed == 0' generated/successor/ws33/WS33_MODEL_GATE.json
           jq -e '.evidence_requirement_errata.generation == 1 and .evidence_requirement_errata.scope == "HIDDEN_RNG_REPLAY" and .evidence_requirement_errata.corrected_path_count == 60 and .evidence_requirement_errata.pass_paths_changed == 0 and .evidence_requirement_errata.historical_artifacts_mutated == false' generated/successor/ws33/WS33_MODEL_ERRATA.json
           jq -e '.PARTITION_DISJOINT == true and .PARTITION_COMPLETE == true and .authoritative_unknown_count == 3903' generated/successor/ws33/WS33_PARALLEL_PARTITION_INVARIANTS.json
