@@ -48,6 +48,15 @@ def main() -> None:
         "source zone",
     )
 
+    # The semantic-state observer can fire while Forge is legitimately resolving an
+    # unrelated production stack entry.  Starting the campaign there made every case
+    # fail the strict pre-admission gate even though the campaign had not touched the
+    # stack.  Defer campaign start until Forge itself reaches a quiescent checkpoint;
+    # never clear, thaw, or resolve the pre-existing stack from qualification code.
+    old_ready = 'private static boolean ready(Game game){if(game.getAge()!=GameStage.Play||game.getRegisteredPlayers().size()!=4)return false;for(Player p:game.getRegisteredPlayers())if(!(p.getController() instanceof PlayerControllerHuman))return false;return true;}'
+    new_ready = 'private static boolean ready(Game game){if(game.getAge()!=GameStage.Play||game.getRegisteredPlayers().size()!=4)return false;for(Player p:game.getRegisteredPlayers())if(!(p.getController() instanceof PlayerControllerHuman))return false;if(!game.getStack().isEmpty()||game.getStack().isFrozen()||game.getStack().isResolving())return false;return true;}'
+    s = replace_once(s, old_ready, new_ready, "production-quiescent campaign entry")
+
     old_evidence = 'final CaseSpec spec; String status="UNKNOWN",failureType="",failureMessage="",beforeDigest="",afterDigest="",beforeState="",afterState=""; long decisionEvents,rngEvents,leakDelta,crossPrincipalDelta;'
     new_evidence = 'final CaseSpec spec; String status="UNKNOWN",failureType="",failureMessage="",beforeDigest="",afterDigest="",beforeState="",afterState=""; long decisionEvents,rngEvents,leakDelta,crossPrincipalDelta,stackAdmissions,stackResolutions;'
     s = replace_once(s, old_evidence, new_evidence, "stack evidence fields")
@@ -87,10 +96,11 @@ def main() -> None:
     require("sa.setupTargets()" in s, "Forge recursive target-setup boundary missing")
     require("chooseTargetsFor(sa)" not in s, "root-only target helper remains")
     require("stackAdmissions" in s and "stackResolutions" in s, "stack admission/resolution evidence missing")
+    require("!game.getStack().isEmpty()||game.getStack().isFrozen()||game.getStack().isResolving()" in s, "production-quiescent campaign gate missing")
     require("import forge.game.GameObject;" not in s, "obsolete target-search import remains")
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(s, encoding="utf-8")
-    print("WS33_G_ABILITY_HARNESS_PREP=PASS cases=28 direct_resolution=0 manual_target_injection=0 target_setup=SpellAbility.setupTargets stack_entry=MagicStack.addAndUnfreeze stack_resolution=MagicStack.resolveStack admission_gate=STRICT")
+    print("WS33_G_ABILITY_HARNESS_PREP=PASS cases=28 direct_resolution=0 manual_target_injection=0 target_setup=SpellAbility.setupTargets stack_entry=MagicStack.addAndUnfreeze stack_resolution=MagicStack.resolveStack admission_gate=STRICT campaign_entry=PRODUCTION_QUIESCENT")
 
 if __name__ == "__main__":
     main()
