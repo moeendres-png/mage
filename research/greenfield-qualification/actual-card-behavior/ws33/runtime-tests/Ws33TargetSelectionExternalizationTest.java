@@ -165,6 +165,7 @@ public final class Ws33TargetSelectionExternalizationTest extends AITest {
 
     private static void assertTypedEntityOptions(final ExternalDecisionRequest request) {
         Assert.assertEquals(request.getDecisionKind(), "TARGET_SELECTION");
+        Assert.assertEquals(request.getVisibilityScope(), ExternalDecisionRequest.VISIBILITY_PRINCIPAL_ONLY);
         Assert.assertEquals(request.getMinimumSelection(), 1);
         Assert.assertEquals(request.getMaximumSelection(), 1);
         for (final ExternalDecisionRequest.Option option : request.getOptions()) {
