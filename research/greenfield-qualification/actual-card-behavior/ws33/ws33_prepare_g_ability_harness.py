@@ -33,7 +33,7 @@ def main() -> None:
     args = ap.parse_args()
     s = args.source.read_text(encoding="utf-8")
 
-    # Historical WS31 manually scanned GameObjects and injected a target.  Gen2 must
+    # Historical WS31 manually scanned GameObjects and injected a target. Gen2 must
     # instead use the production SpellAbility target-setup traversal, so GameObject is
     # no longer required by the generated harness.
     s = replace_once(s, "import forge.game.GameObject;\n", "", "obsolete GameObject import")
@@ -41,7 +41,7 @@ def main() -> None:
         s,
         "import forge.gamemodes.match.input.ExternalDecisionValidationException;\n",
         "import forge.gamemodes.match.input.ExternalDecisionValidationException;\nimport forge.gamemodes.net.server.RemoteClientGuiGame;\n",
-        "remote-view flush import",
+        "remote transport barrier import",
     )
     s = replace_once(
         s,
@@ -57,9 +57,9 @@ def main() -> None:
     )
 
     # The semantic-state observer can fire while Forge is legitimately resolving an
-    # unrelated production stack entry.  Starting the campaign there made every case
+    # unrelated production stack entry. Starting the campaign there made every case
     # fail the strict pre-admission gate even though the campaign had not touched the
-    # stack.  Defer campaign start until Forge itself reaches a quiescent checkpoint;
+    # stack. Defer campaign start until Forge itself reaches a quiescent checkpoint;
     # never clear, thaw, or resolve the pre-existing stack from qualification code.
     old_ready = 'private static boolean ready(Game game){if(game.getAge()!=GameStage.Play||game.getRegisteredPlayers().size()!=4)return false;for(Player p:game.getRegisteredPlayers())if(!(p.getController() instanceof PlayerControllerHuman))return false;return true;}'
     new_ready = 'private static boolean ready(Game game){if(game.getAge()!=GameStage.Play||game.getRegisteredPlayers().size()!=4)return false;for(Player p:game.getRegisteredPlayers())if(!(p.getController() instanceof PlayerControllerHuman))return false;if(!game.getStack().isEmpty()||game.getStack().isFrozen()||game.getStack().isResolving())return false;return true;}'
@@ -80,16 +80,12 @@ def main() -> None:
         'ce.stackAdmissions++;int stackSteps=0;'
         'while(!game.getStack().isEmpty()){if(++stackSteps>256)throw new IllegalStateException("stack did not quiesce after exact path");game.getStack().resolveStack();}'
         'if(game.getStack().isFrozen()||game.getStack().isResolving())throw new IllegalStateException("stack remained non-quiescent after exact path");'
-        'ce.stackResolutions++;game.getAction().checkStateEffects(true);'
+        'ce.stackResolutions++;game.getAction().checkStateEffects(true);awaitRemoteTransport(ps);'
     )
     s = replace_once(s, old_resolution, new_resolution, "production stack resolution")
 
-    # Regression: WS31 set currentPath and its leak baselines before seedCommon(),
-    # canary/source materialization and AbilityFactory parsing.  That attributed
-    # scenario-construction transport plus incidental RNG/decisions to the exact
-    # behavior path.  Keep setup outside the path-scoped evidence window.  The path
-    # becomes active only immediately before Forge-authoritative target setup and
-    # production stack execution.
+    # WS31 started path attribution before scenario construction. Keep all scenario
+    # setup and AbilityFactory parsing outside the path-scoped evidence window.
     s = replace_once(
         s,
         'currentPath.set(spec.pathId);long leak0=Ws05HiddenInfoProbe.pilotVisibleLeaks(),cross0=Ws05HiddenInfoProbe.crossPrincipalLeaks();try{seedCommon(game,actor,opponent);',
@@ -97,7 +93,7 @@ def main() -> None:
         "scenario setup outside path evidence window",
     )
     attribution_anchor = 'if(sa.getApi()==null||!spec.dispatch.equals(sa.getApi().name()))throw new IllegalStateException("dispatch mismatch runtime="+(sa.getApi()==null?"null":sa.getApi().name()));bindTargets(sa);'
-    attribution_replacement = 'if(sa.getApi()==null||!spec.dispatch.equals(sa.getApi().name()))throw new IllegalStateException("dispatch mismatch runtime="+(sa.getApi()==null?"null":sa.getApi().name()));flushRemoteViews(ps);leak0=Ws05HiddenInfoProbe.pilotVisibleLeaks();cross0=Ws05HiddenInfoProbe.crossPrincipalLeaks();currentPath.set(spec.pathId);bindTargets(sa);'
+    attribution_replacement = 'if(sa.getApi()==null||!spec.dispatch.equals(sa.getApi().name()))throw new IllegalStateException("dispatch mismatch runtime="+(sa.getApi()==null?"null":sa.getApi().name()));awaitRemoteTransport(ps);leak0=Ws05HiddenInfoProbe.pilotVisibleLeaks();cross0=Ws05HiddenInfoProbe.crossPrincipalLeaks();currentPath.set(spec.pathId);bindTargets(sa);'
     s = replace_once(s, attribution_anchor, attribution_replacement, "path evidence attribution boundary")
     s = replace_once(
         s,
@@ -105,11 +101,35 @@ def main() -> None:
         'finally{ce.leakDelta=leak0<0?0:Ws05HiddenInfoProbe.pilotVisibleLeaks()-leak0;ce.crossPrincipalDelta=cross0<0?0:Ws05HiddenInfoProbe.crossPrincipalLeaks()-cross0;',
         "setup-failure evidence guard",
     )
+
+    # RemoteClientGuiGame.updateGameView() only enqueues network transport. The headless
+    # clients process those packets asynchronously, so a server-thread currentPath can
+    # otherwise change before the corresponding principal view is inspected. A full-state
+    # message is ordered after earlier deltas on each Netty channel. Wait until the WS05
+    # decoded-client observer has processed one such full state per remote principal.
+    # This is a qualification transport barrier only; it does not mutate game/rules state.
     s = replace_once(
         s,
         'private static void seedCommon(Game game,Player actor,Player opponent){',
-        'private static void flushRemoteViews(List<Player> ps){for(Player p:ps){if(p.getController() instanceof PlayerControllerHuman human&&human.getGui() instanceof RemoteClientGuiGame remoteGui)remoteGui.updateGameView();}}\n    private static void seedCommon(Game game,Player actor,Player opponent){',
-        "setup transport quiescence helper",
+        'private static void awaitRemoteTransport(List<Player> ps){long before=Ws05HiddenInfoProbe.transportSamples();int remotes=0;for(Player p:ps){if(p.getController() instanceof PlayerControllerHuman human&&human.getGui() instanceof RemoteClientGuiGame remoteGui){remoteGui.updateGameView();remoteGui.sendFullState();remotes++;}}long target=before+remotes,deadline=System.currentTimeMillis()+10000L;while(Ws05HiddenInfoProbe.transportSamples()<target&&System.currentTimeMillis()<deadline){try{Thread.sleep(10L);}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IllegalStateException("interrupted awaiting remote transport barrier",e);}}if(Ws05HiddenInfoProbe.transportSamples()<target)throw new IllegalStateException("remote transport barrier timeout got="+Ws05HiddenInfoProbe.transportSamples()+" expected="+target);}\n    private static void seedCommon(Game game,Player actor,Player opponent){',
+        "client-processed transport barrier",
+    )
+
+    # A deterministic generic top-of-library fixture gives decision-bearing hidden-zone
+    # operations legal material without encoding any card-specific rule. Index zero is
+    # Forge's library top. The pattern land -> small creature exercises both reveal-until
+    # ordering and optional valid-card selection through Forge's own selectors.
+    s = replace_once(
+        s,
+        'for(int i=0;i<3;i++){addCard("Runeclaw Bear",actor,ZoneType.Hand);addCard("Grizzly Bears",opponent,ZoneType.Hand);}}',
+        'for(int i=0;i<3;i++){addCard("Runeclaw Bear",actor,ZoneType.Hand);addCard("Grizzly Bears",opponent,ZoneType.Hand);}addCardAtTop("Runeclaw Bear",actor);addCardAtTop("Island",actor);addCardAtTop("Runeclaw Bear",opponent);addCardAtTop("Island",opponent);}',
+        "generic decision-bearing library fixture",
+    )
+    s = replace_once(
+        s,
+        'private static Card addCard(String name,Player player,ZoneType zone){PaperCard pc=FModel.getMagicDb().getCommonCards().getCard(name);if(pc==null)throw new IllegalStateException("card unavailable: "+name);Card c=Card.fromPaperCard(pc,player);c.setGameTimestamp(player.getGame().getNextTimestamp());player.getZone(zone).add(c);return c;}',
+        'private static Card addCardAtTop(String name,Player player){PaperCard pc=FModel.getMagicDb().getCommonCards().getCard(name);if(pc==null)throw new IllegalStateException("card unavailable: "+name);Card c=Card.fromPaperCard(pc,player);c.setGameTimestamp(player.getGame().getNextTimestamp());player.getZone(ZoneType.Library).add(c,0);return c;}\n    private static Card addCard(String name,Player player,ZoneType zone){PaperCard pc=FModel.getMagicDb().getCommonCards().getCard(name);if(pc==null)throw new IllegalStateException("card unavailable: "+name);Card c=Card.fromPaperCard(pc,player);c.setGameTimestamp(player.getGame().getNextTimestamp());player.getZone(zone).add(c);return c;}',
+        "top-of-library fixture helper",
     )
 
     old_target = 'private static void bindTarget(SpellAbility sa,Game game,Player actor,Player opponent){if(!sa.usesTargeting())return;List<GameObject>candidates=new ArrayList<>();candidates.add(opponent);candidates.add(actor);for(Player p:game.getPlayers())if(!candidates.contains(p))candidates.add(p);for(Card c:game.getCardsInGame())candidates.add(c);for(GameObject c:candidates){try{if(sa.canTarget(c)){sa.getTargets().add(c);return;}}catch(RuntimeException ignored){}}throw new IllegalStateException("no legal target available for exact path");}'
@@ -134,21 +154,24 @@ def main() -> None:
     require("stackAdmissions" in s and "stackResolutions" in s, "stack admission/resolution evidence missing")
     require("!game.getStack().isEmpty()||game.getStack().isFrozen()||game.getStack().isResolving()" in s, "production-quiescent campaign gate missing")
     require("import forge.game.GameObject;" not in s, "obsolete target-search import remains")
-    require("RemoteClientGuiGame" in s and "flushRemoteViews(ps)" in s, "setup transport quiescence missing")
+    require("RemoteClientGuiGame" in s and "awaitRemoteTransport(ps)" in s, "client-processed transport barrier missing")
+    require("remoteGui.sendFullState()" in s and "Ws05HiddenInfoProbe.transportSamples()" in s, "transport barrier lacks ordered client observation")
+    require('addCardAtTop("Island",actor)' in s and 'addCardAtTop("Runeclaw Bear",actor)' in s, "generic decision-bearing library fixture missing")
 
-    # Static regression gate for the attribution bug fixed above.  This is deliberately
-    # structural rather than card-specific: all current/future G cases must finish
-    # scenario setup, parsing and setup transport before path-scoped evidence starts.
+    # Static regression gates: all setup, parsing and setup transport must finish before
+    # path attribution; all path transport must be drained before the evidence delta is
+    # finalized. No card-name branch is introduced in runCampaign.
     campaign = s[s.index("private static void runCampaign"):s.index("private static void seedCommon")]
-    require(campaign.index("seedCommon(game,actor,opponent)") < campaign.index("flushRemoteViews(ps)"), "setup transport flush occurs before scenario setup")
-    require(campaign.index("AbilityFactory.getAbility(spec.script,source)") < campaign.index("flushRemoteViews(ps)"), "setup transport flush occurs before AbilityFactory parsing")
-    require(campaign.index("flushRemoteViews(ps)") < campaign.index("currentPath.set(spec.pathId)"), "path attribution starts before setup transport quiescence")
+    require(campaign.index("seedCommon(game,actor,opponent)") < campaign.index("awaitRemoteTransport(ps)"), "transport barrier occurs before scenario setup")
+    require(campaign.index("AbilityFactory.getAbility(spec.script,source)") < campaign.index("awaitRemoteTransport(ps)"), "transport barrier occurs before AbilityFactory parsing")
+    require(campaign.index("awaitRemoteTransport(ps)") < campaign.index("currentPath.set(spec.pathId)"), "path attribution starts before setup transport is client-processed")
     require(campaign.index("currentPath.set(spec.pathId)") < campaign.index("bindTargets(sa)"), "path attribution must cover Forge target setup")
+    require(campaign.count("awaitRemoteTransport(ps)") >= 2, "path transport is not drained after execution")
     require("long leak0=-1,cross0=-1" in campaign, "setup-safe evidence baseline declaration missing")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(s, encoding="utf-8")
-    print("WS33_G_ABILITY_HARNESS_PREP=PASS cases=28 direct_resolution=0 manual_target_injection=0 target_setup=SpellAbility.setupTargets stack_entry=MagicStack.addAndUnfreeze stack_resolution=MagicStack.resolveStack admission_gate=STRICT campaign_entry=PRODUCTION_QUIESCENT evidence_window=POST_SETUP_TRANSPORT observation_ui=EXTERNAL_OVERLAY")
+    print("WS33_G_ABILITY_HARNESS_PREP=PASS cases=28 direct_resolution=0 manual_target_injection=0 target_setup=SpellAbility.setupTargets stack_entry=MagicStack.addAndUnfreeze stack_resolution=MagicStack.resolveStack admission_gate=STRICT campaign_entry=PRODUCTION_QUIESCENT evidence_window=CLIENT_BARRIERED generic_library_fixture=TRUE observation_ui=EXTERNAL_OVERLAY")
 
 if __name__ == "__main__":
     main()
