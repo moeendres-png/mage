@@ -39,6 +39,12 @@ def main() -> None:
     s = replace_once(s, "import forge.game.GameObject;\n", "", "obsolete GameObject import")
     s = replace_once(
         s,
+        "import forge.gamemodes.match.input.ExternalDecisionValidationException;\n",
+        "import forge.gamemodes.match.input.ExternalDecisionValidationException;\nimport forge.gamemodes.net.server.RemoteClientGuiGame;\n",
+        "remote-view flush import",
+    )
+    s = replace_once(
+        s,
         'if(cases.size()!=81)throw new IllegalStateException("WS31 expected 81 cases, got "+cases.size());',
         'if(cases.size()!=28)throw new IllegalStateException("WS33 G-ABILITY expected 28 cases, got "+cases.size());',
         "case cardinality",
@@ -91,13 +97,19 @@ def main() -> None:
         "scenario setup outside path evidence window",
     )
     attribution_anchor = 'if(sa.getApi()==null||!spec.dispatch.equals(sa.getApi().name()))throw new IllegalStateException("dispatch mismatch runtime="+(sa.getApi()==null?"null":sa.getApi().name()));bindTargets(sa);'
-    attribution_replacement = 'if(sa.getApi()==null||!spec.dispatch.equals(sa.getApi().name()))throw new IllegalStateException("dispatch mismatch runtime="+(sa.getApi()==null?"null":sa.getApi().name()));leak0=Ws05HiddenInfoProbe.pilotVisibleLeaks();cross0=Ws05HiddenInfoProbe.crossPrincipalLeaks();currentPath.set(spec.pathId);bindTargets(sa);'
+    attribution_replacement = 'if(sa.getApi()==null||!spec.dispatch.equals(sa.getApi().name()))throw new IllegalStateException("dispatch mismatch runtime="+(sa.getApi()==null?"null":sa.getApi().name()));flushRemoteViews(ps);leak0=Ws05HiddenInfoProbe.pilotVisibleLeaks();cross0=Ws05HiddenInfoProbe.crossPrincipalLeaks();currentPath.set(spec.pathId);bindTargets(sa);'
     s = replace_once(s, attribution_anchor, attribution_replacement, "path evidence attribution boundary")
     s = replace_once(
         s,
         'finally{ce.leakDelta=Ws05HiddenInfoProbe.pilotVisibleLeaks()-leak0;ce.crossPrincipalDelta=Ws05HiddenInfoProbe.crossPrincipalLeaks()-cross0;',
         'finally{ce.leakDelta=leak0<0?0:Ws05HiddenInfoProbe.pilotVisibleLeaks()-leak0;ce.crossPrincipalDelta=cross0<0?0:Ws05HiddenInfoProbe.crossPrincipalLeaks()-cross0;',
         "setup-failure evidence guard",
+    )
+    s = replace_once(
+        s,
+        'private static void seedCommon(Game game,Player actor,Player opponent){',
+        'private static void flushRemoteViews(List<Player> ps){for(Player p:ps){if(p.getController() instanceof PlayerControllerHuman human&&human.getGui() instanceof RemoteClientGuiGame remoteGui)remoteGui.updateGameView();}}\n    private static void seedCommon(Game game,Player actor,Player opponent){',
+        "setup transport quiescence helper",
     )
 
     old_target = 'private static void bindTarget(SpellAbility sa,Game game,Player actor,Player opponent){if(!sa.usesTargeting())return;List<GameObject>candidates=new ArrayList<>();candidates.add(opponent);candidates.add(actor);for(Player p:game.getPlayers())if(!candidates.contains(p))candidates.add(p);for(Card c:game.getCardsInGame())candidates.add(c);for(GameObject c:candidates){try{if(sa.canTarget(c)){sa.getTargets().add(c);return;}}catch(RuntimeException ignored){}}throw new IllegalStateException("no legal target available for exact path");}'
@@ -122,19 +134,21 @@ def main() -> None:
     require("stackAdmissions" in s and "stackResolutions" in s, "stack admission/resolution evidence missing")
     require("!game.getStack().isEmpty()||game.getStack().isFrozen()||game.getStack().isResolving()" in s, "production-quiescent campaign gate missing")
     require("import forge.game.GameObject;" not in s, "obsolete target-search import remains")
+    require("RemoteClientGuiGame" in s and "flushRemoteViews(ps)" in s, "setup transport quiescence missing")
 
     # Static regression gate for the attribution bug fixed above.  This is deliberately
     # structural rather than card-specific: all current/future G cases must finish
-    # scenario setup and parsing before path-scoped evidence collection starts.
+    # scenario setup, parsing and setup transport before path-scoped evidence starts.
     campaign = s[s.index("private static void runCampaign"):s.index("private static void seedCommon")]
-    require(campaign.index("seedCommon(game,actor,opponent)") < campaign.index("currentPath.set(spec.pathId)"), "path attribution starts before scenario setup")
-    require(campaign.index("AbilityFactory.getAbility(spec.script,source)") < campaign.index("currentPath.set(spec.pathId)"), "path attribution starts before AbilityFactory parsing")
+    require(campaign.index("seedCommon(game,actor,opponent)") < campaign.index("flushRemoteViews(ps)"), "setup transport flush occurs before scenario setup")
+    require(campaign.index("AbilityFactory.getAbility(spec.script,source)") < campaign.index("flushRemoteViews(ps)"), "setup transport flush occurs before AbilityFactory parsing")
+    require(campaign.index("flushRemoteViews(ps)") < campaign.index("currentPath.set(spec.pathId)"), "path attribution starts before setup transport quiescence")
     require(campaign.index("currentPath.set(spec.pathId)") < campaign.index("bindTargets(sa)"), "path attribution must cover Forge target setup")
     require("long leak0=-1,cross0=-1" in campaign, "setup-safe evidence baseline declaration missing")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(s, encoding="utf-8")
-    print("WS33_G_ABILITY_HARNESS_PREP=PASS cases=28 direct_resolution=0 manual_target_injection=0 target_setup=SpellAbility.setupTargets stack_entry=MagicStack.addAndUnfreeze stack_resolution=MagicStack.resolveStack admission_gate=STRICT campaign_entry=PRODUCTION_QUIESCENT evidence_window=POST_SETUP observation_ui=EXTERNAL_OVERLAY")
+    print("WS33_G_ABILITY_HARNESS_PREP=PASS cases=28 direct_resolution=0 manual_target_injection=0 target_setup=SpellAbility.setupTargets stack_entry=MagicStack.addAndUnfreeze stack_resolution=MagicStack.resolveStack admission_gate=STRICT campaign_entry=PRODUCTION_QUIESCENT evidence_window=POST_SETUP_TRANSPORT observation_ui=EXTERNAL_OVERLAY")
 
 if __name__ == "__main__":
     main()
