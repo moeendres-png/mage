@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
 env:
@@ -151,4 +151,85 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-# Requalification trigger: source-proven G evidence requirements.
+      - name: Materialize verified successor into canonical branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          successor_model_sha="$(sha256sum generated/successor/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)"
+          test "$successor_model_sha" = 'cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224'
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, os, shutil
+
+          base=Path('generated/h/ws33')
+          succ=Path('generated/successor/ws33')
+          root=Path(os.environ['ROOT'])
+          out=Path('generated/qualification/materialized-files.txt')
+
+          def digest(p: Path) -> str:
+              return hashlib.sha256(p.read_bytes()).hexdigest()
+
+          base_files={p.relative_to(base) for p in base.rglob('*') if p.is_file()}
+          succ_files={p.relative_to(succ) for p in succ.rglob('*') if p.is_file()}
+          removed=sorted(base_files-succ_files)
+          if removed:
+              raise SystemExit('WS33_G_REQUIREMENT_MATERIALIZATION=FAIL removed_files=' + ','.join(map(str,removed)))
+
+          changed=[]
+          for rel in sorted(succ_files):
+              if rel.as_posix() == 'WS33_HASHES.sha256':
+                  continue
+              sp=succ/rel
+              bp=base/rel
+              ssha=digest(sp)
+              bsha=digest(bp) if bp.is_file() else None
+              if bsha == ssha:
+                  continue
+              tp=root/rel
+              if tp.is_file():
+                  tsha=digest(tp)
+                  allowed={ssha}
+                  if bsha is not None:
+                      allowed.add(bsha)
+                  if tsha not in allowed:
+                      raise SystemExit(f'WS33_G_REQUIREMENT_MATERIALIZATION=FAIL intervening_state_write={rel} current={tsha} base={bsha} successor={ssha}')
+              elif bsha is not None:
+                  raise SystemExit(f'WS33_G_REQUIREMENT_MATERIALIZATION=FAIL missing_canonical_base={rel}')
+              tp.parent.mkdir(parents=True,exist_ok=True)
+              shutil.copy2(sp,tp)
+              changed.append(rel.as_posix())
+
+          if not changed:
+              raise SystemExit('WS33_G_REQUIREMENT_MATERIALIZATION=FAIL no_changed_files')
+
+          hp=root/'WS33_HASHES.sha256'
+          hp.unlink(missing_ok=True)
+          files=sorted(p for p in root.rglob('*') if p.is_file() and p.name!='WS33_HASHES.sha256' and '__pycache__' not in p.parts)
+          hp.write_text(''.join(f'{digest(p)}  {p.relative_to(root).as_posix()}\n' for p in files),encoding='utf-8')
+          changed.append('WS33_HASHES.sha256')
+          out.write_text('\n'.join(changed)+'\n',encoding='utf-8')
+          print(f'WS33_G_REQUIREMENT_MATERIALIZATION_READY=PASS files={len(changed)}')
+          PY
+
+          test "$(sha256sum "$ROOT/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json" | cut -d' ' -f1)" = "$successor_model_sha"
+          jq -e '.status_counts.PASS == 285 and .status_counts.UNKNOWN == 3903 and (.status_counts.FAIL // 0) == 0 and (.status_counts.UNSUPPORTED // 0) == 0' "$ROOT/WS33_PATH_COVERAGE.json"
+          jq -e '.WS33_MODEL_ERRATA_GATE == "PASS" and .evidence_requirement_errata_generation == 1 and .evidence_requirement_corrected_path_count == 60 and .evidence_requirement_pass_paths_changed == 0' "$ROOT/WS33_MODEL_GATE.json"
+          jq -e '.WS33_WITNESS_ABI_V2_1_GATE == "PASS" and .negative_fixtures_rejected_for_intended_reason == true and .campaign_positives_accepted == true and .evidence_requirement_errata_generation == 1' "$ROOT/abi/WS33_WITNESS_ABI_GATE.json"
+          python "$ROOT/ws33_verify.py" --root "$ROOT" | tee generated/qualification/canonical-ws33-verify.log
+          (cd "$ROOT" && sha256sum -c WS33_HASHES.sha256) > generated/qualification/canonical-internal-hashes.log
+
+          mapfile -t rels < generated/qualification/materialized-files.txt
+          for rel in "${rels[@]}"; do
+            git add "$ROOT/$rel"
+          done
+          git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
+          git fetch --no-tags origin work/ws33-integrated-closure-20260831
+          test "$(git rev-parse origin/work/ws33-integrated-closure-20260831)" = "$GITHUB_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'ws33: materialize G requirement model successor'
+          git push origin "HEAD:work/ws33-integrated-closure-20260831"
+
+# Materializes only verified migration deltas; unrelated newer WS33 source is preserved.
