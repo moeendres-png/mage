@@ -1,0 +1,151 @@
+name: WS33 integrated G requirement errata
+
+on:
+  push:
+    branches: [work/ws33-integrated-closure-20260831]
+    paths:
+      - '.github/workflows/ws33-integrated-g-requirement-errata.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_apply_g_requirement_errata.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  H_SOURCE_HEAD: 4596a58287ccd0f2b432ebeca2b4fd0d8bec4df3
+  H_SOURCE_TREE: 422beaa5199305efb933f5866207ff2338841a93
+  H_ARTIFACT_ID: '9766400471'
+  H_ARTIFACT_DIGEST: sha256:a28834e59b86468dc8855c5db5b1f433cfa17b5eded2bc4061092566f95f4372
+  PROJECTION_SOURCE_HEAD: d8af15cb879bdfc3c40ce4cba3462da24ee3f272
+  PROJECTION_SOURCE_TREE: 857dc01e04f58ca59437e08710bcb194bf030ea4
+  PROJECTION_ARTIFACT_ID: '9803814288'
+  PROJECTION_ARTIFACT_DIGEST: sha256:493f3549b6483d4fea9644f3a0216deb108a9ac581b651ff3e083499bcb14b5a
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+
+jobs:
+  g-requirement-errata:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout integrated source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify ancestry and scoped ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$H_SOURCE_HEAD" "$PROJECTION_SOURCE_HEAD"
+          test "$(git rev-parse "$H_SOURCE_HEAD^{tree}")" = "$H_SOURCE_TREE"
+          test "$(git rev-parse "$PROJECTION_SOURCE_HEAD^{tree}")" = "$PROJECTION_SOURCE_TREE"
+          git merge-base --is-ancestor "$H_SOURCE_HEAD" "$GITHUB_SHA"
+          git merge-base --is-ancestor "$PROJECTION_SOURCE_HEAD" "$GITHUB_SHA"
+          bad="$(git diff --name-only "$H_SOURCE_HEAD" "$GITHUB_SHA" | grep -Ev '^(.github/workflows/ws33-|research/greenfield-qualification/actual-card-behavior/ws33/|research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py)' || true)"
+          test -z "$bad" || { printf '%s\n' "$bad"; exit 1; }
+
+      - name: Download exact immutable H successor and G projection source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p generated/h generated/projection generated/successor generated/qualification
+          hmeta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$H_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$hmeta")" = "$H_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$hmeta")" = "$H_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$H_ARTIFACT_ID/zip" > h.zip
+          test "sha256:$(sha256sum h.zip | cut -d' ' -f1)" = "$H_ARTIFACT_DIGEST"
+          unzip -q h.zip -d generated/h
+
+          pmeta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$PROJECTION_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$pmeta")" = "$PROJECTION_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$pmeta")" = "$PROJECTION_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$PROJECTION_ARTIFACT_ID/zip" > projection.zip
+          test "sha256:$(sha256sum projection.zip | cut -d' ' -f1)" = "$PROJECTION_ARTIFACT_DIGEST"
+          unzip -q projection.zip -d generated/projection
+
+      - name: Verify source-proven projection contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          input_model_sha="$(sha256sum generated/h/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)"
+          jq -e --arg forge "$FORGE_PIN" --arg model "$input_model_sha" '
+            .schema == "commander-simulator-next.ws33-requirement-projection-audit.v4" and
+            .status == "PASS" and
+            .forge_pin == $forge and
+            .manifest_sha256 == $model and
+            .authoritative_projection_scope == "HIDDEN_RNG_REPLAY" and
+            .authoritative_projection_scope_path_count == 81 and
+            .candidate_row_count == 60 and
+            .changed_unknown_path_count == 60 and
+            .pass_upgrade_candidate_count == 0 and
+            .upgrade_candidate_counts.hidden == 13 and
+            .removal_candidate_counts.decision == 30 and
+            .removal_candidate_counts.replay == 23 and
+            .removal_candidate_counts.rng == 36
+          ' generated/projection/diagnostic/G_REQUIREMENT_PROJECTION.json
+          cp generated/projection/diagnostic/G_REQUIREMENT_PROJECTION.json generated/qualification/G_REQUIREMENT_PROJECTION.json
+
+      - name: Materialize declared G evidence-requirement errata
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a generated/h/ws33 generated/successor/ws33
+          python "$ROOT/ws33_apply_g_requirement_errata.py" \
+            --root generated/successor/ws33 \
+            --projection generated/projection/diagnostic/G_REQUIREMENT_PROJECTION.json \
+            --source-head "$PROJECTION_SOURCE_HEAD" \
+            --source-tree "$PROJECTION_SOURCE_TREE" | tee generated/qualification/errata.log
+
+      - name: Strictly verify errata successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.status_counts.PASS == 285 and .status_counts.UNKNOWN == 3903 and .status_counts.FAIL == 0 and .status_counts.UNSUPPORTED == 0' generated/successor/ws33/WS33_PATH_COVERAGE.json
+          jq -e '.WS33_MODEL_ERRATA_GATE == "PASS" and .evidence_requirement_errata_generation == 1 and .evidence_requirement_corrected_path_count == 60 and .evidence_requirement_pass_paths_changed == 0' generated/successor/ws33/WS33_MODEL_GATE.json
+          jq -e '.evidence_requirement_errata.generation == 1 and .evidence_requirement_errata.scope == "HIDDEN_RNG_REPLAY" and .evidence_requirement_errata.corrected_path_count == 60 and .evidence_requirement_errata.pass_paths_changed == 0 and .evidence_requirement_errata.historical_artifacts_mutated == false' generated/successor/ws33/WS33_MODEL_ERRATA.json
+          jq -e '.PARTITION_DISJOINT == true and .PARTITION_COMPLETE == true and .authoritative_unknown_count == 3903' generated/successor/ws33/WS33_PARALLEL_PARTITION_INVARIANTS.json
+          jq -e '.WS33_WITNESS_ABI_V2_1_GATE == "PASS" and .negative_fixtures_rejected_for_intended_reason == true and .campaign_positives_accepted == true and .evidence_requirement_errata_generation == 1' generated/successor/ws33/abi/WS33_WITNESS_ABI_GATE.json
+          jq -e '.WORKSTREAM_COMPLETE == false and .Q6_CANDIDATE_FOR_CROSS_QUALIFICATION == false and .WS34_ELIGIBLE == false and .WS33_ACTUAL_CARD_CAMPAIGN == "FAIL_CLOSED"' generated/successor/ws33/WS33_Q6_CANDIDATE_GATE.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('generated/successor/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json').read_text())
+          g=[x for x in p['paths'] if x['owner_family']=='HIDDEN_RNG_REPLAY']
+          assert len(g)==81
+          got={
+            'hidden':sum(bool(x['required_hidden_info_evidence']) for x in g),
+            'rng':sum(bool(x['required_rng_evidence']) for x in g),
+            'replay':sum(bool(x['required_replay_evidence']) for x in g),
+            'decision':sum(bool(x['required_decision_evidence']) for x in g),
+          }
+          assert got=={'hidden':74,'rng':21,'replay':57,'decision':50},got
+          print('WS33_G_REQUIREMENT_TOTALS=PASS',got)
+          PY
+          python "$ROOT/ws33_verify.py" --root generated/successor/ws33 | tee generated/qualification/ws33-verify.log
+          (cd generated/successor/ws33 && sha256sum -c WS33_HASHES.sha256) > generated/qualification/internal-hashes.log
+          input_model_sha="$(sha256sum generated/h/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)"
+          successor_model_sha="$(sha256sum generated/successor/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)"
+          jq -n \
+            --arg source_head "$GITHUB_SHA" \
+            --arg h_head "$H_SOURCE_HEAD" \
+            --arg h_digest "$H_ARTIFACT_DIGEST" \
+            --arg projection_head "$PROJECTION_SOURCE_HEAD" \
+            --arg projection_digest "$PROJECTION_ARTIFACT_DIGEST" \
+            --arg input_model "$input_model_sha" \
+            --arg successor_model "$successor_model_sha" \
+            '{schema:"commander-simulator-next.ws33-g-requirement-errata-gate.v1",status:"PASS",source_head:$source_head,h_source_head:$h_head,h_artifact_digest:$h_digest,projection_source_head:$projection_head,projection_artifact_digest:$projection_digest,input_effective_model_sha256:$input_model,successor_effective_model_sha256:$successor_model,corrected_path_count:60,pass_paths_changed:0,revalidated_pass_paths:285,coverage_mutated:false}' \
+            > generated/qualification/WS33_G_REQUIREMENT_ERRATA_GATE.json
+
+      - name: Upload immutable G requirement errata successor
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-g-requirement-errata-${{ github.run_id }}
+          path: |
+            generated/successor/ws33
+            generated/qualification
+          if-no-files-found: error
+          retention-days: 90
