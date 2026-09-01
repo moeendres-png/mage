@@ -1,0 +1,113 @@
+name: WS33 integrated G model successor freeze
+
+on:
+  push:
+    branches: [work/ws33-integrated-closure-20260831]
+    paths:
+      - '.github/workflows/ws33-integrated-g-model-successor-freeze.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+  ERRATA_SOURCE_HEAD: e6bdab170ea9050fb86f2f9f948bab9bf92a6e38
+  ERRATA_ARTIFACT_ID: '9822685407'
+  ERRATA_ARTIFACT_DIGEST: sha256:81e1e24551403453e4dd32e9ed65951cbaca2776cc993eddf475b4214a67a424
+  SUCCESSOR_MODEL_SHA: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+
+jobs:
+  freeze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout integrated tooling source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact qualified errata artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf generated
+          mkdir -p generated/input generated/output generated/qualification
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ERRATA_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$meta")" = "$ERRATA_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$meta")" = "$ERRATA_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' \
+            "repos/$GITHUB_REPOSITORY/actions/artifacts/$ERRATA_ARTIFACT_ID/zip" > generated/input/errata.zip
+          test "sha256:$(sha256sum generated/input/errata.zip | cut -d' ' -f1)" = "$ERRATA_ARTIFACT_DIGEST"
+          unzip -q generated/input/errata.zip -d generated/input/errata
+          test -d generated/input/errata/successor/ws33
+          test "$(sha256sum generated/input/errata/successor/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)" = "$SUCCESSOR_MODEL_SHA"
+          jq -e '.status=="PASS" and .corrected_path_count==60 and .pass_paths_changed==0 and .revalidated_pass_paths==285 and .coverage_mutated==false' \
+            generated/input/errata/qualification/WS33_G_REQUIREMENT_ERRATA_GATE.json
+
+      - name: Materialize operational artifact root
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a generated/input/errata/successor/ws33 generated/output/ws33
+          cp generated/input/errata/qualification/WS33_G_REQUIREMENT_ERRATA_GATE.json generated/qualification/
+          cp generated/input/errata/qualification/G_REQUIREMENT_PROJECTION.json generated/qualification/
+          test "$(sha256sum generated/output/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)" = "$SUCCESSOR_MODEL_SHA"
+          jq -e '.status_counts.PASS==285 and .status_counts.UNKNOWN==3903 and (.status_counts.FAIL // 0)==0 and (.status_counts.UNSUPPORTED // 0)==0' generated/output/ws33/WS33_PATH_COVERAGE.json
+          jq -e '.WS33_MODEL_ERRATA_GATE=="PASS" and .evidence_requirement_errata_generation==1 and .evidence_requirement_corrected_path_count==60 and .evidence_requirement_pass_paths_changed==0' generated/output/ws33/WS33_MODEL_GATE.json
+          jq -e '.PARTITION_DISJOINT==true and .PARTITION_COMPLETE==true and .authoritative_unknown_count==3903 and .scenario_group_split_count==0 and (.pass_overlap|length)==0 and (.legacy_ws29_alias_overlap|length)==0' generated/output/ws33/WS33_PARALLEL_PARTITION_INVARIANTS.json
+          jq -e '.WS33_WITNESS_ABI_V2_1_GATE=="PASS" and .negative_fixtures_rejected_for_intended_reason==true and .campaign_positives_accepted==true and .evidence_requirement_errata_generation==1 and ([.results[]|select(.expected_exit!=0)]|length)==17 and ([.results[]|select(.intended_result!=true)]|length)==0' generated/output/ws33/abi/WS33_WITNESS_ABI_GATE.json
+
+      - name: Reverify operational successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_verify.py" --root generated/output/ws33 | tee generated/qualification/ws33-verify.log
+          (cd generated/output/ws33 && sha256sum -c WS33_HASHES.sha256) > generated/qualification/internal-hashes.log
+          python - <<'PY'
+          import json, hashlib
+          from pathlib import Path
+          root=Path('generated/output/ws33')
+          manifest=json.loads((root/'WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json').read_text())
+          coverage=json.loads((root/'WS33_PATH_COVERAGE.json').read_text())
+          status={r['effective_v2_path_id']:r['status'] for r in coverage['paths']}
+          g=[p for p in manifest['paths'] if p['owner_family']=='HIDDEN_RNG_REPLAY']
+          assert len(manifest['paths'])==4188
+          assert len(g)==81
+          assert sum(status[p['v2_path_id']]=='UNKNOWN' for p in g)==81
+          got={
+            'hidden':sum(bool(p['required_hidden_info_evidence']) for p in g),
+            'rng':sum(bool(p['required_rng_evidence']) for p in g),
+            'replay':sum(bool(p['required_replay_evidence']) for p in g),
+            'decision':sum(bool(p['required_decision_evidence']) for p in g),
+          }
+          assert got=={'hidden':74,'rng':21,'replay':57,'decision':50},got
+          gate={
+            'schema':'commander-simulator-next.ws33-g-model-successor-freeze.v1',
+            'status':'PASS',
+            'source_head':'336b65c87734d358450910685f6c898970ce6991',
+            'errata_source_head':'e6bdab170ea9050fb86f2f9f948bab9bf92a6e38',
+            'errata_artifact_id':'9822685407',
+            'errata_artifact_digest':'sha256:81e1e24551403453e4dd32e9ed65951cbaca2776cc993eddf475b4214a67a424',
+            'effective_model_sha256':hashlib.sha256((root/'WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json').read_bytes()).hexdigest(),
+            'effective':4188,'pass':285,'unknown':3903,'fail':0,'unsupported':0,
+            'g_unknown':81,'h_unknown':0,'g_requirements':got,
+            'coverage_mutated_by_freeze':False,
+          }
+          Path('generated/qualification/WS33_G_MODEL_SUCCESSOR_FREEZE_GATE.json').write_text(json.dumps(gate,sort_keys=True,separators=(',',':'))+'\n')
+          print('WS33_G_MODEL_SUCCESSOR_FREEZE=PASS',gate)
+          PY
+
+      - name: Upload immutable operational G-model successor
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-g-model-successor-${{ github.run_id }}
+          path: |
+            generated/output/ws33
+            generated/qualification
+          if-no-files-found: error
+          retention-days: 90
