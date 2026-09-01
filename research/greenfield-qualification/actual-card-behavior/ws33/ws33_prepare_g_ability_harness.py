@@ -102,16 +102,15 @@ def main() -> None:
         "setup-failure evidence guard",
     )
 
-    # RemoteClientGuiGame.updateGameView() only enqueues network transport. A server-side
-    # flush is therefore not a path evidence barrier. sendFullState() is channel-ordered
-    # after prior deltas; the derived WS05 probe below counts the full-state callback only
-    # after the headless client has applied it. Waiting on that dedicated counter prevents
-    # unrelated in-flight deltas from satisfying the barrier.
+    # RemoteClientGuiGame.updateGameView() only queues a delta. The Gen2 overlay adds a
+    # payload-free Boolean protocol reply which is processed on the same client GUI event
+    # queue after applyDelta. Waiting for that reply proves prior transport was applied
+    # without sending a full GameView and without introducing a pilot/rules decision.
     s = replace_once(
         s,
         'private static void seedCommon(Game game,Player actor,Player opponent){',
-        'private static void awaitRemoteTransport(List<Player> ps){long before=Ws05HiddenInfoProbe.fullStateSamples();int remotes=0;for(Player p:ps){if(p.getController() instanceof PlayerControllerHuman human&&human.getGui() instanceof RemoteClientGuiGame remoteGui){remoteGui.updateGameView();remoteGui.sendFullState();remotes++;}}long target=before+remotes,deadline=System.currentTimeMillis()+10000L;while(Ws05HiddenInfoProbe.fullStateSamples()<target&&System.currentTimeMillis()<deadline){try{Thread.sleep(10L);}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IllegalStateException("interrupted awaiting remote transport barrier",e);}}if(Ws05HiddenInfoProbe.fullStateSamples()<target)throw new IllegalStateException("remote transport barrier timeout got="+Ws05HiddenInfoProbe.fullStateSamples()+" expected="+target);}\n    private static void seedCommon(Game game,Player actor,Player opponent){',
-        "client-processed full-state transport barrier",
+        'private static void awaitRemoteTransport(List<Player> ps){for(Player p:ps){if(p.getController() instanceof PlayerControllerHuman human&&human.getGui() instanceof RemoteClientGuiGame remoteGui){remoteGui.updateGameView();remoteGui.awaitWs33TransportBarrier();}}}\n    private static void seedCommon(Game game,Player actor,Player opponent){',
+        "client-processed reply transport barrier",
     )
 
     # A deterministic generic top-of-library fixture gives the hidden/RNG family enough
@@ -131,6 +130,15 @@ def main() -> None:
         'private static Card addCardAtTop(String name,Player player){PaperCard pc=FModel.getMagicDb().getCommonCards().getCard(name);if(pc==null)throw new IllegalStateException("card unavailable: "+name);Card c=Card.fromPaperCard(pc,player);c.setGameTimestamp(player.getGame().getNextTimestamp());player.getZone(ZoneType.Library).add(c,0);return c;}\n    private static Card addCard(String name,Player player,ZoneType zone){PaperCard pc=FModel.getMagicDb().getCommonCards().getCard(name);if(pc==null)throw new IllegalStateException("card unavailable: "+name);Card c=Card.fromPaperCard(pc,player);c.setGameTimestamp(player.getGame().getNextTimestamp());player.getZone(zone).add(c);return c;}',
         "top-of-library fixture helper",
     )
+
+    # The historical qualification pilot always selected semantic true for every optional
+    # confirmation. RepeatOptional therefore loops indefinitely on a non-empty library.
+    # This is a pilot-stub defect, not a rules defect: keep selecting only from the
+    # authoritative option set, exercise the first confirmation, then decline repeated
+    # confirmations for the same path/kind. No card name or rules inference is used.
+    old_policy = 'private static void selectByPathPolicy(ExternalDecisionRequest req,String path,List<String>selected,boolean exerciseOptional){List<ExternalDecisionRequest.Option>options=new ArrayList<>(req.getOptions());if(options.isEmpty()){if(req.getMinimumSelection()==0)return;throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.ILLEGAL_OPTION,"empty authoritative option set for "+req.getDecisionKind());}for(ExternalDecisionRequest.Option o:options)if(exerciseOptional&&"true".equalsIgnoreCase(o.getSemanticValue())){selected.add(o.getOptionId());return;}options.sort(Comparator.comparing(o->stableKey(path,req.getDecisionKind(),o)));int min=req.getMinimumSelection(),max=req.getMaximumSelection(),count=min;if(exerciseOptional&&count==0&&max>0)count=1;if(count<0||count>max||count>options.size())throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,"invalid cardinality "+req.getDecisionKind());for(int i=0;i<count;i++)selected.add(options.get(i).getOptionId());}'
+    new_policy = 'private static final Map<String,AtomicInteger> ws33ConfirmationOccurrences=new ConcurrentHashMap<>();\n    private static void selectByPathPolicy(ExternalDecisionRequest req,String path,List<String>selected,boolean exerciseOptional){List<ExternalDecisionRequest.Option>options=new ArrayList<>(req.getOptions());if(options.isEmpty()){if(req.getMinimumSelection()==0)return;throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.ILLEGAL_OPTION,"empty authoritative option set for "+req.getDecisionKind());}if(exerciseOptional&&"CONFIRM_ACTION".equals(req.getDecisionKind())){int occurrence=ws33ConfirmationOccurrences.computeIfAbsent(path+"|"+req.getDecisionKind(),k->new AtomicInteger()).getAndIncrement();if(occurrence>0){for(ExternalDecisionRequest.Option o:options)if("false".equalsIgnoreCase(o.getSemanticValue())){selected.add(o.getOptionId());return;}}}for(ExternalDecisionRequest.Option o:options)if(exerciseOptional&&"true".equalsIgnoreCase(o.getSemanticValue())){selected.add(o.getOptionId());return;}options.sort(Comparator.comparing(o->stableKey(path,req.getDecisionKind(),o)));int min=req.getMinimumSelection(),max=req.getMaximumSelection(),count=min;if(exerciseOptional&&count==0&&max>0)count=1;if(count<0||count>max||count>options.size())throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,"invalid cardinality "+req.getDecisionKind());for(int i=0;i<count;i++)selected.add(options.get(i).getOptionId());}'
+    s = replace_once(s, old_policy, new_policy, "bounded authoritative confirmation pilot")
 
     old_target = 'private static void bindTarget(SpellAbility sa,Game game,Player actor,Player opponent){if(!sa.usesTargeting())return;List<GameObject>candidates=new ArrayList<>();candidates.add(opponent);candidates.add(actor);for(Player p:game.getPlayers())if(!candidates.contains(p))candidates.add(p);for(Card c:game.getCardsInGame())candidates.add(c);for(GameObject c:candidates){try{if(sa.canTarget(c)){sa.getTargets().add(c);return;}}catch(RuntimeException ignored){}}throw new IllegalStateException("no legal target available for exact path");}'
     new_target = 'private static void bindTargets(SpellAbility sa){for(SpellAbility cur=sa;cur!=null;cur=cur.getSubAbility())if(!cur.getTargets().isEmpty())throw new IllegalStateException("pre-populated targets forbidden");if(!sa.setupTargets())throw new IllegalStateException("Forge SpellAbility.setupTargets rejected exact path");for(SpellAbility cur=sa;cur!=null;cur=cur.getSubAbility())if(cur.usesTargeting()&&!cur.isTargetNumberValid())throw new IllegalStateException("Forge target count invalid after SpellAbility.setupTargets");}'
@@ -155,7 +163,8 @@ def main() -> None:
     require("!game.getStack().isEmpty()||game.getStack().isFrozen()||game.getStack().isResolving()" in s, "production-quiescent campaign gate missing")
     require("import forge.game.GameObject;" not in s, "obsolete target-search import remains")
     require("RemoteClientGuiGame" in s and "awaitRemoteTransport(ps)" in s, "client-processed transport barrier missing")
-    require("remoteGui.sendFullState()" in s and "Ws05HiddenInfoProbe.fullStateSamples()" in s, "transport barrier lacks dedicated full-state acknowledgement")
+    require("remoteGui.awaitWs33TransportBarrier()" in s and "sendFullState" not in s, "transport barrier is not payload-free client acknowledgement")
+    require("ws33ConfirmationOccurrences" in s and 'occurrence>0' in s, "bounded confirmation policy missing")
     require(all(token in s for token in ('addCardAtTop("Island",actor)','addCardAtTop("Plains",actor)','addCardAtTop("Runeclaw Bear",actor)','addCardAtTop("Sol Ring",actor)')), "generic decision/RNG library fixture missing")
 
     # Static regression gates: all setup, parsing and setup transport must finish before
@@ -169,42 +178,9 @@ def main() -> None:
     require(campaign.count("awaitRemoteTransport(ps)") >= 2, "path transport is not drained after execution")
     require("long leak0=-1,cross0=-1" in campaign, "setup-safe evidence baseline declaration missing")
 
-    # Derive a G-only qualification probe from the retained WS05 observer. The base WS05
-    # evidence contract remains untouched; this adds only a transport synchronization
-    # counter keyed to already-decoded full-state callbacks. It exposes no card identity.
-    probe_path = args.out.parent / "Ws05HiddenInfoProbe.java"
-    require(probe_path.is_file(), "copied WS05 hidden-info probe missing")
-    probe = probe_path.read_text(encoding="utf-8")
-    probe = replace_once(
-        probe,
-        "    private static final AtomicLong decodedTransportSamples = new AtomicLong();\n",
-        "    private static final AtomicLong decodedTransportSamples = new AtomicLong();\n    private static final AtomicLong fullStateSamples = new AtomicLong();\n",
-        "full-state sample counter field",
-    )
-    probe = replace_once(
-        probe,
-        "        identityBearingIdHashLeaks.set(0); faceDownHiddenSamples.set(0); decodedTransportSamples.set(0);\n",
-        "        identityBearingIdHashLeaks.set(0); faceDownHiddenSamples.set(0); decodedTransportSamples.set(0); fullStateSamples.set(0);\n",
-        "full-state sample counter reset",
-    )
-    probe = replace_once(
-        probe,
-        "        decodedTransportSamples.incrementAndGet();\n\n        for (PlayerView owner : gameView.getPlayers()) {\n",
-        "        decodedTransportSamples.incrementAndGet();\n        if (source != null && source.startsWith(\"full:\")) fullStateSamples.incrementAndGet();\n\n        for (PlayerView owner : gameView.getPlayers()) {\n",
-        "full-state decoded callback count",
-    )
-    probe = replace_once(
-        probe,
-        "    public static long transportSamples() { return decodedTransportSamples.get(); }\n",
-        "    public static long transportSamples() { return decodedTransportSamples.get(); }\n    public static long fullStateSamples() { return fullStateSamples.get(); }\n",
-        "full-state sample getter",
-    )
-    require("fullStateSamples" in probe and 'source.startsWith("full:")' in probe, "derived full-state probe missing")
-    probe_path.write_text(probe, encoding="utf-8")
-
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(s, encoding="utf-8")
-    print("WS33_G_ABILITY_HARNESS_PREP=PASS cases=28 direct_resolution=0 manual_target_injection=0 target_setup=SpellAbility.setupTargets stack_entry=MagicStack.addAndUnfreeze stack_resolution=MagicStack.resolveStack admission_gate=STRICT campaign_entry=PRODUCTION_QUIESCENT evidence_window=FULL_STATE_ACK_BARRIER generic_library_fixture=LAND_LAND_CREATURE_NONCREATURE observation_ui=EXTERNAL_OVERLAY")
+    print("WS33_G_ABILITY_HARNESS_PREP=PASS cases=28 direct_resolution=0 manual_target_injection=0 target_setup=SpellAbility.setupTargets stack_entry=MagicStack.addAndUnfreeze stack_resolution=MagicStack.resolveStack admission_gate=STRICT campaign_entry=PRODUCTION_QUIESCENT evidence_window=CLIENT_REPLY_BARRIER generic_library_fixture=LAND_LAND_CREATURE_NONCREATURE bounded_confirmation_pilot=TRUE observation_ui=EXTERNAL_OVERLAY")
 
 if __name__ == "__main__":
     main()
