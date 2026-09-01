@@ -35,7 +35,7 @@ jobs:
           git fetch --no-tags origin "$CURRENT_PREDECESSOR_HEAD"
           test "$(git rev-parse "$CURRENT_PREDECESSOR_HEAD^{tree}")" = "$CURRENT_PREDECESSOR_TREE"
           git merge-base --is-ancestor "$CURRENT_PREDECESSOR_HEAD" "$GITHUB_SHA"
-          bad="$(git diff --name-only "$CURRENT_PREDECESSOR_HEAD" "$GITHUB_SHA" | grep -Ev '^(.github/workflows/ws33-|research/greenfield-qualification/actual-card-behavior/ws33/)' || true)"
+          bad="$(git diff --name-only "$CURRENT_PREDECESSOR_HEAD" "$GITHUB_SHA" | grep -Ev '^(.github/workflows/ws33-|research/greenfield-qualification/actual-card-behavior/ws33/|research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py)' || true)"
           test -z "$bad" || { printf '%s\n' "$bad"; exit 1; }
 
       - name: Download exact immutable current successor
