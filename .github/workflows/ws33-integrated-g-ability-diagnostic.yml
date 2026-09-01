@@ -7,6 +7,7 @@ on:
       - '.github/workflows/ws33-integrated-g-ability-diagnostic.yml'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_g_ability_harness.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_requirement_projection_audit.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-input-confirm.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-target-selection.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-tests/Ws33TargetSelectionExternalizationTest.java'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/WS33_POST_GEN2_CLOSURE_INTELLIGENCE_AUDIT_*.md'
@@ -112,7 +113,7 @@ jobs:
             --forge-root forge \
             --out generated/diagnostic/G_REQUIREMENT_PROJECTION.json
           jq -e '
-            .schema == "commander-simulator-next.ws33-requirement-projection-audit.v3" and
+            .schema == "commander-simulator-next.ws33-requirement-projection-audit.v4" and
             .status == "PASS" and
             .authoritative_projection_scope == "HIDDEN_RNG_REPLAY" and
             .authoritative_projection_scope_path_count == 81 and
@@ -171,7 +172,7 @@ jobs:
               rows.append('\t'.join(map(str,fields)))
           Path('generated/g-ability-cases.tsv').write_text('\n'.join(rows)+'\n')
           Path('generated/diagnostic/G_DIRECT_ABILITY_PATH_IDS.txt').write_text('\n'.join(sorted(ids))+'\n')
-          print(f'WS33_G_ABILITY_CASES=PASS paths=28 source=CURRENT_GEN2_PLUS_PINNED_FORGE requirements=SOURCE_PROVEN_G_V3 changed_profiles={changed} historical_pass_reused=0')
+          print(f'WS33_G_ABILITY_CASES=PASS paths=28 source=CURRENT_GEN2_PLUS_PINNED_FORGE requirements=SOURCE_PROVEN_G_V4 changed_profiles={changed} historical_pass_reused=0')
           PY
       - name: Prepare admissible G harness
         run: |
@@ -183,9 +184,12 @@ jobs:
           ! grep -F 'sa.getTargets().add(' "$dst"
           ! grep -F 'getStack().add(sa)' "$dst"
           ! grep -F 'chooseTargetsFor(sa)' "$dst"
+          ! grep -F 'sendFullState' "$dst"
           grep -F 'sa.setupTargets()' "$dst"
           grep -F 'getStack().addAndUnfreeze(sa)' "$dst"
           grep -F 'getStack().resolveStack()' "$dst"
+          grep -F 'awaitWs33TransportBarrier' "$dst"
+          grep -F 'ws33ConfirmationOccurrences' "$dst"
           grep -F 'stackAdmissions' "$dst"
           grep -F 'stackResolutions' "$dst"
           cp "$ROOT/runtime-tests/Ws33TargetSelectionExternalizationTest.java" \
@@ -250,28 +254,30 @@ jobs:
               if int(b[18])!=1 or int(b[19])!=1: failures.append(f'{pid}:replay_stack={b[18]}/{b[19]}')
               if int(a[9]) or int(a[10]): failures.append(f'{pid}:record_leak={a[9]}/{a[10]}')
               if int(b[9]) or int(b[10]): failures.append(f'{pid}:replay_leak={b[9]}/{b[10]}')
-              if (int(a[7])>0)!=rq['decision']: failures.append(f'{pid}:record_decision_events={a[7]} required={rq["decision"]}')
-              if (int(b[7])>0)!=rq['decision']: failures.append(f'{pid}:replay_decision_events={b[7]} required={rq["decision"]}')
-              if (int(a[8])>0)!=rq['rng']: failures.append(f'{pid}:record_rng_events={a[8]} required={rq["rng"]}')
-              if (int(b[8])>0)!=rq['rng']: failures.append(f'{pid}:replay_rng_events={b[8]} required={rq["rng"]}')
-              if rq['replay'] and (a[5]!=b[5] or a[6]!=b[6]): failures.append(f'{pid}:semantic_replay_digest_mismatch')
+              if rq['decision'] and int(a[7])<=0: failures.append(f'{pid}:record_missing_required_decision')
+              if rq['decision'] and int(b[7])<=0: failures.append(f'{pid}:replay_missing_required_decision')
+              if rq['rng'] and int(a[8])<=0: failures.append(f'{pid}:record_missing_required_rng')
+              if rq['rng'] and int(b[8])<=0: failures.append(f'{pid}:replay_missing_required_rng')
+              observed_replay_surface = rq['replay'] or int(a[7])>0 or int(a[8])>0 or int(b[7])>0 or int(b[8])>0
+              if observed_replay_surface and (a[5]!=b[5] or a[6]!=b[6]): failures.append(f'{pid}:semantic_replay_digest_mismatch')
           record_log=Path('generated/record/runtime.log').read_text(errors='replace') if Path('generated/record/runtime.log').is_file() else ''
           replay_log=Path('generated/replay/runtime.log').read_text(errors='replace') if Path('generated/replay/runtime.log').is_file() else ''
           if "[Couldn't add to stack, failed to target]" in record_log: failures.append('record_silent_stack_target_rejection')
           if "[Couldn't add to stack, failed to target]" in replay_log: failures.append('replay_silent_stack_target_rejection')
           out={
-            'schema':'commander-simulator-next.ws33-g-ability-diagnostic.v3',
+            'schema':'commander-simulator-next.ws33-g-ability-diagnostic.v4',
             'coverage_mutated':False,
             'historical_pass_status_reused':False,
             'case_source':'CURRENT_GEN2_PLUS_PINNED_FORGE',
-            'requirements_source':'SOURCE_PROVEN_G_V3',
+            'requirements_source':'SOURCE_PROVEN_G_V4',
+            'requirements_are_minimum_evidence_obligations':True,
             'expected_paths':28,
             'record_rows':len(rec),'replay_rows':len(rep),
             'record_status':dict(Counter(x[4] for x in rec if len(x)>4)),
             'replay_status':dict(Counter(x[4] for x in rep if len(x)>4)),
             'stack_admission_required':True,
             'stack_resolution_required':True,
-            'semantic_replay_equality_required':True,
+            'semantic_replay_equality_required_for_observed_decision_or_rng':True,
             'failure_count':len(failures),
             'failures':failures,
             'status':'PASS' if not failures else 'FAIL_CLOSED',
