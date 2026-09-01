@@ -69,7 +69,7 @@ jobs:
           python "$ROOT/ws33_verify.py" --root generated/output/ws33 | tee generated/qualification/ws33-verify.log
           (cd generated/output/ws33 && sha256sum -c WS33_HASHES.sha256) > generated/qualification/internal-hashes.log
           python - <<'PY'
-          import json, hashlib
+          import json, hashlib, os
           from pathlib import Path
           root=Path('generated/output/ws33')
           manifest=json.loads((root/'WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json').read_text())
@@ -89,7 +89,7 @@ jobs:
           gate={
             'schema':'commander-simulator-next.ws33-g-model-successor-freeze.v1',
             'status':'PASS',
-            'source_head':'336b65c87734d358450910685f6c898970ce6991',
+            'source_head':os.environ['GITHUB_SHA'],
             'errata_source_head':'e6bdab170ea9050fb86f2f9f948bab9bf92a6e38',
             'errata_artifact_id':'9822685407',
             'errata_artifact_digest':'sha256:81e1e24551403453e4dd32e9ed65951cbaca2776cc993eddf475b4214a67a424',
