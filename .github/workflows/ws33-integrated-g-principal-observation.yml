@@ -1,0 +1,292 @@
+name: WS33 integrated G principal observation
+
+on:
+  push:
+    branches: [work/ws33-integrated-closure-20260831]
+    paths:
+      - '.github/workflows/ws33-integrated-g-principal-observation.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-input-confirm.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_instrument_g_principal_observations.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_g_ability_harness.py'
+      - 'research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  g-principal-observation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      H_COMPLETE_SOURCE_HEAD: 4596a58287ccd0f2b432ebeca2b4fd0d8bec4df3
+      H_COMPLETE_ARTIFACT_ID: '9766400471'
+      H_COMPLETE_ARTIFACT_DIGEST: sha256:a28834e59b86468dc8855c5db5b1f433cfa17b5eded2bc4061092566f95f4372
+      G_STRICT_SOURCE_HEAD: d8af15cb879bdfc3c40ce4cba3462da24ee3f272
+      G_STRICT_ARTIFACT_ID: '9803814288'
+      G_STRICT_ARTIFACT_DIGEST: sha256:493f3549b6483d4fea9644f3a0216deb108a9ac581b651ff3e083499bcb14b5a
+      GENERATION2_BASE_HEAD: 991486fd012463d29173a9aba15ebb3296d64dda
+      GENERATION2_BASE_TREE: c8ba229cf428973bd7711844563987d69517b5b8
+      FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+      WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+      WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+      WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
+      WS31_HIST_HEAD: b09fe7c16845cddbbfe30fd1f855b59234bbf007
+      ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+    steps:
+      - name: Checkout integrated successor
+        uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+
+      - name: Verify immutable ancestry
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$H_COMPLETE_SOURCE_HEAD" "$GITHUB_SHA"
+          git merge-base --is-ancestor "$G_STRICT_SOURCE_HEAD" "$GITHUB_SHA"
+          git merge-base --is-ancestor "$GENERATION2_BASE_HEAD" "$GITHUB_SHA"
+          test "$(git rev-parse "$GENERATION2_BASE_HEAD^{tree}")" = "$GENERATION2_BASE_TREE"
+          bad="$(git diff --name-only "$GENERATION2_BASE_HEAD" "$GITHUB_SHA" | grep -Ev '^(.github/workflows/ws33-|research/greenfield-qualification/actual-card-behavior/ws33/|research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py|research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java)' || true)"
+          test -z "$bad" || { printf '%s\n' "$bad"; exit 1; }
+
+      - name: Download and verify H-complete frontier
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euo pipefail
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$H_COMPLETE_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$meta")" = "$H_COMPLETE_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$meta")" = "$H_COMPLETE_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$H_COMPLETE_ARTIFACT_ID/zip" > h.zip
+          mkdir -p generated/h-input generated/strict-input generated/record generated/replay generated/diagnostic generated/overlay-logs
+          unzip -q h.zip -d generated/h-input
+          test -d generated/h-input/ws33
+          mv generated/h-input/ws33 generated/ws33
+          python - <<'PY'
+          import hashlib,json
+          from collections import Counter
+          from pathlib import Path
+          root=Path('generated/ws33')
+          for line in (root/'WS33_HASHES.sha256').read_text().splitlines():
+              want,rel=line.split('  ',1)
+              got=hashlib.sha256((root/rel).read_bytes()).hexdigest()
+              assert got==want,(rel,want,got)
+          cov=json.loads((root/'WS33_PATH_COVERAGE.json').read_text())
+          counts=Counter(r['status'] for r in cov['paths'])
+          assert counts==Counter({'UNKNOWN':3903,'PASS':285}),counts
+          print('WS33_G_OBSERVATION_H_INPUT=PASS PASS=285 UNKNOWN=3903 internal_hashes=TRUE')
+          PY
+
+      - name: Download and verify immutable green G strict case artifact
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euo pipefail
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$G_STRICT_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$meta")" = "$G_STRICT_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$meta")" = "$G_STRICT_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$G_STRICT_ARTIFACT_ID/zip" > g-strict.zip
+          unzip -q g-strict.zip -d generated/strict-input
+          test -s generated/strict-input/g-ability-cases.tsv
+          test -s generated/strict-input/diagnostic/WS33_G_ABILITY_DIAGNOSTIC.json
+          jq -e '.schema=="commander-simulator-next.ws33-g-ability-diagnostic.v4" and .status=="PASS" and .failure_count==0 and .expected_paths==28 and .coverage_mutated==false' generated/strict-input/diagnostic/WS33_G_ABILITY_DIAGNOSTIC.json
+          cp generated/strict-input/g-ability-cases.tsv generated/g-ability-cases.tsv
+          python - <<'PY'
+          from pathlib import Path
+          rows=[x for x in Path('generated/g-ability-cases.tsv').read_text().splitlines() if x.strip()]
+          assert len(rows)==28,len(rows)
+          ids=[x.split('\t')[1] for x in rows]
+          assert len(set(ids))==28
+          print('WS33_G_OBSERVATION_CASE_INPUT=PASS paths=28 source=IMMUTABLE_GREEN_G_STRICT_ARTIFACT')
+          PY
+
+      - name: Checkout exact runtime sources
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.WS01_HEAD }}', path: ws01, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.WS12_HEAD }}', path: ws12, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.WS32_HEAD }}', path: ws32, fetch-depth: 1}
+      - name: Checkout historical WS31 harness infrastructure only
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.WS31_HIST_HEAD }}
+          path: ws31-historical
+          fetch-depth: 1
+          sparse-checkout: |
+            research/greenfield-qualification/actual-card-behavior/ws31/forge-overlay/Ws31HiddenRngReplayQualificationTest.java
+
+      - name: Verify exact pins
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          test "$(git -C ws01 rev-parse HEAD)" = "$WS01_HEAD"
+          test "$(git -C ws12 rev-parse HEAD)" = "$WS12_HEAD"
+          test "$(git -C ws32 rev-parse HEAD)" = "$WS32_HEAD"
+          test "$(git -C ws31-historical rev-parse HEAD)" = "$WS31_HIST_HEAD"
+
+      - name: Apply current WS33 production overlay stack
+        run: |
+          set -euo pipefail
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch | tee generated/overlay-logs/ws01.log
+          python research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge | tee generated/overlay-logs/ws05.log
+          cp research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          python research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/record/RNG_INVENTORY.json | tee generated/overlay-logs/ws06.log
+          python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge | tee generated/overlay-logs/ws33-input-confirm.log
+          python "$ROOT/runtime-overlays/apply-ws33-stack-target.py" --forge-root forge | tee generated/overlay-logs/ws33-stack-target.log
+          python "$ROOT/runtime-overlays/apply-ws33-target-selection.py" --forge-root forge | tee generated/overlay-logs/ws33-target-selection.log
+          python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py --forge-root forge | tee generated/overlay-logs/ws12.log
+          python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py --forge-root forge | tee generated/overlay-logs/ws32.log
+          test -s forge/forge-gui/src/main/java/forge/gamemodes/match/input/ExternalObservationTrace.java
+          grep -F 'WS33_ENTITY_CARD_OBSERVATION=PRINCIPAL_SCOPED_REMOTE_DELTA' generated/overlay-logs/ws33-input-confirm.log
+
+      - name: Prepare G harness with principal observation evidence
+        run: |
+          set -euo pipefail
+          src=ws31-historical/research/greenfield-qualification/actual-card-behavior/ws31/forge-overlay/Ws31HiddenRngReplayQualificationTest.java
+          dst=forge/forge-gui-desktop/src/test/java/forge/net/Ws33GAbilityQualificationTest.java
+          python "$ROOT/ws33_prepare_g_ability_harness.py" --source "$src" --out "$dst"
+          python "$ROOT/ws33_instrument_g_principal_observations.py" --harness "$dst"
+          ! grep -F 'sa.resolve()' "$dst"
+          ! grep -F 'sa.getTargets().add(' "$dst"
+          grep -F 'getStack().addAndUnfreeze(sa)' "$dst"
+          grep -F 'getStack().resolveStack()' "$dst"
+          grep -F 'ExternalObservationTrace.setPath(spec.pathId)' "$dst"
+          grep -F 'PRINCIPAL_OBSERVATIONS.jsonl' "$dst"
+          sha256sum "$dst" | tee generated/diagnostic/harness.sha256
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with: {distribution: temurin, java-version: '21'}
+
+      - name: Fresh record execution
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws33GAbilityQualificationTest \
+            -Dws31.cases="$GITHUB_WORKSPACE/generated/g-ability-cases.tsv" \
+            -Dws31.outDir="$GITHUB_WORKSPACE/generated/record" -Dws31.mode=record \
+            -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) \
+            2>&1 | tee generated/record/runtime.log
+          test -s generated/record/case-summary.tsv
+          test -s generated/record/PRINCIPAL_OBSERVATIONS.jsonl
+          ! grep -F "[Couldn't add to stack, failed to target]" generated/record/runtime.log
+
+      - name: Fresh replay execution
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws33GAbilityQualificationTest \
+            -Dws31.cases="$GITHUB_WORKSPACE/generated/g-ability-cases.tsv" \
+            -Dws31.outDir="$GITHUB_WORKSPACE/generated/replay" -Dws31.mode=replay \
+            -Dws31.decisionReplay="$GITHUB_WORKSPACE/generated/record/decision-tape.tsv" \
+            -Dws31.rngReplay="$GITHUB_WORKSPACE/generated/record/rng-tape.tsv" \
+            -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) \
+            2>&1 | tee generated/replay/runtime.log
+          test -s generated/replay/case-summary.tsv
+          test -s generated/replay/PRINCIPAL_OBSERVATIONS.jsonl
+          ! grep -F "[Couldn't add to stack, failed to target]" generated/replay/runtime.log
+
+      - name: Strictly adjudicate principal observation evidence
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from collections import Counter,defaultdict
+          from pathlib import Path
+
+          failures=[]
+          req={}
+          if Path('generated/g-ability-cases.tsv').is_file():
+              for line in Path('generated/g-ability-cases.tsv').read_text().splitlines():
+                  if not line.strip(): continue
+                  f=line.split('\t')
+                  req[f[1]]={'hidden':f[10]=='1','rng':f[11]=='1','replay':f[12]=='1','decision':f[13]=='1'}
+
+          def load(path):
+              if not Path(path).is_file(): return []
+              out=[]
+              for line in Path(path).read_text().splitlines():
+                  if line.strip(): out.append(json.loads(line))
+              return out
+
+          rec=load('generated/record/PRINCIPAL_OBSERVATIONS.jsonl')
+          rep=load('generated/replay/PRINCIPAL_OBSERVATIONS.jsonl')
+          if len(req)!=28: failures.append(f'requirement_rows={len(req)}')
+          if not rec: failures.append('record_observations_empty')
+          if not rep: failures.append('replay_observations_empty')
+
+          def adjudicate(label,events):
+              by_path=defaultdict(list)
+              for e in events:
+                  if e.get('path_id') not in req: failures.append(f'{label}:unknown_path={e.get("path_id")}')
+                  if not e.get('identity_match',False): failures.append(f'{label}:identity_mismatch={e}')
+                  by_path[e.get('path_id')].append(e)
+              for pid,rq in req.items():
+                  ev=by_path.get(pid,[])
+                  grants=[e for e in ev if e.get('kind')=='SERVER_GRANT']
+                  if rq['hidden'] and not grants:
+                      failures.append(f'{pid}:{label}_missing_positive_observation')
+                  for g in grants:
+                      principal=g['principal_id']; card=g['card_id']; seq=g['sequence']
+                      visible=[e for e in ev if e.get('kind')=='CLIENT_VISIBLE' and e.get('principal_id')==principal and e.get('card_id')==card and e.get('sequence',0)>seq]
+                      revoke=[e for e in ev if e.get('kind')=='SERVER_REVOKE' and e.get('principal_id')==principal and e.get('card_id')==card and e.get('sequence',0)>seq]
+                      if not visible: failures.append(f'{pid}:{label}_grant_not_observed principal={principal} card={card}')
+                      if not revoke: failures.append(f'{pid}:{label}_grant_not_revoked principal={principal} card={card}')
+                      if visible and revoke:
+                          cutoff=min(e['sequence'] for e in revoke)
+                          if min(e['sequence'] for e in visible)>=cutoff:
+                              failures.append(f'{pid}:{label}_visible_after_revoke_order principal={principal} card={card}')
+                          hidden=[e for e in ev if e.get('kind')=='CLIENT_HIDDEN' and e.get('principal_id')==principal and e.get('card_id')==card and e.get('sequence',0)>cutoff]
+                          if not hidden: failures.append(f'{pid}:{label}_revocation_not_observed principal={principal} card={card}')
+              return by_path
+
+          rec_by=adjudicate('record',rec)
+          rep_by=adjudicate('replay',rep)
+
+          def normalized(events):
+              rows=[]
+              for e in events:
+                  kind=e['kind']
+                  decision=e.get('decision_kind','') if kind.startswith('SERVER_') else ''
+                  rows.append((e['path_id'],kind,e['principal_id'],e['card_id'],decision,e['identity_match']))
+              return Counter(rows)
+          if normalized(rec)!=normalized(rep):
+              failures.append('principal_observation_record_replay_multiset_mismatch')
+
+          out={
+            'schema':'commander-simulator-next.ws33-g-principal-observation.v1',
+            'source_case_artifact_id':9803814288,
+            'expected_paths':28,
+            'hidden_required_paths':sum(1 for x in req.values() if x['hidden']),
+            'record_event_count':len(rec),
+            'replay_event_count':len(rep),
+            'retained_hidden_identity_payload':False,
+            'client_identity_compared_to_authoritative_card_in_memory':True,
+            'principal_transport':'REMOTE_CLIENT_DELTA',
+            'temporary_observation_revocation_required':True,
+            'failure_count':len(failures),
+            'failures':failures,
+            'status':'PASS' if not failures else 'FAIL_CLOSED',
+          }
+          Path('generated/diagnostic/WS33_G_PRINCIPAL_OBSERVATION.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,sort_keys=True))
+          assert not failures,failures[:30]
+          PY
+
+      - name: Upload immutable G principal observation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-g-principal-observation-${{ github.run_id }}
+          path: |
+            generated/diagnostic/
+            generated/g-ability-cases.tsv
+            generated/record/
+            generated/replay/
+            generated/overlay-logs/
+          if-no-files-found: error
