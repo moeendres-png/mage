@@ -59,16 +59,26 @@ def main() -> None:
     # by sending a full property map through objectDeltas. CardStateView refreshes
     # remain on the existing newObjects path, whose client handling clears and
     # repopulates those state objects in place.
+    #
+    # A redacted hidden CardView deliberately carries Facedown=true.  Forge's
+    # authoritative visible CardView can omit that false/default property from
+    # a full property snapshot.  If the same client CardView later becomes
+    # visible (for example a revealed Library permanent moving to Battlefield),
+    # the stale redacted true value would otherwise survive and make the client
+    # treat a face-up public permanent as hidden.  Always carry the authoritative
+    # face-down boolean on a visibility refresh; this is projection state, not a
+    # rules or pilot inference.
     replace_once(
         delta,
         "        if (old == obj && !forceFull) {",
-        "        if (old == obj && forceFull && obj instanceof CardView) {\n"
+        "        if (old == obj && forceFull && obj instanceof CardView card) {\n"
         "            obj.getAndClearDirtyProps(consumerId);\n"
         "            Map<TrackableProperty, Object> allProps = buildPropertyMap(obj, null);\n"
+        "            allProps.put(TrackableProperty.Facedown, card.isFaceDown());\n"
         "            if (!allProps.isEmpty()) {\n"
         "                objectDeltas.put(deltaKey, allProps);\n"
-        "                netLog.info(\"[WS05VisibilityRefresh] Visibility refresh in place cardId={} props={}\",\n"
-        "                        obj.getId(), allProps.size());\n"
+        "                netLog.info(\"[WS05VisibilityRefresh] Visibility refresh in place cardId={} props={} facedown={}\",\n"
+        "                        obj.getId(), allProps.size(), card.isFaceDown());\n"
         "            }\n"
         "            return;\n"
         "        }\n\n"
@@ -149,6 +159,7 @@ def main() -> None:
     print("WS05_HIDDEN_INFO_OVERLAY_APPLIED=TRUE")
     print("WS05_FACE_DOWN_VISIBILITY_ENFORCED=TRUE")
     print("WS05_VISIBILITY_REFRESH_PRESERVES_CARD_IDENTITY=TRUE")
+    print("WS05_VISIBILITY_REFRESH_RESTORES_AUTHORITATIVE_FACEDOWN=TRUE")
     print("WS05_HIDDEN_LOOK_PERMISSION_REVOKED=TRUE")
     print("WS05_HIDDEN_CARD_STATE_INVALIDATED=TRUE")
     print("WS05_VISIBILITY_TRANSITION_DIAGNOSTICS=TRUE")
