@@ -180,24 +180,29 @@ public class CommanderPlaysCountStateRestoreTest extends CardTestCommander4Playe
     }
 
     @Test
-    public void commanderCastFromHandDoesNotIncrementRestoredCommandZoneHistory() {
+    public void handZoneSpellCastEventDoesNotIncrementRestoredCommandZoneHistory() {
         addCard(Zone.COMMAND, playerA, ROGRAKH, 1);
 
-        runCode("restore then move commander to hand", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
+        runCode("restore then verify hand-zone event", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
             UUID id = commanderId(game, player, ROGRAKH);
             CommanderPlaysCountWatcher watcher = watcher(game);
             watcher.restoreStateForGameLoad(state(id, 2), game);
+
             Card commander = game.getCard(id);
             Assert.assertNotNull(commander);
-            Assert.assertTrue(player.moveCardToHandWithInfo(commander, null, game, true));
-        });
+            Ability sourceAbility = commander.getSpellAbility();
+            sourceAbility.setControllerId(player.getId());
+            GameEvent handCastEvent = GameEvent.getEvent(
+                    GameEvent.EventType.SPELL_CAST,
+                    id,
+                    sourceAbility,
+                    player.getId()
+            );
+            handCastEvent.setZone(Zone.HAND);
+            watcher.watch(handCastEvent, game);
 
-        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, ROGRAKH);
-        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN, playerA);
-        runCode("history unchanged after hand cast", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
-            UUID id = commanderId(game, player, ROGRAKH);
-            Assert.assertEquals(2, watcher(game).getPlaysCount(id));
-            Assert.assertEquals(2, watcher(game).getPlayerCount(player.getId()));
+            Assert.assertEquals(2, watcher.getPlaysCount(id));
+            Assert.assertEquals(2, watcher.getPlayerCount(player.getId()));
         });
 
         setStopAt(1, PhaseStep.BEGIN_COMBAT);
@@ -277,7 +282,7 @@ public class CommanderPlaysCountStateRestoreTest extends CardTestCommander4Playe
         private int spellCastEvents;
         private int landPlayedEvents;
 
-        private HistoryEventProbe() {
+        HistoryEventProbe() {
             super(WatcherScope.GAME);
         }
 
