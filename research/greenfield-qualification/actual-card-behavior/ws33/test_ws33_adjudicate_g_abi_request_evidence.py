@@ -10,7 +10,11 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ws33_adjudicate_g_abi_request_evidence import EvidenceError, parse_requests
+from ws33_adjudicate_g_abi_request_evidence import (
+    EvidenceError,
+    parse_event_paths,
+    parse_requests,
+)
 
 
 def enc(value: str) -> str:
@@ -60,6 +64,40 @@ class RequestIdentityScopeTest(unittest.TestCase):
     def test_semantic_pseudo_option_id_is_rejected(self) -> None:
         with self.assertRaisesRegex(EvidenceError, "non-opaque option id"):
             self.parse([request_row(principal=10, token=1, option_id="target-action:cancel")])
+
+
+class EventIdentityScopeTest(unittest.TestCase):
+    @staticmethod
+    def row(*, principal: int, event_id: int) -> str:
+        return "\t".join(
+            [
+                enc("path:one"),
+                str(event_id),
+                enc("BINARY_CHOICE"),
+                str(principal),
+                str(principal),
+                "ACCEPTED",
+                enc("null"),
+            ]
+        )
+
+    def parse(self, rows: list[str]):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "events.tsv"
+            path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+            return parse_event_paths(path)
+
+    def test_same_event_id_is_allowed_for_distinct_principals(self) -> None:
+        events = self.parse(
+            [self.row(principal=10, event_id=1), self.row(principal=11, event_id=1)]
+        )
+        self.assertEqual(set(events), {(10, 1), (11, 1)})
+
+    def test_duplicate_principal_scoped_event_id_is_rejected(self) -> None:
+        with self.assertRaisesRegex(EvidenceError, "principal-scoped event id"):
+            self.parse(
+                [self.row(principal=10, event_id=1), self.row(principal=10, event_id=1)]
+            )
 
 
 if __name__ == "__main__":

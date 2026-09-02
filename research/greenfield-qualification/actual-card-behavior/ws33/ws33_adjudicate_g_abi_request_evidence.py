@@ -64,8 +64,9 @@ def parse_event_paths(p: Path):
     for n,line in enumerate(lines(p),1):
         f=line.split("\t",-1); need(len(f)==7, f"decision-event row {n}: expected 7 columns")
         path=dec(f[0]); event_id=int(f[1]); kind=dec(f[2]); actor=int(f[3]); principal=int(f[4]); status=f[5]; error=dec(f[6])
-        need(event_id>0 and event_id not in out, f"decision-event row {n}: duplicate/invalid event id")
-        out[event_id]={"path":path,"kind":kind,"actor":actor,"principal":principal,"status":status,"error":error}
+        ident=(principal,event_id)
+        need(event_id>0 and ident not in out, f"decision-event row {n}: duplicate/invalid principal-scoped event id {ident}")
+        out[ident]={"path":path,"kind":kind,"actor":actor,"principal":principal,"status":status,"error":error}
     return out
 
 def correlate_tape(p: Path, event_paths, requests, cases):
@@ -75,7 +76,7 @@ def correlate_tape(p: Path, event_paths, requests, cases):
         event_id=int(f[0]); decision_id=int(f[1]); token=int(f[2]); kind=dec(f[3]); actor=int(f[4]); principal=int(f[5]); count=int(f[6])
         selected=[] if count==0 else [dec(x) for x in f[7].split(",")]
         need(len(selected)==count and len(set(selected))==count, f"decision-tape row {n}: selected cardinality/uniqueness")
-        ev=event_paths.get(event_id); need(ev is not None, f"decision-tape row {n}: event {event_id} missing path metadata")
+        ev=event_paths.get((principal,event_id)); need(ev is not None, f"decision-tape row {n}: principal-scoped event {(principal,event_id)} missing path metadata")
         need((kind,actor,principal)==(ev['kind'],ev['actor'],ev['principal']), f"decision-tape row {n}: event metadata mismatch")
         if ev['path'] not in cases: continue
         need(ev['status']=="ACCEPTED" and ev['error']=="null", f"decision-tape row {n}: non-accepted campaign event")
