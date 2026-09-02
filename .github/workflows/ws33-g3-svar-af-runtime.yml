@@ -32,7 +32,7 @@ jobs:
     steps:
       - name: Checkout G3 tooling
         uses: actions/checkout@v4
-        with: {fetch-depth: 0}
+        with: {fetch-depth: 1}
 
       - name: Download exact green SVar topology
         env: {GH_TOKEN: '${{ github.token }}'}
