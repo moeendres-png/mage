@@ -75,11 +75,30 @@ public final class Ws33TargetSelectionExternalizationTest extends AITest {
         final SpellAbility ability = ability(actor,
                 "AB$ Tap | Cost$ 0 | ValidTgts$ Creature | TargetMin$ 0 | TargetMax$ 2");
 
-        final ScriptedProvider provider = new ScriptedProvider("target-action:done");
+        final ScriptedProvider provider = new ScriptedProvider("choice:0");
         final PlayerControllerHuman controller = controller(game, actor, provider);
         Assert.assertTrue(controller.chooseTargetsFor(ability));
         Assert.assertEquals(ability.getTargets().size(), 0);
-        Assert.assertTrue(optionIds(provider.requests.get(0)).contains("target-action:done"));
+        Assert.assertTrue(optionIds(provider.requests.get(0)).contains("choice:0"));
+        Assert.assertTrue(provider.requests.get(0).isCancelAllowed());
+        Assert.assertFalse(optionIds(provider.requests.get(0)).stream()
+                .anyMatch(id -> id.startsWith("target-action:")));
+    }
+
+    @Test
+    public void optionalTargetingUsesEnvelopeCancellationWithoutPseudoOption() {
+        final Game game = initAndCreateThreePlayerGame();
+        final Player actor = game.getPlayers().get(0);
+        addCard("Runeclaw Bear", game.getPlayers().get(1));
+        final SpellAbility ability = ability(actor,
+                "AB$ Tap | Cost$ 0 | ValidTgts$ Creature | TargetMin$ 1 | TargetMax$ 1");
+
+        final ScriptedProvider provider = ScriptedProvider.cancel();
+        final PlayerControllerHuman controller = controller(game, actor, provider);
+        Assert.assertFalse(controller.chooseTargetsFor(ability));
+        Assert.assertTrue(provider.requests.get(0).isCancelAllowed());
+        Assert.assertFalse(optionIds(provider.requests.get(0)).stream()
+                .anyMatch(id -> id.startsWith("target-action:")));
     }
 
     @Test
@@ -169,7 +188,7 @@ public final class Ws33TargetSelectionExternalizationTest extends AITest {
         Assert.assertEquals(request.getMinimumSelection(), 1);
         Assert.assertEquals(request.getMaximumSelection(), 1);
         for (final ExternalDecisionRequest.Option option : request.getOptions()) {
-            if (option.getOptionId().startsWith("target-action:")) {
+            if (option.getOptionId().startsWith("choice:")) {
                 continue;
             }
             Assert.assertTrue(option.isEntityBacked());
@@ -182,13 +201,28 @@ public final class Ws33TargetSelectionExternalizationTest extends AITest {
     private static final class ScriptedProvider {
         private final Deque<String> responses = new ArrayDeque<>();
         private final List<ExternalDecisionRequest> requests = new ArrayList<>();
+        private final boolean cancel;
 
         private ScriptedProvider(final String... optionIds) {
+            this(false, optionIds);
+        }
+
+        private ScriptedProvider(final boolean cancel, final String... optionIds) {
+            this.cancel = cancel;
             responses.addAll(List.of(optionIds));
+        }
+
+        private static ScriptedProvider cancel() {
+            return new ScriptedProvider(true);
         }
 
         private ExternalDecisionResponse respond(final ExternalDecisionRequest request) {
             requests.add(request);
+            if (cancel) {
+                return new ExternalDecisionResponse(
+                        request.getDecisionId(), request.getToken(), request.getActorId(),
+                        request.getPrincipalId(), request.getResponseSchema(), List.of(), true);
+            }
             final String optionId = responses.pollFirst();
             if (optionId == null) {
                 throw new IllegalStateException("unexpected target decision request");

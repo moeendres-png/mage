@@ -94,11 +94,7 @@ def main() -> None:
         }
         if (doneAllowed) {
             options.add(ExternalDecisionRequest.Option.discrete(
-                    "target-action:done", "TARGET_ACTION", "DONE"));
-        }
-        if (cancelAllowed) {
-            options.add(ExternalDecisionRequest.Option.discrete(
-                    "target-action:cancel", "TARGET_ACTION", "CANCEL"));
+                    "choice:0", "TARGET_ACTION", "DONE"));
         }
         if (options.isEmpty()) {
             throw new ExternalDecisionValidationException(
@@ -115,14 +111,14 @@ def main() -> None:
         context.put("decision_family", "TARGET_SELECTION");
         context.put("spell_ability_id", String.valueOf(sa.getId()));
         final ExternalDecisionResponse response = requestExternalSelection(
-                "TARGET_SELECTION", options, 1, 1, false,
+                "TARGET_SELECTION", options, 1, 1, cancelAllowed,
                 ExternalDecisionRequest.DISCRETE_RESPONSE_SCHEMA, constraints, context);
-        final String optionId = response.getSelectedOptionIds().get(0);
-        if ("target-action:done".equals(optionId)) {
-            return ExternalTargetTransition.done();
-        }
-        if ("target-action:cancel".equals(optionId)) {
+        if (response.isCancel()) {
             return ExternalTargetTransition.cancel();
+        }
+        final String optionId = response.getSelectedOptionIds().get(0);
+        if ("choice:0".equals(optionId)) {
+            return ExternalTargetTransition.done();
         }
         final GameEntity selected = entityByOption.get(optionId);
         if (selected == null) {
