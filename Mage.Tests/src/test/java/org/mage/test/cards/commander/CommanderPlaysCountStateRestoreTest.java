@@ -30,7 +30,9 @@ public class CommanderPlaysCountStateRestoreTest extends CardTestCommander4Playe
     private static final String JESKA = "Jeska, Thrice Reborn";
 
     private static UUID commanderId(Game game, Player player, String name) {
-        return game.getCommandersIds(player, CommanderCardType.ANY, false)
+        Player currentPlayer = game.getPlayer(player.getId());
+        Assert.assertNotNull("Current native player must exist", currentPlayer);
+        return game.getCommandersIds(currentPlayer, CommanderCardType.ANY, false)
                 .stream()
                 .filter(id -> {
                     Card card = game.getCard(id);
