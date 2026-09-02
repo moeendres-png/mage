@@ -21,7 +21,7 @@ import org.junit.Test;
 import org.mage.test.serverside.base.CardTestCommander4PlayersWithAIHelps;
 
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
 import java.util.UUID;
 
 public class CommanderPlaysCountStateRestoreTest extends CardTestCommander4PlayersWithAIHelps {
@@ -47,7 +47,7 @@ public class CommanderPlaysCountStateRestoreTest extends CardTestCommander4Playe
     }
 
     private static CommanderPlaysCountState state(UUID commanderId, int count) {
-        return new CommanderPlaysCountState(List.of(
+        return new CommanderPlaysCountState(Collections.singletonList(
                 new CommanderPlaysCountState.Count(commanderId, count)
         ));
     }
