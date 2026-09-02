@@ -1,10 +1,11 @@
-name: WS33 integrated G ABI request evidence
+name: WS33 G3 ABI request evidence
 
 on:
   push:
-    branches: [work/ws33-integrated-closure-20260831]
+    branches: [work/ws33-g3-final-closure-20260902]
     paths:
       - '.github/workflows/ws33-integrated-g-abi-request-evidence.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_adjudicate_g_abi_request_evidence.py'
   workflow_dispatch:
 
 permissions:
@@ -197,100 +198,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          import base64, json
-          from collections import defaultdict
-          from pathlib import Path
-
-          def dec(s): return base64.b64decode(s).decode()
-          cases={}
-          for line in Path('generated/source/g-ability-cases.tsv').read_text().splitlines():
-              f=line.split('\t')
-              cases[f[1]]={'decision':f[13]=='1','rng':f[11]=='1'}
-          assert len(cases)==28
-          req_dec={p for p,x in cases.items() if x['decision']}
-          req_rng={p for p,x in cases.items() if x['rng']}
-          assert len(req_dec)==19, len(req_dec)
-          assert len(req_rng)==7, len(req_rng)
-
-          requests={}
-          path_requests=defaultdict(list)
-          for line in Path('generated/record/decision-requests-with-path.tsv').read_text().splitlines():
-              f=line.split('\t',-1)
-              assert len(f)==13,(len(f),line)
-              path=dec(f[0]); decision_id=int(f[1]); token=int(f[2]); kind=dec(f[3]); actor=int(f[4]); principal=int(f[5]); visibility=dec(f[6])
-              minimum=int(f[7]); maximum=int(f[8]); cancel=f[9]=='true'; response_schema=dec(f[10]); count=int(f[11])
-              options=[] if count==0 else [dec(x) for x in f[12].split(',')]
-              assert len(options)==count and len(set(options))==count,(path,decision_id)
-              assert visibility=='PRINCIPAL_ONLY',(path,visibility)
-              assert minimum>=0 and maximum>=minimum and maximum<=count,(path,minimum,maximum,count)
-              row={'path_id':path,'decision_id':decision_id,'token':token,'decision_kind':kind,'actor':actor,'principal':principal,'visibility_scope':visibility,'minimum_selection':minimum,'maximum_selection':maximum,'cancel_allowed':cancel,'response_schema':response_schema,'authoritative_legal_options':options}
-              assert decision_id not in requests,decision_id
-              requests[decision_id]=row; path_requests[path].append(row)
-
-          event_path={}
-          for line in Path('generated/record/decision-events-with-path.tsv').read_text().splitlines():
-              f=line.split('\t',-1); event_path[int(f[1])]=dec(f[0])
-          accepted=defaultdict(list)
-          for line in Path('generated/record/decision-tape.tsv').read_text().splitlines():
-              f=line.split('\t',-1); event_id=int(f[0]); decision_id=int(f[1]); selected=[] if int(f[6])==0 else [dec(x) for x in f[7].split(',')]
-              path=event_path.get(event_id)
-              if path in cases:
-                  assert decision_id in requests,(path,decision_id)
-                  legal=set(requests[decision_id]['authoritative_legal_options'])
-                  assert all(x in legal for x in selected),(path,decision_id,selected,legal)
-                  accepted[path].append((decision_id,selected))
-
-          missing=sorted(p for p in req_dec if not accepted[p])
-          assert not missing,missing
-          assert all(len(path_requests[p])>0 for p in req_dec)
-
-          rng_paths=defaultdict(list)
-          for line in Path('generated/source/record/rng-events-with-path.tsv').read_text().splitlines():
-              f=line.split('\t',-1); path=dec(f[0])
-              if path in cases:
-                  event={'event_index':int(f[1]),'game_id':dec(f[2]),'stream':dec(f[3]),'draw_index':int(f[4]),'bits':int(f[5]),'result':int(f[6])}
-                  event['pre_state']=f"{event['game_id']}|{event['stream']}|draw={event['draw_index']}"
-                  event['post_state']=f"{event['game_id']}|{event['stream']}|draw={event['draw_index']+1}"
-                  event['operation']=f"next({event['bits']})"
-                  rng_paths[path].append(event)
-          missing_rng=sorted(p for p in req_rng if not rng_paths[p])
-          assert not missing_rng,missing_rng
-
-          out={
-            'schema':'commander-simulator-next.ws33-g-abi-request-evidence.v1',
-            'status':'PASS',
-            'behavior_artifact_id':'9803814288',
-            'behavior_artifact_digest':'sha256:493f3549b6483d4fea9644f3a0216deb108a9ac581b651ff3e083499bcb14b5a',
-            'behavior_source_head':'d8af15cb879bdfc3c40ce4cba3462da24ee3f272',
-            'model_artifact_id':'9823383539',
-            'effective_model_sha256':'cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224',
-            'path_count':28,
-            'decision_required_path_count':len(req_dec),
-            'decision_required_paths_observed':len([p for p in req_dec if accepted[p]]),
-            'rng_required_path_count':len(req_rng),
-            'rng_required_paths_observed':len([p for p in req_rng if rng_paths[p]]),
-            'request_event_count':sum(len(v) for v in path_requests.values()),
-            'record_replay_request_trace_equal':True,
-            'immutable_green_record_byte_equal':True,
-            'immutable_green_replay_byte_equal':True,
-            'authoritative_legal_options_captured_from_request':True,
-            'hidden_identity_payload_retained':False,
-            'minimum_requirement_semantics':True,
-            'rng_pre_post_state_basis':'CODE_DERIVED_NAMED_STREAM_DRAW_POSITION',
-            'coverage_mutated':False,
-          }
-          Path('generated/diagnostic/WS33_G_ABI_REQUEST_EVIDENCE.json').write_text(json.dumps(out,sort_keys=True,separators=(',',':'))+'\n')
-          Path('generated/diagnostic/decision-requests.json').write_text(json.dumps({'events':[x for p in sorted(path_requests) for x in path_requests[p]]},sort_keys=True,separators=(',',':'))+'\n')
-          Path('generated/diagnostic/rng-abi-events.json').write_text(json.dumps({'events':[{'path_id':p,**e} for p in sorted(rng_paths) for e in rng_paths[p]]},sort_keys=True,separators=(',',':'))+'\n')
-          print('WS33_G_ABI_REQUEST_EVIDENCE=PASS',out)
-          PY
-          jq -e '.status=="PASS" and .path_count==28 and .decision_required_path_count==19 and .decision_required_paths_observed==19 and .rng_required_path_count==7 and .rng_required_paths_observed==7 and .record_replay_request_trace_equal==true and .immutable_green_record_byte_equal==true and .immutable_green_replay_byte_equal==true and .authoritative_legal_options_captured_from_request==true and .hidden_identity_payload_retained==false and .coverage_mutated==false' generated/diagnostic/WS33_G_ABI_REQUEST_EVIDENCE.json
+          python "$ROOT/ws33_adjudicate_g_abi_request_evidence.py" \
+            --cases generated/source/g-ability-cases.tsv \
+            --record-requests generated/record/decision-requests-with-path.tsv \
+            --replay-requests generated/replay/decision-requests-with-path.tsv \
+            --decision-events generated/record/decision-events-with-path.tsv \
+            --decision-tape generated/record/decision-tape.tsv \
+            --rng-events generated/source/record/rng-events-with-path.tsv \
+            --out-dir generated/diagnostic \
+            --expected-paths 28 \
+            --expected-decision-paths 19 \
+            --expected-rng-paths 7 \
+            --behavior-artifact-id "$BEHAVIOR_ARTIFACT_ID" \
+            --behavior-artifact-digest "$BEHAVIOR_ARTIFACT_DIGEST" \
+            --behavior-source-head "$BEHAVIOR_SOURCE_HEAD" \
+            --model-artifact-id "$MODEL_ARTIFACT_ID" \
+            --effective-model-sha256 "$MODEL_SHA"
+          jq -e '.status=="PASS" and .schema=="commander-simulator-next.ws33-g-abi-request-evidence.v2" and .path_count==28 and .decision_required_path_count==19 and .decision_required_paths_observed==19 and .rng_required_path_count==7 and .rng_required_paths_observed==7 and .record_replay_request_trace_equal==true and .authoritative_legal_options_captured_from_request==true and .request_identity_scope=="principal_id+token" and .hidden_identity_payload_retained==false and .coverage_mutated==false and .silent_fallback==false' generated/diagnostic/WS33_G_ABI_REQUEST_EVIDENCE.json
 
       - name: Upload immutable supplemental ABI evidence
         uses: actions/upload-artifact@v4
         with:
-          name: ws33-g-abi-request-evidence-${{ github.run_id }}
+          name: ws33-g3-abi-request-evidence-${{ github.run_id }}
           path: |
             generated/diagnostic
             generated/record/decision-requests-with-path.tsv
