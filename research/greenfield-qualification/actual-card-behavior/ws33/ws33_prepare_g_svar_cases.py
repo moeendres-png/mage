@@ -9,7 +9,8 @@ from pathlib import Path
 
 G='HIDDEN_RNG_REPLAY'
 ABILITY_PREFIX=('AB$','SP$','DB$')
-REF_RE_TEMPLATE=r'(?:^|\s\|\s)([A-Za-z][A-Za-z0-9_]*)\$\s*{name}(?=\s*(?:\||$))'
+FIELD_RE=re.compile(r'(?:^|\s\|\s)([A-Za-z][A-Za-z0-9_]*)\$\s*([^|]*?)(?=\s*\|\s|$)')
+TOKEN_SPLIT_RE=re.compile(r'[\s,;]+')
 
 def fail(msg): raise SystemExit('WS33_G_SVAR_CASES=FAIL '+msg)
 def read_json(p): return json.loads(Path(p).read_text(encoding='utf-8'))
@@ -26,20 +27,35 @@ def card_name(lines):
     for x in lines:
         if x.startswith('Name:'): return x.split(':',1)[1].strip()
     fail('card name missing')
+def referenced_fields(script,target_name):
+    """Return Forge script fields whose value contains target as an exact token.
+
+    SVar references are not uniformly scalar.  Consumers such as Vote use
+    list-valued fields (for example ``Choices$ DBA,DBB``), while SubAbility is
+    scalar.  Parse field/value boundaries first and then match exact tokens so
+    prose/substring occurrences cannot create synthetic parent provenance.
+    """
+    out=[]
+    for m in FIELD_RE.finditer(script):
+        field=m.group(1)
+        value=m.group(2).strip()
+        tokens={x for x in TOKEN_SPLIT_RE.split(value) if x}
+        if target_name in tokens:
+            out.append(field)
+    return out
 def parent_candidates(lines,target_name,target_line):
-    rx=re.compile(REF_RE_TEMPLATE.format(name=re.escape(target_name)))
     out=[]
     for i,line in enumerate(lines,1):
         if i==target_line: continue
-        m=rx.search(line)
-        if not m: continue
         if line.startswith('SVar:'):
             parts=line.split(':',2); script=parts[2].strip(); directive='SVAR'; parent_token=parts[1].strip()
         elif ':' in line and line[0] in 'ATRS':
             script=line.split(':',1)[1].strip(); directive={'A':'ABILITY','T':'TRIGGER','R':'REPLACEMENT','S':'STATIC'}[line[0]]; parent_token=None
         else:
             continue
-        out.append({'source_line':i,'directive':directive,'parent_svar':parent_token,'consumer_field':m.group(1),'script':script,'ability_factory_compatible':script.startswith(ABILITY_PREFIX)})
+        fields=referenced_fields(script,target_name)
+        for field in fields:
+            out.append({'source_line':i,'directive':directive,'parent_svar':parent_token,'consumer_field':field,'script':script,'ability_factory_compatible':script.startswith(ABILITY_PREFIX)})
     return out
 
 def main():
