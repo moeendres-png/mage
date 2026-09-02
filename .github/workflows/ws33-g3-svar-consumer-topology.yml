@@ -1,0 +1,73 @@
+name: WS33 G3 SVar consumer topology
+
+on:
+  push:
+    branches: [work/ws33-g3-final-closure-20260902]
+    paths:
+      - '.github/workflows/ws33-g3-svar-consumer-topology.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_g_svar_cases.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  MODEL_ARTIFACT_ID: '9823383539'
+  MODEL_ARTIFACT_DIGEST: sha256:aab73ba2ede151bbd0b803c2164d3067ddd65f17d49cf655c34eef67d903595d
+  MODEL_SHA: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  BEHAVIOR_ARTIFACT_ID: '9803814288'
+  BEHAVIOR_ARTIFACT_DIGEST: sha256:493f3549b6483d4fea9644f3a0216deb108a9ac581b651ff3e083499bcb14b5a
+
+jobs:
+  topology:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download frozen predecessor and Direct-G evidence
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euo pipefail
+          mkdir -p generated/model generated/behavior generated/out
+          m="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$m")" = "$MODEL_ARTIFACT_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID/zip" > generated/model.zip
+          test "sha256:$(sha256sum generated/model.zip | cut -d' ' -f1)" = "$MODEL_ARTIFACT_DIGEST"
+          unzip -q generated/model.zip -d generated/model
+          if test -d generated/model/output/ws33; then mv generated/model/output/ws33 generated/model/ws33; fi
+          test "$(sha256sum generated/model/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)" = "$MODEL_SHA"
+          b="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$BEHAVIOR_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$b")" = "$BEHAVIOR_ARTIFACT_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$BEHAVIOR_ARTIFACT_ID/zip" > generated/behavior.zip
+          test "sha256:$(sha256sum generated/behavior.zip | cut -d' ' -f1)" = "$BEHAVIOR_ARTIFACT_DIGEST"
+          unzip -q generated/behavior.zip -d generated/behavior
+          test "$(wc -l < generated/behavior/diagnostic/G_DIRECT_ABILITY_PATH_IDS.txt)" -eq 28
+      - name: Checkout pinned Forge source
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+      - name: Derive source-proven first-consumer topology
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_prepare_g_svar_cases.py" \
+            --model-dir generated/model/ws33 \
+            --forge-root forge \
+            --direct-ids generated/behavior/diagnostic/G_DIRECT_ABILITY_PATH_IDS.txt \
+            --out-json generated/out/G_SVAR_CONSUMER_TOPOLOGY.json \
+            --out-tsv generated/out/g-svar-cases.tsv
+          jq -e '.status=="PASS" and .g_unknown_count==81 and .direct_g_count==28 and .remaining_svar_count==53 and (.unresolved_parent_paths|length)==0' generated/out/G_SVAR_CONSUMER_TOPOLOGY.json
+          sha256sum generated/out/* > generated/out/SHA256SUMS
+      - name: Upload topology artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-g3-svar-consumer-topology-${{ github.run_id }}
+          path: generated/out
+          if-no-files-found: error
+          retention-days: 90
