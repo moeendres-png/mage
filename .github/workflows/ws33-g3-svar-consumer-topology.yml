@@ -1,3 +1,4 @@
+# Read-only topology gate for the exact frozen G successor; emits no coverage mutations.
 name: WS33 G3 SVar consumer topology
 
 on:
