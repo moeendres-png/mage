@@ -1,9 +1,11 @@
 package mage.watchers.common;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -51,20 +53,13 @@ public final class CommanderPlaysCountState implements Serializable {
      */
     public static CommanderPlaysCountState fromMap(Map<UUID, Integer> counts) {
         Objects.requireNonNull(counts, "counts");
-        Map<UUID, Integer> copy = new LinkedHashMap<>();
-        counts.forEach((commanderId, count) -> {
-            Objects.requireNonNull(commanderId, "commanderId");
-            Objects.requireNonNull(count, "count");
-            if (count < 0) {
-                throw new IllegalArgumentException("Commander cast count cannot be negative: " + count);
-            }
-            copy.put(commanderId, count);
-        });
-        return new CommanderPlaysCountState(
-                copy.entrySet().stream()
-                        .map(entry -> new Count(entry.getKey(), entry.getValue()))
-                        .toList()
-        );
+        List<Count> copy = new ArrayList<>();
+        for (Map.Entry<UUID, Integer> entry : counts.entrySet()) {
+            UUID commanderId = Objects.requireNonNull(entry.getKey(), "commanderId");
+            Integer count = Objects.requireNonNull(entry.getValue(), "count");
+            copy.add(new Count(commanderId, count));
+        }
+        return new CommanderPlaysCountState(copy);
     }
 
     public Map<UUID, Integer> getCommanderCounts() {
