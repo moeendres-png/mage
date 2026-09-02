@@ -217,6 +217,7 @@ jobs:
           jq -e '.status=="PASS" and .schema=="commander-simulator-next.ws33-g-abi-request-evidence.v2" and .path_count==28 and .decision_required_path_count==19 and .decision_required_paths_observed==19 and .rng_required_path_count==7 and .rng_required_paths_observed==7 and .record_replay_request_trace_equal==true and .authoritative_legal_options_captured_from_request==true and .request_identity_scope=="principal_id+token" and .hidden_identity_payload_retained==false and .coverage_mutated==false and .silent_fallback==false' generated/diagnostic/WS33_G_ABI_REQUEST_EVIDENCE.json
 
       - name: Upload immutable supplemental ABI evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ws33-g3-abi-request-evidence-${{ github.run_id }}
