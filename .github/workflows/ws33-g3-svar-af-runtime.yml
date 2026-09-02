@@ -21,9 +21,11 @@ env:
   WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
   WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
   WS31_HIST_HEAD: b09fe7c16845cddbbfe30fd1f855b59234bbf007
+  TOPOLOGY_SOURCE_HEAD: 4032d9c14dc7840e2518a92273037aaba443ada9
   TOPOLOGY_ARTIFACT_ID: '9866293827'
   TOPOLOGY_ARTIFACT_DIGEST: sha256:6a41f66937b4bf1bcf782045d869ece183c0be49b345eac654dc3588cb98b96b
-  MODEL_SHA: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  MODEL_FILE_SHA: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  CONSUMER_MODEL_SHA: 82638e6b3e4408cc5bddedc49372b6357d3c2bdce6fba7bfab7ed119678f9a48
 
 jobs:
   runtime:
@@ -42,12 +44,14 @@ jobs:
           mkdir -p generated/topology generated/record generated/overlay-logs generated/diagnostic
           meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$TOPOLOGY_ARTIFACT_ID")"
           test "$(jq -r .digest <<<"$meta")" = "$TOPOLOGY_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$meta")" = "$TOPOLOGY_SOURCE_HEAD"
           gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$TOPOLOGY_ARTIFACT_ID/zip" > generated/topology.zip
           test "sha256:$(sha256sum generated/topology.zip | cut -d' ' -f1)" = "$TOPOLOGY_ARTIFACT_DIGEST"
           unzip -q generated/topology.zip -d generated/topology
-          jq -e --arg model "$MODEL_SHA" '.status=="PASS" and .effective_model_sha256==$model and .g_unknown_count==81 and .direct_g_count==28 and .remaining_svar_count==53 and (.unresolved_parent_paths|length)==0' generated/topology/G_SVAR_CONSUMER_TOPOLOGY.json
+          jq -e --arg consumer "$CONSUMER_MODEL_SHA" '.status=="PASS" and .effective_model_sha256==$consumer and .g_unknown_count==81 and .direct_g_count==28 and .remaining_svar_count==53 and (.unresolved_parent_paths|length)==0' generated/topology/G_SVAR_CONSUMER_TOPOLOGY.json
           python "$ROOT/ws33_prepare_g_svar_af_cases.py" --topology generated/topology/G_SVAR_CONSUMER_TOPOLOGY.json --out generated/g-svar-af-cases.tsv
           test "$(wc -l < generated/g-svar-af-cases.tsv)" -eq 21
+          echo "WS33_G_SVAR_TOPOLOGY_INPUT=PASS manifest_file_sha=$MODEL_FILE_SHA consumer_model_sha=$CONSUMER_MODEL_SHA"
 
       - name: Checkout pinned Forge and retained dependencies
         uses: actions/checkout@v4
