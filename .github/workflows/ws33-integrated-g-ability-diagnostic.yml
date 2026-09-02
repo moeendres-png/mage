@@ -1,300 +1,73 @@
-name: WS33 integrated G direct-ABILITY diagnostic
+name: WS33 G3 registered SVar consumer topology
 
 on:
   push:
-    branches: [work/ws33-integrated-closure-20260831]
+    branches: [work/ws33-g3-final-closure-20260902]
     paths:
       - '.github/workflows/ws33-integrated-g-ability-diagnostic.yml'
-      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_g_ability_harness.py'
-      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_requirement_projection_audit.py'
-      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-input-confirm.py'
-      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-target-selection.py'
-      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-tests/Ws33TargetSelectionExternalizationTest.java'
-      - 'research/greenfield-qualification/actual-card-behavior/ws33/WS33_POST_GEN2_CLOSURE_INTELLIGENCE_AUDIT_*.md'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_g_svar_cases.py'
   workflow_dispatch:
 
 permissions:
   contents: read
   actions: read
 
+env:
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  MODEL_ARTIFACT_ID: '9823383539'
+  MODEL_ARTIFACT_DIGEST: sha256:aab73ba2ede151bbd0b803c2164d3067ddd65f17d49cf655c34eef67d903595d
+  MODEL_SHA: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  BEHAVIOR_ARTIFACT_ID: '9803814288'
+  BEHAVIOR_ARTIFACT_DIGEST: sha256:493f3549b6483d4fea9644f3a0216deb108a9ac581b651ff3e083499bcb14b5a
+
 jobs:
-  g-ability-diagnostic:
+  topology:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    env:
-      H_COMPLETE_SOURCE_HEAD: 4596a58287ccd0f2b432ebeca2b4fd0d8bec4df3
-      H_COMPLETE_ARTIFACT_ID: '9766400471'
-      H_COMPLETE_ARTIFACT_DIGEST: sha256:a28834e59b86468dc8855c5db5b1f433cfa17b5eded2bc4061092566f95f4372
-      GENERATION2_BASE_HEAD: 991486fd012463d29173a9aba15ebb3296d64dda
-      GENERATION2_BASE_TREE: c8ba229cf428973bd7711844563987d69517b5b8
-      FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
-      WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
-      WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
-      WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
-      WS31_HIST_HEAD: b09fe7c16845cddbbfe30fd1f855b59234bbf007
-      ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+    timeout-minutes: 15
     steps:
-      - name: Checkout integrated successor
-        uses: actions/checkout@v4
-        with: {fetch-depth: 0}
-      - name: Verify immutable ancestry
-        run: |
-          set -euo pipefail
-          git merge-base --is-ancestor "$H_COMPLETE_SOURCE_HEAD" "$GITHUB_SHA"
-          git merge-base --is-ancestor "$GENERATION2_BASE_HEAD" "$GITHUB_SHA"
-          test "$(git rev-parse "$GENERATION2_BASE_HEAD^{tree}")" = "$GENERATION2_BASE_TREE"
-      - name: Download H-complete frontier
+      - uses: actions/checkout@v4
+      - name: Download frozen predecessor and Direct-G evidence
         env: {GH_TOKEN: '${{ github.token }}'}
         run: |
           set -euo pipefail
-          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$H_COMPLETE_ARTIFACT_ID")"
-          test "$(jq -r .digest <<<"$meta")" = "$H_COMPLETE_ARTIFACT_DIGEST"
-          test "$(jq -r .workflow_run.head_sha <<<"$meta")" = "$H_COMPLETE_SOURCE_HEAD"
-          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$H_COMPLETE_ARTIFACT_ID/zip" > h.zip
-          mkdir -p generated/input generated/record generated/replay generated/diagnostic
-          unzip -q h.zip -d generated/input
-          test -d generated/input/ws33
-          mv generated/input/ws33 generated/ws33
-          python - <<'PY'
-          import hashlib,json
-          from collections import Counter
-          from pathlib import Path
-          root=Path('generated/ws33')
-          for line in (root/'WS33_HASHES.sha256').read_text().splitlines():
-              want,rel=line.split('  ',1); got=hashlib.sha256((root/rel).read_bytes()).hexdigest(); assert got==want,(rel,want,got)
-          m=json.loads((root/'WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json').read_text())
-          c=json.loads((root/'WS33_PATH_COVERAGE.json').read_text())
-          st={r['effective_v2_path_id']:r['status'] for r in c['paths']}
-          counts=Counter(st.values()); assert counts==Counter({'UNKNOWN':3903,'PASS':285}),counts
-          g=[p for p in m['paths'] if p['owner_family']=='HIDDEN_RNG_REPLAY']
-          assert Counter(st[p['v2_path_id']] for p in g)==Counter({'UNKNOWN':81})
-          direct=[p for p in g if st[p['v2_path_id']]=='UNKNOWN' and {x['source_directive'] for x in p['source_provenance']}=={'ABILITY'}]
-          assert len(direct)==28,len(direct)
-          print('WS33_G_INPUT=PASS paths=4188 PASS=285 UNKNOWN=3903 G_UNKNOWN=81 G_DIRECT_ABILITY=28 internal_hashes=TRUE')
-          PY
-      - name: Checkout pinned Forge
+          mkdir -p generated/model generated/behavior generated/out
+          m="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$m")" = "$MODEL_ARTIFACT_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID/zip" > generated/model.zip
+          test "sha256:$(sha256sum generated/model.zip | cut -d' ' -f1)" = "$MODEL_ARTIFACT_DIGEST"
+          unzip -q generated/model.zip -d generated/model
+          if test -d generated/model/output/ws33; then mv generated/model/output/ws33 generated/model/ws33; fi
+          test "$(sha256sum generated/model/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)" = "$MODEL_SHA"
+          b="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$BEHAVIOR_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$b")" = "$BEHAVIOR_ARTIFACT_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$BEHAVIOR_ARTIFACT_ID/zip" > generated/behavior.zip
+          test "sha256:$(sha256sum generated/behavior.zip | cut -d' ' -f1)" = "$BEHAVIOR_ARTIFACT_DIGEST"
+          unzip -q generated/behavior.zip -d generated/behavior
+          test "$(wc -l < generated/behavior/diagnostic/G_DIRECT_ABILITY_PATH_IDS.txt)" -eq 28
+      - name: Checkout pinned Forge source
         uses: actions/checkout@v4
         with:
           repository: Card-Forge/forge
           ref: ${{ env.FORGE_PIN }}
           path: forge
           fetch-depth: 1
-      - name: Checkout retained WS01
-        uses: actions/checkout@v4
-        with: {ref: '${{ env.WS01_HEAD }}', path: ws01, fetch-depth: 1}
-      - name: Checkout retained WS12
-        uses: actions/checkout@v4
-        with: {ref: '${{ env.WS12_HEAD }}', path: ws12, fetch-depth: 1}
-      - name: Checkout retained WS32
-        uses: actions/checkout@v4
-        with: {ref: '${{ env.WS32_HEAD }}', path: ws32, fetch-depth: 1}
-      - name: Checkout historical WS31 harness infrastructure only
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.WS31_HIST_HEAD }}
-          path: ws31-historical
-          fetch-depth: 1
-          sparse-checkout: |
-            research/greenfield-qualification/actual-card-behavior/ws31/forge-overlay/Ws31HiddenRngReplayQualificationTest.java
-      - name: Verify exact pins
+      - name: Derive source-proven first-consumer topology
         run: |
           set -euo pipefail
-          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
-          test "$(git -C ws01 rev-parse HEAD)" = "$WS01_HEAD"
-          test "$(git -C ws12 rev-parse HEAD)" = "$WS12_HEAD"
-          test "$(git -C ws32 rev-parse HEAD)" = "$WS32_HEAD"
-          test "$(git -C ws31-historical rev-parse HEAD)" = "$WS31_HIST_HEAD"
-      - name: Project source-proven G evidence requirements
-        run: |
-          set -euo pipefail
-          python "$ROOT/ws33_requirement_projection_audit.py" \
-            --manifest generated/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json \
-            --coverage generated/ws33/WS33_PATH_COVERAGE.json \
+          python "$ROOT/ws33_prepare_g_svar_cases.py" \
+            --model-dir generated/model/ws33 \
             --forge-root forge \
-            --out generated/diagnostic/G_REQUIREMENT_PROJECTION.json
-          jq -e '
-            .schema == "commander-simulator-next.ws33-requirement-projection-audit.v4" and
-            .status == "PASS" and
-            .authoritative_projection_scope == "HIDDEN_RNG_REPLAY" and
-            .authoritative_projection_scope_path_count == 81 and
-            .preserved_non_scope_path_count == 4107 and
-            .pass_upgrade_candidate_count == 0 and
-            .disposition == "AUDIT_ONLY_NO_MANIFEST_MUTATION"
-          ' generated/diagnostic/G_REQUIREMENT_PROJECTION.json
-      - name: Apply Generation-2 production overlay stack
-        run: |
-          set -euo pipefail
-          mkdir -p generated/overlay-logs
-          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch | tee generated/overlay-logs/ws01.log
-          python research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge | tee generated/overlay-logs/ws05.log
-          cp research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
-          python research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/record/RNG_INVENTORY.json | tee generated/overlay-logs/ws06.log
-          python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge | tee generated/overlay-logs/ws33-input-confirm.log
-          python "$ROOT/runtime-overlays/apply-ws33-stack-target.py" --forge-root forge | tee generated/overlay-logs/ws33-stack-target.log
-          python "$ROOT/runtime-overlays/apply-ws33-target-selection.py" --forge-root forge | tee generated/overlay-logs/ws33-target-selection.log
-          python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py --forge-root forge | tee generated/overlay-logs/ws12.log
-          python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py --forge-root forge | tee generated/overlay-logs/ws32.log
-      - name: Materialize exact current 28 direct-ABILITY cases from Gen2 plus pinned Forge
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import base64,json,re
-          from pathlib import Path
-          manifest=json.loads(Path('generated/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json').read_text())
-          coverage=json.loads(Path('generated/ws33/WS33_PATH_COVERAGE.json').read_text())
-          projection=json.loads(Path('generated/diagnostic/G_REQUIREMENT_PROJECTION.json').read_text())
-          st={r['effective_v2_path_id']:r['status'] for r in coverage['paths']}
-          projected={r['effective_path_id']:r['projected'] for r in projection['candidates']}
-          direct=[p for p in manifest['paths'] if p['owner_family']=='HIDDEN_RNG_REPLAY' and st[p['v2_path_id']]=='UNKNOWN' and {x['source_directive'] for x in p['source_provenance']}=={'ABILITY'}]
-          direct.sort(key=lambda p:p['v2_path_id'])
-          assert len(direct)==28,len(direct)
-          rows=[]
-          ids=set()
-          changed=0
-          for ordinal,p in enumerate(direct,1):
-              pid=p['v2_path_id']; assert pid not in ids; ids.add(pid)
-              prov=sorted(p['source_provenance'],key=lambda x:(x['forge_source_path'],int(x['source_line']),x['oracle_identity']))[0]
-              assert prov['source_directive']=='ABILITY'
-              src=Path('forge')/prov['forge_source_path']; assert src.is_file(),src
-              lines=src.read_text(encoding='utf-8').splitlines(); ln=int(prov['source_line']); assert 1<=ln<=len(lines),(pid,ln)
-              raw=lines[ln-1]
-              assert ':' in raw,(pid,raw)
-              script=raw.split(':',1)[1].strip()
-              token=prov['source_token']; assert script.startswith(token),(pid,token,script)
-              m=re.search(r'(?:^|\s\|\s)(?:AB|SP|DB)\$\s*([^|]+)',script); assert m,(pid,script)
-              assert m.group(1).strip()==p['dispatch_token'],(pid,m.group(1).strip(),p['dispatch_token'])
-              name=next((x.split(':',1)[1].strip() for x in lines if x.startswith('Name:')),None); assert name,(pid,src)
-              oid=prov['oracle_identity']; assert oid in p['representative_actual_oracle_identities'],(pid,oid)
-              old={'hidden':bool(p['required_hidden_info_evidence']),'rng':bool(p['required_rng_evidence']),'replay':bool(p['required_replay_evidence']),'decision':bool(p['required_decision_evidence'])}
-              req=projected.get(pid,old)
-              changed+=int(req!=old)
-              fields=[ordinal,pid,oid,name,p['dispatch_token'],p['implementation_target'],prov['forge_source_path'],ln,prov['source_directive'],token,int(req['hidden']),int(req['rng']),int(req['replay']),int(req['decision']),base64.b64encode(script.encode()).decode()]
-              rows.append('\t'.join(map(str,fields)))
-          Path('generated/g-ability-cases.tsv').write_text('\n'.join(rows)+'\n')
-          Path('generated/diagnostic/G_DIRECT_ABILITY_PATH_IDS.txt').write_text('\n'.join(sorted(ids))+'\n')
-          print(f'WS33_G_ABILITY_CASES=PASS paths=28 source=CURRENT_GEN2_PLUS_PINNED_FORGE requirements=SOURCE_PROVEN_G_V4 changed_profiles={changed} historical_pass_reused=0')
-          PY
-      - name: Prepare admissible G harness
-        run: |
-          set -euo pipefail
-          src=ws31-historical/research/greenfield-qualification/actual-card-behavior/ws31/forge-overlay/Ws31HiddenRngReplayQualificationTest.java
-          dst=forge/forge-gui-desktop/src/test/java/forge/net/Ws33GAbilityQualificationTest.java
-          python "$ROOT/ws33_prepare_g_ability_harness.py" --source "$src" --out "$dst"
-          ! grep -F 'sa.resolve()' "$dst"
-          ! grep -F 'sa.getTargets().add(' "$dst"
-          ! grep -F 'getStack().add(sa)' "$dst"
-          ! grep -F 'chooseTargetsFor(sa)' "$dst"
-          ! grep -F 'sendFullState' "$dst"
-          grep -F 'sa.setupTargets()' "$dst"
-          grep -F 'getStack().addAndUnfreeze(sa)' "$dst"
-          grep -F 'getStack().resolveStack()' "$dst"
-          grep -F 'awaitWs33TransportBarrier' "$dst"
-          grep -F 'ws33ConfirmationOccurrences' "$dst"
-          grep -F 'stackAdmissions' "$dst"
-          grep -F 'stackResolutions' "$dst"
-          cp "$ROOT/runtime-tests/Ws33TargetSelectionExternalizationTest.java" \
-            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
-          sha256sum "$dst" | tee generated/diagnostic/harness.sha256
-      - name: Set up Java 21
-        uses: actions/setup-java@v5
-        with: {distribution: temurin, java-version: '21'}
-      - name: Fresh Gen2 record execution
-        run: |
-          set -euo pipefail
-          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am -Dtest=forge.gamesimulationtests.Ws33TargetSelectionExternalizationTest,forge.net.Ws33GAbilityQualificationTest -Dws31.cases="$GITHUB_WORKSPACE/generated/g-ability-cases.tsv" -Dws31.outDir="$GITHUB_WORKSPACE/generated/record" -Dws31.mode=record -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) 2>&1 | tee generated/record/runtime.log
-          java -cp forge/forge-gui/target/test-classes:forge/forge-gui/target/classes \
-            forge.gamemodes.match.input.ExternalDecisionValidatorContractTest \
-            | tee generated/record/validator-contract.log
-          test -s generated/record/case-summary.tsv
-          test -s generated/record/decision-tape.tsv
-          test -s generated/record/rng-tape.tsv
-          ! grep -F "[Couldn't add to stack, failed to target]" generated/record/runtime.log
-      - name: Fresh tape-driven replay execution
-        run: |
-          set -euo pipefail
-          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am -Dtest=forge.net.Ws33GAbilityQualificationTest -Dws31.cases="$GITHUB_WORKSPACE/generated/g-ability-cases.tsv" -Dws31.outDir="$GITHUB_WORKSPACE/generated/replay" -Dws31.mode=replay -Dws31.decisionReplay="$GITHUB_WORKSPACE/generated/record/decision-tape.tsv" -Dws31.rngReplay="$GITHUB_WORKSPACE/generated/record/rng-tape.tsv" -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) 2>&1 | tee generated/replay/runtime.log
-          test -s generated/replay/case-summary.tsv
-          ! grep -F "[Couldn't add to stack, failed to target]" generated/replay/runtime.log
-      - name: Strictly adjudicate diagnostic evidence
-        if: always()
-        run: |
-          python - <<'PY'
-          import json
-          from collections import Counter
-          from pathlib import Path
-          def rows(p):
-              if not Path(p).is_file(): return []
-              return [x.split('\t') for x in Path(p).read_text().splitlines() if x.strip()]
-          def cases(p):
-              out={}
-              if not Path(p).is_file(): return out
-              for line in Path(p).read_text().splitlines():
-                  if not line.strip(): continue
-                  f=line.split('\t')
-                  out[f[1]]={'hidden':f[10]=='1','rng':f[11]=='1','replay':f[12]=='1','decision':f[13]=='1'}
-              return out
-          req=cases('generated/g-ability-cases.tsv')
-          rec=rows('generated/record/case-summary.tsv'); rep=rows('generated/replay/case-summary.tsv')
-          failures=[]
-          if len(req)!=28: failures.append(f'requirement_rows={len(req)}')
-          if len(rec)!=28: failures.append(f'record_rows={len(rec)}')
-          if len(rep)!=28: failures.append(f'replay_rows={len(rep)}')
-          rec_by={x[0]:x for x in rec}; rep_by={x[0]:x for x in rep}
-          if set(rec_by)!=set(req): failures.append('record_path_set_mismatch')
-          if set(rep_by)!=set(req): failures.append('replay_path_set_mismatch')
-          for pid,rq in req.items():
-              a=rec_by.get(pid); b=rep_by.get(pid)
-              if a is None or b is None: continue
-              if len(a)<20 or len(b)<20:
-                  failures.append(f'{pid}:case_summary_schema')
-                  continue
-              if a[4]!='PASS': failures.append(f'{pid}:record_status={a[4]}')
-              if b[4]!='PASS': failures.append(f'{pid}:replay_status={b[4]}')
-              if int(a[18])!=1 or int(a[19])!=1: failures.append(f'{pid}:record_stack={a[18]}/{a[19]}')
-              if int(b[18])!=1 or int(b[19])!=1: failures.append(f'{pid}:replay_stack={b[18]}/{b[19]}')
-              if int(a[9]) or int(a[10]): failures.append(f'{pid}:record_leak={a[9]}/{a[10]}')
-              if int(b[9]) or int(b[10]): failures.append(f'{pid}:replay_leak={b[9]}/{b[10]}')
-              if rq['decision'] and int(a[7])<=0: failures.append(f'{pid}:record_missing_required_decision')
-              if rq['decision'] and int(b[7])<=0: failures.append(f'{pid}:replay_missing_required_decision')
-              if rq['rng'] and int(a[8])<=0: failures.append(f'{pid}:record_missing_required_rng')
-              if rq['rng'] and int(b[8])<=0: failures.append(f'{pid}:replay_missing_required_rng')
-              observed_replay_surface = rq['replay'] or int(a[7])>0 or int(a[8])>0 or int(b[7])>0 or int(b[8])>0
-              if observed_replay_surface and (a[5]!=b[5] or a[6]!=b[6]): failures.append(f'{pid}:semantic_replay_digest_mismatch')
-          record_log=Path('generated/record/runtime.log').read_text(errors='replace') if Path('generated/record/runtime.log').is_file() else ''
-          replay_log=Path('generated/replay/runtime.log').read_text(errors='replace') if Path('generated/replay/runtime.log').is_file() else ''
-          if "[Couldn't add to stack, failed to target]" in record_log: failures.append('record_silent_stack_target_rejection')
-          if "[Couldn't add to stack, failed to target]" in replay_log: failures.append('replay_silent_stack_target_rejection')
-          out={
-            'schema':'commander-simulator-next.ws33-g-ability-diagnostic.v4',
-            'coverage_mutated':False,
-            'historical_pass_status_reused':False,
-            'case_source':'CURRENT_GEN2_PLUS_PINNED_FORGE',
-            'requirements_source':'SOURCE_PROVEN_G_V4',
-            'requirements_are_minimum_evidence_obligations':True,
-            'expected_paths':28,
-            'record_rows':len(rec),'replay_rows':len(rep),
-            'record_status':dict(Counter(x[4] for x in rec if len(x)>4)),
-            'replay_status':dict(Counter(x[4] for x in rep if len(x)>4)),
-            'stack_admission_required':True,
-            'stack_resolution_required':True,
-            'semantic_replay_equality_required_for_observed_decision_or_rng':True,
-            'failure_count':len(failures),
-            'failures':failures,
-            'status':'PASS' if not failures else 'FAIL_CLOSED',
-          }
-          Path('generated/diagnostic/WS33_G_ABILITY_DIAGNOSTIC.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
-          print(json.dumps(out,sort_keys=True))
-          assert not failures, failures[:20]
-          PY
-      - name: Upload immutable G diagnostic
+            --direct-ids generated/behavior/diagnostic/G_DIRECT_ABILITY_PATH_IDS.txt \
+            --out-json generated/out/G_SVAR_CONSUMER_TOPOLOGY.json \
+            --out-tsv generated/out/g-svar-cases.tsv
+          jq -e '.status=="PASS" and .g_unknown_count==81 and .direct_g_count==28 and .remaining_svar_count==53 and (.unresolved_parent_paths|length)==0' generated/out/G_SVAR_CONSUMER_TOPOLOGY.json
+          sha256sum generated/out/* > generated/out/SHA256SUMS
+      - name: Upload topology artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ws33-g-ability-diagnostic-${{ github.run_id }}
-          path: |
-            generated/diagnostic/
-            generated/g-ability-cases.tsv
-            generated/record/
-            generated/replay/
-            generated/overlay-logs/
+          name: ws33-g3-svar-consumer-topology-${{ github.run_id }}
+          path: generated/out
           if-no-files-found: error
+          retention-days: 90
