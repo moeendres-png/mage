@@ -77,12 +77,87 @@ Operational successor freeze:
 
 This artifact is the current qualified operational predecessor for Direct-G promotion.
 
-## Immediate next action
+## Current G3 recovery checkpoint — 2026-09-03
 
-Bind the 28 already-qualified Direct-G paths into an ABI-V2.1 campaign against artifact `9823383539`. Reuse immutable behavior and principal-observation evidence. Do not fabricate authoritative legal option sets. The historical decision tape retained selected opaque option IDs but not the complete authoritative request option set; capture that missing request metadata only if no exact reusable evidence exists. RNG pre/post tape position may only be derived where it is provable from the pinned WS06 named-stream implementation and retained draw index.
+`LAST_CONFIRMED_CHECKPOINT = G3_SVAR_AF_POST_PARSER_RUNTIME_ROOT_CAUSE`
 
-After the Direct-G merge, freshly recompute the successor frontier. `PASS=313 / UNKNOWN=3875 / G UNKNOWN=53` is a control expectation only, not source truth until computed.
+Current branch: `work/ws33-g3-final-closure-20260902`
 
-DO NOT REPEAT: Generation-2 root cause, H qualification/promotion, historical WS31_CASES issue, direct `sa.resolve` investigation, manual target injection investigation, MagicStack admission repair, initial hidden transport leak isolation, hidden->visible Facedown repair, public reveal fanout repair, external temp observation synchronization, case-summary column bug, Decision/RNG IFF bug, Direct-G behavior campaign, Direct-G v4 principal-observation campaign, G requirement-projection root cause.
+Live branch before this checkpoint commit:
 
-`WS33_COMPLETE = FALSE` until the final 4188-path successor and all required gates are actually PASS.
+- HEAD: `9fd0f74782e18fb9202b698011b4653de17244f4`
+- TREE: `632ff95d625e5cdfcdafb815e7b958c16d923aff`
+- commit: `ws33 g3: align AF case loader with 19-field identity ABI`
+
+### Already closed in G3 — do not repeat
+
+- principal-scoped DecisionEvent identity defect repaired and hardened with negative fixtures;
+- hardened ABI run `33690697036`, artifact `9870061705`, digest `sha256:21bfde999292f5d3a3d1cc5f27e5236ab352972cedde7b32691ea5ad31fbe0cd` PASS;
+- 53-SVar consumer topology run `33681121017`, artifact `9866293827`, digest `sha256:6a41f66937b4bf1bcf782045d869ece183c0be49b345eac654dc3588cb98b96b` PASS, unresolved parents `0`;
+- topology hash-space mismatch in the AF workflow corrected: `MODEL_FILE_SHA=cd48f4...` is distinct from embedded `CONSUMER_MODEL_SHA=82638e...`;
+- AF parent construction repaired to preserve actual-card root/named-parent-SVar identity instead of detached script-only reconstruction;
+- target-SVar reachability observer added at `AbilitySub.resolve()` as observation-only evidence;
+- 19-field AF case ABI loader aligned.
+
+### Latest AF runtime evidence
+
+Run: `33733426616`
+
+Job: `100578369590`
+
+Artifact: `9884893619`
+
+Digest: `sha256:1202fbcdd1c2f77100e3a061aff84ec2738715b54313ad29978a59b141f4987f`
+
+Direct artifact adjudication:
+
+- Maven / Forge test execution: `BUILD SUCCESS`;
+- case rows: `21/21 PASS`;
+- stack admissions: `21/21`;
+- stack resolutions: `21/21`;
+- target-SVar reachability: `17/21`;
+- workflow is correctly red because qualification requires target-SVar reachability for every AF path;
+- this run is diagnostic only and MUST NOT be promoted.
+
+The four exact paths with `targetExecutions=0` are:
+
+1. `forge-behavior-v2:95726bbbfdb31ba1e8fe7146f4a7971d93f97bc5a` — Ao, the Dawn Sky — `Charm -> TrigDig -> DigEffect`;
+2. `forge-behavior-v2:a1fe7a20bc3ddb26ed8642a7a8b5025697bd0d83` — Atsushi, the Blazing Sky — `Charm -> ExileTwo -> DigEffect`;
+3. `forge-behavior-v2:b028d2d29f150fd3ff7bcbc30706f5d4e2282907` — Kindred Summons — `ChooseType -> DBDigUntil -> DigUntilEffect`;
+4. `forge-behavior-v2:ee17650cc69e7d571ba8a6d602227eb4c8ba6154` — Prismari Charm — `Charm -> DBSurveil -> SurveilEffect`.
+
+### Root-cause adjudication for the four gaps
+
+`CODE_DERIVED` against pinned Forge `8c7e9afb8e6caee88644b94e25da5852e36f8928`:
+
+- `CharmEffect.makeChoices(sa)` is the production phase that selects and chains `Choices$` modes before stack resolution; `SpellAbility.setupTargets()` alone does not perform that step. The current AF harness admits Charm parents directly to `MagicStack`, so their modeled mode is never guaranteed to be chained. This explains the three Charm gaps without implying a Forge Dig/Surveil rules defect.
+- `ChooseTypeEffect.resolve()` performs an authoritative discretionary creature-type choice. `Kindred Summons` only reaches `DBDigUntil` when `X > 0`; the current generic pilot may select a legal type that the actor controls zero of. This is a reachability-fixture/pilot-selection issue, not a `DigUntilEffect` rules failure.
+
+No card-name production conditional is authorized. The repair must be systemic and must continue to choose only from authoritative legal options.
+
+### Exactly next work package
+
+1. Repair the AF harness so modal `Charm` parents traverse the same production mode-choice preparation (`CharmEffect.makeChoices`) before `setupTargets`/stack admission, while preserving the external authoritative decision boundary and fail-closed semantics.
+2. Add a generic, authoritative-choice reachability policy for `ChooseType` that can select an offered type represented by controlled fixture creatures without parsing prompt text or inventing legality. The policy must be based only on authoritative option semantic values plus actor-scoped fixture state already legal to the pilot/test driver, and must remain card-name agnostic.
+3. Run the focused 21-path AF gate again. Acceptance: `21/21 PASS`, stack admission/resolution `21/21`, exact target-SVar reachability `21/21`, no fail/unsupported, and all required hidden/RNG/decision/replay evidence obligations subsequently adjudicated before promotion.
+4. Persist the run/job/artifact/digest and adjudication here before beginning the 32-path non-AF event campaign.
+
+## Subsequent serial queue
+
+After AF closure, qualify the 32 non-AF G SVar paths through source-proven production parent/event entrypoints. Then G3 may be promoted only at `G=81/81 PASS` with all evidence obligations satisfied. Only after freezing the exact G3 successor may the serial campaigns proceed `ABC -> D -> E -> F`.
+
+Expected control counts are not source truth until freshly computed from each successor:
+
+- post-G3: PASS `366`, UNKNOWN `3822`;
+- post-ABC: PASS `1920`, UNKNOWN `2268`;
+- post-D: PASS `2840`, UNKNOWN `1348`;
+- post-E: PASS `3869`, UNKNOWN `319`;
+- post-F: PASS `4188`, UNKNOWN `0`.
+
+## Completion state
+
+`TASK_COMPLETE = NO`
+
+`WS33_COMPLETE = FALSE`
+
+No timeout, context switch, or green workflow may change these flags without the full final 4188-path qualification and required cross-gates.
