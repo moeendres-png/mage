@@ -21,12 +21,12 @@ Only the final serial `G3 -> ABC -> D -> E -> F` successor with all 4188 effecti
 
 ## Current confirmed checkpoint
 
-`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33817799382_FAILURE`
+`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33818067742_FAILURE`
 
 Checkpoint:
-`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33817799382_FAILURE.md`
+`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33818067742_FAILURE.md`
 
-Run `33817799382` / job `100853681886` is terminal `failure` before Runtime. The diagnostic event-harness transform itself passed, but the authoritative-request instrumentation rejected the new observation-only write chain because its exact Event ABI did not yet include `writeResolutionLineage(outDir)`. No Java campaign ran, so the previously frozen first-parent `1/1/0` reachability question remains unresolved. The next authorized change is only the narrow request-trace ABI repair described below.
+Run `33818067742` / job `100854474552` is terminal `failure` during Step 14 Maven test compilation. Both diagnostic transforms passed, but the generated Java harness did not compile because the observation-only `mapHash` helper referenced unqualified `TreeMap` without an inherited import. The test body did not execute. The previously frozen first-parent `1/1/0` reachability question therefore remains unresolved. The next authorized change is only the compile fix described below.
 
 ## G3 immutable evidence — do not rerun for reassurance
 
@@ -114,32 +114,42 @@ Invariant: Kang Prime retains both real source-proven parent entrypoints.
 - artifact-wide: 33 parents; one `1/1/1` PASS (`Descendants' Fury`); 24 failures at `1/1/0`; eight later event-specific failures.
 - unresolved distinction: actual production stack/non-resolution versus false-negative resolution identity measurement.
 
-### Attempt 5 — observation-only diagnostic failed pre-runtime
+### Attempt 5 — diagnostic request-trace ABI failure
 
-- diagnostic source HEAD `4c97b95ea3777f20ed2239f8a38aae82b2abc217`
+- source HEAD `4c97b95ea3777f20ed2239f8a38aae82b2abc217`
 - source TREE `413096e4ba7bbb131edc31ebaf7534b519647fd3`
 - run `33817799382`, job `100853681886`
 - artifact `9917183980`
 - digest `sha256:9b15ab387e0bb920e800e38d13d96030bbd7371b05b93ff7e9919ceaf79051ac`
-- artifact ZIP re-hash matched exactly
-- steps 1–11 PASS
-- step 12 `Prepare 33-parent event harness with request trace` FAIL
-- record/runtime/replay NOT RUN
-- evidence upload PASS
-- coverage promotion FALSE
+- steps 1–11 PASS; step 12 FAIL; runtime/replay NOT RUN; evidence upload PASS.
+- cause: request-trace `replace_one_of` did not support the lineage-enhanced Event write chain.
+- repair commit `8446cfc72060156db63237cb7c4b00045ef72fbb` added one exact lineage Event ABI while keeping ambiguity fail-closed.
 
-Artifact `diagnostic/event-harness.log` proves the lineage-enhanced Event transform passed. The request-trace patch then failed because its `replace_one_of` supports Direct ABI and pre-lineage Event ABI only. The generated chain now contains `writeParentEvidence(outDir);writeResolutionLineage(outDir);...`, so both old anchors count zero. Exact source-derived failure and repair scope are frozen in `G3_NON_AF_EVENT_RUNTIME_RUN_33817799382_FAILURE.md`.
+### Attempt 6 — diagnostic Java compile failure
+
+- source HEAD `8446cfc72060156db63237cb7c4b00045ef72fbb`
+- source TREE `f625b3cbaf0825bc17934e667858adf2defbec57`
+- run `33818067742`, job `100854474552`
+- artifact `9917297622`
+- digest `sha256:34a0f2185d19d19724b7e1d3c7dcffc0d1da764f6d4c5180f2bf2622aee806ea`
+- artifact ZIP re-hash matched exactly
+- steps 1–13 PASS
+- event harness transform PASS
+- request trace transform PASS
+- step 14 FAIL during Maven `testCompile`; test body NOT EXECUTED
+- exact compile failure: generated `Ws33GSVarEventQualificationTest.java` cannot resolve class `TreeMap` at line 109
+- record adjudication/replay/source-chain NOT RUN; coverage promotion FALSE
+
+Root cause is diagnostic-only: `mapHash` used `TreeMap` without an import inherited from the Direct-G base harness. Exact evidence is frozen in `G3_NON_AF_EVENT_RUNTIME_RUN_33818067742_FAILURE.md`.
 
 ## Exact next atomic package
 
-1. Extend `ws33_instrument_g_authoritative_requests.py` with a third exact Event ABI matching the lineage-enhanced write chain. Preserve Direct and pre-lineage Event support and preserve `replace_one_of` ambiguity rejection.
-2. The lineage Event replacement must insert `writeWs33DecisionRequests(outDir)` after `writeResolutionLineage(outDir)` and before controller-factory cleanup.
-3. Do not change `matchesTarget`, `targetExecutions`, lineage fields, event fixtures, Forge overlays, Decision/RNG semantics, or coverage.
-4. Commit only that request-trace ABI repair.
-5. Allow exactly one `ws33-g3-svar-event-runtime.yml` retry from it and immediately persist run/job/source HEAD/TREE.
-6. Terminally adjudicate its artifact. Only a runtime artifact containing `resolution-lineage.tsv` may resolve the first-parent `1/1/0` distinction.
-7. If `resolutionCallbacks > 0` while `targetExecutions == 0`, compare admitted/resolving IDs/source-trigger/host/API/map fingerprints and repair only the confirmed measurement identity defect. If callbacks are zero, investigate actual production stack/non-resolution instead.
-8. Continue strict failure-checkpoint -> repair -> single-run discipline until Runtime PASS, then freeze Runtime before separate ABI/Decision/RNG/Replay certification and Principal Observation/Hidden31 qualification.
-9. Only after Direct28 + AF21 + non-AF32 satisfy all required contracts may G3 be promoted/frozen and serial closure proceed to `ABC -> D -> E -> F`.
+1. In `ws33_prepare_g_svar_event_harness.py`, change only the diagnostic `mapHash` helper to use fully-qualified `java.util.TreeMap` (or add an import; fully-qualified is preferred to leave inherited imports untouched).
+2. Do not change the map fingerprint algorithm, `matchesTarget`, `targetExecutions`, event fixtures, request-trace ABI, lineage fields, Forge overlays, Decision/RNG semantics, or coverage.
+3. Commit this compile repair separately.
+4. Allow exactly one `ws33-g3-svar-event-runtime.yml` retry and immediately persist run/job/source HEAD/TREE.
+5. Terminally adjudicate its artifact. Only a successful Java campaign with `resolution-lineage.tsv` can resolve the frozen first-parent `1/1/0` distinction.
+6. Continue strict failure-checkpoint -> repair -> single-run discipline until Runtime PASS, then freeze Runtime before separate ABI/Decision/RNG/Replay certification and Principal Observation/Hidden31 qualification.
+7. Only after Direct28 + AF21 + non-AF32 satisfy all required contracts may G3 be promoted/frozen and serial closure proceed to `ABC -> D -> E -> F`.
 
 Control expectations are non-authoritative until fresh successor computation: post-G3 PASS366/UNKNOWN3822; post-ABC 1920/2268; post-D 2840/1348; post-E 3869/319; post-F 4188/0.
