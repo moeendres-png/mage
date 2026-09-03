@@ -21,12 +21,12 @@ Only the final serial `G3 -> ABC -> D -> E -> F` successor with all 4188 effecti
 
 ## Current confirmed checkpoint
 
-`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33798608932_FAILURE`
+`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33816948410_FAILURE`
 
 Checkpoint:
-`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33798608932_FAILURE.md`
+`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33816948410_FAILURE.md`
 
-Run `33798608932` / job `100792262743` is terminal `failure` and fully adjudicated through its first material Step-15 failure. No further retry may be started until the narrow confirmed event-fixture repair is committed.
+Run `33816948410` / job `100851076967` is terminal `failure` and frozen through its first material Step-15 failure. The previous ChangesZone event-fixture defect is fixed at the first-parent admission/binding boundary; the next underlying root cause is intentionally still `UNKNOWN` pending observation-only resolution-lineage diagnostics. No semantic/matcher repair may be made before that distinction is directly evidenced.
 
 ## G3 immutable evidence — do not rerun for reassurance
 
@@ -90,14 +90,26 @@ Invariant: Kang Prime retains both real source-proven parent entrypoints.
 - digest `sha256:ced3f9f26efe6f0540b4d8b661f5afad0fea2adc5071762866864658d1fb846a`
 - cause: observation-only MagicStack overlay used a class-declaration anchor that omitted pinned Forge's literal `/* extends MyObservable */` comment.
 
-### Attempt 3 — terminal and adjudicated
+### Attempt 3 — adjudicated and repaired
 
 - source HEAD `26ec46d852a731054e8719e5bf1ea37bef3f6ea6`
 - source TREE `793c1e3c10cf07f4d0b432a56aa0f90e73eb7fe0`
-- run `33798608932`
-- job `100792262743`
+- run `33798608932`, job `100792262743`
 - artifact `9910414457`
 - digest `sha256:796d734fe0f3074319d4471e691ce356f4fe16d7661f8aee5223d48f1cf521c1`
+- Step 14 PASS; Step 15 FAIL; replay NOT RUN; coverage promotion FALSE.
+- first parent `Ingenious Smith/ChangesZone` = `0/0/0` admission/binding/execution.
+- confirmed cause: event fixture supplied `ZoneType` enums where pinned production `GameAction.changeZone` supplies zone-name Strings.
+- narrow repair commit `3bf09bc325ee5094d2a4874bbc133520f5f759dc` changed only `AbilityKey.Origin/Destination` to `.name()` values.
+
+### Attempt 4 — terminal and adjudicated to the next evidence boundary
+
+- source HEAD `3bf09bc325ee5094d2a4874bbc133520f5f759dc`
+- source TREE `8e0a65344e4257fa51e2b15dfdac35e4883bd9ae`
+- run `33816948410`
+- job `100851076967`
+- artifact `9916940071`
+- digest `sha256:4e1ed01602e46b796bdcd257964e9fc56d32aa370112c94cc57c64d8ef8b0871`
 - artifact ZIP re-hash matched exactly
 - Step 14 record campaign: PASS
 - Step 15 record adjudication: FAIL
@@ -105,21 +117,22 @@ Invariant: Kang Prime retains both real source-proven parent entrypoints.
 - coverage promotion: FALSE
 - non-AF32: UNKNOWN
 
-First Step-15 predicate failure: parent runtime. The first bad parent in artifact order is `forge-behavior-v2:172ab06795f99590ca9d96f85995f6cf9e083ee8#1` (`Ingenious Smith`, `ChangesZone`) with `triggerAdmissions=0`, `targetBindings=0`, `targetExecutions=0`.
+First parent `forge-behavior-v2:172ab06795f99590ca9d96f85995f6cf9e083ee8#1` (`Ingenious Smith`, `ChangesZone`) now records `triggerAdmissions=1`, `targetBindings=1`, `targetExecutions=0`. This directly proves the Attempt-3 ChangesZone fixture failure was removed at admission/binding. The new first gate failure is target/effective-path reachability at the post-fizzle resolution boundary.
 
-Root cause classification: **event-fixture defect**. The harness synthesizes `AbilityKey.Origin` / `AbilityKey.Destination` as `ZoneType` enums. Pinned Forge production `GameAction.changeZone` writes the zone `.name()` strings, and pinned `TriggerChangesZone.performTest` compares against the trigger's string values. The enum-valued fixture is therefore rejected before legal trigger admission. This is not evidence of a Rules-Core defect.
+Artifact-wide supporting state: 33 parent rows; one `1/1/1` PASS (`Descendants' Fury`); 24 failures at `1/1/0`; eight additional event-specific failures. Those later event-specific symptoms are not yet repair targets.
 
-Exact failure details and the first-eight-row adjudicator output are frozen in `G3_NON_AF_EVENT_RUNTIME_RUN_33798608932_FAILURE.md`.
+The underlying cause of the first `1/1/0` is intentionally `UNKNOWN`: current evidence does not yet distinguish production stack non-resolution from a false-negative script-equality identity match at the observation boundary. Exact details are frozen in `G3_NON_AF_EVENT_RUNTIME_RUN_33816948410_FAILURE.md`.
 
 ## Exact next atomic package
 
-1. Repair only the common `ChangesZone` fixture shape in `ws33_prepare_g_svar_event_harness.py`: emit production-equivalent String zone names for `AbilityKey.Origin` and `AbilityKey.Destination`.
-2. No card-name/path-ID branches, no direct target-SVar entry, no TriggerHandler bypass, no fabricated Decision/RNG evidence, no silent fallback.
-3. Commit the repair separately.
-4. Let exactly one `ws33-g3-svar-event-runtime.yml` run start from that repair commit.
-5. Immediately persist new run/job/source HEAD/TREE in a pending-run checkpoint before any other repair.
-6. Adjudicate that run to terminal. If it fails, freeze its first material failure before another repair.
-7. If Runtime becomes strict PASS, perform separate ABI/Decision/RNG/Replay certification consuming its exact artifact, then separate Principal Observation/Hidden qualification for Hidden31.
-8. Only then materialize/promote/freeze G3 and continue serial `ABC -> D -> E -> F`.
+1. Add observation-only resolution-lineage telemetry while retaining the existing strict PASS predicate unchanged. Telemetry must capture each MagicStack observer callback during an active parent with wrapper state, ability/source-trigger identity, host identity, API, and stable/current map fingerprints.
+2. Do not alter Rules semantics, trigger legality, target selection, stack order, fizzle handling, target execution, Decision/RNG evidence, coverage, or the existing reachability gate.
+3. Commit that diagnostic instrumentation separately.
+4. Let exactly one `ws33-g3-svar-event-runtime.yml` run start from the diagnostic commit.
+5. Immediately persist run/job/source HEAD/TREE in a pending-run checkpoint.
+6. Adjudicate its immutable artifact and classify the first `1/1/0` as either actual production stack/non-resolution or resolution-identity measurement failure.
+7. Only then make the confirmed systemic repair, with the same failure-checkpoint -> repair -> single-run discipline.
+8. If Runtime ultimately becomes strict PASS, freeze it before separate ABI/Decision/RNG/Replay certification and then Principal Observation/Hidden31 qualification.
+9. Only after Direct28 + AF21 + non-AF32 all satisfy behavior/decision/RNG/replay/hidden/provenance/fail-closed contracts may G3 be promoted/frozen and serial closure proceed to `ABC -> D -> E -> F`.
 
 Control expectations are non-authoritative until fresh successor computation: post-G3 PASS366/UNKNOWN3822; post-ABC 1920/2268; post-D 2840/1348; post-E 3869/319; post-F 4188/0.
