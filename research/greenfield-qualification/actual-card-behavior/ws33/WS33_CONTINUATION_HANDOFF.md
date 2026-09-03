@@ -16,21 +16,17 @@ Only the final serial `G3 -> ABC -> D -> E -> F` successor with all 4188 effecti
 
 - effective `4188`; PASS `285`; UNKNOWN `3903`; FAIL `0`; UNSUPPORTED `0`; G UNKNOWN `81`; H UNKNOWN `0`.
 - Forge pin `8c7e9afb8e6caee88644b94e25da5852e36f8928`.
-- model SHA256 `cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224`.
+- effective-manifest file SHA256 `cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224`.
 - predecessor artifact `9823383539`, digest `sha256:aab73ba2ede151bbd0b803c2164d3067ddd65f17d49cf655c34eef67d903595d`.
 
 ## Current confirmed checkpoint
 
-`LAST_CONFIRMED_CHECKPOINT = G3_POST_AF_FRONTIER_207d623e`
+`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_TOPOLOGY_ASSERT_FAIL_33797779388`
 
 Checkpoint:
-`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_POST_AF_FRONTIER_207d623e.md`
+`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_TOPOLOGY_ASSERT_FAIL_33797779388.md`
 
-Checkpoint commit: `4a243c1c797fb7eb9fd4744fdd6209d67ae6b7c0`.
-
-Audited pre-checkpoint branch identity:
-- HEAD `207d623ed128dda431a6f9f1ae046cf777c13af5`
-- TREE `31e1aea103cdb4a6637eea06e3f6725997f7db77`
+The failed run is fully adjudicated. It is a pre-runtime qualification-infrastructure failure; the non-AF frontier remains UNKNOWN and no behavior failure or coverage promotion is established.
 
 ## G3 immutable evidence — do not rerun for reassurance
 
@@ -42,7 +38,11 @@ Audited pre-checkpoint branch identity:
 - source TREE `d86b141171397d8a3d59c556f45b27f8cc6268d9`
 - artifact `9866293827`
 - digest `sha256:6a41f66937b4bf1bcf782045d869ece183c0be49b345eac654dc3588cb98b96b`
+- schema `commander-simulator-next.ws33-g-svar-consumer-topology.v2`
+- topology consumer-model SHA256 `82638e6b3e4408cc5bddedc49372b6357d3c2bdce6fba7bfab7ed119678f9a48`
 - partition: `G81 = Direct28 + SVar53`, unresolved parents `0`; SVar = `AF21 + non-AF32`; non-AF = `33` real source-proven production parent entrypoints.
+
+Important hash distinction: topology v2 writes `effective_model_sha256` from the effective manifest's `consumer_model_sha256`; it is not the SHA256 of `WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json`. Do not equate `82638e...` with the predecessor manifest-file SHA `cd48f427...`.
 
 ### Direct-G 28
 
@@ -86,7 +86,9 @@ The v5 gate proves Record, tape-driven Replay, observation-only nonperturbation,
 - remaining production parent entrypoints: `33`
 - global G3 coverage promotion: `FALSE`
 
-`ws33_prepare_g_svar_event_cases.py` already materializes the remaining production-parent modes:
+Event-case ABI v2 is persisted. Observation-only trigger-admission and non-fizzled stack-resolution hooks are persisted. The event harness is persisted and keeps Forge `TriggerHandler` authoritative; target SVars are never entered directly. Request tracing and ABI adjudication now support the exact Event-v21 parent ABI while preserving Direct-v15 / AF-v19 fail-closed discrimination.
+
+Remaining production-parent modes:
 - ChangesZone 12
 - Phase 6
 - Attacks 5
@@ -96,18 +98,37 @@ The v5 gate proves Record, tape-driven Replay, observation-only nonperturbation,
 - DamageDoneOnce 1
 - Sacrificed 1
 
-Invariant: no direct target-SVar or direct-trigger qualification. The Kang Prime effective path retains both real equivalent production parents.
+Invariant: the Kang Prime effective path retains both real equivalent production parents.
 
-At the audited AF-PASS HEAD there is no dedicated non-AF G3 SVar event-runtime workflow. Therefore the next runtime evidence cannot be inherited from an older run.
+## First non-AF runtime attempt — adjudicated
+
+Workflow source commit: `0b1afc7be70f5a74b38516e3848f526f3693eac4`
+
+- source TREE `e9d39da970809555e3246cb2b156ac7156cc3ae5`
+- run `33797779388`
+- job `100789526018`
+- conclusion `failure`
+- artifact: none
+- first material failure: Step 3 topology assertion before Forge checkout/build/runtime
+- cause: workflow compared topology's consumer-model hash `82638e...` with effective-manifest-file hash `cd48f...`
+- secondary failure: always-upload required a late-created `generated/SHA256SUMS`, so no partial-failure artifact was emitted
+- Maven/runtime Record/Replay did not execute
+- non-AF32 remains UNKNOWN
 
 ## Exact next atomic package
 
-1. Build the focused non-AF G3 event campaign for exactly `32 effective paths / 33 source-proven production parent entrypoints` from immutable topology artifact `9866293827` and existing event-case tooling.
-2. Bind actual event parent execution, authoritative decision options, RNG, semantic replay, principal observation/hidden requirements and fail-closed unsupported behavior without a second rules engine.
-3. Commit tooling/workflow before execution.
-4. Let the commit trigger the focused run and immediately persist run/job/source HEAD/TREE as an immutable STARTED checkpoint.
-5. Adjudicate the first material result before any rerun; repair only confirmed systemic gaps and persist every failure/root-cause/pass package.
-6. When non-AF32 is strict PASS, materialize/promote G3 only through authoritative WS33 campaign tooling, verify evidence/index/hashes and freeze exact post-G3 successor.
-7. Only then continue serial `ABC -> D -> E -> F`.
+1. Repair `.github/workflows/ws33-g3-svar-event-runtime.yml` only for the adjudicated infrastructure defects:
+   - explicitly retain both hash semantics;
+   - assert topology v2 against consumer-model SHA `82638e...` plus immutable artifact run/head/digest;
+   - reduce current-tooling checkout to `fetch-depth: 1`;
+   - upload the existing `generated/` tree on early failure instead of requiring a not-yet-created hash file.
+2. Persist the repair commit before execution.
+3. The workflow push may create exactly one corrective run; persist its run/job/source identity immediately.
+4. Adjudicate that run before any additional retry.
+5. When non-AF Runtime Record/Replay is strict PASS, verify artifact digest/content and checkpoint it immutable.
+6. Run separate immutable ABI/Decision/RNG/Replay certification consuming the actual Runtime artifact.
+7. Run separate Principal Observation/Hidden qualification for the 31 hidden-required non-AF paths.
+8. Only after all non-AF gates are green may G3 be materialized/promoted and frozen.
+9. Only then continue serial `ABC -> D -> E -> F`.
 
 Control expectations after fresh successor computation only: post-G3 PASS366/UNKNOWN3822; post-ABC 1920/2268; post-D 2840/1348; post-E 3869/319; post-F 4188/0.
