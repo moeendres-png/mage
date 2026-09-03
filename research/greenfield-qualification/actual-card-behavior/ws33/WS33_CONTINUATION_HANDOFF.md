@@ -21,12 +21,12 @@ Only the final serial `G3 -> ABC -> D -> E -> F` successor with all 4188 effecti
 
 ## Current confirmed checkpoint
 
-`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33816948410_FAILURE`
+`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33817799382_FAILURE`
 
 Checkpoint:
-`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33816948410_FAILURE.md`
+`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33817799382_FAILURE.md`
 
-Run `33816948410` / job `100851076967` is terminal `failure` and frozen through its first material Step-15 failure. The previous ChangesZone event-fixture defect is fixed at the first-parent admission/binding boundary; the next underlying root cause is intentionally still `UNKNOWN` pending observation-only resolution-lineage diagnostics. No semantic/matcher repair may be made before that distinction is directly evidenced.
+Run `33817799382` / job `100853681886` is terminal `failure` before Runtime. The diagnostic event-harness transform itself passed, but the authoritative-request instrumentation rejected the new observation-only write chain because its exact Event ABI did not yet include `writeResolutionLineage(outDir)`. No Java campaign ran, so the previously frozen first-parent `1/1/0` reachability question remains unresolved. The next authorized change is only the narrow request-trace ABI repair described below.
 
 ## G3 immutable evidence — do not rerun for reassurance
 
@@ -102,37 +102,44 @@ Invariant: Kang Prime retains both real source-proven parent entrypoints.
 - confirmed cause: event fixture supplied `ZoneType` enums where pinned production `GameAction.changeZone` supplies zone-name Strings.
 - narrow repair commit `3bf09bc325ee5094d2a4874bbc133520f5f759dc` changed only `AbilityKey.Origin/Destination` to `.name()` values.
 
-### Attempt 4 — terminal and adjudicated to the next evidence boundary
+### Attempt 4 — terminal runtime evidence
 
 - source HEAD `3bf09bc325ee5094d2a4874bbc133520f5f759dc`
 - source TREE `8e0a65344e4257fa51e2b15dfdac35e4883bd9ae`
-- run `33816948410`
-- job `100851076967`
+- run `33816948410`, job `100851076967`
 - artifact `9916940071`
 - digest `sha256:4e1ed01602e46b796bdcd257964e9fc56d32aa370112c94cc57c64d8ef8b0871`
+- Step 14 PASS; Step 15 FAIL; replay NOT RUN; coverage promotion FALSE.
+- first parent `forge-behavior-v2:172ab06795f99590ca9d96f85995f6cf9e083ee8#1` (`Ingenious Smith`, `ChangesZone`) = admission/binding/execution `1/1/0`.
+- artifact-wide: 33 parents; one `1/1/1` PASS (`Descendants' Fury`); 24 failures at `1/1/0`; eight later event-specific failures.
+- unresolved distinction: actual production stack/non-resolution versus false-negative resolution identity measurement.
+
+### Attempt 5 — observation-only diagnostic failed pre-runtime
+
+- diagnostic source HEAD `4c97b95ea3777f20ed2239f8a38aae82b2abc217`
+- source TREE `413096e4ba7bbb131edc31ebaf7534b519647fd3`
+- run `33817799382`, job `100853681886`
+- artifact `9917183980`
+- digest `sha256:9b15ab387e0bb920e800e38d13d96030bbd7371b05b93ff7e9919ceaf79051ac`
 - artifact ZIP re-hash matched exactly
-- Step 14 record campaign: PASS
-- Step 15 record adjudication: FAIL
-- replay: NOT RUN
-- coverage promotion: FALSE
-- non-AF32: UNKNOWN
+- steps 1–11 PASS
+- step 12 `Prepare 33-parent event harness with request trace` FAIL
+- record/runtime/replay NOT RUN
+- evidence upload PASS
+- coverage promotion FALSE
 
-First parent `forge-behavior-v2:172ab06795f99590ca9d96f85995f6cf9e083ee8#1` (`Ingenious Smith`, `ChangesZone`) now records `triggerAdmissions=1`, `targetBindings=1`, `targetExecutions=0`. This directly proves the Attempt-3 ChangesZone fixture failure was removed at admission/binding. The new first gate failure is target/effective-path reachability at the post-fizzle resolution boundary.
-
-Artifact-wide supporting state: 33 parent rows; one `1/1/1` PASS (`Descendants' Fury`); 24 failures at `1/1/0`; eight additional event-specific failures. Those later event-specific symptoms are not yet repair targets.
-
-The underlying cause of the first `1/1/0` is intentionally `UNKNOWN`: current evidence does not yet distinguish production stack non-resolution from a false-negative script-equality identity match at the observation boundary. Exact details are frozen in `G3_NON_AF_EVENT_RUNTIME_RUN_33816948410_FAILURE.md`.
+Artifact `diagnostic/event-harness.log` proves the lineage-enhanced Event transform passed. The request-trace patch then failed because its `replace_one_of` supports Direct ABI and pre-lineage Event ABI only. The generated chain now contains `writeParentEvidence(outDir);writeResolutionLineage(outDir);...`, so both old anchors count zero. Exact source-derived failure and repair scope are frozen in `G3_NON_AF_EVENT_RUNTIME_RUN_33817799382_FAILURE.md`.
 
 ## Exact next atomic package
 
-1. Add observation-only resolution-lineage telemetry while retaining the existing strict PASS predicate unchanged. Telemetry must capture each MagicStack observer callback during an active parent with wrapper state, ability/source-trigger identity, host identity, API, and stable/current map fingerprints.
-2. Do not alter Rules semantics, trigger legality, target selection, stack order, fizzle handling, target execution, Decision/RNG evidence, coverage, or the existing reachability gate.
-3. Commit that diagnostic instrumentation separately.
-4. Let exactly one `ws33-g3-svar-event-runtime.yml` run start from the diagnostic commit.
-5. Immediately persist run/job/source HEAD/TREE in a pending-run checkpoint.
-6. Adjudicate its immutable artifact and classify the first `1/1/0` as either actual production stack/non-resolution or resolution-identity measurement failure.
-7. Only then make the confirmed systemic repair, with the same failure-checkpoint -> repair -> single-run discipline.
-8. If Runtime ultimately becomes strict PASS, freeze it before separate ABI/Decision/RNG/Replay certification and then Principal Observation/Hidden31 qualification.
-9. Only after Direct28 + AF21 + non-AF32 all satisfy behavior/decision/RNG/replay/hidden/provenance/fail-closed contracts may G3 be promoted/frozen and serial closure proceed to `ABC -> D -> E -> F`.
+1. Extend `ws33_instrument_g_authoritative_requests.py` with a third exact Event ABI matching the lineage-enhanced write chain. Preserve Direct and pre-lineage Event support and preserve `replace_one_of` ambiguity rejection.
+2. The lineage Event replacement must insert `writeWs33DecisionRequests(outDir)` after `writeResolutionLineage(outDir)` and before controller-factory cleanup.
+3. Do not change `matchesTarget`, `targetExecutions`, lineage fields, event fixtures, Forge overlays, Decision/RNG semantics, or coverage.
+4. Commit only that request-trace ABI repair.
+5. Allow exactly one `ws33-g3-svar-event-runtime.yml` retry from it and immediately persist run/job/source HEAD/TREE.
+6. Terminally adjudicate its artifact. Only a runtime artifact containing `resolution-lineage.tsv` may resolve the first-parent `1/1/0` distinction.
+7. If `resolutionCallbacks > 0` while `targetExecutions == 0`, compare admitted/resolving IDs/source-trigger/host/API/map fingerprints and repair only the confirmed measurement identity defect. If callbacks are zero, investigate actual production stack/non-resolution instead.
+8. Continue strict failure-checkpoint -> repair -> single-run discipline until Runtime PASS, then freeze Runtime before separate ABI/Decision/RNG/Replay certification and Principal Observation/Hidden31 qualification.
+9. Only after Direct28 + AF21 + non-AF32 satisfy all required contracts may G3 be promoted/frozen and serial closure proceed to `ABC -> D -> E -> F`.
 
 Control expectations are non-authoritative until fresh successor computation: post-G3 PASS366/UNKNOWN3822; post-ABC 1920/2268; post-D 2840/1348; post-E 3869/319; post-F 4188/0.
