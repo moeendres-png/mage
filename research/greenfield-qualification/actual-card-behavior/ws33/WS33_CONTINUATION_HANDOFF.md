@@ -21,12 +21,12 @@ Only the final serial `G3 -> ABC -> D -> E -> F` successor with all 4188 effecti
 
 ## Current confirmed checkpoint
 
-`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_CORRECTIVE_RUN_33798608932`
+`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33798608932_FAILURE`
 
 Checkpoint:
-`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_CORRECTIVE_RUN_33798608932.md`
+`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33798608932_FAILURE.md`
 
-Run `33798608932` / job `100792262743` is the only pending second corrective non-AF runtime run. It must be adjudicated before any further repair or retry.
+Run `33798608932` / job `100792262743` is terminal `failure` and fully adjudicated through its first material Step-15 failure. No further retry may be started until the narrow confirmed event-fixture repair is committed.
 
 ## G3 immutable evidence — do not rerun for reassurance
 
@@ -42,40 +42,25 @@ Run `33798608932` / job `100792262743` is the only pending second corrective non
 - topology consumer-model SHA256 `82638e6b3e4408cc5bddedc49372b6357d3c2bdce6fba7bfab7ed119678f9a48`
 - partition: `G81 = Direct28 + SVar53`, unresolved parents `0`; SVar = `AF21 + non-AF32`; non-AF = `33` real source-proven production parent entrypoints.
 
-Important hash distinction: topology v2 writes `effective_model_sha256` from the effective manifest's `consumer_model_sha256`; it is not the SHA256 of `WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json`. Do not equate `82638e...` with the predecessor manifest-file SHA `cd48f427...`.
+Important hash distinction: topology v2's `effective_model_sha256` is the effective manifest's `consumer_model_sha256`; it is not the SHA256 of `WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json`. Do not equate `82638e...` with the manifest-file SHA `cd48f427...`.
 
 ### Direct-G 28
 
-Behavior:
-- run `33516084949` SUCCESS
-- HEAD `d8af15cb879bdfc3c40ce4cba3462da24ee3f272`
-- TREE `857dc01e04f58ca59437e08710bcb194bf030ea4`
-- artifact `9803814288`
-- digest `sha256:493f3549b6483d4fea9644f3a0216deb108a9ac581b651ff3e083499bcb14b5a`
-- Record/Replay `28/28 PASS`; stack/semantic replay PASS.
+Behavior run `33516084949` / artifact `9803814288` / digest `sha256:493f3549b6483d4fea9644f3a0216deb108a9ac581b651ff3e083499bcb14b5a`: `28/28` Record/Replay PASS.
 
-Principal Observation v4:
-- run `33552816460` SUCCESS
-- HEAD `3be666cc268456274204d39b2bd3c208f0d8c41e`
-- TREE `e9979879f1eb9082c45d52f87744f5bb4f7407fb`
-- artifact `9818304005`
-- digest `sha256:7b39edd3cd67f1e0b398db90fbb592b7786372fe5b398b1a0bed39e79d24bbfc`
-- 28 paths; principal-scoped hidden/observation gates PASS.
+Principal Observation v4 run `33552816460` / artifact `9818304005` / digest `sha256:7b39edd3cd67f1e0b398db90fbb592b7786372fe5b398b1a0bed39e79d24bbfc`: principal-scoped observation/hidden gates PASS.
 
-Requirement evidence:
-- run `33564749471` overall FAILURE and is not reclassified as a workflow PASS.
-- requirement generation, strict verification, and immutable artifact upload steps PASS.
-- later branch-materialization step failed.
-- artifact `9822685407`, digest `sha256:81e1e24551403453e4dd32e9ed65951cbaca2776cc993eddf475b4214a67a424` remains the successfully generated-and-verified requirement evidence.
+Requirement artifact `9822685407`, digest `sha256:81e1e24551403453e4dd32e9ed65951cbaca2776cc993eddf475b4214a67a424`, remains the successfully generated-and-strictly-verified requirement evidence. Its parent workflow later failed during branch materialization and is not reclassified as a workflow PASS.
 
 ### AF21
 
 AF is qualification-complete through focused immutable gates:
-- AF Runtime v2 certified run `33773548765` PASS.
-- AF ABI/Decision/RNG/Replay v2 run `33773805031` PASS.
-- AF Principal Observation v5 run `33774853355` PASS; job `100713875152`; artifact `9901438964`; digest `sha256:2e60f7c79ad642f3f3942db4b3e84a9392cde5662126c0eb84153a3f0469cb5d`.
 
-The v5 gate proves Record, tape-driven Replay, observation-only nonperturbation, shape-aware principal lifecycle adjudication, source-chain hashing, and artifact upload for AF21.
+- Runtime v2 run `33773548765` PASS.
+- ABI/Decision/RNG/Replay v2 run `33773805031` PASS.
+- Principal Observation v5 run `33774853355` PASS; job `100713875152`; artifact `9901438964`; digest `sha256:2e60f7c79ad642f3f3942db4b3e84a9392cde5662126c0eb84153a3f0469cb5d`.
+
+Do not rerun these without a concrete invalidating code/pin/contract change.
 
 ## Current G3 frontier
 
@@ -86,60 +71,55 @@ The v5 gate proves Record, tape-driven Replay, observation-only nonperturbation,
 - remaining production parent entrypoints: `33`
 - global G3 coverage promotion: `FALSE`
 
-Event-case ABI v2 is persisted. Observation-only trigger-admission and non-fizzled stack-resolution hooks are persisted. The event harness is persisted and keeps Forge `TriggerHandler` authoritative; target SVars are never entered directly. Request tracing and ABI adjudication support the exact Event-v21 parent ABI while preserving Direct-v15 / AF-v19 fail-closed discrimination.
+Remaining production-parent modes: ChangesZone `12`, Phase `6`, Attacks `5`, DamageDone `4`, SpellCast `2`, AttackersDeclared `2`, DamageDoneOnce `1`, Sacrificed `1`.
 
-Remaining production-parent modes:
-- ChangesZone 12
-- Phase 6
-- Attacks 5
-- DamageDone 4
-- SpellCast 2
-- AttackersDeclared 2
-- DamageDoneOnce 1
-- Sacrificed 1
+Invariant: Kang Prime retains both real source-proven parent entrypoints.
 
-Invariant: the Kang Prime effective path retains both real equivalent production parents.
+## Non-AF runtime attempts
 
-## Non-AF runtime attempt 1 — adjudicated
+### Attempt 1 — adjudicated
 
-Workflow source commit: `0b1afc7be70f5a74b38516e3848f526f3693eac4`
+- source `0b1afc7be70f5a74b38516e3848f526f3693eac4`
+- run `33797779388`, job `100789526018`, failure before runtime
+- cause: topology consumer-model hash `82638e...` was incorrectly compared to manifest-file hash `cd48f...`.
 
-- source TREE `e9d39da970809555e3246cb2b156ac7156cc3ae5`
-- run `33797779388`
-- job `100789526018`
-- conclusion `failure`
-- artifact: none
-- first material failure: Step 3 topology assertion before Forge checkout/build/runtime
-- cause: workflow compared topology consumer-model hash `82638e...` with effective-manifest-file hash `cd48f...`
-- Maven/runtime Record/Replay did not execute
-- non-AF32 remains UNKNOWN
+### Attempt 2 — adjudicated
 
-## Non-AF runtime attempt 2 — adjudicated
-
-Workflow source commit: `935da1abf48b84f85e4265a26ba65fb546e8cb07`
-
-- source TREE `f2ede3993608c0a7bf92461462124112d57dcf21`
-- run `33798342466`
-- job `100791376533`
-- conclusion `failure`
-- partial artifact `9910100377`
+- source `935da1abf48b84f85e4265a26ba65fb546e8cb07`
+- run `33798342466`, job `100791376533`, partial artifact `9910100377`
 - digest `sha256:ced3f9f26efe6f0540b4d8b661f5afad0fea2adc5071762866864658d1fb846a`
-- topology/case generation and all exact source pins: PASS
-- first material failure: observation-only stack-resolution overlay class-declaration anchor
-- expected anchor omitted pinned Forge's literal `/* extends MyObservable */` comment
-- Maven/runtime Record/Replay did not execute
-- non-AF32 remains UNKNOWN
+- cause: observation-only MagicStack overlay used a class-declaration anchor that omitted pinned Forge's literal `/* extends MyObservable */` comment.
 
-The narrow repair was persisted at `26ec46d852a731054e8719e5bf1ea37bef3f6ea6`, TREE `793c1e3c10cf07f4d0b432a56aa0f90e73eb7fe0`, binding the exact pinned `MagicStack` declaration. That commit triggered the single pending run `33798608932` / job `100792262743`.
+### Attempt 3 — terminal and adjudicated
+
+- source HEAD `26ec46d852a731054e8719e5bf1ea37bef3f6ea6`
+- source TREE `793c1e3c10cf07f4d0b432a56aa0f90e73eb7fe0`
+- run `33798608932`
+- job `100792262743`
+- artifact `9910414457`
+- digest `sha256:796d734fe0f3074319d4471e691ce356f4fe16d7661f8aee5223d48f1cf521c1`
+- artifact ZIP re-hash matched exactly
+- Step 14 record campaign: PASS
+- Step 15 record adjudication: FAIL
+- replay: NOT RUN
+- coverage promotion: FALSE
+- non-AF32: UNKNOWN
+
+First Step-15 predicate failure: parent runtime. The first bad parent in artifact order is `forge-behavior-v2:172ab06795f99590ca9d96f85995f6cf9e083ee8#1` (`Ingenious Smith`, `ChangesZone`) with `triggerAdmissions=0`, `targetBindings=0`, `targetExecutions=0`.
+
+Root cause classification: **event-fixture defect**. The harness synthesizes `AbilityKey.Origin` / `AbilityKey.Destination` as `ZoneType` enums. Pinned Forge production `GameAction.changeZone` writes the zone `.name()` strings, and pinned `TriggerChangesZone.performTest` compares against the trigger's string values. The enum-valued fixture is therefore rejected before legal trigger admission. This is not evidence of a Rules-Core defect.
+
+Exact failure details and the first-eight-row adjudicator output are frozen in `G3_NON_AF_EVENT_RUNTIME_RUN_33798608932_FAILURE.md`.
 
 ## Exact next atomic package
 
-1. Adjudicate run `33798608932` / job `100792262743`; do not start or create another run first.
-2. If it fails, persist exact first material root cause plus artifact ID/digest and repair only the confirmed systemic defect.
-3. If non-AF Runtime Record/Replay is strict PASS, verify artifact digest/content and checkpoint it immutable.
-4. Run separate immutable ABI/Decision/RNG/Replay certification consuming the actual Runtime artifact.
-5. Run separate Principal Observation/Hidden qualification for the 31 hidden-required non-AF paths.
-6. Only after all non-AF gates are green may G3 be materialized/promoted and frozen.
-7. Only then continue serial `ABC -> D -> E -> F`.
+1. Repair only the common `ChangesZone` fixture shape in `ws33_prepare_g_svar_event_harness.py`: emit production-equivalent String zone names for `AbilityKey.Origin` and `AbilityKey.Destination`.
+2. No card-name/path-ID branches, no direct target-SVar entry, no TriggerHandler bypass, no fabricated Decision/RNG evidence, no silent fallback.
+3. Commit the repair separately.
+4. Let exactly one `ws33-g3-svar-event-runtime.yml` run start from that repair commit.
+5. Immediately persist new run/job/source HEAD/TREE in a pending-run checkpoint before any other repair.
+6. Adjudicate that run to terminal. If it fails, freeze its first material failure before another repair.
+7. If Runtime becomes strict PASS, perform separate ABI/Decision/RNG/Replay certification consuming its exact artifact, then separate Principal Observation/Hidden qualification for Hidden31.
+8. Only then materialize/promote/freeze G3 and continue serial `ABC -> D -> E -> F`.
 
-Control expectations after fresh successor computation only: post-G3 PASS366/UNKNOWN3822; post-ABC 1920/2268; post-D 2840/1348; post-E 3869/319; post-F 4188/0.
+Control expectations are non-authoritative until fresh successor computation: post-G3 PASS366/UNKNOWN3822; post-ABC 1920/2268; post-D 2840/1348; post-E 3869/319; post-F 4188/0.
