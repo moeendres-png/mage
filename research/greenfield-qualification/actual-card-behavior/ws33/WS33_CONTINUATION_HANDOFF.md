@@ -37,46 +37,66 @@ G requirement migration: run `33564749471`, artifact `9822685407`, digest `sha25
 - raw Charm Choices ordinal selection removed by commit `1cff246a32df32788736576b4bd5e21ad73cdfec`; desired mode is chosen only by exact membership of opaque `ability_sub:<id>` in Forge's authoritative `MODE_SELECTION` set.
 - Charm clone observation normalized narrowly by commit `28f4e7cdd6a35c488d4633cf8d77163a8aa2d5d9`; only Forge's documented runtime-added `StackDescription=SpellDescription` is ignored, broad subset matching is statically forbidden.
 
-## Current checkpoint — AF behavior fully green
+## Current checkpoint — AF Behavior + ABI/Decision/RNG/Replay fully green
 
-`LAST_CONFIRMED_CHECKPOINT = G3_SVAR_AF_BEHAVIOR_21_OF_21_VERIFIED`
+`LAST_CONFIRMED_CHECKPOINT = G3_AF_ABI_REPLAY_PASS_33748782606`
 
-Behavior-bearing commit:
+State-reconciliation checkpoint:
+- `checkpoints/G3_STATE_RECONCILIATION_AF_ABI_PASS_5a2da789.md`
+
+AF Behavior immutable evidence — do not rerun unless materially invalidated:
 - HEAD `28f4e7cdd6a35c488d4633cf8d77163a8aa2d5d9`
 - TREE `fa5cb7385b2724433cf877b11e890985adef2376`
-
-Focused behavior evidence:
 - run `33745809012`
 - job `100617880661`
 - artifact `9889684290`
 - digest `sha256:7a9b8a4e8dd993d419d55fa31763ef8d49ffc3927408bfdb4488724dd16d68e9`
 - downloaded ZIP SHA256 exactly equals artifact digest.
-- workflow/job: SUCCESS.
-- case-summary rows: `21/21`, each 21 fields.
-- behavior status: `21/21 PASS`.
-- stack admission: `21/21`.
-- stack resolution: `21/21`.
-- exact target-SVar reachability: `21/21` (minimum executions per path 1; zero-count paths 0; total target executions 25).
-- outer failure: null; game completed true.
-- this closes the focused AF source-parent behavior/reachability package.
+- paths/behavior `21/21 PASS`.
+- stack admission/resolution `21/21`.
+- exact target-SVar reachability `21/21`; zero-count paths `0`; total target executions `25`.
+- outer failure null; game completed true.
 
-This is **not yet AF promotion-complete**. The record-only process counter still reports `pilot_visible_hidden_info_leaks=1`, cross-principal decision leaks 0. That coarse counter must not be waived; the source-required principal-observation evidence must adjudicate it.
+AF ABI / Decision / RNG / Replay immutable evidence — do not rerun unless materially invalidated:
+- checkpoint `checkpoints/G3_AF_ABI_REPLAY_PASS_33748782606.md`
+- workflow source HEAD `b599cb1550c3e04f099eb59dd4aae1e117078167`
+- workflow source TREE `9944a7f8295222839f4efef92be562c84ebc09ef`
+- run `33748782606` SUCCESS
+- job `100627296583` SUCCESS
+- artifact `9890829899`
+- artifact digest `sha256:77fe10f72233e824169829a2e7526103cb0bacf8b06823379ce57f44472359eb`
+- downloaded ZIP SHA256 retained by checkpoint and equal to GitHub digest.
+- schema `commander-simulator-next.ws33-g-abi-request-evidence.v2`
+- paths `21`
+- Decision required/observed `9/9`
+- RNG required/observed `4/4`
+- Replay required `12`; deterministic Record/Replay request equality proven.
+- request events `47`; identity scope `principal_id+token`.
+- hidden identity retained false; silent fallback false; coverage mutated false.
+- byte-identical Record/Replay retained for case summary, decision tape/events, RNG tape/events, and decision requests.
 
 AF requirement cardinalities from the frozen cases:
 - paths `21`
 - Hidden required `19`
-- RNG required `4`
-- Replay required `12`
-- Decision required `9`
+- RNG required `4` — `CLOSED`
+- Replay required `12` — `CLOSED`
+- Decision required `9` — `CLOSED`
+
+AF Principal Observation / Hidden Information remains `OPEN` for `19/21`.
+
+The old coarse process counter `pilot_visible_hidden_info_leaks=1` is not waived. It must be adjudicated by source-required principal-scoped observation evidence proving correct entitled-principal visibility, complete revoke-to-hidden lifecycle, unauthorized/private leak delta `0`, and cross-principal leak delta `0`.
+
+No AF coverage promotion has occurred.
 
 ## Exactly next atomic packages
 
-1. Build/run an AF ABI request/RNG/tape-driven replay gate by reusing the existing Direct-G request instrumentation/adjudicator and the now-green AF harness/cases. Bind to exact behavior HEAD `28f4e7...` and immutable AF behavior artifact `9889684290`. Expected: paths 21, Decision 9, RNG 4; required replay paths 12 must have deterministic record/replay evidence. No coverage mutation.
-2. Persist run/job/artifact/digest and adjudication before modifying Principal Observation tooling.
-3. Parameterize the existing Principal Observation base adjudicator from hardcoded 28 to `--expected-paths` with default 28, and generalize the observation instrumenter to recognize the AF attribution anchor `currentPath.set(spec.pathId);prepareSourceParentChoices(spec,sa);bindTargets(sa);` in addition to the unchanged Direct-G anchor, fail-closed if neither/ambiguous.
-4. Build/run AF Principal Observation v4 for 21 paths / Hidden-required 19. The coarse RevealHand leak is acceptable only if v4 proves correct entitled-principal visibility and zero unauthorized/private/cross-principal leakage.
-5. Only after both evidence packages PASS may the 21 AF SVar paths be considered qualification-complete.
-6. Then qualify the 32 non-AF G SVar paths through 33 real source-proven event parent entrypoints; preserve the true two-parent Kang Prime path and prohibit direct target-SVar/trigger entry.
+1. Parameterize the existing Principal Observation base adjudicator from hardcoded Direct-G `28` to `--expected-paths`, preserving default `28` and Direct-G compatibility.
+2. Interpret the 19-field AF Case ABI using the actually executed Target-SVar consumer (`targetDispatch` / `targetScript`), fail closed on unknown or ambiguous ABI/profile; do not reuse Direct-G positional assumptions blindly.
+3. Generalize the existing observation instrumenter to recognize the AF attribution anchor `currentPath.set(spec.pathId);prepareSourceParentChoices(spec,sa);bindTargets(sa);` in addition to the unchanged Direct-G anchor; fail closed if neither or multiple ambiguous anchors are found.
+4. Build/run a focused AF Principal Observation v4 gate for 21 paths / Hidden-required 19. Required: record path coverage `21/21`, replay path coverage `21/21`, transport `REMOTE_CLIENT_DELTA`, retained hidden identity payload false, unauthorized/private leak delta `0`, cross-principal leak delta `0`, correct grant/visible/revoke/hidden lifecycle for positive temporary hidden observations, deterministic Record/Replay observation evidence, coverage mutation false.
+5. Persist run/job/artifact/digest and immutable adjudication. Only if this gate passes may the 21 AF SVar paths become qualification-complete; then create `G3_AF_COMPLETE`.
+6. Qualify the remaining 32 non-AF G SVar paths through 33 real source-proven production event parent entrypoints; preserve the true two-parent Kang Prime path and prohibit direct target-SVar/trigger qualification.
+7. Complete G3 `81/81`, materialize/promote only through authoritative WS33 campaign tooling, verify evidence/index/hashes, and freeze exact post-G3 successor before serial `ABC -> D -> E -> F`.
 
 ## Non-AF G queue already materialized, not yet qualified
 
