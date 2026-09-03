@@ -315,6 +315,7 @@ def main() -> None:
         "negative_hidden_paths_require_positive_observation": False,
         "hidden_leak_delta_required": 0,
         "cross_principal_delta_required": 0,
+        "coverage_mutated": False,
         "failure_count": len(failures),
         "failures": failures,
         "status": "PASS" if not failures else "FAIL_CLOSED",
