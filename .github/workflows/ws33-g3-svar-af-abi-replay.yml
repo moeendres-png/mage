@@ -160,12 +160,22 @@ jobs:
         uses: actions/setup-java@v5
         with: {distribution: temurin, java-version: '21'}
 
-      - name: Supplemental AF record capture
+      - name: Verify target-selection regression in isolated JVM
         shell: bash
         run: |
           set -euo pipefail
           (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
-            -Dtest=forge.gamesimulationtests.Ws33TargetSelectionExternalizationTest,forge.net.Ws33GSVarAfQualificationTest \
+            -Dtest=forge.gamesimulationtests.Ws33TargetSelectionExternalizationTest \
+            -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) \
+            2>&1 | tee generated/diagnostic/target-selection-regression.log
+          echo 'WS33_G_SVAR_AF_TARGET_REGRESSION_ISOLATED=PASS'
+
+      - name: Supplemental AF record capture in fresh campaign JVM
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws33GSVarAfQualificationTest \
             -Dws31.cases="$GITHUB_WORKSPACE/generated/source/g-svar-af-cases.tsv" \
             -Dws31.outDir="$GITHUB_WORKSPACE/generated/record" \
             -Dws31.mode=record \
@@ -174,6 +184,14 @@ jobs:
           test -s generated/record/case-summary.tsv
           test -s generated/record/decision-tape.tsv
           test -s generated/record/rng-tape.tsv
+          python - <<'PY'
+          from pathlib import Path
+          rows=[x.split('\t') for x in Path('generated/record/case-summary.tsv').read_text().splitlines() if x]
+          assert len(rows)==21
+          bad=[(x[0],x[4],x[14],x[15],x[18:21]) for x in rows if len(x)<21 or x[4]!='PASS' or x[18]!='1' or x[19]!='1' or int(x[20])<1]
+          if bad: raise SystemExit('WS33_G_SVAR_AF_RECORD=FAIL '+repr(bad))
+          print('WS33_G_SVAR_AF_RECORD=PASS paths=21 stack=21 target_reachability=21')
+          PY
 
       - name: Prove request observer did not perturb immutable AF record
         shell: bash
