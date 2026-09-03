@@ -2,8 +2,13 @@
 """Materialize every non-AbilityFactory SVar production parent entrypoint.
 
 The 32 non-AF effective paths expand to 33 event entrypoints because the real Kang Prime
-path has two source-proven trigger parents.  This generator intentionally preserves both;
+path has two source-proven trigger parents. This generator intentionally preserves both;
 it never collapses multi-parent reachability to a synthetic primary parent.
+
+Event-case ABI v2 also retains the exact named parent SVar when the source-proven parent
+was discovered through an SVar directive. This is required for producer-chain binding
+(e.g. TriggersWhenSpent) and prevents a runtime harness from reconstructing or guessing a
+source trigger from detached script text.
 """
 from __future__ import annotations
 
@@ -34,8 +39,10 @@ def main() -> None:
 
     rows: list[str] = []
     modes: Counter[str] = Counter()
+    directives: Counter[str] = Counter()
     path_ids: set[str] = set()
     multi: list[str] = []
+    named_parent_svars: list[tuple[str, str]] = []
     ordinal = 0
     for case in sorted(topology["cases"], key=lambda c: c["v2_path_id"]):
         parents = [p for p in case["selected_parents"] if not p["ability_factory_compatible"]]
@@ -51,7 +58,16 @@ def main() -> None:
             if not mm:
                 fail(f"non-AF parent has no Mode$ for {case['v2_path_id']}")
             mode = mm.group(1).strip()
+            directive = parent["directive"]
+            parent_svar = parent.get("parent_svar") or ""
+            if directive == "SVAR":
+                if not parent_svar:
+                    fail(f"SVAR parent lost parent_svar identity for {case['v2_path_id']}")
+                named_parent_svars.append((case["v2_path_id"], parent_svar))
+            elif parent_svar:
+                fail(f"non-SVAR parent unexpectedly carries parent_svar for {case['v2_path_id']}")
             modes[mode] += 1
+            directives[directive] += 1
             fields = [
                 ordinal,
                 case["v2_path_id"],
@@ -64,7 +80,8 @@ def main() -> None:
                 case["implementation_target"],
                 case["source_path"],
                 int(parent["source_line"]),
-                parent["directive"],
+                directive,
+                parent_svar,
                 parent["consumer_field"],
                 mode,
                 int(bool(case["required_hidden_info_evidence"])),
@@ -81,25 +98,33 @@ def main() -> None:
     expected_multi = topology.get("multi_parent_paths", [])
     if sorted(multi) != sorted(expected_multi) or len(multi) != 1:
         fail(f"multi-parent identity mismatch generated={multi} topology={expected_multi}")
+    if len(named_parent_svars) != 1:
+        fail(f"expected exactly one named parent SVar entrypoint, got {named_parent_svars}")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text("\n".join(rows) + "\n", encoding="utf-8")
     summary = {
-        "schema": "commander-simulator-next.ws33-g-svar-event-cases.v1",
+        "schema": "commander-simulator-next.ws33-g-svar-event-cases.v2",
         "status": "PASS",
         "effective_model_sha256": topology["effective_model_sha256"],
         "effective_path_count": len(path_ids),
         "parent_entrypoint_count": len(rows),
         "multi_parent_paths": sorted(multi),
         "modes": dict(sorted(modes.items())),
+        "directives": dict(sorted(directives.items())),
+        "named_parent_svars": [
+            {"v2_path_id": path_id, "parent_svar": parent_svar}
+            for path_id, parent_svar in named_parent_svars
+        ],
+        "case_field_count": 21,
         "coverage_mutated": False,
         "direct_target_svar_entry": False,
     }
     args.summary.parent.mkdir(parents=True, exist_ok=True)
     args.summary.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(
-        "WS33_G_SVAR_EVENT_CASES=PASS paths=32 entrypoints=33 multi_parent=1 "
-        "direct_target_svar=FALSE coverage_mutated=FALSE modes="
+        "WS33_G_SVAR_EVENT_CASES=PASS schema=v2 paths=32 entrypoints=33 fields=21 "
+        "multi_parent=1 named_parent_svar=1 direct_target_svar=FALSE coverage_mutated=FALSE modes="
         + ",".join(f"{k}:{v}" for k, v in sorted(modes.items()))
     )
 
