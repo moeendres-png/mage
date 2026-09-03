@@ -12,6 +12,15 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
+def replace_one_of(text: str, alternatives: tuple[tuple[str, str], ...], label: str) -> str:
+    matches = [(old, new) for old, new in alternatives if text.count(old) == 1]
+    if len(matches) != 1:
+        counts = {old: text.count(old) for old, _ in alternatives}
+        raise SystemExit(f"WS33_G_REQUEST_TRACE_PATCH=FAIL {label}: expected exactly one ABI anchor, got {counts}")
+    old, new = matches[0]
+    return text.replace(old, new, 1)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--harness", type=Path, required=True)
@@ -38,11 +47,17 @@ def main() -> None:
     replacement = 'if(p!=null)ws33TraceDecisionRequest(p,request);Ws05HiddenInfoProbe.observeDecision(player.getName(),player.getId(),request);return decisionSource.decide(player,request,p);});'
     text = replace_once(text, anchor, replacement, "request trace provider hook")
 
-    text = replace_once(
+    direct_write = 'writeEvidence(outDir,mode,cases,evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);PlayerControllerHuman.setExternalDecisionProviderFactory(null);'
+    direct_write_traced = 'writeEvidence(outDir,mode,cases,evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);writeWs33DecisionRequests(outDir);PlayerControllerHuman.setExternalDecisionProviderFactory(null);'
+    event_write = 'writeEvidence(outDir,mode,uniqueCases(cases),evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);writeParentEvidence(outDir);PlayerControllerHuman.setExternalDecisionProviderFactory(null);'
+    event_write_traced = 'writeEvidence(outDir,mode,uniqueCases(cases),evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);writeParentEvidence(outDir);writeWs33DecisionRequests(outDir);PlayerControllerHuman.setExternalDecisionProviderFactory(null);'
+    text = replace_one_of(
         text,
-        'writeEvidence(outDir,mode,cases,evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);PlayerControllerHuman.setExternalDecisionProviderFactory(null);',
-        'writeEvidence(outDir,mode,cases,evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);writeWs33DecisionRequests(outDir);PlayerControllerHuman.setExternalDecisionProviderFactory(null);',
-        "request trace write",
+        (
+            (direct_write, direct_write_traced),
+            (event_write, event_write_traced),
+        ),
+        "request trace write ABI",
     )
 
     helper = r'''    private static void ws33TraceDecisionRequest(String pathId, ExternalDecisionRequest request){
@@ -85,7 +100,7 @@ def main() -> None:
     if 'decision-requests-with-path.tsv' not in text or 'request.getOptions()' not in text:
         raise SystemExit("WS33_G_REQUEST_TRACE_PATCH=FAIL request trace not materialized")
     path.write_text(text, encoding="utf-8")
-    print("WS33_G_REQUEST_TRACE_PATCH=PASS mode=observer_only payload=opaque_authoritative_option_ids")
+    print("WS33_G_REQUEST_TRACE_PATCH=PASS mode=observer_only payload=opaque_authoritative_option_ids write_abi=DIRECT_OR_EVENT")
 
 
 if __name__ == "__main__":
