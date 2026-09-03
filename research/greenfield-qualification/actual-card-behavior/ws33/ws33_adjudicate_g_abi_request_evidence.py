@@ -25,14 +25,24 @@ def lines(p: Path):
     return [x for x in p.read_text(encoding="utf-8").splitlines() if x]
 
 def parse_cases(p: Path):
-    out={}
+    out={}; abi=None
     for n,line in enumerate(lines(p),1):
         f=line.split("\t")
-        need(len(f) >= 14, f"cases row {n}: expected >=14 columns, got {len(f)}")
-        path=f[1]; need(path and path not in out, f"cases row {n}: duplicate/empty path {path!r}")
-        need(f[11] in {"0","1"} and f[13] in {"0","1"}, f"cases row {n}: invalid requirement flags")
-        out[path]={"rng":f[11]=="1","decision":f[13]=="1"}
-    return out
+        need(len(f) in {15,19,21}, f"cases row {n}: unsupported exact ABI column count {len(f)}")
+        row_abi={15:"DIRECT_V15",19:"SVAR_AF_V19",21:"SVAR_EVENT_V21"}[len(f)]
+        if abi is None: abi=row_abi
+        need(abi==row_abi, f"cases row {n}: mixed case ABI {abi}/{row_abi}")
+        path=f[1]; need(path, f"cases row {n}: empty path")
+        rng_idx,decision_idx=(16,18) if len(f)==21 else (11,13)
+        need(f[rng_idx] in {"0","1"} and f[decision_idx] in {"0","1"}, f"cases row {n}: invalid requirement flags")
+        row={"rng":f[rng_idx]=="1","decision":f[decision_idx]=="1"}
+        if path in out:
+            need(row_abi=="SVAR_EVENT_V21", f"cases row {n}: duplicate path forbidden for {row_abi}: {path}")
+            need(out[path]==row, f"cases row {n}: duplicate event parent disagrees on requirements for {path}")
+        else:
+            out[path]=row
+    need(abi is not None, "empty case input")
+    return out,abi
 
 def parse_requests(p: Path, cases):
     by_identity={}; by_path=defaultdict(list)
@@ -103,7 +113,7 @@ def parse_rng(p: Path, cases):
     return out
 
 def adjudicate(a):
-    cases=parse_cases(a.cases); need(len(cases)==a.expected_paths, f"expected {a.expected_paths} cases, got {len(cases)}")
+    cases,case_abi=parse_cases(a.cases); need(len(cases)==a.expected_paths, f"expected {a.expected_paths} cases, got {len(cases)}")
     req_dec={p for p,x in cases.items() if x['decision']}; req_rng={p for p,x in cases.items() if x['rng']}
     need(len(req_dec)==a.expected_decision_paths, f"expected {a.expected_decision_paths} decision-required paths, got {len(req_dec)}")
     need(len(req_rng)==a.expected_rng_paths, f"expected {a.expected_rng_paths} rng-required paths, got {len(req_rng)}")
@@ -113,7 +123,7 @@ def adjudicate(a):
     missing=sorted(p for p in req_dec if not accepted[p]); need(not missing, f"decision-required paths without accepted request/tape evidence: {missing}")
     need(all(path_requests[p] for p in req_dec), "decision-required path without authoritative request trace")
     rng=parse_rng(a.rng_events,cases); missing_rng=sorted(p for p in req_rng if not rng[p]); need(not missing_rng, f"rng-required paths without events: {missing_rng}")
-    out={"schema":"commander-simulator-next.ws33-g-abi-request-evidence.v2","status":"PASS","behavior_artifact_id":a.behavior_artifact_id,
+    out={"schema":"commander-simulator-next.ws33-g-abi-request-evidence.v2","status":"PASS","case_abi":case_abi,"behavior_artifact_id":a.behavior_artifact_id,
          "behavior_artifact_digest":a.behavior_artifact_digest,"behavior_source_head":a.behavior_source_head,"model_artifact_id":a.model_artifact_id,
          "effective_model_sha256":a.effective_model_sha256,"path_count":len(cases),"decision_required_path_count":len(req_dec),
          "decision_required_paths_observed":sum(bool(accepted[p]) for p in req_dec),"rng_required_path_count":len(req_rng),
