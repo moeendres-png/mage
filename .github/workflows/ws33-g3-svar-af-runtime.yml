@@ -7,6 +7,7 @@ on:
       - '.github/workflows/ws33-g3-svar-af-runtime.yml'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_g_svar_af_cases.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_g_svar_af_harness.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-svar-reachability.py'
   workflow_dispatch:
 
 permissions:
@@ -51,6 +52,7 @@ jobs:
           jq -e --arg consumer "$CONSUMER_MODEL_SHA" '.status=="PASS" and .effective_model_sha256==$consumer and .g_unknown_count==81 and .direct_g_count==28 and .remaining_svar_count==53 and (.unresolved_parent_paths|length)==0' generated/topology/G_SVAR_CONSUMER_TOPOLOGY.json
           python "$ROOT/ws33_prepare_g_svar_af_cases.py" --topology generated/topology/G_SVAR_CONSUMER_TOPOLOGY.json --out generated/g-svar-af-cases.tsv
           test "$(wc -l < generated/g-svar-af-cases.tsv)" -eq 21
+          awk -F '\t' 'NF!=19{exit 1}' generated/g-svar-af-cases.tsv
           echo "WS33_G_SVAR_TOPOLOGY_INPUT=PASS manifest_file_sha=$MODEL_FILE_SHA consumer_model_sha=$CONSUMER_MODEL_SHA"
 
       - name: Checkout pinned Forge and retained dependencies
@@ -96,6 +98,7 @@ jobs:
           python behavior-source/$ROOT/runtime-overlays/apply-ws33-input-confirm.py --forge-root forge | tee generated/overlay-logs/ws33-input-confirm.log
           python behavior-source/$ROOT/runtime-overlays/apply-ws33-stack-target.py --forge-root forge | tee generated/overlay-logs/ws33-stack-target.log
           python "$ROOT/runtime-overlays/apply-ws33-target-selection.py" --forge-root forge | tee generated/overlay-logs/ws33-target-selection.log
+          python "$ROOT/runtime-overlays/apply-ws33-svar-reachability.py" --forge-root forge | tee generated/overlay-logs/ws33-svar-reachability.log
           python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py --forge-root forge | tee generated/overlay-logs/ws12.log
           python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py --forge-root forge | tee generated/overlay-logs/ws32.log
 
@@ -109,6 +112,9 @@ jobs:
           python "$ROOT/ws33_instrument_g_authoritative_requests.py" --harness "$dst"
           ! grep -F 'sa.resolve()' "$dst"
           ! grep -F 'sa.getTargets().add(' "$dst"
+          ! grep -F 'AbilityFactory.getAbility(spec.script,source)' "$dst"
+          grep -F 'resolveSourceParent(spec,source)' "$dst"
+          grep -F 'AbilitySub.setWs33ResolutionObserver' "$dst"
           grep -F 'sa.setupTargets()' "$dst"
           grep -F 'getStack().addAndUnfreeze(sa)' "$dst"
           grep -F 'getStack().resolveStack()' "$dst"
@@ -133,9 +139,9 @@ jobs:
           from pathlib import Path
           rows=[line.split('\t') for line in Path('generated/record/case-summary.tsv').read_text().splitlines() if line]
           assert len(rows)==21,len(rows)
-          bad=[(r[0],r[4],r[14],r[15]) for r in rows if len(r)<20 or r[4] != 'PASS' or r[18] != '1' or r[19] != '1']
+          bad=[(r[0],r[4],r[14],r[15],r[18:21]) for r in rows if len(r)<21 or r[4] != 'PASS' or r[18] != '1' or r[19] != '1' or int(r[20]) < 1]
           if bad: raise SystemExit('WS33_G_SVAR_AF_RUNTIME=FAIL '+repr(bad))
-          print('WS33_G_SVAR_AF_RUNTIME=PASS paths=21 stack_admission=21 stack_resolution=21 coverage_mutated=FALSE')
+          print('WS33_G_SVAR_AF_RUNTIME=PASS paths=21 stack_admission=21 stack_resolution=21 target_svar_reached=21 coverage_mutated=FALSE')
           PY
 
       - name: Upload diagnostic runtime evidence
