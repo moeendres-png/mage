@@ -51,11 +51,14 @@ def main() -> None:
     direct_write_traced = 'writeEvidence(outDir,mode,cases,evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);writeWs33DecisionRequests(outDir);PlayerControllerHuman.setExternalDecisionProviderFactory(null);'
     event_write = 'writeEvidence(outDir,mode,uniqueCases(cases),evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);writeParentEvidence(outDir);PlayerControllerHuman.setExternalDecisionProviderFactory(null);'
     event_write_traced = 'writeEvidence(outDir,mode,uniqueCases(cases),evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);writeParentEvidence(outDir);writeWs33DecisionRequests(outDir);PlayerControllerHuman.setExternalDecisionProviderFactory(null);'
+    lineage_event_write = 'writeEvidence(outDir,mode,uniqueCases(cases),evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);writeParentEvidence(outDir);writeResolutionLineage(outDir);PlayerControllerHuman.setExternalDecisionProviderFactory(null);'
+    lineage_event_write_traced = 'writeEvidence(outDir,mode,uniqueCases(cases),evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);writeParentEvidence(outDir);writeResolutionLineage(outDir);writeWs33DecisionRequests(outDir);PlayerControllerHuman.setExternalDecisionProviderFactory(null);'
     text = replace_one_of(
         text,
         (
             (direct_write, direct_write_traced),
             (event_write, event_write_traced),
+            (lineage_event_write, lineage_event_write_traced),
         ),
         "request trace write ABI",
     )
@@ -100,7 +103,7 @@ def main() -> None:
     if 'decision-requests-with-path.tsv' not in text or 'request.getOptions()' not in text:
         raise SystemExit("WS33_G_REQUEST_TRACE_PATCH=FAIL request trace not materialized")
     path.write_text(text, encoding="utf-8")
-    print("WS33_G_REQUEST_TRACE_PATCH=PASS mode=observer_only payload=opaque_authoritative_option_ids write_abi=DIRECT_OR_EVENT")
+    print("WS33_G_REQUEST_TRACE_PATCH=PASS mode=observer_only payload=opaque_authoritative_option_ids write_abi=DIRECT_OR_EVENT_OR_LINEAGE_EVENT")
 
 
 if __name__ == "__main__":
