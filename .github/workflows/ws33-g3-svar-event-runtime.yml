@@ -1,0 +1,237 @@
+name: WS33 G3 SVar non-AF event runtime
+
+on:
+  push:
+    branches: [work/ws33-g3-final-closure-20260902]
+    paths:
+      - '.github/workflows/ws33-g3-svar-event-runtime.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_g_svar_event_cases.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_g_svar_event_harness.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_instrument_g_authoritative_requests.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-trigger-reachability.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-stack-resolution-reachability.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  DIRECT_RUNTIME_SOURCE_HEAD: d8af15cb879bdfc3c40ce4cba3462da24ee3f272
+  DIRECT_RUNTIME_SOURCE_TREE: 857dc01e04f58ca59437e08710bcb194bf030ea4
+  TOPOLOGY_SOURCE_HEAD: 4032d9c14dc7840e2518a92273037aaba443ada9
+  TOPOLOGY_RUN_ID: '33681121017'
+  TOPOLOGY_ARTIFACT_ID: '9866293827'
+  TOPOLOGY_ARTIFACT_DIGEST: sha256:6a41f66937b4bf1bcf782045d869ece183c0be49b345eac654dc3588cb98b96b
+  MODEL_SHA: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+  WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+  WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
+  WS31_HIST_HEAD: b09fe7c16845cddbbfe30fd1f855b59234bbf007
+
+jobs:
+  event-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout current qualification tooling
+        uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+
+      - name: Consume exact immutable topology and materialize event cases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf generated
+          mkdir -p generated/topology generated/source generated/record generated/replay generated/diagnostic generated/overlay-logs
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$TOPOLOGY_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$meta")" = "$TOPOLOGY_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.id <<<"$meta")" = "$TOPOLOGY_RUN_ID"
+          test "$(jq -r .workflow_run.head_sha <<<"$meta")" = "$TOPOLOGY_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$TOPOLOGY_ARTIFACT_ID/zip" > generated/topology.zip
+          test "sha256:$(sha256sum generated/topology.zip | cut -d' ' -f1)" = "$TOPOLOGY_ARTIFACT_DIGEST"
+          unzip -q generated/topology.zip -d generated/topology
+          test -s generated/topology/G_SVAR_CONSUMER_TOPOLOGY.json
+          jq -e --arg model "$MODEL_SHA" '.status=="PASS" and .remaining_svar_count==53 and .effective_model_sha256==$model' generated/topology/G_SVAR_CONSUMER_TOPOLOGY.json
+          python "$ROOT/ws33_prepare_g_svar_event_cases.py" \
+            --topology generated/topology/G_SVAR_CONSUMER_TOPOLOGY.json \
+            --out generated/source/g-svar-event-cases.tsv \
+            --summary generated/source/G_SVAR_EVENT_CASES.json | tee generated/diagnostic/case-generation.log
+          jq -e --arg model "$MODEL_SHA" '.schema=="commander-simulator-next.ws33-g-svar-event-cases.v2" and .status=="PASS" and .effective_model_sha256==$model and .effective_path_count==32 and .parent_entrypoint_count==33 and .case_field_count==21 and .coverage_mutated==false and .direct_target_svar_entry==false' generated/source/G_SVAR_EVENT_CASES.json
+          test "$(wc -l < generated/source/g-svar-event-cases.tsv)" -eq 33
+
+      - name: Checkout immutable retained sources
+        uses: actions/checkout@v4
+        with: {ref: '${{ env.DIRECT_RUNTIME_SOURCE_HEAD }}', path: direct-source, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {repository: Card-Forge/forge, ref: '${{ env.FORGE_PIN }}', path: forge, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.WS01_HEAD }}', path: ws01, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.WS12_HEAD }}', path: ws12, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.WS32_HEAD }}', path: ws32, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.WS31_HIST_HEAD }}
+          path: ws31-historical
+          fetch-depth: 1
+          sparse-checkout: |
+            research/greenfield-qualification/actual-card-behavior/ws31/forge-overlay/Ws31HiddenRngReplayQualificationTest.java
+
+      - name: Verify exact source pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C direct-source rev-parse HEAD)" = "$DIRECT_RUNTIME_SOURCE_HEAD"
+          test "$(git -C direct-source rev-parse 'HEAD^{tree}')" = "$DIRECT_RUNTIME_SOURCE_TREE"
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          test "$(git -C ws01 rev-parse HEAD)" = "$WS01_HEAD"
+          test "$(git -C ws12 rev-parse HEAD)" = "$WS12_HEAD"
+          test "$(git -C ws32 rev-parse HEAD)" = "$WS32_HEAD"
+          test "$(git -C ws31-historical rev-parse HEAD)" = "$WS31_HIST_HEAD"
+          printf '%s\n' "$GITHUB_SHA" > generated/diagnostic/workflow-source-head.txt
+          git rev-parse 'HEAD^{tree}' > generated/diagnostic/workflow-source-tree.txt
+
+      - name: Apply qualified runtime overlays plus observation-only event reachability
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch | tee generated/overlay-logs/ws01.log
+          python direct-source/research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge | tee generated/overlay-logs/ws05.log
+          cp direct-source/research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          python direct-source/research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/record/RNG_INVENTORY.json | tee generated/overlay-logs/ws06.log
+          python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge | tee generated/overlay-logs/ws33-input-confirm.log
+          python direct-source/$ROOT/runtime-overlays/apply-ws33-stack-target.py --forge-root forge | tee generated/overlay-logs/ws33-stack-target.log
+          python "$ROOT/runtime-overlays/apply-ws33-target-selection.py" --forge-root forge | tee generated/overlay-logs/ws33-target-selection.log
+          python "$ROOT/runtime-overlays/apply-ws33-trigger-reachability.py" --forge-root forge | tee generated/overlay-logs/ws33-trigger-reachability.log
+          python "$ROOT/runtime-overlays/apply-ws33-stack-resolution-reachability.py" --forge-root forge | tee generated/overlay-logs/ws33-stack-resolution-reachability.log
+          python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py --forge-root forge | tee generated/overlay-logs/ws12.log
+          python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py --forge-root forge | tee generated/overlay-logs/ws32.log
+
+      - name: Prepare 33-parent event harness with request trace
+        shell: bash
+        run: |
+          set -euo pipefail
+          src=ws31-historical/research/greenfield-qualification/actual-card-behavior/ws31/forge-overlay/Ws31HiddenRngReplayQualificationTest.java
+          dst=forge/forge-gui-desktop/src/test/java/forge/net/Ws33GSVarEventQualificationTest.java
+          python direct-source/$ROOT/ws33_prepare_g_ability_harness.py --source "$src" --out "$dst"
+          python "$ROOT/ws33_prepare_g_svar_event_harness.py" --harness "$dst" | tee generated/diagnostic/event-harness.log
+          python "$ROOT/ws33_instrument_g_authoritative_requests.py" --harness "$dst" | tee generated/diagnostic/request-trace.log
+          ! grep -F 'AbilityFactory.getAbility(spec.targetScript' "$dst"
+          ! grep -F 'sa.resolve()' "$dst"
+          ! grep -F 'sa.getTargets().add(' "$dst"
+          grep -F 'runTrigger(TriggerType.smartValueOf(spec.mode),rp,false)' "$dst"
+          grep -F 'addAllTriggeredAbilitiesToStack()' "$dst"
+          grep -F 'parent-summary.tsv' "$dst"
+          grep -F 'decision-requests-with-path.tsv' "$dst"
+          sha256sum "$dst" | tee generated/diagnostic/event-harness.sha256
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with: {distribution: temurin, java-version: '21'}
+
+      - name: Execute 33-parent record campaign
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws33GSVarEventQualificationTest \
+            -Dws31.cases="$GITHUB_WORKSPACE/generated/source/g-svar-event-cases.tsv" \
+            -Dws31.outDir="$GITHUB_WORKSPACE/generated/record" -Dws31.mode=record \
+            -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) 2>&1 | tee generated/record/runtime.log
+          test -s generated/record/case-summary.tsv
+          test -s generated/record/parent-summary.tsv
+          test -s generated/record/decision-requests-with-path.tsv
+          test -s generated/record/decision-tape.tsv
+          test -s generated/record/rng-tape.tsv
+
+      - name: Adjudicate record behavior and minimum Decision/RNG obligations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64
+          from pathlib import Path
+          cases=[x.split('\t') for x in Path('generated/source/g-svar-event-cases.tsv').read_text().splitlines() if x]
+          assert len(cases)==33 and all(len(x)==21 for x in cases)
+          unique={x[1] for x in cases}
+          assert len(unique)==32
+          parents=[x.split('\t') for x in Path('generated/record/parent-summary.tsv').read_text().splitlines() if x]
+          assert len(parents)==33 and all(len(x)==16 for x in parents)
+          badp=[x[:14] for x in parents if x[10]!='PASS' or int(x[11])!=1 or int(x[12])!=1 or int(x[13])<1]
+          if badp: raise SystemExit('WS33_G_SVAR_EVENT_PARENT_RUNTIME=FAIL '+repr(badp[:8]))
+          rows=[x.split('\t') for x in Path('generated/record/case-summary.tsv').read_text().splitlines() if x]
+          assert len(rows)==32 and {x[0] for x in rows}==unique
+          bad=[x[:20] for x in rows if x[4]!='PASS' or int(x[18])<1 or int(x[19])<1 or int(x[10])!=0]
+          if bad: raise SystemExit('WS33_G_SVAR_EVENT_PATH_RUNTIME=FAIL '+repr(bad[:8]))
+          req_dec={x[1] for x in cases if x[18]=='1'}
+          req_rng={x[1] for x in cases if x[16]=='1'}
+          dec=set(); rng=set()
+          for line in Path('generated/record/decision-events-with-path.tsv').read_text().splitlines():
+              f=line.split('\t'); p=base64.b64decode(f[0]).decode()
+              if p in unique and f[5]=='ACCEPTED': dec.add(p)
+          for line in Path('generated/record/rng-events-with-path.tsv').read_text().splitlines():
+              f=line.split('\t'); p=base64.b64decode(f[0]).decode()
+              if p in unique: rng.add(p)
+          md=sorted(req_dec-dec); mr=sorted(req_rng-rng)
+          if md: raise SystemExit('WS33_G_SVAR_EVENT_DECISION_REQUIRED_MISSING='+repr(md))
+          if mr: raise SystemExit('WS33_G_SVAR_EVENT_RNG_REQUIRED_MISSING='+repr(mr))
+          print(f'WS33_G_SVAR_EVENT_RECORD=PASS paths={len(unique)} parents={len(parents)} decision_required={len(req_dec)} rng_required={len(req_rng)} cross_principal_leaks=0')
+          PY
+
+      - name: Execute tape-driven replay campaign
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws33GSVarEventQualificationTest \
+            -Dws31.cases="$GITHUB_WORKSPACE/generated/source/g-svar-event-cases.tsv" \
+            -Dws31.outDir="$GITHUB_WORKSPACE/generated/replay" -Dws31.mode=replay \
+            -Dws31.decisionReplay="$GITHUB_WORKSPACE/generated/record/decision-tape.tsv" \
+            -Dws31.rngReplay="$GITHUB_WORKSPACE/generated/record/rng-tape.tsv" \
+            -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) 2>&1 | tee generated/replay/runtime.log
+          cmp generated/record/case-summary.tsv generated/replay/case-summary.tsv
+          cmp generated/record/parent-summary.tsv generated/replay/parent-summary.tsv
+          cmp generated/record/decision-tape.tsv generated/replay/decision-tape.tsv
+          cmp generated/record/decision-events-with-path.tsv generated/replay/decision-events-with-path.tsv
+          cmp generated/record/rng-tape.tsv generated/replay/rng-tape.tsv
+          cmp generated/record/rng-events-with-path.tsv generated/replay/rng-events-with-path.tsv
+          cmp generated/record/decision-requests-with-path.tsv generated/replay/decision-requests-with-path.tsv
+          echo 'WS33_G_SVAR_EVENT_SEMANTIC_REPLAY=PASS paths=32 parents=33 request_trace_equal=true'
+
+      - name: Materialize source chain and immutable hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg head "$(cat generated/diagnostic/workflow-source-head.txt)" \
+            --arg tree "$(cat generated/diagnostic/workflow-source-tree.txt)" \
+            --arg forge "$FORGE_PIN" --arg direct "$DIRECT_RUNTIME_SOURCE_HEAD" \
+            --arg topology_head "$TOPOLOGY_SOURCE_HEAD" --arg topology_digest "$TOPOLOGY_ARTIFACT_DIGEST" \
+            --arg model "$MODEL_SHA" \
+            '{schema:"commander-simulator-next.ws33-g-svar-event-runtime.v1",status:"PASS",workflow_source_head:$head,workflow_source_tree:$tree,forge_pin:$forge,direct_runtime_source_head:$direct,topology_source_head:$topology_head,topology_artifact_id:9866293827,topology_artifact_digest:$topology_digest,effective_model_sha256:$model,effective_paths:32,parent_entrypoints:33,record_replay_equal:true,trigger_legality_authority:"FORGE_TRIGGER_HANDLER",target_direct_entry:false,principal_observation_promoted:false,coverage_mutated:false}' \
+            > generated/diagnostic/SOURCE_CHAIN.json
+          (cd generated && find source record replay diagnostic overlay-logs -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum) > generated/SHA256SUMS
+          test "$(grep -c 'SOURCE_CHAIN.json' generated/SHA256SUMS)" -eq 1
+          git diff --exit-code
+          echo 'WS33_G_SVAR_EVENT_COVERAGE_MUTATED=FALSE'
+
+      - name: Upload immutable non-AF event runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-g3-svar-event-runtime-${{ github.run_id }}
+          path: |
+            generated/source
+            generated/record
+            generated/replay
+            generated/diagnostic
+            generated/overlay-logs
+            generated/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 90
