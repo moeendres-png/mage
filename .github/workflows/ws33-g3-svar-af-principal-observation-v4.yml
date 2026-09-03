@@ -8,6 +8,7 @@ on:
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_adjudicate_g_principal_observation.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_adjudicate_g_principal_observation_v4.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_instrument_g_principal_observations.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-input-confirm.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-observation-fanout.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-external-card-decision-lifetime.py'
   workflow_dispatch:
@@ -138,7 +139,7 @@ jobs:
           python direct-source/research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge | tee generated/overlay-logs/ws05.log
           cp direct-source/research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
           python direct-source/research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/record/RNG_INVENTORY.json | tee generated/overlay-logs/ws06.log
-          python direct-source/$ROOT/runtime-overlays/apply-ws33-input-confirm.py --forge-root forge | tee generated/overlay-logs/ws33-input-confirm.log
+          python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge | tee generated/overlay-logs/ws33-input-confirm.log
           python "$ROOT/runtime-overlays/apply-ws33-observation-fanout.py" --forge-root forge | tee generated/overlay-logs/ws33-observation-fanout.log
           python "$ROOT/runtime-overlays/apply-ws33-external-card-decision-lifetime.py" --forge-root forge | tee generated/overlay-logs/ws33-card-decision-lifetime.log
           python direct-source/$ROOT/runtime-overlays/apply-ws33-stack-target.py --forge-root forge | tee generated/overlay-logs/ws33-stack-target.log
@@ -301,7 +302,8 @@ jobs:
             --arg abi_id "$AF_ABI_ARTIFACT_ID" --arg abi_digest "$AF_ABI_ARTIFACT_DIGEST" \
             '{schema:"commander-simulator-next.ws33-g-af-principal-observation-source-chain.v1",workflow_source_head:$head,workflow_source_tree:$tree,forge_pin:$forge,effective_model_sha256:$model,af_behavior_artifact_id:($behavior_id|tonumber),af_behavior_artifact_digest:$behavior_digest,af_abi_source_head:$abi_head,af_abi_source_tree:$abi_tree,af_abi_artifact_id:($abi_id|tonumber),af_abi_artifact_digest:$abi_digest,coverage_mutated:false,status:"PASS"}' \
             > generated/diagnostic/SOURCE_CHAIN.json
-          (cd generated && find diagnostic record replay overlay-logs abi/diagnostic -type f -print0 | sort -z | xargs -0 sha256sum) > generated/diagnostic/EVIDENCE_SHA256SUMS.txt
+          (cd generated && find diagnostic record replay overlay-logs abi/diagnostic -type f ! -path 'diagnostic/EVIDENCE_SHA256SUMS.txt' -print0 | sort -z | xargs -0 sha256sum) > generated/EVIDENCE_SHA256SUMS.tmp
+          mv generated/EVIDENCE_SHA256SUMS.tmp generated/diagnostic/EVIDENCE_SHA256SUMS.txt
           git diff --exit-code
           echo 'WS33_G_SVAR_AF_PRINCIPAL_COVERAGE_MUTATED=FALSE'
 
