@@ -47,6 +47,13 @@ def main() -> None:
     new_case = 'final int ordinal; final String pathId,oracleId,cardName,dispatch,implementation,sourcePath,sourceDirective,sourceToken,script,parentSVar,targetSVar,targetDispatch,targetScript; final int sourceLine; final boolean hidden,rng,replay,decision;\n        CaseSpec(String[] f){if(f.length!=19)throw new IllegalArgumentException("WS33 G-SVAR-AF expected 19 case fields, got "+f.length);ordinal=Integer.parseInt(f[0]);pathId=f[1];oracleId=f[2];cardName=f[3];dispatch=f[4];implementation=f[5];sourcePath=f[6];sourceLine=Integer.parseInt(f[7]);sourceDirective=f[8];sourceToken=f[9];hidden="1".equals(f[10]);rng="1".equals(f[11]);replay="1".equals(f[12]);decision="1".equals(f[13]);script=new String(Base64.getDecoder().decode(f[14]),StandardCharsets.UTF_8);parentSVar=f[15];targetSVar=f[16];targetDispatch=f[17];targetScript=new String(Base64.getDecoder().decode(f[18]),StandardCharsets.UTF_8);}'
     s = replace_once(s, old_case, new_case, "case parent/target identity ABI")
 
+    s = replace_once(
+        s,
+        'if(f.length!=15)throw new IllegalArgumentException("bad case TSV fields="+f.length);',
+        'if(f.length!=19)throw new IllegalArgumentException("bad case TSV fields="+f.length);',
+        "case TSV loader ABI",
+    )
+
     old_evidence = 'final CaseSpec spec; String status="UNKNOWN",failureType="",failureMessage="",beforeDigest="",afterDigest="",beforeState="",afterState=""; long decisionEvents,rngEvents,leakDelta,crossPrincipalDelta,stackAdmissions,stackResolutions;'
     new_evidence = 'final CaseSpec spec; String status="UNKNOWN",failureType="",failureMessage="",beforeDigest="",afterDigest="",beforeState="",afterState=""; long decisionEvents,rngEvents,leakDelta,crossPrincipalDelta,stackAdmissions,stackResolutions,targetExecutions;'
     s = replace_once(s, old_evidence, new_evidence, "target execution evidence field")
