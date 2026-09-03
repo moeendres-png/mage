@@ -25,7 +25,8 @@ env:
   TOPOLOGY_RUN_ID: '33681121017'
   TOPOLOGY_ARTIFACT_ID: '9866293827'
   TOPOLOGY_ARTIFACT_DIGEST: sha256:6a41f66937b4bf1bcf782045d869ece183c0be49b345eac654dc3588cb98b96b
-  MODEL_SHA: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  TOPOLOGY_CONSUMER_MODEL_SHA: 82638e6b3e4408cc5bddedc49372b6357d3c2bdce6fba7bfab7ed119678f9a48
+  EFFECTIVE_MANIFEST_FILE_SHA: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
   WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
   WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
   WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
@@ -38,7 +39,7 @@ jobs:
     steps:
       - name: Checkout current qualification tooling
         uses: actions/checkout@v4
-        with: {fetch-depth: 0}
+        with: {fetch-depth: 1}
 
       - name: Consume exact immutable topology and materialize event cases
         env:
@@ -48,6 +49,12 @@ jobs:
           set -euo pipefail
           rm -rf generated
           mkdir -p generated/topology generated/source generated/record generated/replay generated/diagnostic generated/overlay-logs
+          printf '%s\n' "$GITHUB_SHA" > generated/diagnostic/workflow-source-head.txt
+          git rev-parse 'HEAD^{tree}' > generated/diagnostic/workflow-source-tree.txt
+          cat > generated/diagnostic/HASH_SEMANTICS.txt <<EOF
+          effective_manifest_file_sha256=$EFFECTIVE_MANIFEST_FILE_SHA
+          topology_consumer_model_sha256=$TOPOLOGY_CONSUMER_MODEL_SHA
+          EOF
           meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$TOPOLOGY_ARTIFACT_ID")"
           test "$(jq -r .digest <<<"$meta")" = "$TOPOLOGY_ARTIFACT_DIGEST"
           test "$(jq -r .workflow_run.id <<<"$meta")" = "$TOPOLOGY_RUN_ID"
@@ -56,12 +63,12 @@ jobs:
           test "sha256:$(sha256sum generated/topology.zip | cut -d' ' -f1)" = "$TOPOLOGY_ARTIFACT_DIGEST"
           unzip -q generated/topology.zip -d generated/topology
           test -s generated/topology/G_SVAR_CONSUMER_TOPOLOGY.json
-          jq -e --arg model "$MODEL_SHA" '.status=="PASS" and .remaining_svar_count==53 and .effective_model_sha256==$model' generated/topology/G_SVAR_CONSUMER_TOPOLOGY.json
+          jq -e --arg consumer "$TOPOLOGY_CONSUMER_MODEL_SHA" '.schema=="commander-simulator-next.ws33-g-svar-consumer-topology.v2" and .status=="PASS" and .remaining_svar_count==53 and .effective_model_sha256==$consumer' generated/topology/G_SVAR_CONSUMER_TOPOLOGY.json
           python "$ROOT/ws33_prepare_g_svar_event_cases.py" \
             --topology generated/topology/G_SVAR_CONSUMER_TOPOLOGY.json \
             --out generated/source/g-svar-event-cases.tsv \
             --summary generated/source/G_SVAR_EVENT_CASES.json | tee generated/diagnostic/case-generation.log
-          jq -e --arg model "$MODEL_SHA" '.schema=="commander-simulator-next.ws33-g-svar-event-cases.v2" and .status=="PASS" and .effective_model_sha256==$model and .effective_path_count==32 and .parent_entrypoint_count==33 and .case_field_count==21 and .coverage_mutated==false and .direct_target_svar_entry==false' generated/source/G_SVAR_EVENT_CASES.json
+          jq -e --arg consumer "$TOPOLOGY_CONSUMER_MODEL_SHA" '.schema=="commander-simulator-next.ws33-g-svar-event-cases.v2" and .status=="PASS" and .effective_model_sha256==$consumer and .effective_path_count==32 and .parent_entrypoint_count==33 and .case_field_count==21 and .coverage_mutated==false and .direct_target_svar_entry==false' generated/source/G_SVAR_EVENT_CASES.json
           test "$(wc -l < generated/source/g-svar-event-cases.tsv)" -eq 33
 
       - name: Checkout immutable retained sources
@@ -94,8 +101,6 @@ jobs:
           test "$(git -C ws12 rev-parse HEAD)" = "$WS12_HEAD"
           test "$(git -C ws32 rev-parse HEAD)" = "$WS32_HEAD"
           test "$(git -C ws31-historical rev-parse HEAD)" = "$WS31_HIST_HEAD"
-          printf '%s\n' "$GITHUB_SHA" > generated/diagnostic/workflow-source-head.txt
-          git rev-parse 'HEAD^{tree}' > generated/diagnostic/workflow-source-tree.txt
 
       - name: Apply qualified runtime overlays plus observation-only event reachability
         shell: bash
@@ -213,8 +218,8 @@ jobs:
             --arg tree "$(cat generated/diagnostic/workflow-source-tree.txt)" \
             --arg forge "$FORGE_PIN" --arg direct "$DIRECT_RUNTIME_SOURCE_HEAD" \
             --arg topology_head "$TOPOLOGY_SOURCE_HEAD" --arg topology_digest "$TOPOLOGY_ARTIFACT_DIGEST" \
-            --arg model "$MODEL_SHA" \
-            '{schema:"commander-simulator-next.ws33-g-svar-event-runtime.v1",status:"PASS",workflow_source_head:$head,workflow_source_tree:$tree,forge_pin:$forge,direct_runtime_source_head:$direct,topology_source_head:$topology_head,topology_artifact_id:9866293827,topology_artifact_digest:$topology_digest,effective_model_sha256:$model,effective_paths:32,parent_entrypoints:33,record_replay_equal:true,trigger_legality_authority:"FORGE_TRIGGER_HANDLER",target_direct_entry:false,principal_observation_promoted:false,coverage_mutated:false}' \
+            --arg consumer "$TOPOLOGY_CONSUMER_MODEL_SHA" --arg manifest_file "$EFFECTIVE_MANIFEST_FILE_SHA" \
+            '{schema:"commander-simulator-next.ws33-g-svar-event-runtime.v1",status:"PASS",workflow_source_head:$head,workflow_source_tree:$tree,forge_pin:$forge,direct_runtime_source_head:$direct,topology_source_head:$topology_head,topology_artifact_id:9866293827,topology_artifact_digest:$topology_digest,topology_consumer_model_sha256:$consumer,effective_manifest_file_sha256:$manifest_file,effective_paths:32,parent_entrypoints:33,record_replay_equal:true,trigger_legality_authority:"FORGE_TRIGGER_HANDLER",target_direct_entry:false,principal_observation_promoted:false,coverage_mutated:false}' \
             > generated/diagnostic/SOURCE_CHAIN.json
           (cd generated && find source record replay diagnostic overlay-logs -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum) > generated/SHA256SUMS
           test "$(grep -c 'SOURCE_CHAIN.json' generated/SHA256SUMS)" -eq 1
@@ -226,12 +231,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ws33-g3-svar-event-runtime-${{ github.run_id }}
-          path: |
-            generated/source
-            generated/record
-            generated/replay
-            generated/diagnostic
-            generated/overlay-logs
-            generated/SHA256SUMS
+          path: generated/
           if-no-files-found: error
           retention-days: 90
