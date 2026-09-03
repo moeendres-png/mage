@@ -1,0 +1,139 @@
+name: WS33 G3 SVar AF runtime v2 certification
+
+on:
+  push:
+    branches: [work/ws33-g3-final-closure-20260902]
+    paths:
+      - '.github/workflows/ws33-g3-svar-af-runtime-v2-certify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+  SOURCE_RUN_ID: '33769086465'
+  SOURCE_JOB_ID: '100694379650'
+  SOURCE_HEAD: 7fc18ccd062278d8690e77c0b04fad44bc9b213b
+  SOURCE_TREE: 992da510930c5e0c9b919feb3e4319655e1f6aec
+  SOURCE_ARTIFACT_ID: '9899227922'
+  SOURCE_ARTIFACT_DIGEST: sha256:ee3de852a4eedf3e96638a2c48ce8d549da9471d49b4b49df51259d3ca5bfb2e
+
+jobs:
+  certify-runtime-v2:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout certification source
+        uses: actions/checkout@v4
+        with: {fetch-depth: 1}
+
+      - name: Download exact immutable strengthened runtime artifact
+        env: {GH_TOKEN: '${{ github.token }}'}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf generated
+          mkdir -p generated/source
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SOURCE_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$meta")" = "$SOURCE_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.id <<<"$meta")" = "$SOURCE_RUN_ID"
+          test "$(jq -r .workflow_run.head_sha <<<"$meta")" = "$SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$SOURCE_ARTIFACT_ID/zip" > generated/source.zip
+          test "sha256:$(sha256sum generated/source.zip | cut -d' ' -f1)" = "$SOURCE_ARTIFACT_DIGEST"
+          unzip -q generated/source.zip -d generated/source
+          test "$(cat generated/source/diagnostic/workflow-source-head.txt)" = "$SOURCE_HEAD"
+          test "$(cat generated/source/diagnostic/workflow-source-tree.txt)" = "$SOURCE_TREE"
+          grep -Fx 'WS33_G_SVAR_AF_HIDDEN_WITNESS=PASS' generated/source/diagnostic/hidden-witness.log
+          grep -Fx 'WS33_G_SVAR_AF_HIDDEN_WITNESS_CARD_NAME_BRANCH=0' generated/source/diagnostic/hidden-witness.log
+          grep -Fx 'WS33_G_SVAR_AF_HIDDEN_WITNESS_PATH_ID_BRANCH=0' generated/source/diagnostic/hidden-witness.log
+
+      - name: Fail-closed runtime and positive-Scry adjudication
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64
+          from pathlib import Path
+
+          root=Path('generated/source')
+          cases=[x.split('\t') for x in (root/'source/g-svar-af-cases.tsv').read_text().splitlines() if x]
+          if len(cases)!=21 or any(len(x)!=19 for x in cases):
+              raise SystemExit('WS33_G_SVAR_AF_V2_CERT=FAIL case_abi')
+
+          rows={x.split('\t')[0]:x.split('\t') for x in (root/'record/case-summary.tsv').read_text().splitlines() if x}
+          if len(rows)!=21:
+              raise SystemExit(f'WS33_G_SVAR_AF_V2_CERT=FAIL summary_count={len(rows)}')
+          bad=[]
+          for pid,row in rows.items():
+              if len(row)<21 or row[4]!='PASS' or row[14] or row[15] or row[18]!='1' or row[19]!='1' or int(row[20])<1:
+                  bad.append((pid,row[4] if len(row)>4 else None,row[14:16] if len(row)>15 else None,row[18:21] if len(row)>20 else None))
+          if bad:
+              raise SystemExit('WS33_G_SVAR_AF_V2_CERT=FAIL runtime='+repr(bad))
+
+          source_dependent=[]
+          for c in cases:
+              target=base64.b64decode(c[18],validate=True).decode()
+              if c[17]=='Scry' and 'ScryNum$ X' in target:
+                  source_dependent.append(c)
+          if len(source_dependent)!=1:
+              raise SystemExit('WS33_G_SVAR_AF_V2_CERT=FAIL source_dependent_scry_count='+str(len(source_dependent)))
+          pid=source_dependent[0][1]
+
+          kinds=[]
+          for line in (root/'record/decision-events-with-path.tsv').read_text().splitlines():
+              f=line.split('\t')
+              if len(f)<3: raise SystemExit('WS33_G_SVAR_AF_V2_CERT=FAIL malformed_decision_event')
+              path=base64.b64decode(f[0],validate=True).decode()
+              if path==pid:
+                  kinds.append(base64.b64decode(f[2],validate=True).decode())
+          if 'SCRY_BOTTOM_SELECTION' not in kinds:
+              raise SystemExit('WS33_G_SVAR_AF_V2_CERT=FAIL missing_authoritative_scry_selection='+repr(kinds))
+          if 'TARGET_SELECTION' not in kinds:
+              raise SystemExit('WS33_G_SVAR_AF_V2_CERT=FAIL missing_parent_target_selection='+repr(kinds))
+          if int(rows[pid][7]) < 2:
+              raise SystemExit('WS33_G_SVAR_AF_V2_CERT=FAIL scry_decision_count='+rows[pid][7])
+
+          request_kinds=[]
+          for line in (root/'record/decision-requests-with-path.tsv').read_text().splitlines():
+              f=line.split('\t')
+              if len(f)<4: raise SystemExit('WS33_G_SVAR_AF_V2_CERT=FAIL malformed_request')
+              path=base64.b64decode(f[0],validate=True).decode()
+              if path==pid:
+                  request_kinds.append(base64.b64decode(f[3],validate=True).decode())
+          if 'SCRY_BOTTOM_SELECTION' not in request_kinds:
+              raise SystemExit('WS33_G_SVAR_AF_V2_CERT=FAIL missing_authoritative_scry_request='+repr(request_kinds))
+
+          print('WS33_G_SVAR_AF_V2_CERT=PASS paths=21 stack=21 target_reachability=21')
+          print('WS33_G_SVAR_AF_V2_SCRY_POSITIVE_BRANCH=PASS decision_kinds='+','.join(kinds))
+          print('WS33_G_SVAR_AF_V2_COVERAGE_MUTATED=FALSE')
+          PY
+
+      - name: Materialize certification chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p generated/certified
+          cp -a generated/source/source generated/certified/
+          cp -a generated/source/record generated/certified/
+          cp -a generated/source/diagnostic generated/certified/
+          cp -a generated/source/overlay-logs generated/certified/
+          jq -n \
+            --arg cert_head "$GITHUB_SHA" \
+            --arg source_head "$SOURCE_HEAD" \
+            --arg source_tree "$SOURCE_TREE" \
+            --arg source_digest "$SOURCE_ARTIFACT_DIGEST" \
+            --argjson source_run "$SOURCE_RUN_ID" \
+            --argjson source_job "$SOURCE_JOB_ID" \
+            --argjson source_artifact "$SOURCE_ARTIFACT_ID" \
+            '{schema:"commander-simulator-next.ws33-g-svar-af-runtime-v2-certification.v1",certification_head:$cert_head,source_run_id:$source_run,source_job_id:$source_job,source_head:$source_head,source_tree:$source_tree,source_artifact_id:$source_artifact,source_artifact_digest:$source_digest,engine_execution:"PASS",positive_scry_witness:"SCRY_BOTTOM_SELECTION",coverage_mutated:false,status:"PASS"}' \
+            > generated/certified/RUNTIME_V2_CERTIFICATION.json
+
+      - name: Upload immutable certified AF runtime v2 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-g3-svar-af-runtime-v2-certified-${{ github.run_id }}
+          path: generated/certified
+          if-no-files-found: error
+          retention-days: 90
