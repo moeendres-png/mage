@@ -26,8 +26,10 @@ def main() -> None:
     path = args.forge_root / "forge-game/src/main/java/forge/game/zone/MagicStack.java"
     src = path.read_text(encoding="utf-8")
 
-    class_anchor = "public class MagicStack implements Iterable<SpellAbilityStackInstance> {\n"
-    class_insert = """public class MagicStack implements Iterable<SpellAbilityStackInstance> {
+    # Exact pinned-Forge declaration at 8c7e9afb. Keep this fail-closed rather than
+    # accepting a broad class regex that could silently bind a changed runtime.
+    class_anchor = "public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbilityStackInstance> {\n"
+    class_insert = """public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbilityStackInstance> {
     @FunctionalInterface
     public interface Ws33ResolutionObserver {
         void onResolve(SpellAbility ability);
