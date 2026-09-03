@@ -21,12 +21,12 @@ Only the final serial `G3 -> ABC -> D -> E -> F` successor with all 4188 effecti
 
 ## Current confirmed checkpoint
 
-`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33818067742_FAILURE`
+`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33818428322_FAILURE`
 
 Checkpoint:
-`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33818067742_FAILURE.md`
+`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33818428322_FAILURE.md`
 
-Run `33818067742` / job `100854474552` is terminal `failure` during Step 14 Maven test compilation. Both diagnostic transforms passed, but the generated Java harness did not compile because the observation-only `mapHash` helper referenced unqualified `TreeMap` without an inherited import. The test body did not execute. The previously frozen first-parent `1/1/0` reachability question therefore remains unresolved. The next authorized change is only the compile fix described below.
+Run `33818428322` / job `100855531128` is terminal `failure`. The record campaign completed successfully and Step 15 is the first material failure. The lineage-enhanced artifact directly proves that the first `Ingenious Smith/ChangesZone` parent is admitted and bound to `TrigDig` (`1/1`) but generates zero post-fizzle resolution callbacks and zero target executions. This eliminates a false-negative `matchesTarget` at the existing post-fizzle observer. The remaining first-failure boundary is now narrowly `simultaneous-trigger -> real MagicStack placement` versus `MagicStack.hasFizzled` before the observer. No semantic repair is authorized until those two production boundaries are distinguished with observation-only evidence.
 
 ## G3 immutable evidence — do not rerun for reassurance
 
@@ -112,7 +112,7 @@ Invariant: Kang Prime retains both real source-proven parent entrypoints.
 - Step 14 PASS; Step 15 FAIL; replay NOT RUN; coverage promotion FALSE.
 - first parent `forge-behavior-v2:172ab06795f99590ca9d96f85995f6cf9e083ee8#1` (`Ingenious Smith`, `ChangesZone`) = admission/binding/execution `1/1/0`.
 - artifact-wide: 33 parents; one `1/1/1` PASS (`Descendants' Fury`); 24 failures at `1/1/0`; eight later event-specific failures.
-- unresolved distinction: actual production stack/non-resolution versus false-negative resolution identity measurement.
+- unresolved distinction was actual production stack/non-resolution versus false-negative resolution identity measurement.
 
 ### Attempt 5 — diagnostic request-trace ABI failure
 
@@ -132,24 +132,41 @@ Invariant: Kang Prime retains both real source-proven parent entrypoints.
 - run `33818067742`, job `100854474552`
 - artifact `9917297622`
 - digest `sha256:34a0f2185d19d19724b7e1d3c7dcffc0d1da764f6d4c5180f2bf2622aee806ea`
-- artifact ZIP re-hash matched exactly
-- steps 1–13 PASS
-- event harness transform PASS
-- request trace transform PASS
-- step 14 FAIL during Maven `testCompile`; test body NOT EXECUTED
-- exact compile failure: generated `Ws33GSVarEventQualificationTest.java` cannot resolve class `TreeMap` at line 109
-- record adjudication/replay/source-chain NOT RUN; coverage promotion FALSE
+- steps 1–13 PASS; step 14 failed during Maven `testCompile`; test body NOT EXECUTED.
+- cause: observation-only `mapHash` helper referenced unqualified `TreeMap` without inherited import.
+- compile repair commit `3e2260fe7b8a1a7a1d9fea932301b6fac3b3b3c6` changed only the diagnostic helper to `java.util.TreeMap`.
 
-Root cause is diagnostic-only: `mapHash` used `TreeMap` without an import inherited from the Direct-G base harness. Exact evidence is frozen in `G3_NON_AF_EVENT_RUNTIME_RUN_33818067742_FAILURE.md`.
+### Attempt 7 — terminal lineage runtime evidence
+
+- source HEAD `3e2260fe7b8a1a7a1d9fea932301b6fac3b3b3c6`
+- source TREE `5f757dc8bc0c85fdea10d6e0cc8da762865e23a7`
+- run `33818428322`, job `100855531128`
+- artifact `9917438334`
+- digest `sha256:696556a4e4163308ec00ef123b691a9eaa73e6742058220ac1041d73cef7fa6f`
+- fresh post-terminal artifact listing and downloaded ZIP re-hash agree exactly
+- steps 1–14 PASS; Step 15 FAIL; replay/source-chain NOT RUN; evidence upload PASS; coverage promotion FALSE
+- parent rows = 33; status = 1 PASS / 32 FAIL
+- first parent `Ingenious Smith/ChangesZone/TrigDig`: admissions `1`, bindings `1`, executions `0`, **resolutionCallbacks `0`**
+- admitted target identity: ability `225`, sourceTrigger `50001`, host `96`, API `Dig`; original/current map fingerprints equal
+- 30/33 parents have zero post-fizzle callbacks, 3/33 have one callback, one target executes successfully
+
+This directly rejects the old post-fizzle matcher-false-negative hypothesis for the first parent: no callback reached that matcher. Pinned Forge source narrows the unresolved common boundary to either production simultaneous-trigger placement onto the real MagicStack or `hasFizzled(sa)` returning true before the existing observer. Exact details are frozen in `G3_NON_AF_EVENT_RUNTIME_RUN_33818428322_FAILURE.md`.
 
 ## Exact next atomic package
 
-1. In `ws33_prepare_g_svar_event_harness.py`, change only the diagnostic `mapHash` helper to use fully-qualified `java.util.TreeMap` (or add an import; fully-qualified is preferred to leave inherited imports untouched).
-2. Do not change the map fingerprint algorithm, `matchesTarget`, `targetExecutions`, event fixtures, request-trace ABI, lineage fields, Forge overlays, Decision/RNG semantics, or coverage.
-3. Commit this compile repair separately.
-4. Allow exactly one `ws33-g3-svar-event-runtime.yml` retry and immediately persist run/job/source HEAD/TREE.
-5. Terminally adjudicate its artifact. Only a successful Java campaign with `resolution-lineage.tsv` can resolve the frozen first-parent `1/1/0` distinction.
-6. Continue strict failure-checkpoint -> repair -> single-run discipline until Runtime PASS, then freeze Runtime before separate ABI/Decision/RNG/Replay certification and Principal Observation/Hidden31 qualification.
-7. Only after Direct28 + AF21 + non-AF32 satisfy all required contracts may G3 be promoted/frozen and serial closure proceed to `ABC -> D -> E -> F`.
+1. Add observation-only telemetry at the two remaining common production boundaries while keeping all existing qualification predicates unchanged:
+   - successful/failed simultaneous-trigger placement through the real `PlayerControllerHuman.orderAndPlaySimultaneousSa -> PlaySpellAbility.playSpellAbility` route;
+   - pre/post `MagicStack.hasFizzled(sa)` outcome for the corresponding real stack entry before the existing post-fizzle resolution observer.
+2. Preserve stable ability/source-trigger/host/API identity so the first admitted parent can be correlated across admission, placement, fizzle and resolution.
+3. Do not change Rules semantics, target choice, stack ordering, fizzle behavior, `matchesTarget`, `targetExecutions`, event fixtures, Decision/RNG semantics, request ABI, or coverage.
+4. Commit only this diagnostic instrumentation.
+5. Allow exactly one `ws33-g3-svar-event-runtime.yml` run from that commit and immediately persist run/job/source HEAD/TREE in a pending checkpoint.
+6. Terminally adjudicate that artifact:
+   - no real-stack placement => inspect the exact failed production `PlaySpellAbility` prerequisite and repair only the confirmed systemic fixture/qualification defect;
+   - real-stack placement + `hasFizzled=true` => inspect exact fizzle cause and adjudicate whether fixture, unsupported path or Forge behavior defect;
+   - real-stack placement + `hasFizzled=false` but no callback => observer/instrumentation defect.
+7. Freeze a failure checkpoint and update this handoff before every repair/retry.
+8. Continue until Runtime strict PASS; then freeze Runtime before separate ABI/Decision/RNG/Replay certification and Principal Observation/Hidden31 qualification.
+9. Only after Direct28 + AF21 + non-AF32 satisfy all behavior/decision/RNG/replay/hidden/provenance/fail-closed contracts may G3 be promoted/frozen and serial closure proceed to `ABC -> D -> E -> F`.
 
-Control expectations are non-authoritative until fresh successor computation: post-G3 PASS366/UNKNOWN3822; post-ABC 1920/2268; post-D 2840/1348; post-E 3869/319; post-F 4188/0.
+Control expectations remain non-authoritative until fresh successor computation: post-G3 PASS366/UNKNOWN3822; post-ABC 1920/2268; post-D 2840/1348; post-E 3869/319; post-F 4188/0.
