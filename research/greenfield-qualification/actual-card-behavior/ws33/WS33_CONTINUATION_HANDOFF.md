@@ -79,15 +79,21 @@ This artifact is the current qualified operational predecessor for Direct-G prom
 
 ## Current G3 recovery checkpoint — 2026-09-03
 
-`LAST_CONFIRMED_CHECKPOINT = G3_SVAR_AF_CHOICE_REPAIR_VALIDATION_RUNNING`
+`LAST_CONFIRMED_CHECKPOINT = G3_SVAR_AF_PATH_SPEC_SCOPE_FIX_VALIDATION_RUNNING`
 
 Current branch: `work/ws33-g3-final-closure-20260902`
 
-Last fully adjudicated runtime HEAD before the current repair:
+Last fully adjudicated behavior-bearing AF runtime HEAD:
 
 - HEAD: `9fd0f74782e18fb9202b698011b4653de17244f4`
 - TREE: `632ff95d625e5cdfcdafb815e7b958c16d923aff`
-- commit: `ws33 g3: align AF case loader with 19-field identity ABI`
+- run: `33733426616`
+- artifact: `9884893619`
+- digest: `sha256:1202fbcdd1c2f77100e3a061aff84ec2738715b54313ad29978a59b141f4987f`
+- behavior rows: `21/21 PASS`
+- stack admission/resolution: `21/21`
+- target-SVar reachability: `17/21`
+- diagnostic only; not promotable.
 
 ### Already closed in G3 — do not repeat
 
@@ -99,74 +105,69 @@ Last fully adjudicated runtime HEAD before the current repair:
 - target-SVar reachability observer added at `AbilitySub.resolve()` as observation-only evidence;
 - 19-field AF case ABI loader aligned.
 
-### Latest fully adjudicated AF runtime evidence
-
-Run: `33733426616`
-
-Job: `100578369590`
-
-Artifact: `9884893619`
-
-Digest: `sha256:1202fbcdd1c2f77100e3a061aff84ec2738715b54313ad29978a59b141f4987f`
-
-Direct artifact adjudication:
-
-- Maven / Forge test execution: `BUILD SUCCESS`;
-- case rows: `21/21 PASS`;
-- stack admissions: `21/21`;
-- stack resolutions: `21/21`;
-- target-SVar reachability: `17/21`;
-- workflow is correctly red because qualification requires target-SVar reachability for every AF path;
-- this run is diagnostic only and MUST NOT be promoted.
-
-The four exact paths with `targetExecutions=0` are:
+### Four previously unreached target SVar paths
 
 1. `forge-behavior-v2:95726bbbfdb31ba1e8fe7146f4a7971d93f97bc5a` — Ao, the Dawn Sky — `Charm -> TrigDig -> DigEffect`;
 2. `forge-behavior-v2:a1fe7a20bc3ddb26ed8642a7a8b5025697bd0d83` — Atsushi, the Blazing Sky — `Charm -> ExileTwo -> DigEffect`;
 3. `forge-behavior-v2:b028d2d29f150fd3ff7bcbc30706f5d4e2282907` — Kindred Summons — `ChooseType -> DBDigUntil -> DigUntilEffect`;
 4. `forge-behavior-v2:ee17650cc69e7d571ba8a6d602227eb4c8ba6154` — Prismari Charm — `Charm -> DBSurveil -> SurveilEffect`.
 
-### Root-cause adjudication for the four gaps
+`CODE_DERIVED` root causes remain:
 
-`CODE_DERIVED` against pinned Forge `8c7e9afb8e6caee88644b94e25da5852e36f8928`:
+- Charm parents require production `CharmEffect.makeChoices(sa)` before target setup/stack admission; prior direct MagicStack harness route omitted that phase.
+- Kindred Summons requires an authoritative creature-type choice represented by controlled fixture creatures; retained request evidence exposes the choice as principal-scoped `GUI_ONE` with 350 authoritative options.
 
-- `CharmEffect.makeChoices(sa)` is the production phase that selects and chains `Choices$` modes before stack resolution; `SpellAbility.setupTargets()` alone does not perform that step. The current AF harness admits Charm parents directly to `MagicStack`, so their modeled mode is never guaranteed to be chained. This explains the three Charm gaps without implying a Forge Dig/Surveil rules defect.
-- `ChooseTypeEffect.resolve()` performs an authoritative discretionary creature-type choice. `Kindred Summons` only reaches `DBDigUntil` when `X > 0`; the current generic pilot may select a legal type that the actor controls zero of. This is a reachability-fixture/pilot-selection issue, not a `DigUntilEffect` rules failure.
-- retained decision requests prove the Kindred Summons choice is externalized as principal-scoped `GUI_ONE` with `350` authoritative options; no prompt parsing or legality synthesis is required.
-- retained decision requests contain no `MODE_SELECTION` for the three failing Charm paths, independently confirming that the production Charm mode-preparation phase was absent from the prior harness route.
+### Choice repair attempt `5d1fa3a...` — COMPILE_FAILED
 
-### Current atomic repair — PARTIAL pending CI adjudication
-
-Persistent repair commit:
+Persistent code commit:
 
 - HEAD: `5d1fa3a55e41f2a99c31c49f177b9ca98fe17592`
 - TREE: `0fc720f45246030546c1eda995f2d6729d16d04e`
-- commit: `ws33 g3: drive AF parent choices through Forge`
+- run: `33742586083`
+- job: `100607668592`
+- artifact: `9888407854`
+- digest: `sha256:1c27ae7659c33c479042d07b918be70241d20ea09b7b656ea0dca10317fb34de`
+
+Artifact adjudication:
+
+- topology/pins/overlay/harness-preparation: PASS;
+- Maven fails at Java test compilation before any of the 21 cases execute;
+- exact compiler error: generated `Ws33GSVarAfQualificationTest.java` references variable `evidence` inside static `selectByPathPolicy`, but `evidence` is local to the campaign test method;
+- therefore this run carries **no new behavior evidence** and does not invalidate the prior 21/21 behavior / 17/21 reachability diagnostic;
+- classification: `FAILED` harness-scope defect, not Forge rules/runtime failure.
+
+### Current atomic repair — PARTIAL pending CI adjudication
+
+Persistent scope-fix commit:
+
+- HEAD: `3ca8c330287ef1f140b5be9e0c46187c762a7c7b`
+- TREE: `0fa6dd43fff0176037f97a5d5f79789b61e029ac`
+- commit: `ws33 g3: scope AF path specs for external pilot`
 - changed file: `ws33_prepare_g_svar_af_harness.py`
 
 Repair semantics:
 
-- modal `Charm` parents call Forge production `CharmEffect.makeChoices(sa)` before `setupTargets()` and MagicStack admission;
-- the qualification pilot chooses the source-proven mode ordinal only from the authoritative `MODE_SELECTION` option list;
-- `ChooseType` reachability selects semantic value `Bear` only if `Bear` is present in the authoritative actor-scoped `GUI_ONE` options; otherwise it throws `UNSUPPORTED_DECISION_PATH` fail-closed;
+- adds a test-only static path→`CaseSpec` registry populated from the already authoritative 21 case inputs at campaign entry;
+- the External-Decision policy reads only this case identity registry, never the local behavior-evidence map;
+- registry is cleared in test cleanup to preserve process isolation;
+- Charm production mode preparation and authoritative option-only type/mode choices are otherwise unchanged;
 - no card-name branch, no direct target-SVar entry, no direct `sa.resolve()`, no manual target injection, no synthetic legal options.
 
 Focused validation:
 
-- run: `33742586083`
-- job: `100607668592`
-- exact head: `5d1fa3a55e41f2a99c31c49f177b9ca98fe17592`
+- run: `33743144684`
+- exact head: `3ca8c330287ef1f140b5be9e0c46187c762a7c7b`
 - state at checkpoint: `IN_PROGRESS`
-- completed gates so far: checkout tooling PASS; frozen topology download/validation PASS; pinned Forge/dependency checkout in progress.
 
-If execution is interrupted, inspect this exact run first. Do not rerun or modify the repair until its job result and retained artifact are adjudicated.
+If execution is interrupted, inspect run `33743144684` first. Do not modify or rerun the repair until its exact job result and retained artifact are adjudicated.
 
 ### Exactly next work package
 
-1. Adjudicate run `33742586083` and its retained artifact.
-2. If green at the runtime gate, require `21/21 PASS`, stack admission/resolution `21/21`, exact target-SVar reachability `21/21`, then adjudicate hidden/RNG/decision/replay obligations before promotion.
-3. If red, isolate only the first new root cause from the exact run/artifact and repair it systemically.
-4. Persist the run/job/artifact/digest and adjudication here before beginning the 32-path non-AF event campaign.
+1. Adjudicate run `33743144684` and retained artifact.
+2. If compilation/runtime gate is green, require `21/21 PASS`, stack admission/resolution `21/21`, target-SVar reachability `21/21`.
+3. Then separately adjudicate all source-required hidden/RNG/decision/replay obligations before any AF promotion; the focused record-only runtime gate is not by itself qualification-complete.
+4. If red, isolate only the first new root cause from this exact run/artifact, repair systemically, and checkpoint before continuing.
+5. Only after AF evidence completion begin the 32-path non-AF event campaign.
 
 ## Subsequent serial queue
 
