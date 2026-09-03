@@ -79,11 +79,11 @@ This artifact is the current qualified operational predecessor for Direct-G prom
 
 ## Current G3 recovery checkpoint — 2026-09-03
 
-`LAST_CONFIRMED_CHECKPOINT = G3_SVAR_AF_POST_PARSER_RUNTIME_ROOT_CAUSE`
+`LAST_CONFIRMED_CHECKPOINT = G3_SVAR_AF_CHOICE_REPAIR_VALIDATION_RUNNING`
 
 Current branch: `work/ws33-g3-final-closure-20260902`
 
-Live branch before this checkpoint commit:
+Last fully adjudicated runtime HEAD before the current repair:
 
 - HEAD: `9fd0f74782e18fb9202b698011b4653de17244f4`
 - TREE: `632ff95d625e5cdfcdafb815e7b958c16d923aff`
@@ -99,7 +99,7 @@ Live branch before this checkpoint commit:
 - target-SVar reachability observer added at `AbilitySub.resolve()` as observation-only evidence;
 - 19-field AF case ABI loader aligned.
 
-### Latest AF runtime evidence
+### Latest fully adjudicated AF runtime evidence
 
 Run: `33733426616`
 
@@ -132,14 +132,40 @@ The four exact paths with `targetExecutions=0` are:
 
 - `CharmEffect.makeChoices(sa)` is the production phase that selects and chains `Choices$` modes before stack resolution; `SpellAbility.setupTargets()` alone does not perform that step. The current AF harness admits Charm parents directly to `MagicStack`, so their modeled mode is never guaranteed to be chained. This explains the three Charm gaps without implying a Forge Dig/Surveil rules defect.
 - `ChooseTypeEffect.resolve()` performs an authoritative discretionary creature-type choice. `Kindred Summons` only reaches `DBDigUntil` when `X > 0`; the current generic pilot may select a legal type that the actor controls zero of. This is a reachability-fixture/pilot-selection issue, not a `DigUntilEffect` rules failure.
+- retained decision requests prove the Kindred Summons choice is externalized as principal-scoped `GUI_ONE` with `350` authoritative options; no prompt parsing or legality synthesis is required.
+- retained decision requests contain no `MODE_SELECTION` for the three failing Charm paths, independently confirming that the production Charm mode-preparation phase was absent from the prior harness route.
 
-No card-name production conditional is authorized. The repair must be systemic and must continue to choose only from authoritative legal options.
+### Current atomic repair — PARTIAL pending CI adjudication
+
+Persistent repair commit:
+
+- HEAD: `5d1fa3a55e41f2a99c31c49f177b9ca98fe17592`
+- TREE: `0fc720f45246030546c1eda995f2d6729d16d04e`
+- commit: `ws33 g3: drive AF parent choices through Forge`
+- changed file: `ws33_prepare_g_svar_af_harness.py`
+
+Repair semantics:
+
+- modal `Charm` parents call Forge production `CharmEffect.makeChoices(sa)` before `setupTargets()` and MagicStack admission;
+- the qualification pilot chooses the source-proven mode ordinal only from the authoritative `MODE_SELECTION` option list;
+- `ChooseType` reachability selects semantic value `Bear` only if `Bear` is present in the authoritative actor-scoped `GUI_ONE` options; otherwise it throws `UNSUPPORTED_DECISION_PATH` fail-closed;
+- no card-name branch, no direct target-SVar entry, no direct `sa.resolve()`, no manual target injection, no synthetic legal options.
+
+Focused validation:
+
+- run: `33742586083`
+- job: `100607668592`
+- exact head: `5d1fa3a55e41f2a99c31c49f177b9ca98fe17592`
+- state at checkpoint: `IN_PROGRESS`
+- completed gates so far: checkout tooling PASS; frozen topology download/validation PASS; pinned Forge/dependency checkout in progress.
+
+If execution is interrupted, inspect this exact run first. Do not rerun or modify the repair until its job result and retained artifact are adjudicated.
 
 ### Exactly next work package
 
-1. Repair the AF harness so modal `Charm` parents traverse the same production mode-choice preparation (`CharmEffect.makeChoices`) before `setupTargets`/stack admission, while preserving the external authoritative decision boundary and fail-closed semantics.
-2. Add a generic, authoritative-choice reachability policy for `ChooseType` that can select an offered type represented by controlled fixture creatures without parsing prompt text or inventing legality. The policy must be based only on authoritative option semantic values plus actor-scoped fixture state already legal to the pilot/test driver, and must remain card-name agnostic.
-3. Run the focused 21-path AF gate again. Acceptance: `21/21 PASS`, stack admission/resolution `21/21`, exact target-SVar reachability `21/21`, no fail/unsupported, and all required hidden/RNG/decision/replay evidence obligations subsequently adjudicated before promotion.
+1. Adjudicate run `33742586083` and its retained artifact.
+2. If green at the runtime gate, require `21/21 PASS`, stack admission/resolution `21/21`, exact target-SVar reachability `21/21`, then adjudicate hidden/RNG/decision/replay obligations before promotion.
+3. If red, isolate only the first new root cause from the exact run/artifact and repair it systemically.
 4. Persist the run/job/artifact/digest and adjudication here before beginning the 32-path non-AF event campaign.
 
 ## Subsequent serial queue
