@@ -32,60 +32,56 @@ G requirement migration: run `33564749471`, artifact `9822685407`, digest `sha25
 - topology hash-space mismatch fixed; AF parent actual-card binding fixed; target-SVar observer is observation-only; 19-field case ABI aligned.
 - compile-scope defect from `33742586083` closed by `3ca8c330287ef1f140b5be9e0c46187c762a7c7b`.
 - Kindred Summons ChooseType reachability closed in `33743144684`.
-- raw Charm `Choices$` ordinal policy removed by commit `1cff246a32df32788736576b4bd5e21ad73cdfec`; external pilot now chooses the desired opaque `ability_sub:<id>` only by exact membership in Forge's authoritative `MODE_SELECTION` request.
+- raw Charm `Choices$` ordinal policy removed by `1cff246a32df32788736576b4bd5e21ad73cdfec`; desired mode is chosen only by exact membership of its opaque `ability_sub:<id>` in Forge's authoritative `MODE_SELECTION` set.
 
 ## Current G3 checkpoint — 2026-09-03
 
-`LAST_CONFIRMED_CHECKPOINT = G3_SVAR_AF_CHARM_CLONE_OBSERVER_NORMALIZATION_ROOT_CAUSE`
+`LAST_CONFIRMED_CHECKPOINT = G3_SVAR_AF_CHARM_CLONE_NORMALIZATION_VALIDATION_RUNNING`
 
-### Previous AF diagnostic
+### Last fully adjudicated AF behavior evidence
 
-Run `33743144684`, artifact `9888664547`, digest `sha256:ded468207a7d4b61d95d3a87967a7eb923d083b10b1c45157f7408bd9b2040be`: behavior 21/21 PASS, stack 21/21, target reachability 18/21. Three remaining paths were Ao, Atsushi, Prismari Charm.
-
-### Authoritative Charm-mode identity validation
-
-Behavior-bearing commit:
-- HEAD `1cff246a32df32788736576b4bd5e21ad73cdfec`
-- TREE `2ac534258f68ef20d5d8843902a488a4fbccfa9d`
-- run `33745157361`
-- job `100615821377`
-- artifact `9889418452`
-- digest `sha256:0c2d2a22d1ed931b9738bc7097af5f9f062485665d2e1af2e7476f55dbe39896`
-- downloaded ZIP SHA256 exactly matches digest.
+Run `33745157361`, job `100615821377`, artifact `9889418452`, digest `sha256:0c2d2a22d1ed931b9738bc7097af5f9f062485665d2e1af2e7476f55dbe39896`, exact behavior HEAD `1cff246a32df32788736576b4bd5e21ad73cdfec`, TREE `2ac534258f68ef20d5d8843902a488a4fbccfa9d`.
 
 Artifact adjudication:
-- Maven/Forge behavior execution succeeds; case rows `21/21 PASS`.
-- stack admission/resolution `21/21`.
-- no `UNSUPPORTED_DECISION_PATH`, no runtime failure, no outer failure.
-- target observer reports `18/21`; exactly the same three Charm targets remain at observer count 0.
-- therefore authoritative target-mode selection is operational; raw ordinal was eliminated successfully.
-- diagnostic remains non-promotable.
+- Maven/Forge execution succeeds; 21/21 behavior PASS.
+- stack admission/resolution 21/21.
+- no `UNSUPPORTED_DECISION_PATH`, no runtime/outer failure.
+- target observer 18/21; only Ao, Atsushi and Prismari Charm observer-zero.
+- authoritative Charm mode selection is therefore operational.
 
-Three rows still observer-zero:
-1. `forge-behavior-v2:95726bbbfdb31ba1e8fe7146f4a7971d93f97bc5` — Ao — DigEffect.
-2. `forge-behavior-v2:a1fe7a20bc3ddb26ed8642a7a8b5025697bd0d83` — Atsushi — DigEffect.
-3. `forge-behavior-v2:ee17650cc69e7d571ba8a6d602227eb4c8ba6154` — Prismari Charm — SurveilEffect.
+`CODE_DERIVED` root cause for the remaining observer misses: pinned `CharmEffect.chainAbilities` clones each chosen mode and adds `StackDescription=SpellDescription` only when absent. Exact source-map equality in the observation-only target matcher therefore missed the real resolving clone. This is an observer normalization defect, not reachability/rules failure.
 
-### New root cause
+Diagnostic hidden note: the coarse record-only process counter reports one pilot-visible leak on `forge-behavior-v2:17f853...` (`RevealHandEffect`), cross-principal 0. This must be adjudicated by Principal Observation v4 before AF promotion.
 
-`CODE_DERIVED` from pinned `CharmEffect.chainAbilities`:
+### Current atomic repair — persistent, focused validation running
 
-- Forge clones each chosen `AbilitySub` before appending it to the resolving parent.
-- On the clone, Forge productively adds `StackDescription=SpellDescription` when the chosen mode did not already define `StackDescription`.
-- The WS33 observer currently defines target identity as exact API plus exact equality of `AbilityFactory.getMapParams(targetScript)` and the resolving clone's `getMapParams()`.
-- Therefore the actual target mode can execute but fail observation solely because of this documented runtime-added presentation parameter.
-- This is an observer identity-normalization defect, not a rules/reachability failure.
+Code commit:
+- HEAD `28f4e7cdd6a35c488d4633cf8d77163a8aa2d5d9`
+- TREE `fa5cb7385b2724433cf877b11e890985adef2376`
+- message `ws33 g3: normalize only Forge Charm clone stack description`.
 
-Diagnostic hidden note remains: the coarse record-only process counter reports one pilot-visible leak on `forge-behavior-v2:17f853...` (`RevealHandEffect`), cross-principal 0. This must be adjudicated by Principal Observation v4 before promotion.
+Repair semantics:
+- exact API equality remains mandatory;
+- exact target map equality remains the normal match;
+- only for parent dispatch `Charm`, only when the source target script did not contain `StackDescription`, and only when the resolving map contains exactly `StackDescription=SpellDescription`, that one key is removed and exact equality is retried;
+- all other extra/missing parameters remain mismatches;
+- static generator regression explicitly rejects broad `containsAll`/subset matching;
+- no rules choice, legal-option synthesis, direct target-SVar entry, direct `sa.resolve()`, or manual target injection is introduced.
 
-### Exactly next atomic work package
+Focused validation:
+- run `33745809012`
+- exact head `28f4e7cdd6a35c488d4633cf8d77163a8aa2d5d9`
+- state at checkpoint: `IN_PROGRESS`.
 
-1. Normalize target observer matching only for the documented Charm clone transformation: require API equality and exact target-map equality after removing **only** runtime-added `StackDescription=SpellDescription` when the source target script did not contain `StackDescription` and parent dispatch is Charm.
-2. Preserve exact map equality for all non-Charm targets and reject any other extra/missing parameter.
-3. Add a static fail-closed regression in the harness generator proving broad subset matching is not used.
-4. Rerun focused 21-path AF behavior gate. Acceptance: 21/21 PASS, stack 21/21, target reachability 21/21.
-5. Persist run/job/artifact/digest.
-6. Then run separate AF request/RNG replay evidence (requirements: Decision 9, RNG 4, Replay 12) and AF Principal Observation v4 (Hidden 19). The focused gate alone is not promotion-complete.
+If interrupted: adjudicate run `33745809012` first. Do not modify/rerun the repair before reading its exact job result and retained artifact.
+
+### Exactly next work package
+
+1. Adjudicate run `33745809012` and artifact.
+2. Focused acceptance: behavior 21/21 PASS, stack admission/resolution 21/21, target-SVar reachability 21/21.
+3. If red, isolate only its first new root cause and checkpoint before repair.
+4. If green, persist run/job/artifact/digest, then separately close AF Decision/RNG/Replay evidence (21 paths; Decision 9; RNG 4; Replay 12) and Principal Observation v4 (Hidden 19). Focused behavior green is not promotion-complete.
+5. Only after AF evidence closure begin the 32-path non-AF event campaign.
 
 ## Non-AF G queue already materialized, not yet qualified
 
