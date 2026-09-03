@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Strict source-profile adjudication for WS33 direct-G principal observations.
+"""Strict source-profile adjudication for WS33 G principal observations.
 
 This verifier does not infer Magic legality and does not select any action. It consumes
 only already-materialized exact Forge cases plus runtime evidence. Positive temporary
@@ -8,6 +8,14 @@ identity to a principal (a discretionary card decision or an explicit look/revea
 A Dig path that moves every examined card without a look/reveal consumer is classified as
 NEGATIVE_OR_TRANSITION_ONLY: hidden-info evidence is still required, but manufacturing a
 temporary identity grant would be incorrect. Unknown hidden consumer shapes fail closed.
+
+Two exact case ABIs are supported:
+- Direct-G v15: the executed consumer is columns 4/14 (dispatch/script).
+- G SVar AF v19: the executed target-SVar consumer is columns 17/18
+  (targetDispatch/targetScript), never the source-parent dispatch/script.
+
+Any other, empty, or mixed case ABI fails closed. --expected-paths defaults to 28 to
+preserve the immutable Direct-G contract; serial AF qualification passes 21 explicitly.
 """
 from __future__ import annotations
 
@@ -16,6 +24,10 @@ import base64
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
+
+
+DIRECT_G_V15 = "DIRECT_G_V15"
+G_SVAR_AF_V19 = "G_SVAR_AF_V19"
 
 
 def require(condition: bool, message: str, failures: list[str]) -> None:
@@ -72,22 +84,57 @@ def load_jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+def decode_b64(field: str, label: str) -> str:
+    try:
+        return base64.b64decode(field, validate=True).decode("utf-8")
+    except Exception as exc:
+        raise SystemExit(f"WS33_G_PRINCIPAL_OBSERVATION=FAIL invalid {label}: {exc}") from exc
+
+
 def load_cases(path: Path) -> dict[str, dict]:
     out: dict[str, dict] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
+    observed_abis: set[str] = set()
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         if not line.strip():
             continue
         f = line.split("\t")
-        if len(f) < 15:
-            raise SystemExit(f"WS33_G_PRINCIPAL_OBSERVATION=FAIL bad case row columns={len(f)}")
-        script = base64.b64decode(f[14]).decode("utf-8")
+        if len(f) == 15:
+            case_abi = DIRECT_G_V15
+            api = f[4]
+            script = decode_b64(f[14], f"Direct-G script line {line_number}")
+        elif len(f) == 19:
+            case_abi = G_SVAR_AF_V19
+            api = f[17]
+            script = decode_b64(f[18], f"AF targetScript line {line_number}")
+            if not api or not script or not script.startswith("DB$"):
+                raise SystemExit(
+                    "WS33_G_PRINCIPAL_OBSERVATION=FAIL "
+                    f"invalid AF target consumer line {line_number}: dispatch={api!r} script={script[:32]!r}"
+                )
+        else:
+            raise SystemExit(
+                "WS33_G_PRINCIPAL_OBSERVATION=FAIL "
+                f"unknown case ABI line {line_number}: columns={len(f)}"
+            )
+        observed_abis.add(case_abi)
+        if len(observed_abis) != 1:
+            raise SystemExit(
+                "WS33_G_PRINCIPAL_OBSERVATION=FAIL mixed/ambiguous case ABIs: "
+                + ",".join(sorted(observed_abis))
+            )
+
         hidden = f[10] == "1"
         decision = f[13] == "1"
-        profile, reason = positive_profile(f[4], script, hidden, decision)
-        out[f[1]] = {
+        profile, reason = positive_profile(api, script, hidden, decision)
+        pid = f[1]
+        if not pid.startswith("forge-behavior-v2:"):
+            raise SystemExit(f"WS33_G_PRINCIPAL_OBSERVATION=FAIL invalid path id line {line_number}: {pid!r}")
+        if pid in out:
+            raise SystemExit(f"WS33_G_PRINCIPAL_OBSERVATION=FAIL duplicate path id: {pid}")
+        out[pid] = {
             "ordinal": int(f[0]),
             "oracle_id": f[2],
-            "api": f[4],
+            "api": api,
             "implementation": f[5],
             "hidden": hidden,
             "rng": f[11] == "1",
@@ -96,7 +143,10 @@ def load_cases(path: Path) -> dict[str, dict]:
             "profile": profile,
             "profile_reason": reason,
             "script": script,
+            "case_abi": case_abi,
         }
+    if not out:
+        raise SystemExit("WS33_G_PRINCIPAL_OBSERVATION=FAIL empty case file")
     return out
 
 
@@ -129,7 +179,12 @@ def check_events(label: str, events: list[dict], req: dict[str, dict], failures:
         pid = event.get("path_id")
         require(pid in req, f"{label}:unknown_path={pid}", failures)
         require(event.get("identity_match") is True, f"{label}:identity_mismatch={pid}:{event.get('principal_id')}:{event.get('card_id')}", failures)
-        by_path[pid].append(event)
+        if pid in req:
+            by_path[pid].append(event)
+
+    # Principal-observation evidence itself must be path-scoped across the full executed
+    # campaign, not merely rely on case-summary execution coverage.
+    require(set(by_path) == set(req), f"{label}:observation_path_set_mismatch", failures)
 
     counts: dict[str, Counter] = {}
     for pid, rq in req.items():
@@ -195,11 +250,15 @@ def main() -> None:
     ap.add_argument("--replay-dir", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--source-case-artifact-id", type=int, required=True)
+    ap.add_argument("--expected-paths", type=int, default=28)
     args = ap.parse_args()
+
+    if args.expected_paths <= 0:
+        raise SystemExit("WS33_G_PRINCIPAL_OBSERVATION=FAIL expected-paths must be positive")
 
     failures: list[str] = []
     req = load_cases(args.cases)
-    require(len(req) == 28, f"requirement_rows={len(req)}", failures)
+    require(len(req) == args.expected_paths, f"requirement_rows={len(req)} expected={args.expected_paths}", failures)
 
     record_summary = load_summary(args.record_dir / "case-summary.tsv")
     replay_summary = load_summary(args.replay_dir / "case-summary.tsv")
@@ -222,6 +281,7 @@ def main() -> None:
     require(normalized(rec) == normalized(rep), "record_replay_observation_multiset_mismatch", failures)
 
     profiles = Counter(rq["profile"] for rq in req.values())
+    case_abis = sorted({rq["case_abi"] for rq in req.values()})
     profile_rows = [
         {
             "path_id": pid,
@@ -237,8 +297,11 @@ def main() -> None:
     out = {
         "schema": "commander-simulator-next.ws33-g-principal-observation.v3",
         "source_case_artifact_id": args.source_case_artifact_id,
-        "expected_paths": 28,
+        "case_abi": case_abis[0] if len(case_abis) == 1 else "AMBIGUOUS",
+        "expected_paths": args.expected_paths,
         "hidden_required_paths": sum(rq["hidden"] for rq in req.values()),
+        "record_path_coverage": len({e.get("path_id") for e in rec if e.get("path_id") in req}),
+        "replay_path_coverage": len({e.get("path_id") for e in rep if e.get("path_id") in req}),
         "observation_profile_counts": dict(sorted(profiles.items())),
         "observation_profiles": profile_rows,
         "record_event_count": len(rec),
