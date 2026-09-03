@@ -177,7 +177,7 @@ jobs:
           grep -F 'ExternalObservationTrace.setPath(spec.pathId)' "$direct"
           echo 'WS33_G_PRINCIPAL_OBSERVATION_DIRECT_G_COMPAT=PASS execution_rerun=FALSE'
 
-      - name: Verify principal-observation parser and ABI fail-closed regressions
+      - name: Verify principal-observation parser and fail-closed regressions
         shell: bash
         run: |
           set -euo pipefail
@@ -186,6 +186,8 @@ jobs:
           import base64, tempfile
           from pathlib import Path
           import ws33_adjudicate_g_principal_observation as p
+          import ws33_adjudicate_g_principal_observation_v4 as v4
+
           rows=[x.split('\t') for x in Path('generated/abi/source/g-svar-af-cases.tsv').read_text().splitlines() if x]
           with tempfile.TemporaryDirectory() as td:
               root=Path(td)
@@ -205,7 +207,44 @@ jobs:
               try: p.load_cases(mixed)
               except SystemExit: pass
               else: raise AssertionError('mixed ABI was not rejected')
-          print('WS33_G_PRINCIPAL_OBSERVATION_ABI_REGRESSION=PASS direct_v15=TRUE af_v19=TRUE mixed_fail_closed=TRUE')
+
+          def row(pid, coarse='0', cross='0'):
+              x=['']*21
+              x[0]=pid; x[4]='PASS'; x[7]='0'; x[8]='0'; x[9]=coarse; x[10]=cross
+              x[18]='1'; x[19]='1'; x[20]='1'
+              return x
+
+          pos='forge-behavior-v2:regression-positive'
+          req={pos:{'profile':'POSITIVE_TEMPORARY_REQUIRED','decision':False,'rng':False}}
+          lifecycle=[
+              {'path_id':pos,'kind':'SERVER_GRANT','principal_id':1,'card_id':7,'identity_match':True},
+              {'path_id':pos,'kind':'CLIENT_VISIBLE','principal_id':1,'card_id':7,'identity_match':True},
+              {'path_id':pos,'kind':'SERVER_REVOKE','principal_id':1,'card_id':7,'identity_match':True},
+              {'path_id':pos,'kind':'CLIENT_HIDDEN','principal_id':1,'card_id':7,'identity_match':True},
+          ]
+          v4.reset_contract_state(); failures=[]
+          v4.check_summary_v4('record',{pos:row(pos,'1')},req,failures)
+          v4.check_summary_v4('replay',{pos:row(pos,'1')},req,failures)
+          v4.check_events_v4('record',lifecycle,req,failures)
+          v4.check_events_v4('replay',lifecycle,req,failures)
+          assert not failures, failures
+
+          v4.reset_contract_state(); failures=[]
+          v4.check_summary_v4('record',{pos:row(pos,'1')},req,failures)
+          v4.check_events_v4('record',lifecycle[:-1],req,failures)
+          assert any('incomplete_lifecycle' in x or 'unbalanced_lifecycle' in x for x in failures), failures
+
+          neg='forge-behavior-v2:regression-negative'
+          req_neg={neg:{'profile':'NEGATIVE_OR_TRANSITION_ONLY','decision':False,'rng':False}}
+          v4.reset_contract_state(); failures=[]
+          v4.check_summary_v4('record',{neg:row(neg,'1')},req_neg,failures)
+          assert any('coarse_hidden_signal_without_positive_profile' in x for x in failures), failures
+
+          v4.reset_contract_state(); failures=[]
+          v4.check_summary_v4('record',{pos:row(pos,'0','1')},req,failures)
+          assert any('cross_principal_delta=1' in x for x in failures), failures
+
+          print('WS33_G_PRINCIPAL_OBSERVATION_REGRESSION=PASS abi_fail_closed=TRUE coarse_raw_retained=TRUE lifecycle_attested=TRUE incomplete_revoke_fail_closed=TRUE unrelated_positive_fail_closed=TRUE cross_principal_fail_closed=TRUE')
           PY
 
       - name: Set up Java 21
@@ -229,9 +268,12 @@ jobs:
           from pathlib import Path
           rows=[x.split('\t') for x in Path('generated/record/case-summary.tsv').read_text().splitlines() if x]
           assert len(rows)==21
-          bad=[(x[0],x[4],x[9],x[10],x[14],x[15],x[18:21]) for x in rows if len(x)<21 or x[4]!='PASS' or x[9]!='0' or x[10]!='0' or x[14] or x[15] or x[18]!='1' or x[19]!='1' or int(x[20])<1]
-          if bad: raise SystemExit('WS33_G_SVAR_AF_PRINCIPAL_RECORD=FAIL '+repr(bad))
-          print('WS33_G_SVAR_AF_PRINCIPAL_RECORD=PASS paths=21 leaks=0 cross_principal=0 target_reachability=21')
+          assert all(len(x)>=21 for x in rows)
+          assert len({x[0] for x in rows})==21
+          bad=[(x[0],x[4],x[14],x[15],x[18:21]) for x in rows if x[4]!='PASS' or x[14] or x[15] or x[18]!='1' or x[19]!='1' or int(x[20])<1]
+          if bad: raise SystemExit('WS33_G_SVAR_AF_PRINCIPAL_RECORD_ENGINE=FAIL '+repr(bad))
+          coarse={x[0]:int(x[9]) for x in rows if int(x[9])!=0}
+          print('WS33_G_SVAR_AF_PRINCIPAL_RECORD_ENGINE=PASS paths=21 coarse_hidden_signal_raw='+repr(coarse))
           PY
 
       - name: Tape-driven AF principal-observation replay execution
@@ -269,11 +311,11 @@ jobs:
           for pid in old:
               a,b=old[pid],new[pid]
               assert len(a)>=21 and len(b)>=21
-              # Column 9 is the historical coarse hidden-leak counter being superseded
-              # by principal-scoped v4 evidence. Every other retained behavior field is
-              # required to remain byte-identical.
+              # Column 9 is retained raw coarse hidden-visibility evidence. Principal-
+              # scoped v4 adjudication classifies it later; every other behavior field
+              # must remain byte-identical to the immutable green AF ABI record.
               assert a[:9]+a[10:] == b[:9]+b[10:], (pid,a,b)
-          print('WS33_G_SVAR_AF_PRINCIPAL_NONPERTURBATION=PASS only_permitted_summary_delta=coarse_hidden_leak_column_9')
+          print('WS33_G_SVAR_AF_PRINCIPAL_NONPERTURBATION=PASS only_permitted_summary_delta=coarse_hidden_signal_column_9')
           PY
 
       - name: Strict AF target-consumer principal-observation adjudication
@@ -287,7 +329,7 @@ jobs:
             --out generated/diagnostic/WS33_G_AF_PRINCIPAL_OBSERVATION.json \
             --source-case-artifact-id "$AF_BEHAVIOR_ARTIFACT_ID" \
             --expected-paths 21
-          jq -e '.schema=="commander-simulator-next.ws33-g-principal-observation.v3" and .status=="PASS" and .failure_count==0 and .case_abi=="G_SVAR_AF_V19" and .expected_paths==21 and .hidden_required_paths==19 and .record_path_coverage==21 and .replay_path_coverage==21 and .principal_transport=="REMOTE_CLIENT_DELTA" and .retained_hidden_identity_payload==false and .temporary_observation_revocation_required==true and .hidden_leak_delta_required==0 and .cross_principal_delta_required==0 and .coverage_mutated==false and ((.observation_profile_counts.UNKNOWN_HIDDEN_CONSUMER // 0)==0)' generated/diagnostic/WS33_G_AF_PRINCIPAL_OBSERVATION.json
+          jq -e '.schema=="commander-simulator-next.ws33-g-principal-observation.v3" and .status=="PASS" and .failure_count==0 and .case_abi=="G_SVAR_AF_V19" and .expected_paths==21 and .hidden_required_paths==19 and .record_path_coverage==21 and .replay_path_coverage==21 and .principal_transport=="REMOTE_CLIENT_DELTA" and .retained_hidden_identity_payload==false and .temporary_observation_revocation_required==true and .hidden_leak_delta_required==0 and .unauthorized_hidden_leak_delta_required==0 and .cross_principal_delta_required==0 and .coarse_hidden_signal_policy=="PRINCIPAL_ATTESTED_TEMPORARY_OBSERVATION" and .coarse_hidden_signal_raw_retained==true and .coarse_hidden_signal_record_paths==.coarse_hidden_signal_replay_paths and .coarse_hidden_signal_record_total==.coarse_hidden_signal_replay_total and .coverage_mutated==false and ((.observation_profile_counts.UNKNOWN_HIDDEN_CONSUMER // 0)==0)' generated/diagnostic/WS33_G_AF_PRINCIPAL_OBSERVATION.json
 
       - name: Materialize immutable source-chain and content hashes
         shell: bash
