@@ -66,7 +66,7 @@ def main() -> None:
     s = replace_once(s, old_ev, new_ev, "path evidence ABI")
 
     class_anchor = '    private static final String SECRET = "Black Lotus";\n'
-    class_insert = '''    private static final String SECRET = "Black Lotus";\n    private static final AtomicReference<String> ws33CurrentParentKey=new AtomicReference<>();\n    private static final Map<String,ParentEvidence> ws33ParentEvidence=new LinkedHashMap<>();\n    private static final Map<String,CaseSpec> ws33ParentSpecs=new LinkedHashMap<>();\n    private static final class ParentEvidence {\n        final CaseSpec spec; String status="UNKNOWN",failureType="",failureMessage=""; long triggerAdmissions,targetBindings,targetExecutions; int sourceCardId=-1; Trigger expectedTrigger; SpellAbility producerAbility;\n        ParentEvidence(CaseSpec s){spec=s;}\n    }\n'''
+    class_insert = '''    private static final String SECRET = "Black Lotus";\n    private static final AtomicReference<String> ws33CurrentParentKey=new AtomicReference<>();\n    private static final Map<String,ParentEvidence> ws33ParentEvidence=new LinkedHashMap<>();\n    private static final Map<String,CaseSpec> ws33ParentSpecs=new LinkedHashMap<>();\n    private static final class ParentEvidence {\n        final CaseSpec spec; String status="UNKNOWN",failureType="",failureMessage="",admittedApi="",admittedOriginalMapHash="",admittedCurrentMapHash=""; long triggerAdmissions,targetBindings,targetExecutions,resolutionCallbacks; int sourceCardId=-1,admittedAbilityId=-1,admittedSourceTrigger=-1,admittedHostId=-1; Trigger expectedTrigger; SpellAbility producerAbility; final List<String> resolutionTrace=new ArrayList<>();\n        ParentEvidence(CaseSpec s){spec=s;}\n    }\n'''
     s = replace_once(s, class_anchor, class_insert, "parent evidence registry")
 
     s = replace_once(
@@ -77,7 +77,7 @@ def main() -> None:
     )
 
     observer_anchor = 'Game.setSemanticStateObserver((game,checkpoint)->'
-    observer_setup = '''TriggerHandler.setWs33TriggerObserver((trigger,ability)->{String k=ws33CurrentParentKey.get();if(k==null)return;ParentEvidence pe=ws33ParentEvidence.get(k);if(pe==null)return;boolean match;if("TRIGGER".equals(pe.spec.sourceDirective)){match=pe.expectedTrigger==trigger;}else{match=pe.sourceCardId==trigger.getHostCard().getId()&&pe.producerAbility!=null&&trigger.getSpawningAbility()==pe.producerAbility&&AbilityFactory.getMapParams(pe.spec.parentScript).equals(trigger.getOriginalMapParams());}if(match){pe.triggerAdmissions++;if(matchesTarget(pe.spec,ability))pe.targetBindings++;}});\n        MagicStack.setWs33ResolutionObserver(ability->{String k=ws33CurrentParentKey.get();if(k==null)return;ParentEvidence pe=ws33ParentEvidence.get(k);if(pe==null)return;SpellAbility effective=ability instanceof WrappedAbility?((WrappedAbility)ability).getWrappedAbility():ability;if(matchesTarget(pe.spec,effective))pe.targetExecutions++;});\n        Game.setSemanticStateObserver((game,checkpoint)->'''
+    observer_setup = '''TriggerHandler.setWs33TriggerObserver((trigger,ability)->{String k=ws33CurrentParentKey.get();if(k==null)return;ParentEvidence pe=ws33ParentEvidence.get(k);if(pe==null)return;boolean match;if("TRIGGER".equals(pe.spec.sourceDirective)){match=pe.expectedTrigger==trigger;}else{match=pe.sourceCardId==trigger.getHostCard().getId()&&pe.producerAbility!=null&&trigger.getSpawningAbility()==pe.producerAbility&&AbilityFactory.getMapParams(pe.spec.parentScript).equals(trigger.getOriginalMapParams());}if(match){pe.triggerAdmissions++;pe.admittedAbilityId=ability.getId();pe.admittedSourceTrigger=ability.getSourceTrigger();pe.admittedHostId=ability.getHostCard()==null?-1:ability.getHostCard().getId();pe.admittedApi=ability.getApi()==null?"":ability.getApi().name();pe.admittedOriginalMapHash=mapHash(ability.getOriginalMapParams());pe.admittedCurrentMapHash=mapHash(ability.getMapParams());if(matchesTarget(pe.spec,ability))pe.targetBindings++;}});\n        MagicStack.setWs33ResolutionObserver(ability->{String k=ws33CurrentParentKey.get();if(k==null)return;ParentEvidence pe=ws33ParentEvidence.get(k);if(pe==null)return;boolean wrapper=ability instanceof WrappedAbility;SpellAbility effective=wrapper?((WrappedAbility)ability).getWrappedAbility():ability;pe.resolutionCallbacks++;boolean targetMatch=matchesTarget(pe.spec,effective);pe.resolutionTrace.add("wrapper="+(wrapper?1:0)+",abilityId="+effective.getId()+",sourceTrigger="+effective.getSourceTrigger()+",hostId="+(effective.getHostCard()==null?-1:effective.getHostCard().getId())+",api="+(effective.getApi()==null?"":effective.getApi().name())+",originalMap="+mapHash(effective.getOriginalMapParams())+",currentMap="+mapHash(effective.getMapParams())+",targetMatch="+(targetMatch?1:0));if(targetMatch)pe.targetExecutions++;});\n        Game.setSemanticStateObserver((game,checkpoint)->'''
     s = replace_once(s, observer_anchor, observer_setup, "production reachability observers")
 
     cleanup_old = 'PlayerControllerHuman.setExternalDecisionProviderFactory(null);ExternalDecisionTape.setEventObserver(null);Game.setSemanticStateObserver(null);MyRandom.endGameScope();'
@@ -85,7 +85,7 @@ def main() -> None:
     s = replace_once(s, cleanup_old, cleanup_new, "observer cleanup")
 
     write_call_old = 'writeEvidence(outDir,mode,cases,evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);'
-    write_call_new = 'writeEvidence(outDir,mode,uniqueCases(cases),evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);writeParentEvidence(outDir);'
+    write_call_new = 'writeEvidence(outDir,mode,uniqueCases(cases),evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);writeParentEvidence(outDir);writeResolutionLineage(outDir);'
     s = replace_once(s, write_call_old, write_call_new, "32-path plus 33-parent evidence output")
 
     run_start = 'private static void runCampaign(Game game,List<CaseSpec>cases,Map<String,CaseEvidence>evidence,AtomicReference<String>currentPath)'
@@ -97,6 +97,7 @@ def main() -> None:
     helper_anchor = 'private static void awaitRemoteTransport(List<Player> ps)'
     helpers = r'''private static String parentKey(CaseSpec s){return s.pathId+"#"+s.entryIndex;}
     private static List<CaseSpec> uniqueCases(List<CaseSpec> cases){LinkedHashMap<String,CaseSpec>m=new LinkedHashMap<>();for(CaseSpec c:cases)m.putIfAbsent(c.pathId,c);if(m.size()!=32)throw new IllegalStateException("WS33 G-SVAR-EVENT expected 32 effective paths, got "+m.size());return new ArrayList<>(m.values());}
+    private static String mapHash(Map<String,String> map){TreeMap<String,String> sorted=new TreeMap<>();if(map!=null)sorted.putAll(map);return sha256(sorted.toString());}
     private static boolean matchesTarget(CaseSpec spec,SpellAbility sa){if(sa==null||sa.getApi()==null||!spec.dispatch.equals(sa.getApi().name()))return false;Map<String,String>expected=AbilityFactory.getMapParams(spec.targetScript);return expected.equals(sa.getOriginalMapParams())||expected.equals(sa.getMapParams());}
     private static void bindExpectedParent(CaseSpec spec,Card source,ParentEvidence pe){if("TRIGGER".equals(spec.sourceDirective)){Map<String,String>expected=AbilityFactory.getMapParams(spec.parentScript);Trigger match=null;int matches=0;for(Trigger t:source.getTriggers())if(spec.mode.equals(t.getMode().toString())&&expected.equals(t.getOriginalMapParams())){match=t;matches++;}if(matches!=1)throw new IllegalStateException("actual-card parent trigger match count="+matches+" for "+parentKey(spec));pe.expectedTrigger=match;pe.sourceCardId=source.getId();return;}if("SVAR".equals(spec.sourceDirective)){if(spec.parentSVar.isEmpty()||!source.getCurrentState().hasSVar(spec.parentSVar))throw new IllegalStateException("missing source-proven parent SVar "+spec.parentSVar);if(!spec.parentScript.equals(source.getCurrentState().getSVar(spec.parentSVar)))throw new IllegalStateException("parent SVar script mismatch "+parentKey(spec));pe.sourceCardId=source.getId();return;}throw new IllegalStateException("unsupported parent directive "+spec.sourceDirective);}
     private static void preparePreSourceHistory(CaseSpec spec,Game game,Player actor,Player opponent){if(spec.parentScript.contains("CheckSVar$ RaidTest")){Card attacker=addCard("Runeclaw Bear",actor,ZoneType.Battlefield);actor.addCreaturesAttackedThisTurn(attacker,opponent);}if(spec.parentScript.contains("CheckSVar$ X")&&spec.cardName.equals("H.E.R.B.I.E., Lovable Robot")){castAndResolveFixtureSpell(game,actor,"Sol Ring");}}
@@ -111,8 +112,9 @@ def main() -> None:
 
     sha_anchor = 'private static String sha256(String value)'
     parent_writer = r'''private static void writeParentEvidence(Path out)throws IOException{try(var w=Files.newBufferedWriter(out.resolve("parent-summary.tsv"),StandardCharsets.UTF_8)){for(ParentEvidence pe:ws33ParentEvidence.values()){CaseSpec c=pe.spec;w.write(String.join("\t",c.pathId,Integer.toString(c.entryIndex),Integer.toString(c.parentCount),c.oracleId,c.cardName,c.mode,c.sourceDirective,c.parentSVar,c.targetSVar,c.dispatch,pe.status,Long.toString(pe.triggerAdmissions),Long.toString(pe.targetBindings),Long.toString(pe.targetExecutions),enc(pe.failureType),enc(pe.failureMessage)));w.newLine();}}}
+    private static void writeResolutionLineage(Path out)throws IOException{try(var w=Files.newBufferedWriter(out.resolve("resolution-lineage.tsv"),StandardCharsets.UTF_8)){for(ParentEvidence pe:ws33ParentEvidence.values()){CaseSpec c=pe.spec;String trace=String.join(";",pe.resolutionTrace);String traceB64=Base64.getEncoder().encodeToString(trace.getBytes(StandardCharsets.UTF_8));w.write(String.join("\t",c.pathId,Integer.toString(c.entryIndex),Integer.toString(c.parentCount),c.oracleId,c.cardName,c.mode,c.sourceDirective,c.targetSVar,c.dispatch,Long.toString(pe.triggerAdmissions),Long.toString(pe.targetBindings),Long.toString(pe.targetExecutions),Long.toString(pe.resolutionCallbacks),Integer.toString(pe.admittedAbilityId),Integer.toString(pe.admittedSourceTrigger),Integer.toString(pe.admittedHostId),pe.admittedApi,pe.admittedOriginalMapHash,pe.admittedCurrentMapHash,traceB64));w.newLine();}}}
     '''
-    s = replace_once(s, sha_anchor, parent_writer + sha_anchor, "parent evidence writer")
+    s = replace_once(s, sha_anchor, parent_writer + sha_anchor, "parent and resolution-lineage evidence writers")
 
     # Static fail-closed invariants: production trigger admission and stack resolution only.
     for forbidden in (
@@ -131,6 +133,7 @@ def main() -> None:
         "MagicStack.setWs33ResolutionObserver",
         "addTriggersWhenSpent(spell)",
         "parent-summary.tsv",
+        "resolution-lineage.tsv",
         "uniqueCases(cases)",
         "expected 33 parent cases",
         "expected 32 effective paths",
@@ -138,7 +141,7 @@ def main() -> None:
         require(required in s, f"missing production/evidence route: {required}")
 
     args.harness.write_text(s, encoding="utf-8")
-    print("WS33_G_SVAR_EVENT_HARNESS=PASS parents=33 effective_paths=32 trigger_legality=FORGE_TRIGGER_HANDLER target_direct_entry=FALSE parent_observer=POST_LEGALITY_ADMISSION target_observer=POST_FIZZLE_PRE_RESOLVE")
+    print("WS33_G_SVAR_EVENT_HARNESS=PASS parents=33 effective_paths=32 trigger_legality=FORGE_TRIGGER_HANDLER target_direct_entry=FALSE parent_observer=POST_LEGALITY_ADMISSION target_observer=POST_FIZZLE_PRE_RESOLVE resolution_lineage=OBSERVATION_ONLY")
 
 
 if __name__ == "__main__":
