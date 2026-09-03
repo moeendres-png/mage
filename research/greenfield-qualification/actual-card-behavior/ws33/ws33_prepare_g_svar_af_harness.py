@@ -48,6 +48,13 @@ def main() -> None:
         "Charm/AbilitySub observation imports",
     )
 
+    s = replace_once(
+        s,
+        '    private static final String SECRET = "Black Lotus";\n',
+        '    private static final String SECRET = "Black Lotus";\n    private static final Map<String,CaseSpec> ws33CaseSpecs=new ConcurrentHashMap<>();\n',
+        "path-spec registry",
+    )
+
     old_case = 'final int ordinal; final String pathId,oracleId,cardName,dispatch,implementation,sourcePath,sourceDirective,sourceToken,script; final int sourceLine; final boolean hidden,rng,replay,decision;\n        CaseSpec(String[] f){ordinal=Integer.parseInt(f[0]);pathId=f[1];oracleId=f[2];cardName=f[3];dispatch=f[4];implementation=f[5];sourcePath=f[6];sourceLine=Integer.parseInt(f[7]);sourceDirective=f[8];sourceToken=f[9];hidden="1".equals(f[10]);rng="1".equals(f[11]);replay="1".equals(f[12]);decision="1".equals(f[13]);script=new String(Base64.getDecoder().decode(f[14]),StandardCharsets.UTF_8);}'
     new_case = 'final int ordinal; final String pathId,oracleId,cardName,dispatch,implementation,sourcePath,sourceDirective,sourceToken,script,parentSVar,targetSVar,targetDispatch,targetScript; final int sourceLine; final boolean hidden,rng,replay,decision;\n        CaseSpec(String[] f){if(f.length!=19)throw new IllegalArgumentException("WS33 G-SVAR-AF expected 19 case fields, got "+f.length);ordinal=Integer.parseInt(f[0]);pathId=f[1];oracleId=f[2];cardName=f[3];dispatch=f[4];implementation=f[5];sourcePath=f[6];sourceLine=Integer.parseInt(f[7]);sourceDirective=f[8];sourceToken=f[9];hidden="1".equals(f[10]);rng="1".equals(f[11]);replay="1".equals(f[12]);decision="1".equals(f[13]);script=new String(Base64.getDecoder().decode(f[14]),StandardCharsets.UTF_8);parentSVar=f[15];targetSVar=f[16];targetDispatch=f[17];targetScript=new String(Base64.getDecoder().decode(f[18]),StandardCharsets.UTF_8);}'
     s = replace_once(s, old_case, new_case, "case parent/target identity ABI")
@@ -70,6 +77,13 @@ def main() -> None:
         "actual source-parent binding",
     )
 
+    s = replace_once(
+        s,
+        'private static void runCampaign(Game game,List<CaseSpec>cases,Map<String,CaseEvidence>evidence,AtomicReference<String>currentPath){List<Player>ps=players(game);',
+        'private static void runCampaign(Game game,List<CaseSpec>cases,Map<String,CaseEvidence>evidence,AtomicReference<String>currentPath){ws33CaseSpecs.clear();for(CaseSpec c:cases)ws33CaseSpecs.put(c.pathId,c);List<Player>ps=players(game);',
+        "path-spec registry initialization",
+    )
+
     helper_anchor = 'private static void awaitRemoteTransport(List<Player> ps){'
     helper = (
         'private static SpellAbility resolveSourceParent(CaseSpec spec,Card source){'
@@ -89,9 +103,9 @@ def main() -> None:
     provider_anchor = 'private static void selectByPathPolicy(ExternalDecisionRequest req,String path,List<String>selected,boolean exerciseOptional){List<ExternalDecisionRequest.Option>options=new ArrayList<>(req.getOptions());'
     provider_replacement = (
         'private static void selectByPathPolicy(ExternalDecisionRequest req,String path,List<String>selected,boolean exerciseOptional){List<ExternalDecisionRequest.Option>options=new ArrayList<>(req.getOptions());'
-        'CaseEvidence pathEvidence=evidence.get(path);'
-        'if(pathEvidence!=null&&"MODE_SELECTION".equals(req.getDecisionKind())&&"Charm".equals(pathEvidence.spec.dispatch)){int ordinal=targetModeOrdinal(pathEvidence.spec);if(ordinal<0||ordinal>=options.size())throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,"source-proven target mode is not in authoritative option set for "+path);selected.add(options.get(ordinal).getOptionId());return;}'
-        'if(pathEvidence!=null&&"GUI_ONE".equals(req.getDecisionKind())&&"ChooseType".equals(pathEvidence.spec.dispatch)){for(ExternalDecisionRequest.Option o:options)if("Bear".equals(o.getSemanticValue())){selected.add(o.getOptionId());return;}throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,"generic fixture creature type Bear is not in authoritative option set for "+path);}'
+        'CaseSpec pathSpec=ws33CaseSpecs.get(path);'
+        'if(pathSpec!=null&&"MODE_SELECTION".equals(req.getDecisionKind())&&"Charm".equals(pathSpec.dispatch)){int ordinal=targetModeOrdinal(pathSpec);if(ordinal<0||ordinal>=options.size())throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,"source-proven target mode is not in authoritative option set for "+path);selected.add(options.get(ordinal).getOptionId());return;}'
+        'if(pathSpec!=null&&"GUI_ONE".equals(req.getDecisionKind())&&"ChooseType".equals(pathSpec.dispatch)){for(ExternalDecisionRequest.Option o:options)if("Bear".equals(o.getSemanticValue())){selected.add(o.getOptionId());return;}throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,"generic fixture creature type Bear is not in authoritative option set for "+path);}'
     )
     s = replace_once(s, provider_anchor, provider_replacement, "authoritative reachability pilot choices")
 
@@ -111,7 +125,7 @@ def main() -> None:
     s = replace_once(
         s,
         'PlayerControllerHuman.setExternalDecisionProviderFactory(null);ExternalDecisionTape.setEventObserver(null);',
-        'PlayerControllerHuman.setExternalDecisionProviderFactory(null);AbilitySub.setWs33ResolutionObserver(null);ExternalDecisionTape.setEventObserver(null);',
+        'PlayerControllerHuman.setExternalDecisionProviderFactory(null);ws33CaseSpecs.clear();AbilitySub.setWs33ResolutionObserver(null);ExternalDecisionTape.setEventObserver(null);',
         "target SVar resolution observer cleanup",
     )
 
@@ -128,6 +142,7 @@ def main() -> None:
         "resolveSourceParent(spec,source)",
         "prepareSourceParentChoices(spec,sa)",
         "CharmEffect.makeChoices(sa)",
+        "ws33CaseSpecs",
         "AbilitySub.setWs33ResolutionObserver",
         "targetExecutions",
     ):
