@@ -13,6 +13,11 @@ qualification pilot never chains a mode and never derives legality. It identifie
 mode corresponding to the modeled target from the actual parsed parent, then accepts that
 mode only when Forge exposes the same opaque AbilitySub identity in the authoritative
 MODE_SELECTION request. If Forge filters it out, qualification fails closed.
+
+Forge CharmEffect.chainAbilities clones a chosen mode and, only when absent, adds the
+presentation-only map parameter StackDescription=SpellDescription. Runtime target
+observation therefore permits exactly that documented clone delta for Charm parents and
+keeps exact map equality for every other case. No subset/broad parameter matching is used.
 """
 from __future__ import annotations
 
@@ -95,7 +100,7 @@ def main() -> None:
         'String actual=source.getCurrentState().getSVar(spec.parentSVar);if(!spec.script.equals(actual))throw new IllegalStateException("source-proven parent SVar script mismatch for "+spec.pathId);'
         'return AbilityFactory.getAbility(source,spec.parentSVar,source.getCurrentState());}'
         'throw new IllegalStateException("unsupported source parent directive "+spec.sourceDirective+" for "+spec.pathId);}\n    '
-        'private static boolean matchesTarget(CaseSpec spec,AbilitySub sub){return sub.getApi()!=null&&spec.targetDispatch.equals(sub.getApi().name())&&AbilityFactory.getMapParams(spec.targetScript).equals(sub.getMapParams());}\n    '
+        'private static boolean matchesTarget(CaseSpec spec,AbilitySub sub){if(sub.getApi()==null||!spec.targetDispatch.equals(sub.getApi().name()))return false;Map<String,String>expected=AbilityFactory.getMapParams(spec.targetScript);Map<String,String>actual=new LinkedHashMap<>(sub.getMapParams());if(expected.equals(actual))return true;if(!"Charm".equals(spec.dispatch)||expected.containsKey("StackDescription"))return false;if(!"SpellDescription".equals(actual.get("StackDescription")))return false;actual.remove("StackDescription");return expected.equals(actual);}\n    '
         'private static String desiredTargetModeSemantic(CaseSpec spec,SpellAbility sa){AbilitySub match=null;int matches=0;for(AbilitySub candidate:sa.getAdditionalAbilityList("Choices"))if(matchesTarget(spec,candidate)){match=candidate;matches++;}if(matches!=1)throw new IllegalStateException("actual parsed Charm target-mode match count="+matches+" for "+spec.pathId);return "ability_sub:"+match.getId();}\n    '
         'private static void prepareSourceParentChoices(CaseSpec spec,SpellAbility sa){if(!"Charm".equals(spec.dispatch))return;String desired=desiredTargetModeSemantic(spec,sa);ws33DesiredModeSemantic.put(spec.pathId,desired);try{if(!CharmEffect.makeChoices(sa))throw new IllegalStateException("Forge CharmEffect.makeChoices rejected source-proven parent for "+spec.pathId);}finally{ws33DesiredModeSemantic.remove(spec.pathId);}}\n    '
     )
@@ -162,11 +167,27 @@ def main() -> None:
     if 'desired.equals(o.getSemanticValue())' not in s:
         raise SystemExit("WS33_G_SVAR_AF_HARNESS=FAIL authoritative desired-mode membership check missing")
 
+    # Fail-closed observer regression: the only tolerated runtime map delta is exactly
+    # CharmEffect.chainAbilities' StackDescription=SpellDescription insertion. Any broad
+    # subset/contains-all matching would be capable of hiding a different consumer.
+    required_observer_contract = (
+        'if(expected.equals(actual))return true;',
+        'if(!"Charm".equals(spec.dispatch)||expected.containsKey("StackDescription"))return false;',
+        'if(!"SpellDescription".equals(actual.get("StackDescription")))return false;',
+        'actual.remove("StackDescription");return expected.equals(actual);',
+    )
+    if not all(token in s for token in required_observer_contract):
+        raise SystemExit("WS33_G_SVAR_AF_HARNESS=FAIL exact Charm clone observer normalization missing")
+    for forbidden in ("containsAll(expected", "containsAll(actual", "entrySet().containsAll", "keySet().containsAll"):
+        if forbidden in s:
+            raise SystemExit("WS33_G_SVAR_AF_HARNESS=FAIL broad target observer matching forbidden")
+
     args.harness.write_text(s, encoding="utf-8")
     print(
         "WS33_G_SVAR_AF_HARNESS=PASS paths=21 parent_entry=ACTUAL_CARD_OR_NAMED_PARENT_SVAR "
         "parent_pre_stack_choices=FORGE_PRODUCTION mode_selection=AUTHORITATIVE_ID_MEMBERSHIP "
-        "target_svar_direct_entry=FALSE target_runtime_observer=ABILITY_SUB_RESOLUTION"
+        "target_svar_direct_entry=FALSE target_runtime_observer=ABILITY_SUB_RESOLUTION "
+        "charm_clone_normalization=STACK_DESCRIPTION_ONLY"
     )
 
 
