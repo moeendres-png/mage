@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Materialize the source-proven AbilityFactory-compatible subset of the 53 G SVar paths.
 
-This is deliberately a runtime-input generator, not qualification evidence.  It preserves
-the target effective path identity while replacing the forbidden direct target-SVar entry
-with the topology-proven parent script.  The generated 15-column TSV is compatible with
-the existing WS33 G runtime harness ABI.
+This is deliberately a runtime-input generator, not qualification evidence. It preserves
+both the source-proven parent identity and the target SVar identity. Production execution
+must enter through the actual card/root ability or named parent SVar; direct target-SVar
+entry remains forbidden.
 """
 from __future__ import annotations
 
@@ -19,6 +19,10 @@ API_RE = re.compile(r"(?:^|\s\|\s)(AB|SP|DB)\$\s*([^|]+)")
 
 def fail(msg: str) -> None:
     raise SystemExit("WS33_G_SVAR_AF_CASES=FAIL " + msg)
+
+
+def b64(text: str) -> str:
+    return base64.b64encode(text.encode("utf-8")).decode("ascii")
 
 
 def main() -> None:
@@ -53,8 +57,20 @@ def main() -> None:
         parent_dispatch = m.group(2).strip()
         if not parent_dispatch:
             fail(f"empty parent dispatch for {pid}")
-        # The historical harness's implementation field is not used to choose legality;
-        # retain the target implementation class for evidence/debugging.
+        directive = parent["directive"]
+        parent_svar = parent.get("parent_svar") or ""
+        if directive == "SVAR" and not parent_svar:
+            fail(f"SVAR parent missing parent_svar for {pid}")
+        if directive == "ABILITY" and parent_svar:
+            fail(f"ABILITY parent unexpectedly names parent_svar for {pid}")
+        target_svar = case.get("target_svar") or ""
+        target_script = case.get("target_script") or ""
+        target_dispatch = case.get("dispatch_token") or ""
+        if not target_svar or not target_script or not target_dispatch:
+            fail(f"missing target reachability identity for {pid}")
+        if not target_script.startswith("DB$"):
+            fail(f"AF subset target is not an AbilitySub DB$ path for {pid}")
+
         fields = [
             ordinal,
             pid,
@@ -64,13 +80,17 @@ def main() -> None:
             case["implementation_target"],
             case["source_path"],
             int(parent["source_line"]),
-            parent["directive"],
+            directive,
             source_token,
             int(bool(case["required_hidden_info_evidence"])),
             int(bool(case["required_rng_evidence"])),
             int(bool(case["required_replay_evidence"])),
             int(bool(case["required_decision_evidence"])),
-            base64.b64encode(script.encode("utf-8")).decode("ascii"),
+            b64(script),
+            parent_svar,
+            target_svar,
+            target_dispatch,
+            b64(target_script),
         ]
         rows.append("\t".join(map(str, fields)))
 
@@ -78,6 +98,7 @@ def main() -> None:
     args.out.write_text("\n".join(rows) + "\n", encoding="utf-8")
     print(
         "WS33_G_SVAR_AF_CASES=PASS paths=21 entry=SOURCE_PROVEN_PARENT "
+        "parent_identity=PRESERVED target_svar_identity=PRESERVED "
         "target_svar_direct_entry=FALSE coverage_mutated=FALSE"
     )
 
