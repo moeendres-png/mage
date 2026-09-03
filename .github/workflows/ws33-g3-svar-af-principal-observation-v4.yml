@@ -1,0 +1,321 @@
+name: WS33 G3 SVar AF principal observation v4
+
+on:
+  push:
+    branches: [work/ws33-g3-final-closure-20260902]
+    paths:
+      - '.github/workflows/ws33-g3-svar-af-principal-observation-v4.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_adjudicate_g_principal_observation.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_adjudicate_g_principal_observation_v4.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_instrument_g_principal_observations.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-observation-fanout.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-external-card-decision-lifetime.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  MODEL_SHA: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  DIRECT_RUNTIME_SOURCE_HEAD: d8af15cb879bdfc3c40ce4cba3462da24ee3f272
+  DIRECT_RUNTIME_SOURCE_TREE: 857dc01e04f58ca59437e08710bcb194bf030ea4
+  AF_BEHAVIOR_SOURCE_HEAD: 28f4e7cdd6a35c488d4633cf8d77163a8aa2d5d9
+  AF_BEHAVIOR_SOURCE_TREE: fa5cb7385b2724433cf877b11e890985adef2376
+  AF_BEHAVIOR_ARTIFACT_ID: '9889684290'
+  AF_BEHAVIOR_ARTIFACT_DIGEST: sha256:7a9b8a4e8dd993d419d55fa31763ef8d49ffc3927408bfdb4488724dd16d68e9
+  AF_ABI_SOURCE_HEAD: b599cb1550c3e04f099eb59dd4aae1e117078167
+  AF_ABI_SOURCE_TREE: 9944a7f8295222839f4efef92be562c84ebc09ef
+  AF_ABI_ARTIFACT_ID: '9890829899'
+  AF_ABI_ARTIFACT_DIGEST: sha256:77fe10f72233e824169829a2e7526103cb0bacf8b06823379ce57f44472359eb
+  WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+  WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+  WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
+  WS31_HIST_HEAD: b09fe7c16845cddbbfe30fd1f855b59234bbf007
+
+jobs:
+  af-principal-observation-v4:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - name: Checkout current G3 successor tooling
+        uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+
+      - name: Verify exact serial ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$DIRECT_RUNTIME_SOURCE_HEAD" "$GITHUB_SHA"
+          git merge-base --is-ancestor "$AF_BEHAVIOR_SOURCE_HEAD" "$GITHUB_SHA"
+          git merge-base --is-ancestor "$AF_ABI_SOURCE_HEAD" "$GITHUB_SHA"
+          test "$(git rev-parse "$DIRECT_RUNTIME_SOURCE_HEAD^{tree}")" = "$DIRECT_RUNTIME_SOURCE_TREE"
+          test "$(git rev-parse "$AF_BEHAVIOR_SOURCE_HEAD^{tree}")" = "$AF_BEHAVIOR_SOURCE_TREE"
+          test "$(git rev-parse "$AF_ABI_SOURCE_HEAD^{tree}")" = "$AF_ABI_SOURCE_TREE"
+          mkdir -p generated/abi generated/record generated/replay generated/diagnostic generated/overlay-logs
+          printf '%s\n' "$GITHUB_SHA" > generated/diagnostic/workflow-source-head.txt
+          git rev-parse 'HEAD^{tree}' > generated/diagnostic/workflow-source-tree.txt
+
+      - name: Consume exact immutable AF ABI pass
+        env: {GH_TOKEN: '${{ github.token }}'}
+        shell: bash
+        run: |
+          set -euo pipefail
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$AF_ABI_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$meta")" = "$AF_ABI_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$meta")" = "$AF_ABI_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$AF_ABI_ARTIFACT_ID/zip" > generated/af-abi.zip
+          test "sha256:$(sha256sum generated/af-abi.zip | cut -d' ' -f1)" = "$AF_ABI_ARTIFACT_DIGEST"
+          unzip -q generated/af-abi.zip -d generated/abi
+          test -s generated/abi/source/g-svar-af-cases.tsv
+          test -s generated/abi/diagnostic/WS33_G_ABI_REQUEST_EVIDENCE.json
+          jq -e '.schema=="commander-simulator-next.ws33-g-abi-request-evidence.v2" and .status=="PASS" and .path_count==21 and .decision_required_path_count==9 and .decision_required_paths_observed==9 and .rng_required_path_count==4 and .rng_required_paths_observed==4 and .record_replay_request_trace_equal==true and .request_identity_scope=="principal_id+token" and .hidden_identity_payload_retained==false and .coverage_mutated==false and .silent_fallback==false' generated/abi/diagnostic/WS33_G_ABI_REQUEST_EVIDENCE.json
+          python - <<'PY'
+          from pathlib import Path
+          rows=[x.split('\t') for x in Path('generated/abi/source/g-svar-af-cases.tsv').read_text().splitlines() if x]
+          assert len(rows)==21
+          assert all(len(x)==19 for x in rows)
+          assert len({x[1] for x in rows})==21
+          assert sum(x[10]=='1' for x in rows)==19
+          assert sum(x[11]=='1' for x in rows)==4
+          assert sum(x[12]=='1' for x in rows)==12
+          assert sum(x[13]=='1' for x in rows)==9
+          print('WS33_G_SVAR_AF_PRINCIPAL_SOURCE=PASS paths=21 hidden=19 rng=4 replay=12 decision=9')
+          PY
+
+      - name: Verify immutable AF behavior artifact identity remains available
+        env: {GH_TOKEN: '${{ github.token }}'}
+        shell: bash
+        run: |
+          set -euo pipefail
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$AF_BEHAVIOR_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$meta")" = "$AF_BEHAVIOR_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$meta")" = "$AF_BEHAVIOR_SOURCE_HEAD"
+
+      - name: Checkout immutable runtime and AF behavior sources
+        uses: actions/checkout@v4
+        with: {ref: '${{ env.DIRECT_RUNTIME_SOURCE_HEAD }}', path: direct-source, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.AF_BEHAVIOR_SOURCE_HEAD }}', path: af-source, fetch-depth: 1}
+      - name: Checkout pinned Forge
+        uses: actions/checkout@v4
+        with: {repository: Card-Forge/forge, ref: '${{ env.FORGE_PIN }}', path: forge, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.WS01_HEAD }}', path: ws01, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.WS12_HEAD }}', path: ws12, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.WS32_HEAD }}', path: ws32, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.WS31_HIST_HEAD }}
+          path: ws31-historical
+          fetch-depth: 1
+          sparse-checkout: |
+            research/greenfield-qualification/actual-card-behavior/ws31/forge-overlay/Ws31HiddenRngReplayQualificationTest.java
+
+      - name: Verify exact source pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C direct-source rev-parse HEAD)" = "$DIRECT_RUNTIME_SOURCE_HEAD"
+          test "$(git -C direct-source rev-parse 'HEAD^{tree}')" = "$DIRECT_RUNTIME_SOURCE_TREE"
+          test "$(git -C af-source rev-parse HEAD)" = "$AF_BEHAVIOR_SOURCE_HEAD"
+          test "$(git -C af-source rev-parse 'HEAD^{tree}')" = "$AF_BEHAVIOR_SOURCE_TREE"
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          test "$(git -C ws01 rev-parse HEAD)" = "$WS01_HEAD"
+          test "$(git -C ws12 rev-parse HEAD)" = "$WS12_HEAD"
+          test "$(git -C ws32 rev-parse HEAD)" = "$WS32_HEAD"
+          test "$(git -C ws31-historical rev-parse HEAD)" = "$WS31_HIST_HEAD"
+
+      - name: Apply green AF runtime plus Direct-G principal-observation transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch | tee generated/overlay-logs/ws01.log
+          python direct-source/research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge | tee generated/overlay-logs/ws05.log
+          cp direct-source/research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          python direct-source/research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/record/RNG_INVENTORY.json | tee generated/overlay-logs/ws06.log
+          python direct-source/$ROOT/runtime-overlays/apply-ws33-input-confirm.py --forge-root forge | tee generated/overlay-logs/ws33-input-confirm.log
+          python "$ROOT/runtime-overlays/apply-ws33-observation-fanout.py" --forge-root forge | tee generated/overlay-logs/ws33-observation-fanout.log
+          python "$ROOT/runtime-overlays/apply-ws33-external-card-decision-lifetime.py" --forge-root forge | tee generated/overlay-logs/ws33-card-decision-lifetime.log
+          python direct-source/$ROOT/runtime-overlays/apply-ws33-stack-target.py --forge-root forge | tee generated/overlay-logs/ws33-stack-target.log
+          python af-source/$ROOT/runtime-overlays/apply-ws33-target-selection.py --forge-root forge | tee generated/overlay-logs/ws33-target-selection.log
+          python af-source/$ROOT/runtime-overlays/apply-ws33-svar-reachability.py --forge-root forge | tee generated/overlay-logs/ws33-svar-reachability.log
+          python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py --forge-root forge | tee generated/overlay-logs/ws12.log
+          python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py --forge-root forge | tee generated/overlay-logs/ws32.log
+          grep -F 'WS33_OBSERVATION_FANOUT=PASS' generated/overlay-logs/ws33-observation-fanout.log
+          grep -F 'WS33_EXTERNAL_CARD_DECISION_LIFETIME=PASS' generated/overlay-logs/ws33-card-decision-lifetime.log
+          grep -F 'WS33_FORGE_TEMP_SHOW_CLOSE_BOUNDARY=AUTHORITATIVE_CARD_REQUEST_RETURN' generated/overlay-logs/ws33-card-decision-lifetime.log
+
+      - name: Prepare AF principal-observation harness and Direct-G anchor compatibility proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          src=ws31-historical/research/greenfield-qualification/actual-card-behavior/ws31/forge-overlay/Ws31HiddenRngReplayQualificationTest.java
+          dst=forge/forge-gui-desktop/src/test/java/forge/net/Ws33GSVarAfQualificationTest.java
+          python direct-source/$ROOT/ws33_prepare_g_ability_harness.py --source "$src" --out "$dst"
+          python af-source/$ROOT/ws33_prepare_g_svar_af_harness.py --harness "$dst"
+          python "$ROOT/ws33_instrument_g_principal_observations.py" --harness "$dst" | tee generated/diagnostic/af-observation-instrument.log
+          grep -F 'WS33_G_PRINCIPAL_OBSERVATION_ATTRIBUTION=G_SVAR_AF' generated/diagnostic/af-observation-instrument.log
+          ! grep -F 'sa.resolve()' "$dst"
+          ! grep -F 'sa.getTargets().add(' "$dst"
+          grep -F 'prepareSourceParentChoices(spec,sa)' "$dst"
+          grep -F 'ExternalObservationTrace.setPath(spec.pathId)' "$dst"
+          grep -F 'AbilitySub.setWs33ResolutionObserver' "$dst"
+          grep -F 'getStack().addAndUnfreeze(sa)' "$dst"
+          grep -F 'getStack().resolveStack()' "$dst"
+          sha256sum "$dst" | tee generated/diagnostic/af-instrumented-harness.sha256
+
+          direct=generated/Ws33GAbilityQualificationTest.java
+          python direct-source/$ROOT/ws33_prepare_g_ability_harness.py --source "$src" --out "$direct"
+          python "$ROOT/ws33_instrument_g_principal_observations.py" --harness "$direct" | tee generated/diagnostic/direct-anchor-compat.log
+          grep -F 'WS33_G_PRINCIPAL_OBSERVATION_ATTRIBUTION=DIRECT_G' generated/diagnostic/direct-anchor-compat.log
+          grep -F 'ExternalObservationTrace.setPath(spec.pathId)' "$direct"
+          echo 'WS33_G_PRINCIPAL_OBSERVATION_DIRECT_G_COMPAT=PASS execution_rerun=FALSE'
+
+      - name: Verify principal-observation parser and ABI fail-closed regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile "$ROOT/ws33_adjudicate_g_principal_observation.py" "$ROOT/ws33_adjudicate_g_principal_observation_v4.py" "$ROOT/ws33_instrument_g_principal_observations.py"
+          PYTHONPATH="$ROOT" python - <<'PY'
+          import base64, tempfile
+          from pathlib import Path
+          import ws33_adjudicate_g_principal_observation as p
+          rows=[x.split('\t') for x in Path('generated/abi/source/g-svar-af-cases.tsv').read_text().splitlines() if x]
+          with tempfile.TemporaryDirectory() as td:
+              root=Path(td)
+              af=root/'af.tsv'; af.write_text('\n'.join('\t'.join(x) for x in rows)+'\n')
+              parsed=p.load_cases(af)
+              assert len(parsed)==21
+              assert {x['case_abi'] for x in parsed.values()}=={p.G_SVAR_AF_V19}
+              assert sum(x['hidden'] for x in parsed.values())==19
+              for fields in rows:
+                  assert parsed[fields[1]]['api']==fields[17]
+                  assert parsed[fields[1]]['script']==base64.b64decode(fields[18]).decode()
+              direct=['1','forge-behavior-v2:compat','oracle','Compat','Dig','DigEffect','x','1','ABILITY','SP$','1','0','0','0',base64.b64encode(b'DB$ Dig | ChangeNum$ All').decode()]
+              dp=root/'direct.tsv'; dp.write_text('\t'.join(direct)+'\n')
+              d=p.load_cases(dp)['forge-behavior-v2:compat']
+              assert d['case_abi']==p.DIRECT_G_V15 and d['api']=='Dig'
+              mixed=root/'mixed.tsv'; mixed.write_text('\t'.join(direct)+'\n'+'\t'.join(rows[0])+'\n')
+              try: p.load_cases(mixed)
+              except SystemExit: pass
+              else: raise AssertionError('mixed ABI was not rejected')
+          print('WS33_G_PRINCIPAL_OBSERVATION_ABI_REGRESSION=PASS direct_v15=TRUE af_v19=TRUE mixed_fail_closed=TRUE')
+          PY
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with: {distribution: temurin, java-version: '21'}
+
+      - name: Fresh AF principal-observation record execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws33GSVarAfQualificationTest \
+            -Dws31.cases="$GITHUB_WORKSPACE/generated/abi/source/g-svar-af-cases.tsv" \
+            -Dws31.outDir="$GITHUB_WORKSPACE/generated/record" -Dws31.mode=record \
+            -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) 2>&1 | tee generated/record/runtime.log
+          test -s generated/record/case-summary.tsv
+          test -s generated/record/decision-tape.tsv
+          test -s generated/record/rng-tape.tsv
+          test -s generated/record/PRINCIPAL_OBSERVATIONS.jsonl
+          python - <<'PY'
+          from pathlib import Path
+          rows=[x.split('\t') for x in Path('generated/record/case-summary.tsv').read_text().splitlines() if x]
+          assert len(rows)==21
+          bad=[(x[0],x[4],x[9],x[10],x[14],x[15],x[18:21]) for x in rows if len(x)<21 or x[4]!='PASS' or x[9]!='0' or x[10]!='0' or x[14] or x[15] or x[18]!='1' or x[19]!='1' or int(x[20])<1]
+          if bad: raise SystemExit('WS33_G_SVAR_AF_PRINCIPAL_RECORD=FAIL '+repr(bad))
+          print('WS33_G_SVAR_AF_PRINCIPAL_RECORD=PASS paths=21 leaks=0 cross_principal=0 target_reachability=21')
+          PY
+
+      - name: Tape-driven AF principal-observation replay execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.net.Ws33GSVarAfQualificationTest \
+            -Dws31.cases="$GITHUB_WORKSPACE/generated/abi/source/g-svar-af-cases.tsv" \
+            -Dws31.outDir="$GITHUB_WORKSPACE/generated/replay" -Dws31.mode=replay \
+            -Dws31.decisionReplay="$GITHUB_WORKSPACE/generated/record/decision-tape.tsv" \
+            -Dws31.rngReplay="$GITHUB_WORKSPACE/generated/record/rng-tape.tsv" \
+            -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) 2>&1 | tee generated/replay/runtime.log
+          test -s generated/replay/PRINCIPAL_OBSERVATIONS.jsonl
+          cmp generated/record/case-summary.tsv generated/replay/case-summary.tsv
+          cmp generated/record/decision-tape.tsv generated/replay/decision-tape.tsv
+          cmp generated/record/decision-events-with-path.tsv generated/replay/decision-events-with-path.tsv
+          cmp generated/record/rng-tape.tsv generated/replay/rng-tape.tsv
+          cmp generated/record/rng-events-with-path.tsv generated/replay/rng-events-with-path.tsv
+          echo 'WS33_G_SVAR_AF_PRINCIPAL_SEMANTIC_REPLAY=PASS paths=21'
+
+      - name: Prove observation-only nonperturbation against immutable AF ABI record
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmp generated/abi/record/decision-tape.tsv generated/record/decision-tape.tsv
+          cmp generated/abi/record/decision-events-with-path.tsv generated/record/decision-events-with-path.tsv
+          cmp generated/abi/record/rng-tape.tsv generated/record/rng-tape.tsv
+          cmp generated/abi/record/rng-events-with-path.tsv generated/record/rng-events-with-path.tsv
+          python - <<'PY'
+          from pathlib import Path
+          old={x.split('\t')[0]:x.split('\t') for x in Path('generated/abi/record/case-summary.tsv').read_text().splitlines() if x}
+          new={x.split('\t')[0]:x.split('\t') for x in Path('generated/record/case-summary.tsv').read_text().splitlines() if x}
+          assert set(old)==set(new) and len(old)==21
+          for pid in old:
+              a,b=old[pid],new[pid]
+              assert len(a)>=21 and len(b)>=21
+              # Column 9 is the historical coarse hidden-leak counter being superseded
+              # by principal-scoped v4 evidence. Every other retained behavior field is
+              # required to remain byte-identical.
+              assert a[:9]+a[10:] == b[:9]+b[10:], (pid,a,b)
+          print('WS33_G_SVAR_AF_PRINCIPAL_NONPERTURBATION=PASS only_permitted_summary_delta=coarse_hidden_leak_column_9')
+          PY
+
+      - name: Strict AF target-consumer principal-observation adjudication
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_adjudicate_g_principal_observation_v4.py" \
+            --cases generated/abi/source/g-svar-af-cases.tsv \
+            --record-dir generated/record \
+            --replay-dir generated/replay \
+            --out generated/diagnostic/WS33_G_AF_PRINCIPAL_OBSERVATION.json \
+            --source-case-artifact-id "$AF_BEHAVIOR_ARTIFACT_ID" \
+            --expected-paths 21
+          jq -e '.schema=="commander-simulator-next.ws33-g-principal-observation.v3" and .status=="PASS" and .failure_count==0 and .case_abi=="G_SVAR_AF_V19" and .expected_paths==21 and .hidden_required_paths==19 and .record_path_coverage==21 and .replay_path_coverage==21 and .principal_transport=="REMOTE_CLIENT_DELTA" and .retained_hidden_identity_payload==false and .temporary_observation_revocation_required==true and .hidden_leak_delta_required==0 and .cross_principal_delta_required==0 and .coverage_mutated==false and ((.observation_profile_counts.UNKNOWN_HIDDEN_CONSUMER // 0)==0)' generated/diagnostic/WS33_G_AF_PRINCIPAL_OBSERVATION.json
+
+      - name: Materialize immutable source-chain and content hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          head="$(cat generated/diagnostic/workflow-source-head.txt)"
+          tree="$(cat generated/diagnostic/workflow-source-tree.txt)"
+          jq -n \
+            --arg head "$head" --arg tree "$tree" --arg forge "$FORGE_PIN" --arg model "$MODEL_SHA" \
+            --arg behavior_id "$AF_BEHAVIOR_ARTIFACT_ID" --arg behavior_digest "$AF_BEHAVIOR_ARTIFACT_DIGEST" \
+            --arg abi_head "$AF_ABI_SOURCE_HEAD" --arg abi_tree "$AF_ABI_SOURCE_TREE" \
+            --arg abi_id "$AF_ABI_ARTIFACT_ID" --arg abi_digest "$AF_ABI_ARTIFACT_DIGEST" \
+            '{schema:"commander-simulator-next.ws33-g-af-principal-observation-source-chain.v1",workflow_source_head:$head,workflow_source_tree:$tree,forge_pin:$forge,effective_model_sha256:$model,af_behavior_artifact_id:($behavior_id|tonumber),af_behavior_artifact_digest:$behavior_digest,af_abi_source_head:$abi_head,af_abi_source_tree:$abi_tree,af_abi_artifact_id:($abi_id|tonumber),af_abi_artifact_digest:$abi_digest,coverage_mutated:false,status:"PASS"}' \
+            > generated/diagnostic/SOURCE_CHAIN.json
+          (cd generated && find diagnostic record replay overlay-logs abi/diagnostic -type f -print0 | sort -z | xargs -0 sha256sum) > generated/diagnostic/EVIDENCE_SHA256SUMS.txt
+          git diff --exit-code
+          echo 'WS33_G_SVAR_AF_PRINCIPAL_COVERAGE_MUTATED=FALSE'
+
+      - name: Upload immutable AF principal-observation v4 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-g3-svar-af-principal-observation-v4-${{ github.run_id }}
+          path: |
+            generated/diagnostic
+            generated/record
+            generated/replay
+            generated/overlay-logs
+            generated/abi/diagnostic/WS33_G_ABI_REQUEST_EVIDENCE.json
+            generated/abi/source/g-svar-af-cases.tsv
+          if-no-files-found: error
+          retention-days: 90
