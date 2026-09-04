@@ -60,12 +60,27 @@ def patch_triggered_sources_sacrifice_cost(harness: Path) -> None:
 '''
     text = replace_once(text, class_anchor, class_insert, "HumanCostDecision class helper")
 
-    amount_anchor = '''        int c = cost.getAbilityAmount(ability);
+    amount_anchor = '''        CardCollectionView list = CardLists.filter(player.getCardsIn(ZoneType.Battlefield), CardPredicates.canBeSacrificedBy(ability, isEffect()));
+        list = CardLists.getValidCards(list, type.split(";"), player, source, ability);
+
+        if (amount.equals("All")) {
+            return PaymentDecision.card(list);
+        }
+
+        int c = cost.getAbilityAmount(ability);
         if (0 == c) {
 '''
-    amount_insert = '''        int c = cost.getAbilityAmount(ability);
+    amount_insert = '''        CardCollectionView list = CardLists.filter(player.getCardsIn(ZoneType.Battlefield), CardPredicates.canBeSacrificedBy(ability, isEffect()));
+        list = CardLists.getValidCards(list, type.split(";"), player, source, ability);
+
+        if (amount.equals("All")) {
+            return PaymentDecision.card(list);
+        }
+
+        int c = cost.getAbilityAmount(ability);
         if (ws33TraceTriggeredSourcesSacrifice(ability, type)) {
-            final Object ws33Sources = ability.getTriggeringObject(forge.game.ability.AbilityKey.Sources);
+            final SpellAbility ws33Root = ability.getRootAbility();
+            final Object ws33Sources = ws33Root == null ? null : ws33Root.getTriggeringObject(forge.game.ability.AbilityKey.Sources);
             System.err.println("WS33_SACRIFICE_COST\\tCANDIDATES\\t" + ws33AbilityIdentity(ability)
                     + "\\trequired=" + c + "\\tmandatory=" + mandatory
                     + "\\tsources=" + ws33CardIds(ws33Sources)
@@ -73,9 +88,11 @@ def patch_triggered_sources_sacrifice_cost(harness: Path) -> None:
         }
         if (0 == c) {
 '''
-    text = replace_once(text, amount_anchor, amount_insert, "TriggeredSources sacrifice candidates")
+    text = replace_once(text, amount_anchor, amount_insert, "CostSacrifice TriggeredSources candidate site")
 
-    selection_anchor = '''        inp.setCancelAllowed(!mandatory);
+    selection_anchor = '''        final InputSelectCardsFromList inp = new InputSelectCardsFromList(controller, c, c, list, ability);
+        inp.setMessage(Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", cost.getDescriptiveType(), "%d"));
+        inp.setCancelAllowed(!mandatory);
         inp.showAndWait();
         if (inp.hasCancelled()) {
             return null;
@@ -83,7 +100,9 @@ def patch_triggered_sources_sacrifice_cost(harness: Path) -> None:
 
         return PaymentDecision.card(inp.getSelected());
 '''
-    selection_insert = '''        inp.setCancelAllowed(!mandatory);
+    selection_insert = '''        final InputSelectCardsFromList inp = new InputSelectCardsFromList(controller, c, c, list, ability);
+        inp.setMessage(Localizer.getInstance().getMessage("lblSelectATargetToSacrifice", cost.getDescriptiveType(), "%d"));
+        inp.setCancelAllowed(!mandatory);
         inp.showAndWait();
         final boolean ws33Cancelled = inp.hasCancelled();
         if (ws33TraceTriggeredSourcesSacrifice(ability, type)) {
@@ -98,19 +117,83 @@ def patch_triggered_sources_sacrifice_cost(harness: Path) -> None:
 
         return PaymentDecision.card(inp.getSelected());
 '''
-    text = replace_once(text, selection_anchor, selection_insert, "TriggeredSources sacrifice selection")
+    text = replace_once(text, selection_anchor, selection_insert, "CostSacrifice TriggeredSources selection site")
 
     for token in (
         "WS33_SACRIFICE_COST",
+        "getRootAbility()",
         "AbilityKey.Sources",
         "candidateCount=",
         "selectedCount=",
         "ws33Cancelled",
     ):
         if token not in text:
-            raise SystemExit("WS33_G_COST_TRACE=FAIL missing generated invariant: " + token)
+            raise SystemExit("WS33_G_COST_TRACE=FAIL missing generated HumanCostDecision invariant: " + token)
     path.write_text(text, encoding="utf-8")
-    print("WS33_G_COST_TRACE=PASS boundary=TRIGGERED_SOURCES_SACRIFICE observation_only=TRUE ids_only=TRUE")
+
+    cost_payment = forge_root / "forge-game/src/main/java/forge/game/cost/CostPayment.java"
+    payment_text = cost_payment.read_text(encoding="utf-8")
+    payment_anchor = '''                PaymentDecision pd = part.accept(decisionMaker);
+
+                // Right before we start paying as decided, we need to transfer the CostPayments matrix over?
+                if (pd != null) {
+                    pd.matrix = this;
+                }
+
+                if (pd == null || !part.payAsDecided(decisionMaker.getPlayer(), pd, ability, decisionMaker.isEffect())) {
+                    return false;
+                }
+                this.paidCostParts.add(part);
+'''
+    payment_insert = '''                PaymentDecision pd = part.accept(decisionMaker);
+                final boolean ws33TriggeredSourcesSacrifice = part instanceof CostSacrifice
+                        && ability != null && ability.isTrigger()
+                        && ((CostSacrifice) part).getType() != null
+                        && ((CostSacrifice) part).getType().contains("TriggeredSources");
+                if (ws33TriggeredSourcesSacrifice) {
+                    System.err.println("WS33_SACRIFICE_COST\\tDECISION\\t"
+                            + ability.getId() + "\\t" + ability.getSourceTrigger() + "\\t"
+                            + (ability.getHostCard() == null ? -1 : ability.getHostCard().getId()) + "\\t"
+                            + (ability.getApi() == null ? "" : ability.getApi().name())
+                            + "\\tdecisionNull=" + (pd == null));
+                }
+
+                // Right before we start paying as decided, we need to transfer the CostPayments matrix over?
+                if (pd != null) {
+                    pd.matrix = this;
+                }
+
+                if (pd == null) {
+                    if (ws33TriggeredSourcesSacrifice) {
+                        System.err.println("WS33_SACRIFICE_COST\\tRESULT\\t"
+                                + ability.getId() + "\\t" + ability.getSourceTrigger()
+                                + "\\tresult=false\\treason=DECISION_NULL");
+                    }
+                    return false;
+                }
+                final boolean ws33PaidAsDecided = part.payAsDecided(decisionMaker.getPlayer(), pd, ability, decisionMaker.isEffect());
+                if (ws33TriggeredSourcesSacrifice) {
+                    System.err.println("WS33_SACRIFICE_COST\\tRESULT\\t"
+                            + ability.getId() + "\\t" + ability.getSourceTrigger()
+                            + "\\tresult=" + ws33PaidAsDecided + "\\treason=PAY_AS_DECIDED");
+                }
+                if (!ws33PaidAsDecided) {
+                    return false;
+                }
+                this.paidCostParts.add(part);
+'''
+    payment_text = replace_once(payment_text, payment_anchor, payment_insert, "CostPayment human payment result site")
+    for token in (
+        "ws33TriggeredSourcesSacrifice",
+        "decisionNull=",
+        "reason=DECISION_NULL",
+        "reason=PAY_AS_DECIDED",
+    ):
+        if token not in payment_text:
+            raise SystemExit("WS33_G_COST_TRACE=FAIL missing generated CostPayment invariant: " + token)
+    cost_payment.write_text(payment_text, encoding="utf-8")
+
+    print("WS33_G_COST_TRACE=PASS boundary=TRIGGERED_SOURCES_SACRIFICE observation_only=TRUE root_sources=TRUE selection=TRUE payment_result=TRUE ids_only=TRUE")
 
 
 def main() -> None:
