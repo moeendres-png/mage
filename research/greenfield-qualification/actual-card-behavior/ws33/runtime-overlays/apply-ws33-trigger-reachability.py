@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-"""Apply WS33 trigger admission observation plus the adjudicated singleton-selection repair.
+"""Apply WS33 trigger admission observation plus focused spawned-trigger diagnostics.
 
-The trigger hook fires only after TriggerHandler accepted a trigger through its production
-canRunTrigger path and admitted the WrappedAbility to the simultaneous stack. It remains
-observation-only. For dynamically spawned triggers, additional stderr-only diagnostics
-report the exact isTriggerActive/canRunTrigger gate that accepted or rejected the trigger.
-No diagnostic changes a boolean result, event fact, target, cost, RNG, stack order, or
-trigger legality.
+The TriggerHandler hook fires only after production legality accepted a trigger and admitted
+its WrappedAbility to the simultaneous stack. For dynamically spawned triggers, stderr-only
+diagnostics report the exact isTriggerActive/canRunTrigger gate. A second observation-only
+patch reports the relevant TriggerSpellAbilityCastOrCopy.performTest subgate for spawned
+TriggersWhenSpent triggers. No diagnostic changes a boolean result, event fact, target, cost,
+RNG, stack order, trigger legality, or pilot choice.
 
 After those patches are installed, this entry point delegates to the focused
 `apply-ws33-nondiscretionary-ability-selection.py` overlay, whose separately frozen source
 adjudication restores pinned Desktop Forge's no-trigger-event behavior only when the
 Rules-Core-produced additional-cost ability list contains exactly one object.
-
-No trigger legality, event fact, target, cost, RNG, stack ordering, or multi-option pilot
-choice is inferred or bypassed here.
 """
 from __future__ import annotations
 
@@ -262,6 +259,135 @@ def main() -> None:
 
     path.write_text(src, encoding="utf-8")
 
+    spell_path = args.forge_root / "forge-game/src/main/java/forge/game/trigger/TriggerSpellAbilityCastOrCopy.java"
+    spell_src = spell_path.read_text(encoding="utf-8")
+
+    spell_class_anchor = "public class TriggerSpellAbilityCastOrCopy extends Trigger {\n"
+    spell_class_insert = """public class TriggerSpellAbilityCastOrCopy extends Trigger {
+
+    private void ws33TraceSpawnedPerformTest(final String stage, final boolean result,
+            final SpellAbility spellAbility, final Card cast, final Player activator) {
+        if (getSpawningAbility() == null) {
+            return;
+        }
+        final SpellAbility spawning = getSpawningAbility();
+        final Card host = getHostCard();
+        final Card spawningHost = spawning.getHostCard();
+        int identityMatches = 0;
+        if (spellAbility != null) {
+            for (Object remembered : getTriggerRemembered()) {
+                if (remembered == spellAbility) {
+                    identityMatches++;
+                }
+            }
+        }
+        System.err.println(
+                "WS33_TRIGGER_PERFORM\\t" + stage + "\\t" + result
+                        + "\\ttriggerId=" + getId()
+                        + "\\tmode=" + getMode()
+                        + "\\thostId=" + (host == null ? -1 : host.getId())
+                        + "\\thostName=" + (host == null ? "" : host.getName())
+                        + "\\tspawnAbilityId=" + spawning.getId()
+                        + "\\tspawnHostId=" + (spawningHost == null ? -1 : spawningHost.getId())
+                        + "\\tspawnHostName=" + (spawningHost == null ? "" : spawningHost.getName())
+                        + "\\tspellAbilityId=" + (spellAbility == null ? -1 : spellAbility.getId())
+                        + "\\tcastId=" + (cast == null ? -1 : cast.getId())
+                        + "\\tcastName=" + (cast == null ? "" : cast.getName())
+                        + "\\tcastCommander=" + (cast != null && cast.isCommander())
+                        + "\\tcastOwnerId=" + (cast == null || cast.getOwner() == null ? -1 : cast.getOwner().getId())
+                        + "\\tactivatorId=" + (activator == null ? -1 : activator.getId())
+                        + "\\trememberedCount=" + getTriggerRemembered().size()
+                        + "\\trememberedIdentityMatches=" + identityMatches
+                        + "\\trememberedContains=" + (spellAbility != null && getTriggerRemembered().contains(spellAbility)));
+    }
+"""
+    spell_src = replace_once(spell_src, spell_class_anchor, spell_class_insert, "spawned SpellCast performTest diagnostic declaration")
+
+    spell_src = replace_once(
+        spell_src,
+        """        if (spellAbility == null) {
+            System.out.println("TriggerSpellAbilityCast performTest encountered spellAbility == null. runParams2 = " + runParams);
+            return false;
+        }
+        final Card cast = spellAbility.getHostCard();
+""",
+        """        if (spellAbility == null) {
+            ws33TraceSpawnedPerformTest("MISSING_SPELL_ABILITY", false, null, null, null);
+            System.out.println("TriggerSpellAbilityCast performTest encountered spellAbility == null. runParams2 = " + runParams);
+            return false;
+        }
+        final Card cast = spellAbility.getHostCard();
+""",
+        "spawned SpellCast missing-SA diagnostic",
+    )
+
+    spell_src = replace_once(
+        spell_src,
+        """            if (!matchesValidParam("ValidActivatingPlayer", activator)) {
+                return false;
+            }
+""",
+        """            if (!matchesValidParam("ValidActivatingPlayer", activator)) {
+                ws33TraceSpawnedPerformTest("VALID_ACTIVATING_PLAYER", false, spellAbility, cast, activator);
+                return false;
+            }
+""",
+        "spawned SpellCast activator diagnostic",
+    )
+
+    spell_src = replace_once(
+        spell_src,
+        """        if (!matchesValidParam("ValidCard", cast)) {
+            return false;
+        }
+""",
+        """        if (!matchesValidParam("ValidCard", cast)) {
+            ws33TraceSpawnedPerformTest("VALID_CARD", false, spellAbility, cast,
+                    (Player) runParams.get(AbilityKey.Activator));
+            return false;
+        }
+""",
+        "spawned SpellCast ValidCard diagnostic",
+    )
+
+    spell_src = replace_once(
+        spell_src,
+        """        if (getSpawningAbility() != null && getSpawningAbility().hasParam("TriggersWhenSpent")) {
+            if (!getTriggerRemembered().contains(spellAbility)) {
+                return false;
+            }
+        }
+
+        return true;
+""",
+        """        if (getSpawningAbility() != null && getSpawningAbility().hasParam("TriggersWhenSpent")) {
+            if (!getTriggerRemembered().contains(spellAbility)) {
+                ws33TraceSpawnedPerformTest("TRIGGERS_WHEN_SPENT_REMEMBERED", false, spellAbility, cast,
+                        (Player) runParams.get(AbilityKey.Activator));
+                return false;
+            }
+        }
+
+        ws33TraceSpawnedPerformTest("PASS", true, spellAbility, cast,
+                (Player) runParams.get(AbilityKey.Activator));
+        return true;
+""",
+        "spawned SpellCast remembered/PASS diagnostic",
+    )
+
+    spell_required = (
+        "WS33_TRIGGER_PERFORM",
+        "MISSING_SPELL_ABILITY",
+        "VALID_ACTIVATING_PLAYER",
+        "VALID_CARD",
+        "TRIGGERS_WHEN_SPENT_REMEMBERED",
+        "rememberedIdentityMatches",
+        "ws33TraceSpawnedPerformTest(\"PASS\"",
+    )
+    if not all(token in spell_src for token in spell_required):
+        raise SystemExit("WS33_TRIGGER_REACHABILITY=FAIL incomplete spawned SpellCast performTest diagnostics")
+    spell_path.write_text(spell_src, encoding="utf-8")
+
     repair = Path(__file__).with_name("apply-ws33-nondiscretionary-ability-selection.py")
     if not repair.is_file():
         raise SystemExit("WS33_TRIGGER_REACHABILITY=FAIL missing adjudicated singleton-selection overlay")
@@ -270,7 +396,7 @@ def main() -> None:
         check=True,
     )
 
-    print("WS33_TRIGGER_REACHABILITY=PASS boundary=POST_LEGALITY_POST_SIMULTANEOUS_STACK_ADMISSION spawned_trigger_gate_diagnostics=OBSERVATION_ONLY observation_semantics_mutated=FALSE singleton_selection_repair=AUTHORITATIVE_SIZE_ONE_ONLY")
+    print("WS33_TRIGGER_REACHABILITY=PASS boundary=POST_LEGALITY_POST_SIMULTANEOUS_STACK_ADMISSION spawned_trigger_gate_diagnostics=OBSERVATION_ONLY spawned_spellcast_performtest_diagnostics=OBSERVATION_ONLY observation_semantics_mutated=FALSE singleton_selection_repair=AUTHORITATIVE_SIZE_ONE_ONLY")
 
 
 if __name__ == "__main__":
