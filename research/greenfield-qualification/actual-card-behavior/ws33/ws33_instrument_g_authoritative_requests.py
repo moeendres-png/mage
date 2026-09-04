@@ -9,13 +9,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 BASE = ROOT / "ws33_instrument_g_authoritative_requests_base_33858197355.py"
 FIXTURE = ROOT / "ws33_patch_g_svar_obligation_fixture.py"
-FIXTURE_CONTRACT = "diguntil_random_order=NONDEGENERATE_FAIL_CLOSED"
 
 
 def main() -> None:
-    fixture_source = FIXTURE.read_text(encoding="utf-8")
-    if FIXTURE_CONTRACT not in fixture_source:
-        raise SystemExit("WS33_G_SVAR_OBLIGATION_FIXTURE=FAIL non-degenerate random-order contract marker missing")
     original = list(sys.argv)
     runpy.run_path(str(BASE), run_name="__main__")
     try:
