@@ -21,12 +21,12 @@ Only the final serial `G3 -> ABC -> D -> E -> F` successor with all 4188 effecti
 
 ## Current confirmed checkpoint
 
-`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33819960784_FAILURE`
+`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33820366293_FAILURE`
 
 Checkpoint:
-`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33819960784_FAILURE.md`
+`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33820366293_FAILURE.md`
 
-Run `33819960784` / job `100860290828` is terminal `failure`. The lifecycle-enhanced Forge overlay applies, compiles and executes the full record campaign without changing the prior first-parent outcome. Because the harness at this source did not register the new lifecycle observer, the artifact intentionally contains no parent-correlated stack-lifecycle evidence. The next authorized change is only the harness-side consumer for the already-present observation-only lifecycle callback.
+Run `33820366293` / job `100861534555` is terminal `failure`. Parent-correlated lifecycle evidence now rules out both a post-fizzle matcher false-negative and `MagicStack.hasFizzled` for the first `Ingenious Smith` parent: its admitted/bound `TrigDig` produces zero `MagicStack.add` lifecycle callbacks. The first unresolved production boundary is therefore inside `PlayerControllerHuman.orderAndPlaySimultaneousSa -> PlaySpellAbility.playSpellAbility` before `MagicStack.addAndUnfreeze/add`. No semantic repair is authorized until the exact first rejected play prerequisite is directly observed.
 
 ## G3 immutable evidence — do not rerun for reassurance
 
@@ -75,106 +75,63 @@ Remaining production-parent modes: ChangesZone `12`, Phase `6`, Attacks `5`, Dam
 
 Invariant: Kang Prime retains both real source-proven parent entrypoints.
 
-## Non-AF runtime attempts
+## Non-AF runtime attempt chain
 
-### Attempt 1 — adjudicated
+### Attempts 1–3 — pre-runtime/hash/anchor/ChangesZone fixture
 
-- source `0b1afc7be70f5a74b38516e3848f526f3693eac4`
-- run `33797779388`, job `100789526018`, failure before runtime
-- cause: topology consumer-model hash `82638e...` was incorrectly compared to manifest-file hash `cd48f...`.
+- `33797779388`: pre-runtime consumer-model hash vs manifest-file hash confusion; repaired.
+- `33798342466`: pinned MagicStack declaration anchor mismatch; repaired.
+- `33798608932` / artifact `9910414457` / digest `sha256:796d734fe0f3074319d4471e691ce356f4fe16d7661f8aee5223d48f1cf521c1`: Step14 PASS, Step15 FAIL, first Ingenious parent `0/0/0`; confirmed event-fixture defect (`ZoneType` vs production zone-name Strings); repair commit `3bf09bc325ee5094d2a4874bbc133520f5f759dc`.
 
-### Attempt 2 — adjudicated
+### Attempt 4 — first admitted/bound runtime boundary
 
-- source `935da1abf48b84f85e4265a26ba65fb546e8cb07`
-- run `33798342466`, job `100791376533`, partial artifact `9910100377`
-- digest `sha256:ced3f9f26efe6f0540b4d8b661f5afad0fea2adc5071762866864658d1fb846a`
-- cause: observation-only MagicStack overlay used a class-declaration anchor that omitted pinned Forge's literal `/* extends MyObservable */` comment.
-
-### Attempt 3 — adjudicated and repaired
-
-- source HEAD `26ec46d852a731054e8719e5bf1ea37bef3f6ea6`
-- source TREE `793c1e3c10cf07f4d0b432a56aa0f90e73eb7fe0`
-- run `33798608932`, job `100792262743`
-- artifact `9910414457`
-- digest `sha256:796d734fe0f3074319d4471e691ce356f4fe16d7661f8aee5223d48f1cf521c1`
-- Step 14 PASS; Step 15 FAIL; replay NOT RUN; coverage promotion FALSE.
-- first parent `Ingenious Smith/ChangesZone` = `0/0/0` admission/binding/execution.
-- confirmed cause: event fixture supplied `ZoneType` enums where pinned production `GameAction.changeZone` supplies zone-name Strings.
-- narrow repair commit `3bf09bc325ee5094d2a4874bbc133520f5f759dc` changed only `AbilityKey.Origin/Destination` to `.name()` values.
-
-### Attempt 4 — terminal runtime evidence
-
-- source HEAD `3bf09bc325ee5094d2a4874bbc133520f5f759dc`
-- source TREE `8e0a65344e4257fa51e2b15dfdac35e4883bd9ae`
 - run `33816948410`, job `100851076967`
-- artifact `9916940071`
-- digest `sha256:4e1ed01602e46b796bdcd257964e9fc56d32aa370112c94cc57c64d8ef8b0871`
-- Step 14 PASS; Step 15 FAIL; replay NOT RUN; coverage promotion FALSE.
-- first parent `forge-behavior-v2:172ab06795f99590ca9d96f85995f6cf9e083ee8#1` (`Ingenious Smith`, `ChangesZone`) = admission/binding/execution `1/1/0`.
-- artifact-wide: 33 parents; one `1/1/1` PASS (`Descendants' Fury`); 24 failures at `1/1/0`; eight later event-specific failures.
+- artifact `9916940071`, digest `sha256:4e1ed01602e46b796bdcd257964e9fc56d32aa370112c94cc57c64d8ef8b0871`
+- first Ingenious parent becomes `1/1/0`; 1/33 parent PASS, 24 rows `1/1/0`, eight later event-specific failures.
 
-### Attempt 5 — diagnostic request-trace ABI failure
+### Attempts 5–6 — diagnostic infrastructure defects
 
-- source HEAD `4c97b95ea3777f20ed2239f8a38aae82b2abc217`
-- source TREE `413096e4ba7bbb131edc31ebaf7534b519647fd3`
-- run `33817799382`, job `100853681886`
-- artifact `9917183980`
-- digest `sha256:9b15ab387e0bb920e800e38d13d96030bbd7371b05b93ff7e9919ceaf79051ac`
-- steps 1–11 PASS; step 12 FAIL; runtime/replay NOT RUN; evidence upload PASS.
-- cause: request-trace `replace_one_of` did not support the lineage-enhanced Event write chain.
-- repair commit `8446cfc72060156db63237cb7c4b00045ef72fbb` added one exact lineage Event ABI while keeping ambiguity fail-closed.
+- `33817799382` / artifact `9917183980`: request-trace ABI lacked lineage Event write shape; repaired by `8446cfc72060156db63237cb7c4b00045ef72fbb`.
+- `33818067742` / artifact `9917297622`: diagnostic `TreeMap` compile failure; repaired by `3e2260fe7b8a1a7a1d9fea932301b6fac3b3b3c6`.
 
-### Attempt 6 — diagnostic Java compile failure
+### Attempt 7 — post-fizzle lineage runtime evidence
 
-- source HEAD `8446cfc72060156db63237cb7c4b00045ef72fbb`
-- source TREE `f625b3cbaf0825bc17934e667858adf2defbec57`
-- run `33818067742`, job `100854474552`
-- artifact `9917297622`
-- digest `sha256:34a0f2185d19d19724b7e1d3c7dcffc0d1da764f6d4c5180f2bf2622aee806ea`
-- steps 1–13 PASS; step 14 failed during Maven `testCompile`; test body NOT EXECUTED.
-- cause: observation-only `mapHash` helper referenced unqualified `TreeMap` without inherited import.
-- compile repair commit `3e2260fe7b8a1a7a1d9fea932301b6fac3b3b3c6` changed only the diagnostic helper to `java.util.TreeMap`.
-
-### Attempt 7 — terminal lineage runtime evidence
-
-- source HEAD `3e2260fe7b8a1a7a1d9fea932301b6fac3b3b3c6`
-- source TREE `5f757dc8bc0c85fdea10d6e0cc8da762865e23a7`
 - run `33818428322`, job `100855531128`
-- artifact `9917438334`
-- digest `sha256:696556a4e4163308ec00ef123b691a9eaa73e6742058220ac1041d73cef7fa6f`
-- steps 1–14 PASS; Step 15 FAIL; replay/source-chain NOT RUN; evidence upload PASS.
-- first parent `Ingenious Smith/ChangesZone/TrigDig`: admissions `1`, bindings `1`, executions `0`, resolutionCallbacks `0`.
-- admitted target identity: ability `225`, sourceTrigger `50001`, host `96`, API `Dig`; original/current map fingerprints equal.
-- this directly rejects post-fizzle matcher false-negative for first parent and narrows the shared boundary to real-stack placement versus pre-observer fizzle.
+- source `3e2260fe7b8a1a7a1d9fea932301b6fac3b3b3c6`, tree `5f757dc8bc0c85fdea10d6e0cc8da762865e23a7`
+- artifact `9917438334`, digest `sha256:696556a4e4163308ec00ef123b691a9eaa73e6742058220ac1041d73cef7fa6f`
+- Step14 PASS, Step15 FAIL.
+- first parent admissions/bindings/executions `1/1/0`, resolutionCallbacks `0`, admitted ability `225`, sourceTrigger `50001`, host `96`, API `Dig`, equal original/current map fingerprints.
+- directly rejects post-fizzle matcher false-negative; boundary narrowed to real-stack placement vs fizzle.
 
 ### Attempt 8 — lifecycle overlay-only reproduction
 
-- source HEAD `8cc9085267174fa08ec44998dba75384638f70a0`
-- source TREE `46cd9b9d4f06fc1b485ae1d137e44cb5de5c85d7`
 - run `33819960784`, job `100860290828`
-- artifact `9917974166`
-- digest `sha256:88dbd82d6db6318517176497ade0713fd53454e236f7e381e76d79a5f4bfe97e`
-- downloaded ZIP re-hash matched exactly.
-- steps 1–14 PASS; Step 15 FAIL; replay/source-chain NOT RUN; evidence upload PASS.
-- first parent remains `1/1/0` with resolutionCallbacks `0`.
-- Forge overlay now exposes observation-only stages `ADD_ENTER`, `ADD_TARGET_REJECT`, `FROZEN_QUEUE`, `STACK_PUSH`, and `FIZZLE_RESULT` and still exposes post-fizzle pre-resolution callback.
-- harness at this source did not register the lifecycle observer, so no `stack-lifecycle.tsv` exists. This run proves overlay applicability and semantically neutral reproduction only; it does not resolve the placement/fizzle distinction.
+- source `8cc9085267174fa08ec44998dba75384638f70a0`, tree `46cd9b9d4f06fc1b485ae1d137e44cb5de5c85d7`
+- artifact `9917974166`, digest `sha256:88dbd82d6db6318517176497ade0713fd53454e236f7e381e76d79a5f4bfe97e`
+- lifecycle-enhanced MagicStack overlay applies/builds; harness did not yet consume observer; first result remains `1/1/0`, zero post-fizzle callbacks.
+
+### Attempt 9 — parent-correlated stack lifecycle evidence
+
+- run `33820366293`, job `100861534555`
+- source `a6980d1763237c185a41456c0da81b706e285902`, tree `46945f1682b4d5ab8a30474459ff0c9217c4f3eb`
+- artifact `9918110105`, digest `sha256:dd3e0b2e194654bc8fbca2acdff5c0a4411faba13b14b6d652fbf391832900df`
+- artifact ZIP re-hash matched exactly.
+- Steps 1–14 PASS; Step15 FAIL; replay/source-chain NOT RUN; evidence upload PASS.
+- `stack-lifecycle.tsv` exists with 11 rows.
+- first `Ingenious Smith` parent has **zero lifecycle rows**, therefore no `ADD_ENTER` and no possible MagicStack target reject/frozen/push/fizzle stage.
+- positive control `Descendants' Fury` records `ADD_ENTER -> FROZEN_QUEUE -> ADD_ENTER -> STACK_PUSH -> FIZZLE_RESULT=false` and then resolves.
+- conclusion: lifecycle observer functions; first admitted/bound target fails before `MagicStack.add`.
 
 ## Exact next atomic package
 
-1. Extend the already-invoked harness instrumentation so the lineage Event harness registers `MagicStack.setWs33StackLifecycleObserver` and records parent-correlated lifecycle rows.
-2. For each lifecycle callback record at least parent key, stage, boolean flag, wrapper state, effective ability ID, source-trigger ID, host ID, API, original/current map fingerprints, strict target-match observation, and admitted ability/source-trigger/host identity.
-3. Materialize `stack-lifecycle.tsv` in record/replay evidence and clear the observer during cleanup.
-4. Do not change `matchesTarget`, `targetExecutions`, TriggerHandler legality, target choices, MagicStack ordering, fizzle semantics, event fixtures, Decision/RNG/request semantics, or coverage.
-5. Commit only the harness-consumer instrumentation.
-6. Allow exactly one `ws33-g3-svar-event-runtime.yml` successor run and immediately persist run/job/source HEAD/TREE.
-7. Terminally adjudicate that artifact:
-   - no `ADD_ENTER` for admitted target => production `PlaySpellAbility` fails before MagicStack.add; instrument/inspect its exact prerequisite next;
-   - `ADD_ENTER` but no `STACK_PUSH`, with target rejection/frozen evidence => classify exact add-stage cause;
-   - `STACK_PUSH` plus `FIZZLE_RESULT=true` => inspect exact fizzle cause;
-   - `STACK_PUSH` plus `FIZZLE_RESULT=false` but no existing resolution callback => observer defect.
-8. Freeze a failure checkpoint and update this handoff before any repair/retry.
-9. Continue until Runtime strict PASS; then freeze Runtime before separate ABI/Decision/RNG/Replay certification and Principal Observation/Hidden31 qualification.
-10. Only after Direct28 + AF21 + non-AF32 satisfy all behavior/decision/RNG/replay/hidden/provenance/fail-closed contracts may G3 be promoted/frozen and serial closure proceed to `ABC -> D -> E -> F`.
+1. Add observation-only prerequisite telemetry to the exact production `PlaySpellAbility` path used by `PlayerControllerHuman.orderAndPlaySimultaneousSa` for non-copied triggers.
+2. Preserve evaluation order and return values while recording the first false/rejection stage among the applicable path, including optional/additional-cost selection, extra `sa.canPlay()` where applicable, `announceType`, `announceValuesLikeX`, `checkRestrictions`, target setup, cast timing, `isLegalAfterStack`, payment/prerequisite completion, and successful transition to `MagicStack.addAndUnfreeze`.
+3. Correlate stable parent key plus effective ability/source-trigger/host/API identity. Output an immutable play-prerequisite trace.
+4. Do not choose options, pay costs, mutate targets, bypass restrictions/timing, change trigger legality, change stack semantics, change `matchesTarget`/`targetExecutions`, fabricate Decision/RNG evidence, or mutate coverage.
+5. Commit diagnostic instrumentation separately; trigger exactly one successor run; persist run/job/source HEAD/TREE immediately.
+6. Terminally adjudicate the first Ingenious parent and repair only the directly confirmed systemic defect.
+7. Freeze every failure before repair/retry.
+8. Continue until Runtime strict PASS; then freeze Runtime before separate ABI/Decision/RNG/Replay certification and Principal Observation/Hidden31 qualification.
+9. Only after Direct28 + AF21 + non-AF32 satisfy all behavior/decision/RNG/replay/hidden/provenance/fail-closed contracts may G3 be promoted/frozen and serial closure proceed to `ABC -> D -> E -> F`.
 
 Control expectations remain non-authoritative until fresh successor computation: post-G3 PASS366/UNKNOWN3822; post-ABC 1920/2268; post-D 2840/1348; post-E 3869/319; post-F 4188/0.
