@@ -8,6 +8,8 @@ on:
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_g_svar_event_cases.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_g_svar_event_harness.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_instrument_g_authoritative_requests.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-observation-fanout.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-external-card-decision-lifetime.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-trigger-reachability.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-stack-resolution-reachability.py'
   workflow_dispatch:
@@ -19,7 +21,7 @@ permissions:
 env:
   ROOT: research/greenfield-qualification/actual-card-behavior/ws33
   FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
-  DIRECT_RUNTIME_SOURCE_HEAD: d8af15cb879bdfc3c40ce4cba3462da24ee3f272
+  DIRECT_RUNTIME_SOURCE_HEAD: d8af15cb879d93f272
   DIRECT_RUNTIME_SOURCE_TREE: 857dc01e04f58ca59437e08710bcb194bf030ea4
   TOPOLOGY_SOURCE_HEAD: 4032d9c14dc7840e2518a92273037aaba443ada9
   TOPOLOGY_RUN_ID: '33681121017'
@@ -111,6 +113,12 @@ jobs:
           cp direct-source/research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
           python direct-source/research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/record/RNG_INVENTORY.json | tee generated/overlay-logs/ws06.log
           python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge | tee generated/overlay-logs/ws33-input-confirm.log
+          python "$ROOT/runtime-overlays/apply-ws33-observation-fanout.py" --forge-root forge | tee generated/overlay-logs/ws33-observation-fanout.log
+          python "$ROOT/runtime-overlays/apply-ws33-external-card-decision-lifetime.py" --forge-root forge | tee generated/overlay-logs/ws33-card-decision-lifetime.log
+          grep -Fx 'WS33_OBSERVATION_FANOUT=PASS' generated/overlay-logs/ws33-observation-fanout.log
+          grep -Fx 'WS33_EXTERNAL_CARD_DECISION_LIFETIME=PASS' generated/overlay-logs/ws33-card-decision-lifetime.log
+          grep -Fx 'WS33_FORGE_TEMP_SHOW_RULES_MUTATION=0' generated/overlay-logs/ws33-card-decision-lifetime.log
+          grep -Fx 'WS33_FORGE_TEMP_SHOW_PILOT_FALLBACK=0' generated/overlay-logs/ws33-card-decision-lifetime.log
           python direct-source/$ROOT/runtime-overlays/apply-ws33-stack-target.py --forge-root forge | tee generated/overlay-logs/ws33-stack-target.log
           python "$ROOT/runtime-overlays/apply-ws33-target-selection.py" --forge-root forge | tee generated/overlay-logs/ws33-target-selection.log
           python "$ROOT/runtime-overlays/apply-ws33-trigger-reachability.py" --forge-root forge | tee generated/overlay-logs/ws33-trigger-reachability.log
