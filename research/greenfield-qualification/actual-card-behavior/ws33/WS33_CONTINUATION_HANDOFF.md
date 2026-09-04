@@ -20,17 +20,17 @@ Only the final serial `G3 -> ABC -> D -> E -> F` successor with all 4188 effecti
 
 ## Current confirmed checkpoint
 
-`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33851809027_FAILURE`
+`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33853539153_FAILURE`
 
 Checkpoint:
-`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33851809027_FAILURE.md`
+`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33853539153_FAILURE.md`
 
-Run `33851809027` / job `100956085252` is terminal `failure`.
+Run `33853539153` / job `100961524939` is terminal `failure`.
 
-- source HEAD `6fbb0150acf5b9d7c865ac90f0b485d97b482d30`
-- source TREE `73cc2fde2b9ff22a474b3f1460b67257a1d9231a`
-- artifact `9928708015`
-- digest `sha256:65dfc40f374e63bd67150a2bf77285358c38e9d25026102f11a9eef5909077e0`
+- source HEAD `98bf38cf6c97f81faacfdefd40b718909ae5494d`
+- source TREE `5fe6275585d6068d2fa92166fcf4693672b90c5b`
+- artifact `9929351802`
+- digest `sha256:126138f1ec2a6c84bad1f823c9814eeaf8213adb4815dbe67181f5a911ae6107`
 - downloaded ZIP re-hash: exact match
 - Steps 1–14 PASS
 - Step 15 FAIL
@@ -38,29 +38,52 @@ Run `33851809027` / job `100956085252` is terminal `failure`.
 - evidence upload PASS
 - coverage promotion FALSE
 
-### Attempt-11 material result
+### Attempt-13 material result
 
-The adjudicated non-discretionary singleton repair is effective. The previously blocked first parent (`Ingenious Smith`, `ChangesZone`, `TrigDig -> Dig`) now has admission/binding/execution `1/1/1` and reaches non-fizzled target-root resolution.
+The qualified principal-observation/lifetime stack fixed the preceding hidden-card boundary. The record campaign completes successfully and the strict parent adjudicator now sees:
 
-The new first failure occurs only inside Dig's authoritative hidden-card choice path:
+- 33 production parents total
+- 25 parent PASS / 8 parent FAIL
+- 32 effective paths total
+- 24 path PASS / 8 path FAIL
 
-`ExternalDecisionValidationException: UNSUPPORTED_DECISION_PATH: hidden authoritative Card choices require RemoteClient principal observation`
+No partial PASS is promoted.
 
-The exception originates from the WS33 hidden-card observation bridge installed by `apply-ws33-input-confirm.py`. `beginWs33ExternalCardObservation(...)` deliberately fails closed when hidden Card choices exist and the underlying `PlayerControllerHuman.gui` is not `RemoteClientGuiGame`.
+Remaining parent failures partition as:
 
-Do not relax this guard, expose hidden identities directly, auto-select hidden options, or use backend state as pilot observation.
+- 5 `Phase` parents with source-proven admission count 0;
+- 2 `AttackersDeclared` parents with `Player cannot be cast to Iterable` from the runParam shape;
+- 1 `Study Hall` `SpellCast`/`SVAR TrigSpent` parent with admission count 0 whose exact `canRunTrigger` rejection condition remains UNKNOWN.
 
-## Frozen singleton root-cause repair
+The five Phase failures are code-derived to a systemic harness ordering defect: `resetActiveTriggers()` is currently called before the target `devModeSet(...)`, while pinned Forge `isTriggerActive()` evaluates `phasesCheck(game)` during registration. The Phase precondition must be established before active-trigger rebuild.
 
-Root-cause checkpoint:
-`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_OPTIONAL_COST_SINGLETON_ROOT_CAUSE_20260904.md`
+The two AttackersDeclared failures are code-derived to a systemic runParam-shape defect: harness stores scalar `Player` in `AbilityKey.AttackedTarget`; pinned production `PhaseHandler` stores the aggregate attacked-target collection and `TriggerAttackersDeclared.setTriggeringObjects()` casts it to `Iterable<GameEntity>`.
 
-Pinned Forge `GameActionUtil.getAdditionalCostSpell` produces exactly one variant for the trigger wrapper; pinned Desktop `CMatchUI.getAbilityToPlay(..., triggerEvent=null)` returns a singleton directly. The strict GUI adapter did not preserve this non-choice behavior.
+Do not repair Study Hall by card name or inference. Add observation-only expected-trigger rejection telemetry if needed to identify its exact gate.
 
-Focused repair overlay:
-`research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-nondiscretionary-ability-selection.py`
+## Invalid run excluded
 
-It selects only when `abilities.size()==1`; empty and multi-option lists preserve the existing controller path. No multi-option fallback is introduced.
+Run `33853430763` / job `100961180376` came from a workflow rewrite with a truncated `DIRECT_RUNTIME_SOURCE_HEAD` and is permanently classified `INVALID / NOT QUALIFICATION EVIDENCE`.
+
+Checkpoint:
+`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33853430763_INVALID_PRE_RUNTIME.md`
+
+The exact source pin was restored before eligible run `33853539153`.
+
+## Frozen system repairs already validated
+
+### Non-discretionary singleton trigger-play selection
+
+Pinned Forge has exactly one playable additional-cost variant for these trigger wrappers. Desktop Forge returns a singleton without discretionary UI. The strict external path now preserves only that `size()==1` non-choice behavior; empty and multi-option paths remain unchanged/fail-closed. Attempt 11 proved the former first parent (`Ingenious Smith`) advances to admission/binding/execution `1/1/1`.
+
+### Principal-scoped hidden-card observation/lifetime
+
+Non-AF runtime now reuses the same qualified stack as Direct-G/AF:
+
+1. `apply-ws33-observation-fanout.py`
+2. `apply-ws33-external-card-decision-lifetime.py`
+
+Both PASS in run `33853539153` with zero rules mutation and zero pilot fallback. Step 14 record PASS confirms the old Dig hidden-card blocker is crossed.
 
 ## G3 immutable evidence — do not rerun without invalidation
 
@@ -102,19 +125,21 @@ It selects only when `abilities.size()==1`; empty and multi-option lists preserv
 7. `33818428322`: `resolutionCallbacks=0`; matcher false-negative excluded.
 8. `33819960784`: lifecycle overlay applies; harness not yet consuming it.
 9. `33820366293`: first parent never enters `MagicStack.add`; fizzle/stack-target rejection excluded.
-10. `33820842986`: first common rejection is `OPTIONAL_COST_SELECTION_NULL` before `playAbility(...)`.
-11. `33851809027`: singleton repair succeeds (`Ingenious Smith` becomes `1/1/1`); next blocker is strict hidden-card principal observation requiring `RemoteClientGuiGame`.
+10. `33820842986`: first common rejection `OPTIONAL_COST_SELECTION_NULL` before `playAbility(...)`.
+11. `33851809027`: singleton repair succeeds; next blocker principal-scoped hidden observation.
+12. `33853430763`: INVALID pre-runtime run from accidental source-pin truncation; excluded.
+13. `33853539153`: qualified observation/lifetime stack PASS, record Step 14 PASS; strict Step 15 leaves 8 event-shape/admission failures.
 
 ## Exact next atomic package
 
-1. Inspect the already-qualified RemoteClient/principal-observation setup from the stable Direct-G Principal Observation v4 and AF Principal Observation v5 workflows/harnesses.
-2. Compare that setup with the current event-runtime harness and identify the minimal missing binding: underlying `PlayerControllerHuman.gui`, RemoteClient lifecycle, transport barrier, or observation fanout/lifetime overlay.
-3. Reuse the existing qualified principal-scoped transport semantics. Do not invent a second observation model and do not weaken `beginWs33ExternalCardObservation`.
-4. Ensure runtime execution remains process-local/rules-authoritative while pilot-visible hidden choices are transported only through the entitled principal's decoded client projection.
-5. Persist the exact diagnosis before repair.
-6. Commit one systemic repair and allow exactly one successor event-runtime run. Immediately persist run/job/source HEAD/TREE.
-7. Terminally adjudicate; if the first failure advances, freeze it before any further repair.
-8. Continue until strict non-AF Runtime PASS for 32 effective paths / 33 parents; then freeze Runtime before separate ABI/Decision/RNG/Replay certification and Principal Observation/Hidden31 qualification.
-9. Only after Direct28 + AF21 + non-AF32 satisfy all contracts may G3 be promoted/frozen and serial closure proceed `ABC -> D -> E -> F`.
+1. Repair the two directly proven generic event-fixture defects only:
+   - establish `Phase` target state before `resetActiveTriggers()`;
+   - make `AttackersDeclared.AttackedTarget` the same aggregate Iterable shape as pinned production.
+2. Add observation-only diagnostics for the remaining expected `Study Hall / TriggersWhenSpent` trigger rejection if the exact `canRunTrigger` gate cannot be derived without guessing. Do not alter trigger legality.
+3. Persist the repair/telemetry source commit, allow exactly one successor event-runtime run, and immediately checkpoint run/job/source HEAD/TREE.
+4. Terminally adjudicate. If Study Hall remains the first/only failure, freeze the exact rejection evidence before repair.
+5. Continue until strict non-AF Runtime PASS for all 32 effective paths / 33 parents and required Decision22/RNG10 obligations.
+6. Freeze Runtime PASS, then perform a separate immutable ABI/Decision/RNG/Replay certification consuming the exact runtime artifact; then perform non-AF Principal Observation Hidden31 record/replay equivalence with no leaks.
+7. Only after Direct28 + AF21 + non-AF32 satisfy all contracts may G3 be promoted/frozen and serial closure proceed `ABC -> D -> E -> F`.
 
 Control expectations remain non-authoritative until fresh successor computation: post-G3 PASS366/UNKNOWN3822; post-ABC 1920/2268; post-D 2840/1348; post-E 3869/319; post-F 4188/0.
