@@ -58,6 +58,38 @@ public class CommanderInfoWatcher extends Watcher {
         }
     }
 
+    /**
+     * Restores accumulated Commander combat damage for a native saved-game or
+     * qualification state load. This is deliberately state restoration rather
+     * than event replay: callers must provide player identities from this live
+     * game and no synthetic historical damage events are fired.
+     *
+     * @param restoredDamage map of damaged player id to accumulated combat damage
+     * @param game live game whose player identities are authoritative
+     */
+    public void restoreDamageStateForGameLoad(Map<UUID, Integer> restoredDamage, Game game) {
+        if (restoredDamage == null || game == null) {
+            throw new IllegalArgumentException("restoredDamage and game are required");
+        }
+        Map<UUID, Integer> validated = new HashMap<>();
+        for (Map.Entry<UUID, Integer> entry : restoredDamage.entrySet()) {
+            UUID playerId = entry.getKey();
+            Integer amount = entry.getValue();
+            if (playerId == null || game.getPlayer(playerId) == null) {
+                throw new IllegalArgumentException("Commander damage restore references unknown player");
+            }
+            if (amount == null || amount < 0) {
+                throw new IllegalArgumentException("Commander damage restore amount must be nonnegative");
+            }
+            if (amount > 0) {
+                validated.put(playerId, amount);
+            }
+        }
+        damageToPlayer.clear();
+        damageToPlayer.putAll(validated);
+        addCardInfoToCommander(game);
+    }
+
     public void addCardInfoToCommander(Game game) {
         MageObject object = game.getPermanent(sourceId);
         MageObject leftObject = null;
