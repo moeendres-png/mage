@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run frozen WS33 request instrumentation, generic obligation fixtures, and observation-only cost tracing."""
+"""Run frozen WS33 request instrumentation, obligation fixtures, systemic entity binding, and cost tracing."""
 from __future__ import annotations
 import runpy
 import subprocess
@@ -24,6 +24,181 @@ def find_forge_root(harness: Path) -> Path:
         if (candidate / "forge-game").is_dir() and (candidate / "forge-gui").is_dir():
             return candidate
     raise SystemExit("WS33_G_COST_TRACE=FAIL could not resolve Forge root from harness path")
+
+
+def patch_authoritative_entity_list_binding(harness: Path) -> None:
+    """Replace WS01's generic choice:N synchronized entity bridge with typed entity identity.
+
+    Forge remains authoritative for validChoices, min/max, and cancel legality. The external
+    request carries entity option ids directly and uses the ABI cancel channel; the existing
+    strict input methods revalidate membership/counts when applying the response.
+    """
+    forge_root = find_forge_root(harness)
+    human = forge_root / "forge-gui/src/main/java/forge/player/PlayerControllerHuman.java"
+    human_text = human.read_text(encoding="utf-8")
+
+    helper_anchor = '''    private <T extends GameEntity> List<T> chooseExternalEntities(final FCollectionView<T> optionList,
+'''
+    helper_insert = r'''    public <T extends GameEntity> ExternalDecisionResponse requestWs33ExternalEntityInput(
+            final FCollectionView<T> optionList, final int min, final int max,
+            final boolean cancelAllowed, final SpellAbility sa, final String decisionKind) {
+        if (optionList == null || optionList.isEmpty()) {
+            throw new ExternalDecisionValidationException(
+                    ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
+                    "external entity input requires a non-empty authoritative option set");
+        }
+        if (min < 0 || max < min || min > optionList.size()) {
+            throw new ExternalDecisionValidationException(
+                    ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
+                    "invalid authoritative entity-input bounds");
+        }
+        final int effectiveMax = Math.min(max, optionList.size());
+        final List<ExternalDecisionRequest.Option> options = new ArrayList<>();
+        final Set<String> optionIds = new HashSet<>();
+        for (final T entity : optionList) {
+            final String optionId = ExternalDecisionRequest.optionIdFor(entity);
+            if (!optionIds.add(optionId)) {
+                throw new ExternalDecisionValidationException(
+                        ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
+                        "authoritative entity-input option ids are not unique");
+            }
+            options.add(new ExternalDecisionRequest.Option(optionId,
+                    ExternalDecisionRequest.optionKindFor(entity), entity.getId()));
+        }
+        final Map<String, String> constraints = new LinkedHashMap<>();
+        constraints.put("ordered", "false");
+        final Map<String, String> context = new LinkedHashMap<>();
+        context.put("controller", "PlayerControllerHuman:" + decisionKind);
+        context.put("decision_family", "ENTITY_SELECTION");
+        final ExternalDecisionResponse response;
+        final Ws33ExternalObservation observation = beginWs33ExternalCardObservation(optionList, decisionKind);
+        try {
+            response = requestExternalSelection(decisionKind, options, min, effectiveMax,
+                    cancelAllowed, ExternalDecisionRequest.RESPONSE_SCHEMA, constraints, context);
+        } finally {
+            endWs33ExternalCardObservation(observation);
+        }
+        return response;
+    }
+
+    private <T extends GameEntity> List<T> chooseExternalEntities(final FCollectionView<T> optionList,
+'''
+    human_text = replace_once(human_text, helper_anchor, helper_insert, "typed external entity-input helper")
+    for token in (
+        "requestWs33ExternalEntityInput(",
+        "ExternalDecisionRequest.optionIdFor(entity)",
+        "ExternalDecisionRequest.optionKindFor(entity)",
+        "beginWs33ExternalCardObservation(optionList, decisionKind)",
+        "cancelAllowed, ExternalDecisionRequest.RESPONSE_SCHEMA",
+    ):
+        if token not in human_text:
+            raise SystemExit("WS33_G_ENTITY_LIST_BINDING=FAIL missing PlayerControllerHuman invariant: " + token)
+    human.write_text(human_text, encoding="utf-8")
+
+    entities = forge_root / "forge-gui/src/main/java/forge/gamemodes/match/input/InputSelectEntitiesFromList.java"
+    entity_text = entities.read_text(encoding="utf-8")
+    drive_anchor = r'''    public void driveExternal() {
+        while (true) {
+            final List<String> actions = new ArrayList<>();
+            if (hasEnoughTargets()) {
+                actions.add("DONE");
+            }
+            if (allowCancel) {
+                actions.add("CANCEL");
+            }
+            for (final T entity : validChoices) {
+                actions.add("ENTITY:" + ExternalDecisionRequest.optionIdFor(entity));
+            }
+            if (actions.isEmpty()) {
+                throw new ExternalDecisionValidationException(
+                        ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
+                        "entity selection has no authoritative transition");
+            }
+            final String action = getController().chooseExternalUiOptions(actions, 1, 1, false, false,
+                    "ENTITY_LIST_SELECTION", value -> value).get(0);
+            if ("DONE".equals(action)) {
+                if (!hasEnoughTargets()) {
+                    throw new ExternalDecisionValidationException(
+                            ExternalDecisionValidationException.Code.ILLEGAL_OPTION,
+                            "entity selection minimum is not satisfied");
+                }
+                onOk();
+                return;
+            }
+            if ("CANCEL".equals(action)) {
+                if (!allowCancel) {
+                    throw new ExternalDecisionValidationException(
+                            ExternalDecisionValidationException.Code.CANCEL_NOT_ALLOWED,
+                            "entity selection cannot cancel");
+                }
+                onCancel();
+                return;
+            }
+            if (action != null && action.startsWith("ENTITY:")) {
+                final String optionId = action.substring("ENTITY:".length());
+                T selectedEntity = null;
+                for (final T candidate : validChoices) {
+                    if (ExternalDecisionRequest.optionIdFor(candidate).equals(optionId)) {
+                        selectedEntity = candidate;
+                        break;
+                    }
+                }
+                if (selectedEntity == null || !selectEntity(selectedEntity)) {
+                    throw new ExternalDecisionValidationException(
+                            ExternalDecisionValidationException.Code.ILLEGAL_OPTION,
+                            "entity selection token became stale");
+                }
+                if (hasAllTargets()) {
+                    onOk();
+                    return;
+                }
+                continue;
+            }
+            throw new ExternalDecisionValidationException(
+                    ExternalDecisionValidationException.Code.ILLEGAL_OPTION,
+                    "unknown entity selection action token");
+        }
+    }
+'''
+    drive_insert = r'''    public void driveExternal() {
+        if (validChoices.isEmpty()) {
+            if (min != 0) {
+                throw new ExternalDecisionValidationException(
+                        ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,
+                        "entity selection minimum cannot be satisfied by an empty option set");
+            }
+            applyExternalSelection(List.of());
+            return;
+        }
+        final ExternalDecisionResponse response = getController().requestWs33ExternalEntityInput(
+                validChoices, min, max, allowCancel, sa, "ENTITY_LIST_SELECTION");
+        if (response.isCancel()) {
+            applyExternalCancel();
+        } else {
+            applyExternalSelection(response.getSelectedOptionIds());
+        }
+    }
+'''
+    entity_text = replace_once(entity_text, drive_anchor, drive_insert, "typed synchronized entity-list drive")
+    forbidden = (
+        'actions.add("CANCEL")',
+        'actions.add("ENTITY:"',
+        'chooseExternalUiOptions(actions',
+        'action.startsWith("ENTITY:")',
+    )
+    for token in forbidden:
+        if token in entity_text:
+            raise SystemExit("WS33_G_ENTITY_LIST_BINDING=FAIL stale generic bridge token: " + token)
+    for token in (
+        "requestWs33ExternalEntityInput(",
+        "applyExternalCancel();",
+        "applyExternalSelection(response.getSelectedOptionIds());",
+    ):
+        if token not in entity_text:
+            raise SystemExit("WS33_G_ENTITY_LIST_BINDING=FAIL missing InputSelectEntitiesFromList invariant: " + token)
+    entities.write_text(entity_text, encoding="utf-8")
+
+    print("WS33_G_ENTITY_LIST_BINDING=PASS option_identity=AUTHORITATIVE_ENTITY cancel=ABI_CHANNEL membership=STRICT_INPUT_REVALIDATION hidden_observation=PRINCIPAL_SCOPED")
 
 
 def patch_triggered_sources_sacrifice_cost(harness: Path) -> None:
@@ -205,6 +380,7 @@ def main() -> None:
     except (ValueError, IndexError) as exc:
         raise SystemExit("WS33_G_SVAR_OBLIGATION_FIXTURE=FAIL missing --harness") from exc
     subprocess.check_call([sys.executable, str(FIXTURE), "--harness", str(harness)])
+    patch_authoritative_entity_list_binding(harness)
     patch_triggered_sources_sacrifice_cost(harness)
 
 
