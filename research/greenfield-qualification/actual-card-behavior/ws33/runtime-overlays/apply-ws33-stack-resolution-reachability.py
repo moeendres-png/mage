@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Add an observation-only WS33 root stack-resolution hook to pinned Forge.
+"""Add observation-only WS33 stack lifecycle and root-resolution hooks to pinned Forge.
 
-The callback fires only for a non-fizzled API-bearing SpellAbility after MagicStack has
-completed its target/fizzle adjudication and immediately before AbilityUtils.resolve(sa).
-It cannot change legality, targets, choices, stack order, or resolution semantics.
+The lifecycle callback reports entry into MagicStack.add, target rejection, frozen queueing,
+actual stack push, and the hasFizzled result. The existing resolution callback fires only
+for a non-fizzled API-bearing SpellAbility immediately before AbilityUtils.resolve(sa).
+Neither callback decides legality, changes targets/choices, changes stack order, changes
+fizzle behavior, or changes resolution semantics.
 """
 from __future__ import annotations
 
@@ -35,14 +37,84 @@ def main() -> None:
         void onResolve(SpellAbility ability);
     }
 
+    @FunctionalInterface
+    public interface Ws33StackLifecycleObserver {
+        void onStackEvent(String stage, SpellAbility ability, boolean flag);
+    }
+
     private static volatile Ws33ResolutionObserver ws33ResolutionObserver;
+    private static volatile Ws33StackLifecycleObserver ws33StackLifecycleObserver;
 
     public static void setWs33ResolutionObserver(final Ws33ResolutionObserver observer) {
         ws33ResolutionObserver = observer;
     }
 
+    public static void setWs33StackLifecycleObserver(final Ws33StackLifecycleObserver observer) {
+        ws33StackLifecycleObserver = observer;
+    }
+
+    private static void ws33ObserveStackLifecycle(final String stage, final SpellAbility ability, final boolean flag) {
+        final Ws33StackLifecycleObserver observer = ws33StackLifecycleObserver;
+        if (observer != null) {
+            observer.onStackEvent(stage, ability, flag);
+        }
+    }
+
 """
     src = replace_once(src, class_anchor, class_insert, "observer declaration anchor")
+
+    add_anchor = """    public final void add(SpellAbility sp, SpellAbilityStackInstance si, int id) {
+        final Card source = sp.getHostCard();
+"""
+    add_insert = """    public final void add(SpellAbility sp, SpellAbilityStackInstance si, int id) {
+        final Card source = sp.getHostCard();
+        ws33ObserveStackLifecycle("ADD_ENTER", sp, false);
+"""
+    src = replace_once(src, add_anchor, add_insert, "stack add entry anchor")
+
+    reject_anchor = """        if (!sp.isCopied() && !hasLegalTargeting(sp)) {
+            String str = source + " - [Couldn't add to stack, failed to target] - " + sp.getDescription();
+"""
+    reject_insert = """        if (!sp.isCopied() && !hasLegalTargeting(sp)) {
+            ws33ObserveStackLifecycle("ADD_TARGET_REJECT", sp, true);
+            String str = source + " - [Couldn't add to stack, failed to target] - " + sp.getDescription();
+"""
+    src = replace_once(src, reject_anchor, reject_insert, "stack target reject anchor")
+
+    frozen_anchor = """        if (frozen && !sp.hasParam("IgnoreFreeze") && !sp.isCastFromPlayEffect()) {
+            si = new SpellAbilityStackInstance(sp, id);
+            frozenStack.push(si);
+            return;
+        }
+"""
+    frozen_insert = """        if (frozen && !sp.hasParam("IgnoreFreeze") && !sp.isCastFromPlayEffect()) {
+            si = new SpellAbilityStackInstance(sp, id);
+            frozenStack.push(si);
+            ws33ObserveStackLifecycle("FROZEN_QUEUE", sp, true);
+            return;
+        }
+"""
+    src = replace_once(src, frozen_anchor, frozen_insert, "frozen stack anchor")
+
+    push_anchor = """        // The ability is added to stack HERE
+        push(sp, si, id);
+"""
+    push_insert = """        // The ability is added to stack HERE
+        push(sp, si, id);
+        ws33ObserveStackLifecycle("STACK_PUSH", sp, true);
+"""
+    src = replace_once(src, push_anchor, push_insert, "real stack push anchor")
+
+    fizzle_anchor = """        boolean thisHasFizzled = hasFizzled(sa, null);
+
+        if (!thisHasFizzled) {
+"""
+    fizzle_insert = """        boolean thisHasFizzled = hasFizzled(sa, null);
+        ws33ObserveStackLifecycle("FIZZLE_RESULT", sa, thisHasFizzled);
+
+        if (!thisHasFizzled) {
+"""
+    src = replace_once(src, fizzle_anchor, fizzle_insert, "fizzle outcome anchor")
 
     resolve_anchor = """        } else if (sa.getApi() != null) {
             AbilityUtils.handleRemembering(sa);
@@ -60,7 +132,14 @@ def main() -> None:
 
     for token in (
         "public interface Ws33ResolutionObserver",
+        "public interface Ws33StackLifecycleObserver",
         "setWs33ResolutionObserver",
+        "setWs33StackLifecycleObserver",
+        'ws33ObserveStackLifecycle("ADD_ENTER", sp, false)',
+        'ws33ObserveStackLifecycle("ADD_TARGET_REJECT", sp, true)',
+        'ws33ObserveStackLifecycle("FROZEN_QUEUE", sp, true)',
+        'ws33ObserveStackLifecycle("STACK_PUSH", sp, true)',
+        'ws33ObserveStackLifecycle("FIZZLE_RESULT", sa, thisHasFizzled)',
         "observer.onResolve(sa)",
         "AbilityUtils.resolve(sa);",
     ):
@@ -70,7 +149,7 @@ def main() -> None:
         raise SystemExit("WS33_STACK_RESOLUTION_REACHABILITY=FAIL observer is not pre-resolution")
 
     path.write_text(src, encoding="utf-8")
-    print("WS33_STACK_RESOLUTION_REACHABILITY=PASS boundary=POST_FIZZLE_PRE_API_RESOLVE semantics_mutated=FALSE")
+    print("WS33_STACK_RESOLUTION_REACHABILITY=PASS boundary=ADD_ENTRY_TARGET_REJECT_FROZEN_PUSH_FIZZLE_POST_FIZZLE_PRE_API_RESOLVE semantics_mutated=FALSE")
 
 
 if __name__ == "__main__":
