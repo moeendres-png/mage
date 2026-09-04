@@ -167,6 +167,7 @@ def main() -> None:
 
         if (TriggerType.Always.equals(regtrig.getMode()) && game.getStack().hasStateTrigger(regtrig.getId())) {
             return false; // State triggers that are already on the stack
+            // don't trigger again.
         }
 
         // check if any static abilities are disabling the trigger (Torpor Orb and the like)
@@ -212,6 +213,7 @@ def main() -> None:
         if (TriggerType.Always.equals(regtrig.getMode()) && game.getStack().hasStateTrigger(regtrig.getId())) {
             ws33TraceSpawnedTriggerGate("CAN_STATE_ALREADY_PRESENT", regtrig, false);
             return false; // State triggers that are already on the stack
+            // don't trigger again.
         }
 
         // check if any static abilities are disabling the trigger (Torpor Orb and the like)
