@@ -64,17 +64,35 @@ PAY_COST=false
 PREREQUISITES_MET=false
 ```
 
-Thus `Card.TriggeredSources` resolution and sacrifice validity filtering succeed with exactly one legal candidate, but the external cost-time entity-list selection resolves to cancel/null. The same effective path has accepted `CONFIRM_TRIGGER` and `ENTITY_LIST_SELECTION` decision events; the entity-list event result is `null`. Its request advertises two generic choice tokens while the production sacrifice-cost candidate set is the single legal card ID `388`.
+Thus `Card.TriggeredSources` resolution and sacrifice validity filtering succeed with exactly one legal candidate, but the external cost-time entity-list selection resolves to cancel/null. The same effective path has accepted `CONFIRM_TRIGGER` and `ENTITY_LIST_SELECTION` decision events. Its request advertises two generic choice tokens while the production sacrifice-cost candidate set is the single legal card ID `388`.
 
-This localizes the remaining blocker to the generic external Decision/fixture binding at cost-time `ENTITY_LIST_SELECTION`, before the required `DigUntil` RNG operation. RNG generation itself is not implicated by this artifact.
+This localizes the remaining blocker to the generic external Decision binding at cost-time `ENTITY_LIST_SELECTION`, before the required `DigUntil` RNG operation. RNG generation itself is not implicated by this artifact.
 
 Evidence classification: run/artifact/digest/table counts `DIRECTLY_VERIFIED`; trace boundary interpretation `CODE_DERIVED`; repaired semantic result remains `UNKNOWN` until rerun.
+
+## Confirmed generic Decision root cause
+
+`ROOT_CAUSE_CHECKPOINT = research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_ENTITY_LIST_SELECTION_ROOT_CAUSE_20260905.md`
+
+Checkpoint persistence commit: `1d7c0ae79ea26c8e6773fdc491fe36284860c449`.
+
+The exact WS01 synchronized-input bridge used by this workflow patches `InputSelectEntitiesFromList.driveExternal()` to build UI action strings in this order: `DONE` when the Forge input already satisfies minimum selection, `CANCEL` when `allowCancel`, then `ENTITY:<ExternalDecisionRequest.optionIdFor(entity)>` for each authoritative `validChoices` entity. It sends those action strings through `PlayerControllerHuman.chooseExternalUiOptions(..., "ENTITY_LIST_SELECTION", value -> value)`.
+
+For the failing sacrifice state, minimum is not yet satisfied, `allowCancel=true`, and Forge has exactly one legal Card `388`. Therefore the bridge produces exactly two actions: `CANCEL` and the authoritative Card-388 entity transition. `chooseExternalUiOptions` erases that entity identity at the external ABI surface into generic `choice:0` / `choice:1`. The record tape selected `choice:0`, which decodes back to `CANCEL`; `onCancel()` clears the legacy input, `HumanCostDecision` returns `null`, and cost payment stops before RNG.
+
+The bridge additionally encodes cancellation as an ordinary discrete option while its external request sets `cancelAllowed=false`; this confirms the adapter shape is inconsistent with the project Decision ABI. This is not a Forge sacrifice-legality defect and not an RNG defect.
+
+Evidence classification: pinned Forge + exact WS01 bridge + exact run response mapping `CODE_DERIVED`; run request/tape/cost trace `DIRECTLY_VERIFIED`.
+
+Required repair: preserve Forge's `validChoices`, min/max and cancellation legality, expose authoritative entity option IDs directly, use the Decision cancellation channel rather than a fake `choice:N`, map responses only to current authoritative entities, and fail closed on stale/illegal responses. No card-name/path-ID branch, singleton autopick, first/default/random/pass/cancel fallback, rules mutation, RNG mutation or coverage mutation.
+
+No official Magic rules adjudication is required for this adapter repair because it preserves the Rules Core's already-computed legal choices and current cancellation/min/max semantics.
 
 ## Active PENDING successor
 
 `ACTIVE_PENDING_CHECKPOINT = NONE`
 
-There is currently no non-terminal successor. A repair may be written only after the generic decision-binding mismatch described above is inspected and directly confirmed in source.
+There is currently no non-terminal successor. The concrete source defect is confirmed, so one runtime-affecting repair commit is now permitted after re-verifying live HEAD/TREE. That source commit must produce exactly one intended qualification run; immediately after run creation its RUN/JOB/SOURCE_HEAD/SOURCE_TREE/workflow/cardinality must be persisted and writes frozen until terminal.
 
 ## Retry-protocol incident retained for provenance
 
@@ -118,9 +136,9 @@ These two runs are diagnostic-tooling failures and do not supersede runtime evid
 
 ## Exact resume action
 
-1. Read-only inspect the generic external Decision binding used by `ENTITY_LIST_SELECTION` during `HumanCostDecision.visit(CostSacrifice)`, including how authoritative legal card IDs are represented versus generic `choice:N` tokens and why an accepted event yields `null`.
-2. Repair only the directly confirmed systemic binding defect. No card-name/effective-path branching, no first/default/random/pass/cancel fallback, and no rules/RNG/coverage mutation.
-3. Produce exactly one repair commit and allow exactly one successor workflow run from that source commit.
+1. Re-verify the live branch after root-cause persistence/handoff commits.
+2. Apply exactly one systemic runtime-affecting repair to the synchronized `InputSelectEntitiesFromList` external binding so entity identities/cancel semantics are authoritative at the external ABI surface.
+3. Verify exactly one successor workflow run for that source commit.
 4. Immediately bind RUN/JOB/SOURCE_HEAD/SOURCE_TREE and exact-source run cardinality in a PENDING checkpoint before further runtime-affecting writes.
 5. On terminal result, bind artifact ID/name/GitHub digest, independently re-hash ZIP, and persist terminal PASS/FAIL + handoff before any next repair.
 6. Continue until strict Runtime Record + Decision22 + RNG10 + tape-driven Replay PASS for all non-AF 32/33.
