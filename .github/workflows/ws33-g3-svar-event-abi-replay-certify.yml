@@ -1,0 +1,197 @@
+name: WS33 G3 SVar non-AF ABI replay certification
+
+on:
+  push:
+    branches: [work/ws33-g3-final-closure-20260902]
+    paths:
+      - '.github/workflows/ws33-g3-svar-event-abi-replay-certify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  MODEL_SHA: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  CONSUMER_MODEL_SHA: 82638e6b3e4408cc5bddedc49372b6357d3c2bdce6fba7bfab7ed119678f9a48
+  MODEL_ARTIFACT_ID: '9823383539'
+  TOPOLOGY_ARTIFACT_ID: '9866293827'
+  TOPOLOGY_ARTIFACT_DIGEST: sha256:6a41f66937b4bf1bcf782045d869ece183c0be49b345eac654dc3588cb98b96b
+  RUNTIME_SOURCE_HEAD: 2896cca14dcc0d43a92957b3ddb4e8e11f1f28c7
+  RUNTIME_SOURCE_TREE: fbb9565d4583db655872cfd378831711b0989b7a
+  RUNTIME_RUN_ID: '33928315020'
+  RUNTIME_JOB_ID: '101201530278'
+  RUNTIME_ARTIFACT_ID: '9957712911'
+  RUNTIME_ARTIFACT_DIGEST: sha256:2241adad950188fc0f0adb0d0a1395a399251470dc8d8e75ded96d68d61aea0b
+
+jobs:
+  certify-non-af-runtime-artifact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout certification source
+        uses: actions/checkout@v4
+        with: {fetch-depth: 1}
+
+      - name: Bind certification source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p generated/runtime generated/certified/diagnostic
+          printf '%s\n' "$GITHUB_SHA" > generated/certified/diagnostic/certification-source-head.txt
+          git rev-parse 'HEAD^{tree}' > generated/certified/diagnostic/certification-source-tree.txt
+
+      - name: Consume exact frozen non-AF runtime artifact
+        env: {GH_TOKEN: '${{ github.token }}'}
+        shell: bash
+        run: |
+          set -euo pipefail
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$RUNTIME_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$meta")" = "$RUNTIME_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.id <<<"$meta")" = "$RUNTIME_RUN_ID"
+          test "$(jq -r .workflow_run.head_sha <<<"$meta")" = "$RUNTIME_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$RUNTIME_ARTIFACT_ID/zip" > generated/runtime.zip
+          test "sha256:$(sha256sum generated/runtime.zip | cut -d' ' -f1)" = "$RUNTIME_ARTIFACT_DIGEST"
+          unzip -q generated/runtime.zip -d generated/runtime
+          (cd generated/runtime && sha256sum -c SHA256SUMS)
+          test -s generated/runtime/diagnostic/SOURCE_CHAIN.json
+          jq -e \
+            --arg head "$RUNTIME_SOURCE_HEAD" \
+            --arg tree "$RUNTIME_SOURCE_TREE" \
+            --arg forge "$FORGE_PIN" \
+            --arg model "$MODEL_SHA" \
+            --arg consumer "$CONSUMER_MODEL_SHA" \
+            --argjson topology "$TOPOLOGY_ARTIFACT_ID" \
+            --arg tdigest "$TOPOLOGY_ARTIFACT_DIGEST" \
+            '.schema=="commander-simulator-next.ws33-g-svar-event-runtime.v1" and
+             .status=="PASS" and
+             .workflow_source_head==$head and .workflow_source_tree==$tree and
+             .forge_pin==$forge and
+             .effective_manifest_file_sha256==$model and
+             .topology_consumer_model_sha256==$consumer and
+             .topology_artifact_id==$topology and .topology_artifact_digest==$tdigest and
+             .effective_paths==32 and .parent_entrypoints==33 and
+             .record_replay_equal==true and
+             .trigger_legality_authority=="FORGE_TRIGGER_HANDLER" and
+             .target_direct_entry==false and
+             .principal_observation_promoted==false and
+             .coverage_mutated==false' generated/runtime/diagnostic/SOURCE_CHAIN.json
+          cp generated/runtime/diagnostic/SOURCE_CHAIN.json generated/certified/diagnostic/RUNTIME_SOURCE_CHAIN.json
+          cp generated/runtime/SHA256SUMS generated/certified/diagnostic/RUNTIME_SHA256SUMS
+          sha256sum generated/runtime.zip > generated/certified/diagnostic/runtime-artifact-zip.sha256
+
+      - name: Verify frozen Record Replay semantic identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in \
+            case-summary.tsv \
+            parent-summary.tsv \
+            decision-tape.tsv \
+            decision-events-with-path.tsv \
+            rng-tape.tsv \
+            rng-events-with-path.tsv \
+            decision-requests-with-path.tsv; do
+            cmp "generated/runtime/record/$f" "generated/runtime/replay/$f"
+          done
+          jq -e '.game_completed==true and .path_count==32 and .pilot_visible_hidden_info_leaks==0 and .cross_principal_decision_leaks==0 and .phase_mismatches==0 and .outer_failure==null' generated/runtime/record/process.json
+          jq -e '.game_completed==true and .path_count==32 and .pilot_visible_hidden_info_leaks==0 and .cross_principal_decision_leaks==0 and .phase_mismatches==0 and .outer_failure==null' generated/runtime/replay/process.json
+          echo 'WS33_G_SVAR_EVENT_FROZEN_REPLAY_IDENTITY=PASS paths=32 parents=33'
+
+      - name: Verify event case obligations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          rows=[x.split('\t') for x in Path('generated/runtime/source/g-svar-event-cases.tsv').read_text().splitlines() if x]
+          assert len(rows)==33 and all(len(x)==21 for x in rows)
+          paths={x[1] for x in rows}
+          assert len(paths)==32
+          assert len({x[1] for x in rows if x[15]=='1'})==31
+          assert len({x[1] for x in rows if x[16]=='1'})==10
+          assert len({x[1] for x in rows if x[18]=='1'})==22
+          print('WS33_G_SVAR_EVENT_OBLIGATIONS=PASS paths=32 parents=33 hidden=31 rng=10 decision=22')
+          PY
+
+      - name: Run ABI adjudicator regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest "$ROOT/test_ws33_adjudicate_g_abi_request_evidence.py"
+
+      - name: Certify ABI Decision RNG Replay from exact runtime artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_adjudicate_g_abi_request_evidence.py" \
+            --cases generated/runtime/source/g-svar-event-cases.tsv \
+            --record-requests generated/runtime/record/decision-requests-with-path.tsv \
+            --replay-requests generated/runtime/replay/decision-requests-with-path.tsv \
+            --decision-events generated/runtime/record/decision-events-with-path.tsv \
+            --decision-tape generated/runtime/record/decision-tape.tsv \
+            --rng-events generated/runtime/record/rng-events-with-path.tsv \
+            --out-dir generated/certified/diagnostic \
+            --expected-paths 32 \
+            --expected-decision-paths 22 \
+            --expected-rng-paths 10 \
+            --behavior-artifact-id "$RUNTIME_ARTIFACT_ID" \
+            --behavior-artifact-digest "$RUNTIME_ARTIFACT_DIGEST" \
+            --behavior-source-head "$RUNTIME_SOURCE_HEAD" \
+            --model-artifact-id "$MODEL_ARTIFACT_ID" \
+            --effective-model-sha256 "$MODEL_SHA" \
+            | tee generated/certified/diagnostic/abi-adjudication.log
+          jq -e \
+            --arg id "$RUNTIME_ARTIFACT_ID" \
+            --arg digest "$RUNTIME_ARTIFACT_DIGEST" \
+            --arg head "$RUNTIME_SOURCE_HEAD" \
+            --arg model "$MODEL_SHA" \
+            '.schema=="commander-simulator-next.ws33-g-abi-request-evidence.v2" and
+             .status=="PASS" and .case_abi=="SVAR_EVENT_V21" and
+             .behavior_artifact_id==$id and .behavior_artifact_digest==$digest and .behavior_source_head==$head and
+             .effective_model_sha256==$model and
+             .path_count==32 and
+             .decision_required_path_count==22 and .decision_required_paths_observed==22 and
+             .rng_required_path_count==10 and .rng_required_paths_observed==10 and
+             .record_replay_request_trace_equal==true and
+             .authoritative_legal_options_captured_from_request==true and
+             .request_identity_scope=="principal_id+token" and
+             .hidden_identity_payload_retained==false and
+             .minimum_requirement_semantics==true and
+             .coverage_mutated==false and .silent_fallback==false' \
+            generated/certified/diagnostic/WS33_G_ABI_REQUEST_EVIDENCE.json
+
+      - name: Materialize exact certification chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          cert_tree="$(git rev-parse 'HEAD^{tree}')"
+          jq -n \
+            --arg source_head "$GITHUB_SHA" \
+            --arg source_tree "$cert_tree" \
+            --arg runtime_head "$RUNTIME_SOURCE_HEAD" \
+            --arg runtime_tree "$RUNTIME_SOURCE_TREE" \
+            --arg runtime_run "$RUNTIME_RUN_ID" \
+            --arg runtime_job "$RUNTIME_JOB_ID" \
+            --arg runtime_artifact "$RUNTIME_ARTIFACT_ID" \
+            --arg runtime_digest "$RUNTIME_ARTIFACT_DIGEST" \
+            --arg forge "$FORGE_PIN" \
+            --arg model "$MODEL_SHA" \
+            --arg consumer "$CONSUMER_MODEL_SHA" \
+            '{schema:"commander-simulator-next.ws33-g-svar-event-abi-replay-certification.v1",status:"PASS",certification_source_head:$source_head,certification_source_tree:$source_tree,runtime_source_head:$runtime_head,runtime_source_tree:$runtime_tree,runtime_run_id:$runtime_run,runtime_job_id:$runtime_job,runtime_artifact_id:$runtime_artifact,runtime_artifact_digest:$runtime_digest,forge_pin:$forge,effective_manifest_file_sha256:$model,topology_consumer_model_sha256:$consumer,path_count:32,parent_count:33,decision_required:22,decision_observed:22,rng_required:10,rng_observed:10,record_replay_equal:true,authoritative_legal_options:true,principal_scoped_request_identity:true,silent_fallback:false,coverage_mutated:false,principal_observation_promoted:false}' \
+            > generated/certified/diagnostic/CERTIFICATION_CHAIN.json
+          sha256sum generated/certified/diagnostic/* | sort > generated/certified/SHA256SUMS
+          jq -e '.status=="PASS" and .path_count==32 and .decision_observed==22 and .rng_observed==10 and .record_replay_equal==true and .coverage_mutated==false and .principal_observation_promoted==false' generated/certified/diagnostic/CERTIFICATION_CHAIN.json
+          echo 'WS33_G_SVAR_EVENT_ABI_REPLAY_CERTIFICATION=PASS paths=32 parents=33 decision=22 rng=10 coverage_mutated=false'
+
+      - name: Upload immutable non-AF certification
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-g3-svar-event-abi-replay-certification-${{ github.run_id }}
+          path: |
+            generated/certified
+            generated/runtime.zip
+          if-no-files-found: error
+          retention-days: 90
