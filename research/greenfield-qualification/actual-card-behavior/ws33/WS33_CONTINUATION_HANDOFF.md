@@ -17,7 +17,7 @@ Only the final serial `G3 -> ABC -> D -> E -> F -> final cross-qualification` su
 - effective-manifest file SHA256 `cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224`.
 - topology consumer-model SHA256 `82638e6b3e4408cc5bddedc49372b6357d3c2bdce6fba7bfab7ed119678f9a48`.
 
-## Current confirmed checkpoint
+## Current confirmed terminal checkpoint
 
 `LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_COST_TRACE_RUNS_33907775080_33907795947_FAILURE`
 
@@ -46,15 +46,37 @@ Diagnostic source commit `2bb3a56a3edcefdd18d0a26bba5755e393ee28e7` / tree `2046
 - independently downloaded ZIP re-hash: exact match
 - Steps 1-11 PASS; Step 12 harness/request-trace preparation FAIL; Java/runtime Steps 13-17 skipped; artifact upload PASS
 
-Both logs fail first at the exact same strict diagnostic cardinality guard:
+Both logs fail first at:
 
 ```text
 WS33_G_COST_TRACE=FAIL TriggeredSources sacrifice candidates: expected exactly one anchor, got 2
 ```
 
-The cost-trace patch therefore failed closed before Java compilation. These are diagnostic-tooling failures, not new runtime-behavior evidence. No Forge/fixture/root-cause repair is justified from them.
+Those are diagnostic-tooling failures, not new runtime-behavior evidence.
 
-The last valid runtime evidence remains run `33863979003` / job `100994503842`:
+## Active PENDING successor
+
+`ACTIVE_PENDING_CHECKPOINT = G3_NON_AF_COST_TRACE_RUN_33919282114_PENDING`
+
+Checkpoint:
+`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_COST_TRACE_RUN_33919282114_PENDING.md`
+
+Pending checkpoint commit: `2228c1e0a18b31656c1a1e6b16d4af27cb410931`.
+
+- repair source HEAD `505c242b3c193f31e59fda7a0e34a678ebc06067`
+- source TREE `59e7923685899af413bf8a25563da0814f176dec`
+- RUN `33919282114`
+- JOB `101173616625`
+- exact-source run cardinality when bound: `1`
+- status when bound: `queued`
+
+Repair scope is diagnostic-only: structural `CostSacrifice` anchors, root `AbilityKey.Sources`, validity-filtered candidate IDs, authoritative selection IDs, and CostPayment decision-null/payAsDecided result. No card/path branching and no intentional rules/fixture/decision/RNG/coverage/replay mutation.
+
+While run `33919282114` is non-terminal, only read-only work is permitted. Do not dispatch or create another runtime-affecting commit.
+
+## Last valid runtime evidence while successor is pending
+
+Run `33863979003` / job `100994503842` remains authoritative until the active successor is terminal:
 
 - source HEAD `35a2a267fa70b87a4d21d5cbae98be3f7bdd27eb`
 - source TREE `85c1d4fe2df0f980d1e4fe43c4bca11b2eeb5108`
@@ -67,19 +89,13 @@ The last valid runtime evidence remains run `33863979003` / job `100994503842`:
 - replay NOT RUN because strict pre-replay gate failed
 - coverage promotion FALSE
 
-### Exact material blocker still under diagnosis
-
 Missing RNG-required effective path:
-
 `forge-behavior-v2:24a5352cfaa6ae913df6549ceed0c447d526e89d`
 
-Source lineage:
-
+Lineage:
 `Descendants' Fury -> DamageDoneOnce -> TrigDigUntil -> DigUntil`
 
-The target script contains `Cost$ Sac<1/Card.TriggeredSources>` and `RevealRandomOrder$ True`.
-
-The source-proven parent is admitted, bound, enters MagicStack, does not fizzle, and reaches the observation-only resolution callback. The exact underlying target ability trace from valid run `33863979003` is:
+Target ability trace from valid run `33863979003`:
 
 ```text
 abilityId=712 sourceTrigger=50010 hostId=385 api=DigUntil
@@ -93,7 +109,7 @@ PAY_COST=false
 PREREQUISITES_MET=false
 ```
 
-Pinned Forge source inspection confirms `Card.TriggeredSources` resolves through the root ability's `AbilityKey.Sources`, `CostSacrifice` filters battlefield candidates by that defined set plus sacrifice legality, and `CostPayment` fails when the authoritative `PaymentDecision` is null or `payAsDecided` returns false. Current semantic root cause remains `UNKNOWN` because the intended observation-only cost trace has not yet executed.
+Pinned Forge source inspection confirms `Card.TriggeredSources` resolves through the root ability's `AbilityKey.Sources`, `CostSacrifice` filters battlefield candidates by that defined set plus sacrifice legality, and `CostPayment` fails when the authoritative `PaymentDecision` is null or `payAsDecided` returns false. Semantic root cause remains `UNKNOWN` until active-run artifact adjudication.
 
 ## G3 immutable evidence — do not rerun without invalidation
 
@@ -119,26 +135,22 @@ Pinned Forge source inspection confirms `Card.TriggeredSources` resolves through
 - remaining production parents `33`
 - latest valid record behavior `32/32 paths`, `33/33 parents`
 - Decision obligation `22/22`
-- RNG obligation `9/10`; the missing path remains blocked before its RNG-bearing effect by failed sacrifice cost
-- replay remains blocked behind the fail-closed pre-replay gate
-- latest two cost-trace successors produced no runtime evidence because their diagnostic patch failed at harness preparation
+- RNG obligation `9/10`
+- replay blocked behind fail-closed pre-replay gate
 - `G3_NON_AF_STATUS = UNKNOWN`
 - `COVERAGE_PROMOTION = FALSE`
 
-## Exact next atomic package
+## Exact resume action
 
-1. Repair only the generic observation-only cost-trace patcher's ambiguous anchor selection in `ws33_instrument_g_authoritative_requests.py`. Select the intended semantic harness site structurally or with uniquely qualified surrounding context. No card-name/path-ID branching; no Forge/runtime/fixture semantics change.
-2. Persist that diagnostic-repair commit.
-3. Allow exactly one `ws33-g3-svar-event-runtime.yml` successor for that source commit. Do not manually dispatch an additional run.
-4. Immediately enumerate runs by exact source HEAD. If more than one appears, record the protocol incident and do not create another.
-5. Persist a PENDING checkpoint containing RUN/JOB/SOURCE_HEAD/SOURCE_TREE before any other runtime-affecting write.
-6. Make no runtime-affecting write while the intended run is non-terminal.
-7. On terminal result, bind artifact/digest, independently re-hash ZIP, inspect the cost trace, and persist PASS/FAIL before any repair.
-8. Repair only the root cause directly established by that artifact. If production Forge behavior is implicated, adjudicate against current official Magic rules/card wording before changing rules code.
-9. Continue until strict Runtime Record + Decision22 + RNG10 + tape-driven Replay PASS for all non-AF 32/33.
-10. Freeze Runtime; then perform separate immutable ABI/Decision/RNG/Replay certification consuming that exact runtime artifact; then non-AF Principal Observation Hidden31 record/replay equivalence/no leaks.
-11. Only after Direct28 + AF21 + non-AF32 satisfy all contracts promote/freeze G3 and recompute the live 4188 frontier.
-12. Then execute serial `ABC -> D -> E -> F -> final cross-qualification`; do not use historical expected counts without fresh compatibility adjudication.
+1. Read-only poll RUN `33919282114` / JOB `101173616625`; re-enumerate exact-source runs to confirm cardinality stays one.
+2. On terminal result, bind artifact ID/name/GitHub digest and independently re-hash the ZIP.
+3. Inspect preparation gates, Record/Decision/RNG/Replay status, `WS33_SACRIFICE_COST` lines, parent-summary/resolution-lineage, and first material failure if any.
+4. Persist terminal PASS/FAIL checkpoint and update this handoff before any runtime-affecting repair.
+5. Repair only the root cause directly established by the artifact. If production Forge behavior is implicated, adjudicate against current official Magic rules/card wording before rules-code change.
+6. Continue until strict Runtime Record + Decision22 + RNG10 + tape-driven Replay PASS for all non-AF 32/33.
+7. Freeze Runtime; separately certify immutable ABI/Decision/RNG/Replay consuming the exact runtime artifact; then non-AF Principal Observation Hidden31 record/replay equivalence/no leaks.
+8. Only after Direct28 + AF21 + non-AF32 satisfy all contracts promote/freeze G3 and recompute the live 4188 frontier.
+9. Then execute serial `ABC -> D -> E -> F -> final cross-qualification`; do not use historical expected counts without fresh compatibility adjudication.
 
 `G3_NON_AF_STATUS = UNKNOWN`
 
