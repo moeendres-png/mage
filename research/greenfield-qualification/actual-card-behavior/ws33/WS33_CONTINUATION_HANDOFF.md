@@ -19,41 +19,42 @@ Only the final serial `G3 -> ABC -> D -> E -> F -> final cross-qualification` su
 
 ## Current confirmed checkpoint
 
-`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33858197355_FAILURE`
+`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33863979003_FAILURE`
 
 Checkpoint:
-`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33858197355_FAILURE.md`
+`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33863979003_FAILURE.md`
 
-Run `33858197355` / job `100976276642` is terminal `failure`.
+Run `33863979003` / job `100994503842` is terminal `failure`.
 
-- source HEAD `1bbf1a497492d4c23df60268550e94bebb1581ab`
-- source TREE `08827a0e72ff928071290511597b0da4659dc480`
-- artifact `9931146326`
-- digest `sha256:836e0ad3071cc86f9fc98896a690b5e156a8e284f34219a8904e7702430de5bc`
+- source HEAD `35a2a267fa70b87a4d21d5cbae98be3f7bdd27eb`
+- source TREE `47ff4fdd99f63fc3489dc8a2055536de31a8165a`
+- artifact `9933311779`
+- artifact name `ws33-g3-svar-event-runtime-33863979003`
+- digest `sha256:204cd7c057196220fdb60cd9662443a8703f20cbb7bc02f90d022fe8508353fa`
 - downloaded ZIP re-hash: exact match
-- source/topology/pins/overlays/harness PASS
-- record campaign PASS
-- strict record adjudication FAIL
-- replay NOT RUN
-- evidence upload PASS
+- record effective paths `32/32 PASS`
+- source parents `33/33 PASS`
+- `game_completed=true`; `path_count=32`; no observed hidden/cross-principal/phase leak
+- Decision-required `22/22`; missing `0`
+- RNG-required `9/10`; missing exactly one effective path
+- replay NOT RUN because strict pre-replay ABI gate failed
 - coverage promotion FALSE
 
-### Material result
+### First material blocker
 
-The runtime repair is confirmed without regression:
+Exactly one required RNG path has no correlated RNG tape event:
 
-- `33/33` parent entrypoints PASS
-- `32/32` effective paths PASS
-- Study Hall is now admission/binding/execution `1/1/1` PASS
-- there is no remaining parent/path runtime blocker in this artifact
+`forge-behavior-v2:24a5352cfaa6ae913df6549ceed0c447d526e89d`
 
-The first strict blocker is now Decision attribution/obligation:
+Source lineage:
 
-`WS33_G_SVAR_EVENT_DECISION_REQUIRED_MISSING=[1b1d899f...,529d8863...,7ba3879c...,da6d57cc...]`
+`Descendants' Fury -> DamageDoneOnce -> TrigDig -> DigUntil`
 
-The four full effective IDs are recorded in the immutable failure checkpoint. They are Songbirds' Blessing / DigUntil, Director Nick Fury / Dig, Armored Skyhunter / Dig, and Herald's Horn / PeekAndReveal. The generated input marks all four `decision_required=1`, but the path-attributed decision event file contains zero events for them. Exact verifier state: Decision-required paths `22`; required paths with accepted attributed events `18`.
+The target script carries `RevealRandomOrder$ True`. Admission, binding, target execution, and resolution callback are all achieved; the path simply has zero RNG-tape rows.
 
-A secondary blocked failure is also directly visible: Descendants' Fury / DigUntil is RNG-required but has zero path-attributed RNG events; RNG-required paths `10`, attributed `9`. Do not repair either requirement or producer by inference/card name. First correlate raw tapes/provider/request evidence and the generic path-attribution lifecycle.
+Pinned Forge `DigUntilEffect` removes the found card from the revealed collection and then, for `RevealRandomOrder`, calls `Collections.shuffle(revealed, MyRandom.getRandom())`. The current qualification fixture does not guarantee a non-degenerate remainder. If the remainder is empty or singleton, shuffle need not consume an RNG value. Current classification is therefore a systemic qualification-fixture under-exercise of a production-reachable random-order branch, not evidence of an event-resolution rules-core failure.
+
+The required successor is a generalized script-semantic `RevealRandomOrder` fixture that guarantees at least two nonmatching revealed objects remain after the matching object is removed, preserves the actual matcher semantics, and fails closed for unsupported matcher shapes. It must not special-case card names or effective IDs and must not alter rules, decisions, RNG implementation, coverage, or fallback behavior.
 
 ## G3 immutable evidence — do not rerun without invalidation
 
@@ -77,20 +78,26 @@ A secondary blocked failure is also directly visible: Descendants' Fury / DigUnt
 - immutable AF `21`
 - remaining non-AF effective paths `32`
 - remaining production parents `33`
-- latest record runtime materially green `32/32 paths`, `33/33 parents`, but not promotable because Decision/RNG/replay certification remains incomplete
+- latest record runtime materially green `32/32 paths`, `33/33 parents`
+- Decision obligation now materially green `22/22`
+- remaining strict Runtime blocker: one of ten required RNG paths lacks a non-degenerate RNG witness
+- replay remains blocked behind that fail-closed prerequisite
 - `G3_NON_AF_STATUS = UNKNOWN`
 - `COVERAGE_PROMOTION = FALSE`
 
 ## Exact next atomic package
 
-1. Read-only correlate the four Decision-missing and one RNG-missing paths against `decision-tape.tsv`, `rng-tape.tsv`, `decision-requests-with-path.tsv`, `resolution-lineage.tsv`, runtime logs, and the harness path-context producer lifecycle.
-2. Classify each missing obligation as actual event-without-path-attribution, invalid generated obligation, or suppressed fixture/provider event. Do not infer from card names.
-3. Inspect shared common mechanics across the five paths and repair the single proven systemic producer/model/fixture cause only.
-4. One repair commit -> exactly one `ws33-g3-svar-event-runtime.yml` run -> immediate PENDING checkpoint with RUN/JOB/SOURCE_HEAD/TREE -> no runtime-affecting write until terminal.
-5. Continue until strict Runtime Record + Decision22 + RNG10 + tape-driven Replay PASS for all non-AF 32/33.
-6. Freeze Runtime, then separate immutable ABI/Decision/RNG/Replay certification consuming that exact artifact, then non-AF Principal Observation Hidden31 record/replay equivalence/no leaks.
-7. Only after Direct28 + AF21 + non-AF32 satisfy all contracts promote/freeze G3 and recompute live 4188 frontier.
-8. Then execute serial `ABC -> D -> E -> F -> final cross-qualification`; do not use historical expected counts without fresh compatibility adjudication.
+1. Inspect the current generic source-fixture construction and pinned zone/library ordering semantics read-only.
+2. Implement one generalized script-semantic non-degenerate `RevealRandomOrder$ True` fixture for supported matcher shapes; no card/path-name conditions.
+3. Persist the repair commit.
+4. Trigger exactly one `ws33-g3-svar-event-runtime.yml` successor run from that repair commit.
+5. Immediately persist a PENDING checkpoint with RUN/JOB/SOURCE_HEAD/SOURCE_TREE before any other runtime-affecting write.
+6. Make no runtime-affecting write while that run is non-terminal.
+7. On terminal result, bind artifact/digest and persist PASS/FAIL before the next step.
+8. Continue until strict Runtime Record + Decision22 + RNG10 + tape-driven Replay PASS for all non-AF 32/33.
+9. Freeze Runtime, then separate immutable ABI/Decision/RNG/Replay certification consuming that exact artifact, then non-AF Principal Observation Hidden31 record/replay equivalence/no leaks.
+10. Only after Direct28 + AF21 + non-AF32 satisfy all contracts promote/freeze G3 and recompute live 4188 frontier.
+11. Then execute serial `ABC -> D -> E -> F -> final cross-qualification`; do not use historical expected counts without fresh compatibility adjudication.
 
 `G3_NON_AF_STATUS = UNKNOWN`
 
