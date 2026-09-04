@@ -21,12 +21,12 @@ Only the final serial `G3 -> ABC -> D -> E -> F` successor with all 4188 effecti
 
 ## Current confirmed checkpoint
 
-`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33818428322_FAILURE`
+`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33819960784_FAILURE`
 
 Checkpoint:
-`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33818428322_FAILURE.md`
+`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33819960784_FAILURE.md`
 
-Run `33818428322` / job `100855531128` is terminal `failure`. The record campaign completed successfully and Step 15 is the first material failure. The lineage-enhanced artifact directly proves that the first `Ingenious Smith/ChangesZone` parent is admitted and bound to `TrigDig` (`1/1`) but generates zero post-fizzle resolution callbacks and zero target executions. This eliminates a false-negative `matchesTarget` at the existing post-fizzle observer. The remaining first-failure boundary is now narrowly `simultaneous-trigger -> real MagicStack placement` versus `MagicStack.hasFizzled` before the observer. No semantic repair is authorized until those two production boundaries are distinguished with observation-only evidence.
+Run `33819960784` / job `100860290828` is terminal `failure`. The lifecycle-enhanced Forge overlay applies, compiles and executes the full record campaign without changing the prior first-parent outcome. Because the harness at this source did not register the new lifecycle observer, the artifact intentionally contains no parent-correlated stack-lifecycle evidence. The next authorized change is only the harness-side consumer for the already-present observation-only lifecycle callback.
 
 ## G3 immutable evidence — do not rerun for reassurance
 
@@ -112,7 +112,6 @@ Invariant: Kang Prime retains both real source-proven parent entrypoints.
 - Step 14 PASS; Step 15 FAIL; replay NOT RUN; coverage promotion FALSE.
 - first parent `forge-behavior-v2:172ab06795f99590ca9d96f85995f6cf9e083ee8#1` (`Ingenious Smith`, `ChangesZone`) = admission/binding/execution `1/1/0`.
 - artifact-wide: 33 parents; one `1/1/1` PASS (`Descendants' Fury`); 24 failures at `1/1/0`; eight later event-specific failures.
-- unresolved distinction was actual production stack/non-resolution versus false-negative resolution identity measurement.
 
 ### Attempt 5 — diagnostic request-trace ABI failure
 
@@ -143,30 +142,39 @@ Invariant: Kang Prime retains both real source-proven parent entrypoints.
 - run `33818428322`, job `100855531128`
 - artifact `9917438334`
 - digest `sha256:696556a4e4163308ec00ef123b691a9eaa73e6742058220ac1041d73cef7fa6f`
-- fresh post-terminal artifact listing and downloaded ZIP re-hash agree exactly
-- steps 1–14 PASS; Step 15 FAIL; replay/source-chain NOT RUN; evidence upload PASS; coverage promotion FALSE
-- parent rows = 33; status = 1 PASS / 32 FAIL
-- first parent `Ingenious Smith/ChangesZone/TrigDig`: admissions `1`, bindings `1`, executions `0`, **resolutionCallbacks `0`**
-- admitted target identity: ability `225`, sourceTrigger `50001`, host `96`, API `Dig`; original/current map fingerprints equal
-- 30/33 parents have zero post-fizzle callbacks, 3/33 have one callback, one target executes successfully
+- steps 1–14 PASS; Step 15 FAIL; replay/source-chain NOT RUN; evidence upload PASS.
+- first parent `Ingenious Smith/ChangesZone/TrigDig`: admissions `1`, bindings `1`, executions `0`, resolutionCallbacks `0`.
+- admitted target identity: ability `225`, sourceTrigger `50001`, host `96`, API `Dig`; original/current map fingerprints equal.
+- this directly rejects post-fizzle matcher false-negative for first parent and narrows the shared boundary to real-stack placement versus pre-observer fizzle.
 
-This directly rejects the old post-fizzle matcher-false-negative hypothesis for the first parent: no callback reached that matcher. Pinned Forge source narrows the unresolved common boundary to either production simultaneous-trigger placement onto the real MagicStack or `hasFizzled(sa)` returning true before the existing observer. Exact details are frozen in `G3_NON_AF_EVENT_RUNTIME_RUN_33818428322_FAILURE.md`.
+### Attempt 8 — lifecycle overlay-only reproduction
+
+- source HEAD `8cc9085267174fa08ec44998dba75384638f70a0`
+- source TREE `46cd9b9d4f06fc1b485ae1d137e44cb5de5c85d7`
+- run `33819960784`, job `100860290828`
+- artifact `9917974166`
+- digest `sha256:88dbd82d6db6318517176497ade0713fd53454e236f7e381e76d79a5f4bfe97e`
+- downloaded ZIP re-hash matched exactly.
+- steps 1–14 PASS; Step 15 FAIL; replay/source-chain NOT RUN; evidence upload PASS.
+- first parent remains `1/1/0` with resolutionCallbacks `0`.
+- Forge overlay now exposes observation-only stages `ADD_ENTER`, `ADD_TARGET_REJECT`, `FROZEN_QUEUE`, `STACK_PUSH`, and `FIZZLE_RESULT` and still exposes post-fizzle pre-resolution callback.
+- harness at this source did not register the lifecycle observer, so no `stack-lifecycle.tsv` exists. This run proves overlay applicability and semantically neutral reproduction only; it does not resolve the placement/fizzle distinction.
 
 ## Exact next atomic package
 
-1. Add observation-only telemetry at the two remaining common production boundaries while keeping all existing qualification predicates unchanged:
-   - successful/failed simultaneous-trigger placement through the real `PlayerControllerHuman.orderAndPlaySimultaneousSa -> PlaySpellAbility.playSpellAbility` route;
-   - pre/post `MagicStack.hasFizzled(sa)` outcome for the corresponding real stack entry before the existing post-fizzle resolution observer.
-2. Preserve stable ability/source-trigger/host/API identity so the first admitted parent can be correlated across admission, placement, fizzle and resolution.
-3. Do not change Rules semantics, target choice, stack ordering, fizzle behavior, `matchesTarget`, `targetExecutions`, event fixtures, Decision/RNG semantics, request ABI, or coverage.
-4. Commit only this diagnostic instrumentation.
-5. Allow exactly one `ws33-g3-svar-event-runtime.yml` run from that commit and immediately persist run/job/source HEAD/TREE in a pending checkpoint.
-6. Terminally adjudicate that artifact:
-   - no real-stack placement => inspect the exact failed production `PlaySpellAbility` prerequisite and repair only the confirmed systemic fixture/qualification defect;
-   - real-stack placement + `hasFizzled=true` => inspect exact fizzle cause and adjudicate whether fixture, unsupported path or Forge behavior defect;
-   - real-stack placement + `hasFizzled=false` but no callback => observer/instrumentation defect.
-7. Freeze a failure checkpoint and update this handoff before every repair/retry.
-8. Continue until Runtime strict PASS; then freeze Runtime before separate ABI/Decision/RNG/Replay certification and Principal Observation/Hidden31 qualification.
-9. Only after Direct28 + AF21 + non-AF32 satisfy all behavior/decision/RNG/replay/hidden/provenance/fail-closed contracts may G3 be promoted/frozen and serial closure proceed to `ABC -> D -> E -> F`.
+1. Extend the already-invoked harness instrumentation so the lineage Event harness registers `MagicStack.setWs33StackLifecycleObserver` and records parent-correlated lifecycle rows.
+2. For each lifecycle callback record at least parent key, stage, boolean flag, wrapper state, effective ability ID, source-trigger ID, host ID, API, original/current map fingerprints, strict target-match observation, and admitted ability/source-trigger/host identity.
+3. Materialize `stack-lifecycle.tsv` in record/replay evidence and clear the observer during cleanup.
+4. Do not change `matchesTarget`, `targetExecutions`, TriggerHandler legality, target choices, MagicStack ordering, fizzle semantics, event fixtures, Decision/RNG/request semantics, or coverage.
+5. Commit only the harness-consumer instrumentation.
+6. Allow exactly one `ws33-g3-svar-event-runtime.yml` successor run and immediately persist run/job/source HEAD/TREE.
+7. Terminally adjudicate that artifact:
+   - no `ADD_ENTER` for admitted target => production `PlaySpellAbility` fails before MagicStack.add; instrument/inspect its exact prerequisite next;
+   - `ADD_ENTER` but no `STACK_PUSH`, with target rejection/frozen evidence => classify exact add-stage cause;
+   - `STACK_PUSH` plus `FIZZLE_RESULT=true` => inspect exact fizzle cause;
+   - `STACK_PUSH` plus `FIZZLE_RESULT=false` but no existing resolution callback => observer defect.
+8. Freeze a failure checkpoint and update this handoff before any repair/retry.
+9. Continue until Runtime strict PASS; then freeze Runtime before separate ABI/Decision/RNG/Replay certification and Principal Observation/Hidden31 qualification.
+10. Only after Direct28 + AF21 + non-AF32 satisfy all behavior/decision/RNG/replay/hidden/provenance/fail-closed contracts may G3 be promoted/frozen and serial closure proceed to `ABC -> D -> E -> F`.
 
 Control expectations remain non-authoritative until fresh successor computation: post-G3 PASS366/UNKNOWN3822; post-ABC 1920/2268; post-D 2840/1348; post-E 3869/319; post-F 4188/0.
