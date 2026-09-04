@@ -10,7 +10,7 @@ Active branch: `work/ws33-g3-final-closure-20260902`.
 
 Only the final serial `G3 -> ABC -> D -> E -> F -> final cross-qualification` successor with all 4188 effective paths PASS, zero UNKNOWN/FAIL/UNSUPPORTED, A-H UNKNOWN zero, exact pin/model/lineage, and all replay/hidden/RNG/decision/failure/evidence/hash gates may change these flags.
 
-## Stable predecessor
+## Stable global predecessor
 
 - effective `4188`; PASS `285`; UNKNOWN `3903`; FAIL `0`; UNSUPPORTED `0`; G UNKNOWN `81`; H UNKNOWN `0`.
 - Forge pin `8c7e9afb8e6caee88644b94e25da5852e36f8928`.
@@ -19,91 +19,105 @@ Only the final serial `G3 -> ABC -> D -> E -> F -> final cross-qualification` su
 
 ## Current confirmed terminal checkpoint
 
-`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_COST_TRACE_RUN_33919282114_FAILURE`
+`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_RUNTIME_FREEZE_RUN_33928315020_PASS`
 
 Checkpoint:
-`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_COST_TRACE_RUN_33919282114_FAILURE.md`
+`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_RUNTIME_FREEZE_RUN_33928315020_PASS.md`
 
-Checkpoint commit: `c3e5abad69f8017b4af5d484d1152de904bb026c`.
+Checkpoint persistence commit: `214f4b4313e364cff4bc87768d31b89f752e8b0f`.
 
-- source HEAD `505c242b3c193f31e59fda7a0e34a678ebc06067`
-- source TREE `59e7923685899af413bf8a25563da0814f176dec`
-- RUN `33919282114`
-- JOB `101173616625`
-- terminal `failure`
-- artifact `9954643672`
-- artifact name `ws33-g3-svar-event-runtime-33919282114`
-- digest `sha256:13322c3ddae4670049e13192303c945e76940cbef4b20c2cd1b417e0468e0d1f`
-- independently downloaded ZIP re-hash: exact match
-- Steps 1–14 PASS; Step 15 FAIL; replay Step 16 skipped fail-closed; upload Step 18 PASS.
-
-Record evidence from this exact artifact:
-
-- effective non-AF paths `32/32 PASS`
-- source parents `33/33 PASS`
-- Decision-required `22/22`
-- RNG-required `9/10`
-- coverage promotion `FALSE`
-
-Missing RNG-required effective path:
-`forge-behavior-v2:24a5352cfaa6ae913df6549ceed0c447d526e89d`
-
-Lineage:
-`Descendants' Fury -> DamageDoneOnce -> TrigDigUntil -> DigUntil`
-
-### Directly localized remaining runtime blocker
-
-The repaired generic TriggeredSources cost trace reaches production `CostSacrifice` and records for target `DigUntil` ability `712` / source trigger `50010` / host `385`:
+### Frozen runtime tuple
 
 ```text
-CANDIDATES required=1 mandatory=false sources=388 candidates=388 candidateCount=1
-SELECTION cancelled=true selectedCount=-1 selected=
-DECISION decisionNull=true
-RESULT result=false reason=DECISION_NULL
-PAY_COST=false
-PREREQUISITES_MET=false
+SOURCE_HEAD 2896cca14dcc0d43a92957b3ddb4e8e11f1f28c7
+SOURCE_TREE fbb9565d4583db655872cfd378831711b0989b7a
+RUN         33928315020
+JOB         101201530278
+ARTIFACT    9957712911
+NAME        ws33-g3-svar-event-runtime-33928315020
+DIGEST      sha256:2241adad950188fc0f0adb0d0a1395a399251470dc8d8e75ded96d68d61aea0b
+ZIP_SHA256  2241adad950188fc0f0adb0d0a1395a399251470dc8d8e75ded96d68d61aea0b
 ```
 
-Thus `Card.TriggeredSources` resolution and sacrifice validity filtering succeed with exactly one legal candidate, but the external cost-time entity-list selection resolves to cancel/null. The same effective path has accepted `CONFIRM_TRIGGER` and `ENTITY_LIST_SELECTION` decision events. Its request advertises two generic choice tokens while the production sacrifice-cost candidate set is the single legal card ID `388`.
+Exact-source workflow run cardinality: `1`.
 
-This localizes the remaining blocker to the generic external Decision binding at cost-time `ENTITY_LIST_SELECTION`, before the required `DigUntil` RNG operation. RNG generation itself is not implicated by this artifact.
+GitHub Actions:
 
-Evidence classification: run/artifact/digest/table counts `DIRECTLY_VERIFIED`; trace boundary interpretation `CODE_DERIVED`; repaired semantic result remains `UNKNOWN` until rerun.
+- Steps 1–13 PASS;
+- Step 14 Record Campaign PASS;
+- Step 15 Record Behavior + Decision/RNG obligations PASS;
+- Step 16 tape-driven Replay PASS;
+- Step 17 source chain / immutable hashes PASS;
+- Step 18 artifact upload PASS;
+- overall job/run `success`.
 
-## Confirmed generic Decision root cause
+Evidence classification: run/job/source/artifact/digest/independent ZIP rehash and step conclusions `DIRECTLY_VERIFIED`.
 
-`ROOT_CAUSE_CHECKPOINT = research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_ENTITY_LIST_SELECTION_ROOT_CAUSE_20260905.md`
+## G3 non-AF Runtime Record / Replay result
 
-Checkpoint persistence commit: `1d7c0ae79ea26c8e6773fdc491fe36284860c449`.
+Artifact-independent recomputation and retained artifact evidence establish:
 
-The exact WS01 synchronized-input bridge used by this workflow patches `InputSelectEntitiesFromList.driveExternal()` to build UI action strings in this order: `DONE` when the Forge input already satisfies minimum selection, `CANCEL` when `allowCancel`, then `ENTITY:<ExternalDecisionRequest.optionIdFor(entity)>` for each authoritative `validChoices` entity. It sends those action strings through `PlayerControllerHuman.chooseExternalUiOptions(..., "ENTITY_LIST_SELECTION", value -> value)`.
+- effective non-AF paths `32/32 PASS`;
+- source parents `33/33 PASS`;
+- Decision-required paths `22/22` present;
+- RNG-required paths `10/10` present;
+- record `game_completed=true`;
+- replay `game_completed=true`;
+- record/replay path count `32`;
+- `pilot_visible_hidden_info_leaks=0` in both process records;
+- `cross_principal_decision_leaks=0` in both process records;
+- `phase_mismatches=0` in both process records;
+- `outer_failure=null` in both process records;
+- Record/Replay case-summary, parent-summary, decision tape/events/requests, RNG tape/events byte-equal under the workflow gate;
+- artifact `SHA256SUMS` independently verifies all retained evidence files;
+- `coverage_mutated=false`;
+- `principal_observation_promoted=false`.
 
-For the failing sacrifice state, minimum is not yet satisfied, `allowCancel=true`, and Forge has exactly one legal Card `388`. Therefore the bridge produces exactly two actions: `CANCEL` and the authoritative Card-388 entity transition. `chooseExternalUiOptions` erases that entity identity at the external ABI surface into generic `choice:0` / `choice:1`. The record tape selected `choice:0`, which decodes back to `CANCEL`; `onCancel()` clears the legacy input, `HumanCostDecision` returns `null`, and cost payment stops before RNG.
+The artifact source chain binds the same required pins:
 
-The bridge additionally encodes cancellation as an ordinary discrete option while its external request sets `cancelAllowed=false`; this confirms the adapter shape is inconsistent with the project Decision ABI. This is not a Forge sacrifice-legality defect and not an RNG defect.
+- Forge `8c7e9afb8e6caee88644b94e25da5852e36f8928`;
+- topology artifact `9866293827` / digest `sha256:6a41f66937b4bf1bcf782045d869ece183c0be49b345eac654dc3588cb98b96b`;
+- consumer model `82638e6b3e4408cc5bddedc49372b6357d3c2bdce6fba7bfab7ed119678f9a48`;
+- effective manifest file `cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224`.
 
-Evidence classification: pinned Forge + exact WS01 bridge + exact run response mapping `CODE_DERIVED`; run request/tape/cost trace `DIRECTLY_VERIFIED`.
+`G3.1 Runtime Record = PASS`
 
-Required repair: preserve Forge's `validChoices`, min/max and cancellation legality, expose authoritative entity option IDs directly, use the Decision cancellation channel rather than a fake `choice:N`, map responses only to current authoritative entities, and fail closed on stale/illegal responses. No card-name/path-ID branch, singleton autopick, first/default/random/pass/cancel fallback, rules mutation, RNG mutation or coverage mutation.
+`G3.2 Tape-driven Replay = PASS`
 
-No official Magic rules adjudication is required for this adapter repair because it preserves the Rules Core's already-computed legal choices and current cancellation/min/max semantics.
+`G3.3 Runtime Freeze = PASS`
+
+Evidence classification: `DIRECTLY_VERIFIED`.
+
+## Former blocker — closed at runtime
+
+Root-cause checkpoint:
+`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_ENTITY_LIST_SELECTION_ROOT_CAUSE_20260905.md`
+
+Root-cause persistence commit: `1d7c0ae79ea26c8e6773fdc491fe36284860c449`.
+
+The WS01 synchronized `InputSelectEntitiesFromList` bridge had represented legal cancel + Card 388 as generic `choice:0` / `choice:1`; the record pilot's accepted `choice:0` decoded to legacy `CANCEL`, so `HumanCostDecision.visit(CostSacrifice)` returned null before `DigUntil` RNG.
+
+Systemic repair commit `2896cca14dcc0d43a92957b3ddb4e8e11f1f28c7` preserves Forge legality but exposes typed entity identity and the ABI cancellation channel. No card-name/path-ID branch, singleton autopick, first/default/random/pass/cancel fallback, rules mutation, RNG mutation or coverage mutation was introduced.
+
+For effective path `forge-behavior-v2:24a5352cfaa6ae913df6549ceed0c447d526e89d` (`Descendants' Fury -> DamageDoneOnce -> TrigDigUntil -> DigUntil`) the successful record now exposes:
+
+- `ENTITY_LIST_SELECTION` min/max `1/1`;
+- `cancelAllowed=true`;
+- entity schema `commander-simulator-next.entity-selection.v1`;
+- sole authoritative option `card:388`;
+- Decision event `ACCEPTED`;
+- sacrifice `cancelled=false selectedCount=1 selected=388`;
+- `decisionNull=false`;
+- `result=true reason=PAY_AS_DECIDED`;
+- required DigUntil RNG event present on operation `rules.forge.game.ability.effects.DigUntilEffect.collections_shuffle.1`.
+
+Evidence classification: runtime facts `DIRECTLY_VERIFIED`; systemic adapter diagnosis `CODE_DERIVED`.
 
 ## Active PENDING successor
 
 `ACTIVE_PENDING_CHECKPOINT = NONE`
 
-There is currently no non-terminal successor. The concrete source defect is confirmed, so one runtime-affecting repair commit is now permitted after re-verifying live HEAD/TREE. That source commit must produce exactly one intended qualification run; immediately after run creation its RUN/JOB/SOURCE_HEAD/SOURCE_TREE/workflow/cardinality must be persisted and writes frozen until terminal.
-
-## Retry-protocol incident retained for provenance
-
-Diagnostic source commit `2bb3a56a3edcefdd18d0a26bba5755e393ee28e7` / tree `2046196b514ad0bb4e64297fc8de024b0b216170` unexpectedly produced two push-triggered workflow runs with the same source HEAD. This is a recorded retry-protocol incident; no third run may be created from that source commit.
-
-- Run `33907775080`; job `101136703588`; artifact `9950185061`; digest `sha256:defe92ec72912fc455496d037f9cb04ceb01c56356b6423fd469947ce2973d73`; failed Step 12 with ambiguous diagnostic anchor.
-- Run `33907795947`; job `101136772850`; artifact `9950194328`; digest `sha256:92fc6c1f951ceff8b3e962db3dcadd9d04e03cc95bd47c3cc72f0f6ab2a85544`; same Step-12 diagnostic-tooling failure.
-- Both immutable ZIPs were independently re-hashed and matched GitHub digests.
-- First failure in both: `WS33_G_COST_TRACE=FAIL TriggeredSources sacrifice candidates: expected exactly one anchor, got 2`.
-
-These two runs are diagnostic-tooling failures and do not supersede runtime evidence from `33919282114`.
+There is no non-terminal qualification run at this handoff point.
 
 ## G3 immutable evidence — do not rerun without invalidation
 
@@ -120,31 +134,40 @@ These two runs are diagnostic-tooling failures and do not supersede runtime evid
 - ABI/Decision/RNG/Replay run `33773805031` PASS.
 - Principal Observation run `33774853355`; artifact `9901438964`; digest `sha256:2e60f7c79ad642f3f3942db4b3e84a9392cde5662126c0eb84153a3f0469cb5d`; PASS.
 
+### non-AF32
+- Runtime Record / Replay / runtime Decision+RNG obligations run `33928315020`; job `101201530278`; artifact `9957712911`; digest `sha256:2241adad950188fc0f0adb0d0a1395a399251470dc8d8e75ded96d68d61aea0b`; PASS and frozen.
+- Separate certification consuming this exact runtime artifact: **NOT YET RUN**.
+- Principal Observation Hidden31 qualification: **NOT YET RUN**.
+
 ## Current G3 frontier
 
-- total G3 `81`
-- immutable Direct-G `28`
-- immutable AF `21`
-- remaining non-AF effective paths `32`
-- remaining production parents `33`
-- latest valid record behavior `32/32 paths`, `33/33 parents`
-- Decision obligation `22/22`
-- RNG obligation `9/10`
-- replay blocked behind fail-closed pre-replay gate
-- `G3_NON_AF_STATUS = UNKNOWN`
-- `COVERAGE_PROMOTION = FALSE`
+- total G3 `81`;
+- immutable Direct-G `28` fully qualified;
+- immutable AF `21` fully qualified;
+- non-AF `32` Runtime Record/Replay PASS;
+- non-AF Decision obligation `22/22` PASS at runtime;
+- non-AF RNG obligation `10/10` PASS at runtime;
+- non-AF separate certification still required;
+- non-AF Hidden31 Principal Observation still required;
+- `G3_NON_AF_STATUS = UNKNOWN` until both remaining gates PASS;
+- `G_PASS` is **not** promoted;
+- `G_UNKNOWN` remains `81` at the stable global coverage boundary;
+- `COVERAGE_PROMOTION = FALSE`.
+
+## Retry-protocol incident retained for provenance
+
+Source commit `2bb3a56a3edcefdd18d0a26bba5755e393ee28e7` unexpectedly produced two diagnostic runs `33907775080` and `33907795947`, both Step-12 tooling failures from an ambiguous anchor. No third run may be created from that source commit. Their immutable artifacts/digests were already independently checked and they do not supersede the frozen runtime evidence above.
 
 ## Exact resume action
 
-1. Re-verify the live branch after root-cause persistence/handoff commits.
-2. Apply exactly one systemic runtime-affecting repair to the synchronized `InputSelectEntitiesFromList` external binding so entity identities/cancel semantics are authoritative at the external ABI surface.
-3. Verify exactly one successor workflow run for that source commit.
-4. Immediately bind RUN/JOB/SOURCE_HEAD/SOURCE_TREE and exact-source run cardinality in a PENDING checkpoint before further runtime-affecting writes.
-5. On terminal result, bind artifact ID/name/GitHub digest, independently re-hash ZIP, and persist terminal PASS/FAIL + handoff before any next repair.
-6. Continue until strict Runtime Record + Decision22 + RNG10 + tape-driven Replay PASS for all non-AF 32/33.
-7. Freeze Runtime; separately certify immutable ABI/Decision/RNG/Replay consuming the exact runtime artifact; then non-AF Principal Observation Hidden31 record/replay equivalence/no leaks.
-8. Only after Direct28 + AF21 + non-AF32 satisfy all contracts promote/freeze G3 and recompute the live 4188 frontier.
-9. Then execute serial `ABC -> D -> E -> F -> final cross-qualification`; do not use historical expected counts without fresh compatibility adjudication.
+1. Read-only inspect existing G3 non-AF ABI / Decision / RNG / Replay certification tooling.
+2. Ensure the certification consumes exact frozen runtime artifact `9957712911` and verifies its digest `sha256:2241adad950188fc0f0adb0d0a1395a399251470dc8d8e75ded96d68d61aea0b`; do not reconstruct the runtime record from another run.
+3. Execute/persist G3.4 under the same transactional retry protocol.
+4. Then execute/persist G3.5 Principal Observation for the non-AF Hidden31 set: principal-scoped observations, record/replay equivalence, visibility grant/revoke lifetime, no cross-principal or hidden-card-ID leak, stable Actor/Principal identity.
+5. Only after Direct28 + AF21 + non-AF32 satisfy all contracts materialize G3.6 with `G_PASS=81`, `G_UNKNOWN=0` and an immutable G3-complete checkpoint.
+6. Recompute the live 4188 frontier from current canonical source.
+7. Continue strictly serial `ABC -> D -> E -> F -> final cross-qualification`; historical WS27–WS32/WS29/Post-Gen2 evidence may be reused only after exact compatibility adjudication.
+8. Do not mark WS33 COMPLETE until `TOTAL=4188 PASS=4188 UNKNOWN=0 FAIL=0 UNSUPPORTED=0 A-H_UNKNOWN=0 WS33_COMPLETE=TRUE TASK_COMPLETE=YES` with all cross-cutting gates valid.
 
 `G3_NON_AF_STATUS = UNKNOWN`
 
