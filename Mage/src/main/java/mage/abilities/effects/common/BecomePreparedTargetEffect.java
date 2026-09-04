@@ -31,11 +31,22 @@ public class BecomePreparedTargetEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Permanent permanent = game.getPermanent(getTargetPointer().getFirst(game, source));
+        Permanent permanent = game.getPermanent(
+                getTargetPointer().getFirst(game, source)
+        );
         if (permanent == null) {
             return false;
         }
-        permanent.setPrepared(prepared, game);
+
+        if (prepared) {
+            return BecomePreparedSourceEffect.preparePermanent(
+                    permanent,
+                    source,
+                    game
+            );
+        }
+
+        permanent.setPrepared(false, game);
         return true;
     }
 
@@ -44,7 +55,9 @@ public class BecomePreparedTargetEffect extends OneShotEffect {
         if (staticText != null && !staticText.isEmpty()) {
             return staticText;
         }
-        return this.getTargetPointer().describeTargets(mode.getTargets(), "that creature")
-                + " becomes " + (prepared ? "" : "un") + "prepared";
+        return this.getTargetPointer().describeTargets(
+                mode.getTargets(),
+                "that creature"
+        ) + " becomes " + (prepared ? "" : "un") + "prepared";
     }
 }
