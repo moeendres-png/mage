@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
-"""Add a fail-closed, observation-only WS33 trigger-admission hook to pinned Forge.
+"""Apply WS33 trigger admission observation plus the adjudicated singleton-selection repair.
 
-The hook fires only after TriggerHandler has accepted a trigger through its production
-canRunTrigger path and admitted the resulting WrappedAbility to the simultaneous stack.
-It does not change trigger legality, event facts, targets, choices, stack ordering, or
-resolution. Qualification harnesses use it only to prove which exact source trigger
-entered the production stack.
+The trigger hook fires only after TriggerHandler accepted a trigger through its production
+canRunTrigger path and admitted the WrappedAbility to the simultaneous stack. It remains
+observation-only. After that patch is installed, this entry point delegates to the focused
+`apply-ws33-nondiscretionary-ability-selection.py` overlay, whose separately frozen source
+adjudication restores pinned Desktop Forge's no-trigger-event behavior only when the
+Rules-Core-produced additional-cost ability list contains exactly one object.
+
+No trigger legality, event fact, target, cost, RNG, stack ordering, or multi-option pilot
+choice is inferred or bypassed here.
 """
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import subprocess
+import sys
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -72,7 +78,16 @@ def main() -> None:
         raise SystemExit("WS33_TRIGGER_REACHABILITY=FAIL observer precedes production stack admission")
 
     path.write_text(src, encoding="utf-8")
-    print("WS33_TRIGGER_REACHABILITY=PASS boundary=POST_LEGALITY_POST_SIMULTANEOUS_STACK_ADMISSION semantics_mutated=FALSE")
+
+    repair = Path(__file__).with_name("apply-ws33-nondiscretionary-ability-selection.py")
+    if not repair.is_file():
+        raise SystemExit("WS33_TRIGGER_REACHABILITY=FAIL missing adjudicated singleton-selection overlay")
+    subprocess.run(
+        [sys.executable, str(repair), "--forge-root", str(args.forge_root)],
+        check=True,
+    )
+
+    print("WS33_TRIGGER_REACHABILITY=PASS boundary=POST_LEGALITY_POST_SIMULTANEOUS_STACK_ADMISSION observation_semantics_mutated=FALSE singleton_selection_repair=AUTHORITATIVE_SIZE_ONE_ONLY")
 
 
 if __name__ == "__main__":
