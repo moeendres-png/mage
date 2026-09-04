@@ -19,30 +19,55 @@ Only the final serial `G3 -> ABC -> D -> E -> F -> final cross-qualification` su
 
 ## Current confirmed checkpoint
 
-`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_EVENT_RUNTIME_RUN_33863979003_FAILURE`
+`LAST_CONFIRMED_CHECKPOINT = G3_NON_AF_COST_TRACE_RUNS_33907775080_33907795947_FAILURE`
 
 Checkpoint:
-`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_EVENT_RUNTIME_RUN_33863979003_FAILURE.md`
+`research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/G3_NON_AF_COST_TRACE_RUNS_33907775080_33907795947_FAILURE.md`
 
-Corrected checkpoint commit: `349e58b79a87c82afd20a7466c8e3e7edbad73a6`.
+Checkpoint commit: `efbc37183278410d8eed51a21910bb220dd2baae`.
 
-Run `33863979003` / job `100994503842` is terminal `failure`.
+Diagnostic source commit `2bb3a56a3edcefdd18d0a26bba5755e393ee28e7` / tree `2046196b514ad0bb4e64297fc8de024b0b216170` unexpectedly produced two push-triggered workflow runs with the same source HEAD. This is a recorded retry-protocol incident; no third run may be created from that source commit.
+
+### Run A
+
+- RUN `33907775080`; JOB `101136703588`; terminal `failure`
+- artifact `9950185061`
+- artifact name `ws33-g3-svar-event-runtime-33907775080`
+- digest `sha256:defe92ec72912fc455496d037f9cb04ceb01c56356b6423fd469947ce2973d73`
+- independently downloaded ZIP re-hash: exact match
+- Steps 1-11 PASS; Step 12 harness/request-trace preparation FAIL; Java/runtime Steps 13-17 skipped; artifact upload PASS
+
+### Run B
+
+- RUN `33907795947`; JOB `101136772850`; terminal `failure`
+- artifact `9950194328`
+- artifact name `ws33-g3-svar-event-runtime-33907795947`
+- digest `sha256:92fc6c1f951ceff8b3e962db3dcadd9d04e03cc95bd47c3cc72f0f6ab2a85544`
+- independently downloaded ZIP re-hash: exact match
+- Steps 1-11 PASS; Step 12 harness/request-trace preparation FAIL; Java/runtime Steps 13-17 skipped; artifact upload PASS
+
+Both logs fail first at the exact same strict diagnostic cardinality guard:
+
+```text
+WS33_G_COST_TRACE=FAIL TriggeredSources sacrifice candidates: expected exactly one anchor, got 2
+```
+
+The cost-trace patch therefore failed closed before Java compilation. These are diagnostic-tooling failures, not new runtime-behavior evidence. No Forge/fixture/root-cause repair is justified from them.
+
+The last valid runtime evidence remains run `33863979003` / job `100994503842`:
 
 - source HEAD `35a2a267fa70b87a4d21d5cbae98be3f7bdd27eb`
 - source TREE `85c1d4fe2df0f980d1e4fe43c4bca11b2eeb5108`
 - artifact `9933311779`
-- artifact name `ws33-g3-svar-event-runtime-33863979003`
 - digest `sha256:204cd7c057196220fdb60cd9662443a8703f20cbb7bc02f90d022fe8508353fa`
-- independently downloaded ZIP re-hash: exact match
 - record effective paths `32/32 PASS`
 - source parents `33/33 PASS`
-- `game_completed=true`; `path_count=32`; no observed pilot-hidden/cross-principal/phase leak
-- Decision-required `22/22`; missing `0`
-- RNG-required `9/10`; missing exactly one effective path
+- Decision-required `22/22`
+- RNG-required `9/10`
 - replay NOT RUN because strict pre-replay gate failed
 - coverage promotion FALSE
 
-### Exact first material blocker
+### Exact material blocker still under diagnosis
 
 Missing RNG-required effective path:
 
@@ -54,7 +79,7 @@ Source lineage:
 
 The target script contains `Cost$ Sac<1/Card.TriggeredSources>` and `RevealRandomOrder$ True`.
 
-The source-proven parent is admitted, bound, enters MagicStack, does not fizzle, and reaches the observation-only resolution callback. However the exact underlying target ability trace is:
+The source-proven parent is admitted, bound, enters MagicStack, does not fizzle, and reaches the observation-only resolution callback. The exact underlying target ability trace from valid run `33863979003` is:
 
 ```text
 abilityId=712 sourceTrigger=50010 hostId=385 api=DigUntil
@@ -68,11 +93,7 @@ PAY_COST=false
 PREREQUISITES_MET=false
 ```
 
-Therefore the `DigUntilEffect` random-order body is not reached. The prior hypothesis that the failure was only a degenerate `Collections.shuffle` witness is invalidated and has been removed from the canonical checkpoint.
-
-Pinned `TriggerDamageDoneOnce` writes the actual damage-source collection to triggering object `AbilityKey.Sources`; the harness creates a controlled `Runeclaw Bear` in the battlefield `DamageMap`. Trigger admission succeeds. The unresolved boundary is now authoritative sacrifice-cost materialization/payment for `Card.TriggeredSources` on the target ability.
-
-Current root-cause status: `UNKNOWN`. Do not repair Forge or the fixture until a generic observation-only cost trace distinguishes fixture omission, triggering-object propagation, authoritative selection/payment integration, or another cost prerequisite.
+Pinned Forge source inspection confirms `Card.TriggeredSources` resolves through the root ability's `AbilityKey.Sources`, `CostSacrifice` filters battlefield candidates by that defined set plus sacrifice legality, and `CostPayment` fails when the authoritative `PaymentDecision` is null or `payAsDecided` returns false. Current semantic root cause remains `UNKNOWN` because the intended observation-only cost trace has not yet executed.
 
 ## G3 immutable evidence — do not rerun without invalidation
 
@@ -96,22 +117,23 @@ Current root-cause status: `UNKNOWN`. Do not repair Forge or the fixture until a
 - immutable AF `21`
 - remaining non-AF effective paths `32`
 - remaining production parents `33`
-- latest record behavior materially green `32/32 paths`, `33/33 parents`
-- Decision obligation materially green `22/22`
-- RNG obligation `9/10`, but the one missing path is blocked before its RNG-bearing effect by failed sacrifice cost
+- latest valid record behavior `32/32 paths`, `33/33 parents`
+- Decision obligation `22/22`
+- RNG obligation `9/10`; the missing path remains blocked before its RNG-bearing effect by failed sacrifice cost
 - replay remains blocked behind the fail-closed pre-replay gate
+- latest two cost-trace successors produced no runtime evidence because their diagnostic patch failed at harness preparation
 - `G3_NON_AF_STATUS = UNKNOWN`
 - `COVERAGE_PROMOTION = FALSE`
 
 ## Exact next atomic package
 
-1. Inspect pinned sacrifice-cost and `TriggeredSources` resolution/payment source read-only.
-2. Add a single generic observation-only cost-boundary diagnostic. It must expose for the affected ability shape: triggering `Sources` visibility, computed sacrifice candidate set, authoritative selected entity/option, and cost-part result. No card-name/path-ID branching.
-3. Persist that diagnostic commit.
-4. Trigger exactly one `ws33-g3-svar-event-runtime.yml` successor run from that commit.
-5. Immediately persist a PENDING checkpoint with RUN/JOB/SOURCE_HEAD/SOURCE_TREE before any other runtime-affecting write.
-6. Make no runtime-affecting write while the run is non-terminal.
-7. On terminal result, bind artifact/digest and persist PASS/FAIL before any repair.
+1. Repair only the generic observation-only cost-trace patcher's ambiguous anchor selection in `ws33_instrument_g_authoritative_requests.py`. Select the intended semantic harness site structurally or with uniquely qualified surrounding context. No card-name/path-ID branching; no Forge/runtime/fixture semantics change.
+2. Persist that diagnostic-repair commit.
+3. Allow exactly one `ws33-g3-svar-event-runtime.yml` successor for that source commit. Do not manually dispatch an additional run.
+4. Immediately enumerate runs by exact source HEAD. If more than one appears, record the protocol incident and do not create another.
+5. Persist a PENDING checkpoint containing RUN/JOB/SOURCE_HEAD/SOURCE_TREE before any other runtime-affecting write.
+6. Make no runtime-affecting write while the intended run is non-terminal.
+7. On terminal result, bind artifact/digest, independently re-hash ZIP, inspect the cost trace, and persist PASS/FAIL before any repair.
 8. Repair only the root cause directly established by that artifact. If production Forge behavior is implicated, adjudicate against current official Magic rules/card wording before changing rules code.
 9. Continue until strict Runtime Record + Decision22 + RNG10 + tape-driven Replay PASS for all non-AF 32/33.
 10. Freeze Runtime; then perform separate immutable ABI/Decision/RNG/Replay certification consuming that exact runtime artifact; then non-AF Principal Observation Hidden31 record/replay equivalence/no leaks.
