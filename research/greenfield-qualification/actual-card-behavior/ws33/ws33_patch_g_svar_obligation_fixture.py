@@ -2,9 +2,11 @@
 """Add deterministic, script-semantic library fixtures for WS33 non-AF Decision/RNG obligations.
 
 This is qualification-only. It does not branch on card names or path IDs and does not
-alter Forge rules, legal options, RNG, or pilot policy. It only ensures that restrictive
+alter Forge rules, legal options, RNG, or pilot policy. It ensures that restrictive
 actual-card Valid/ChangeValid/RevealValid predicates have a real pinned-Forge card in the
-bounded library window, and that random-rest effects retain at least two pre-match cards.
+bounded library window. For DigUntil + RevealRandomOrder it additionally guarantees two
+script-invalid revealed cards before any possible match, so the production shuffle is
+non-degenerate and an RNG obligation is actually exercised.
 """
 from __future__ import annotations
 
@@ -35,7 +37,25 @@ def main() -> None:
 
     anchor = '    private static void prepareSourceFixture(CaseSpec spec,Game game,Player actor,Player opponent,Card source,ParentEvidence pe)'
     helper = r'''    private static void placeLibraryCardAt(String name,Player player,int index){Card c=addCardAtTop(name,player);player.getZone(ZoneType.Library).remove(c);player.getZone(ZoneType.Library).add(c,index);}
-    private static void prepareObligationFixture(CaseSpec spec,Player actor){Map<String,String>p=AbilityFactory.getMapParams(spec.targetScript);String valid=p.get("RevealValid");if(valid==null)valid=p.get("ChangeValid");if(valid==null)valid=p.get("Valid");String candidate=null;if(spec.decision){if("Aura".equals(valid))candidate="Pacifism";else if("Hero".equals(valid))candidate="Amateur Hero";else if("Aura,Equipment".equals(valid))candidate="Lightning Greaves";else if("Creature.ChosenType".equals(valid))candidate="Runeclaw Bear";}if(candidate==null&&spec.rng&&valid!=null&&valid.contains("sharesCreatureTypeWith Sacrificed"))candidate="Runeclaw Bear";if(candidate==null)return;boolean randomRest=p.containsKey("RevealRandomOrder")||p.containsKey("RestRandomOrder");int index=spec.rng&&randomRest?2:0;placeLibraryCardAt(candidate,actor,index);}
+    private static void prepareObligationFixture(CaseSpec spec,Player actor){
+        Map<String,String>p=AbilityFactory.getMapParams(spec.targetScript);
+        String valid=p.get("RevealValid");if(valid==null)valid=p.get("ChangeValid");if(valid==null)valid=p.get("Valid");
+        boolean digUntilRandom="DigUntil".equals(spec.dispatch)&&p.containsKey("RevealRandomOrder");
+        String candidate=null;
+        if(spec.decision){if("Aura".equals(valid))candidate="Pacifism";else if("Hero".equals(valid))candidate="Amateur Hero";else if("Aura,Equipment".equals(valid))candidate="Lightning Greaves";else if("Creature.ChosenType".equals(valid))candidate="Runeclaw Bear";}
+        if(candidate==null&&spec.rng&&valid!=null&&valid.contains("sharesCreatureTypeWith Sacrificed"))candidate="Runeclaw Bear";
+        if(digUntilRandom&&spec.rng){
+            if(candidate==null)throw new IllegalStateException("unsupported DigUntil RevealRandomOrder fixture matcher: "+valid);
+            placeLibraryCardAt(candidate,actor,2);
+            placeLibraryCardAt("Sol Ring",actor,0);
+            placeLibraryCardAt("Sol Ring",actor,1);
+            return;
+        }
+        if(candidate==null)return;
+        boolean randomRest=p.containsKey("RevealRandomOrder")||p.containsKey("RestRandomOrder");
+        int index=spec.rng&&randomRest?2:0;
+        placeLibraryCardAt(candidate,actor,index);
+    }
 '''
     s = replace_once(s, anchor, helper + anchor, "obligation fixture helper")
 
@@ -48,13 +68,16 @@ def main() -> None:
         '"Aura,Equipment".equals(valid)',
         '"Creature.ChosenType".equals(valid)',
         'valid.contains("sharesCreatureTypeWith Sacrificed")',
-        'index=spec.rng&&randomRest?2:0',
+        '"DigUntil".equals(spec.dispatch)&&p.containsKey("RevealRandomOrder")',
+        'placeLibraryCardAt("Sol Ring",actor,0)',
+        'placeLibraryCardAt("Sol Ring",actor,1)',
+        'unsupported DigUntil RevealRandomOrder fixture matcher',
     ):
         if required not in s:
             fail("missing generated invariant: " + required)
 
     args.harness.write_text(s, encoding="utf-8")
-    print("WS33_G_SVAR_OBLIGATION_FIXTURE=PASS card_name_branches=0 path_id_branches=0 decision_candidates=VALIDITY_DRIVEN rng_rest=NONTRIVIAL")
+    print("WS33_G_SVAR_OBLIGATION_FIXTURE=PASS card_name_branches=0 path_id_branches=0 decision_candidates=VALIDITY_DRIVEN diguntil_random_order=NONDEGENERATE_FAIL_CLOSED")
 
 
 if __name__ == "__main__":
