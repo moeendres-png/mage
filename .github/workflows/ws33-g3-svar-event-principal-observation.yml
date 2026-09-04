@@ -1,0 +1,120 @@
+name: WS33 G3 SVar non-AF principal observation
+on:
+  push:
+    branches: [work/ws33-g3-final-closure-20260902]
+    paths:
+      - '.github/workflows/ws33-g3-svar-event-principal-observation.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_adjudicate_g_principal_observation_event.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_instrument_g_principal_observations.py'
+  workflow_dispatch:
+permissions: {contents: read, actions: read}
+env:
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  RUNTIME_ARTIFACT_ID: '9957712911'
+  RUNTIME_DIGEST: sha256:2241adad950188fc0f0adb0d0a1395a399251470dc8d8e75ded96d68d61aea0b
+  CERT_ARTIFACT_ID: '9957878386'
+  CERT_DIGEST: sha256:d26c61446bf023af1f26ba6d9ef7f94e843e7726915c6b47578f8226662793da
+  DIRECT_SOURCE: d8af15cb879bdfc3c40ce4cba3462da24ee3f272
+  WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+  WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+  WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
+  WS31_HEAD: b09fe7c16845cddbbfe30fd1f855b59234bbf007
+jobs:
+  principal-observation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 1}
+      - name: Bind exact frozen prerequisites
+        env: {GH_TOKEN: '${{ github.token }}'}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p generated/runtime generated/cert generated/source generated/record generated/replay generated/diagnostic generated/overlay-logs
+          printf '%s\n' "$GITHUB_SHA" > generated/diagnostic/workflow-source-head.txt
+          git rev-parse 'HEAD^{tree}' > generated/diagnostic/workflow-source-tree.txt
+          for pair in "$RUNTIME_ARTIFACT_ID $RUNTIME_DIGEST runtime" "$CERT_ARTIFACT_ID $CERT_DIGEST cert"; do
+            set -- $pair; meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$1")"; test "$(jq -r .digest <<<"$meta")" = "$2"; gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$1/zip" > "generated/$3.zip"; test "sha256:$(sha256sum "generated/$3.zip"|cut -d' ' -f1)" = "$2"; unzip -q "generated/$3.zip" -d "generated/$3"; done
+          cp generated/runtime/source/g-svar-event-cases.tsv generated/source/cases.tsv
+          test "$(wc -l < generated/source/cases.tsv)" -eq 33
+          jq -e '.status=="PASS" and .path_count==32 and .decision_observed==22 and .rng_observed==10 and .coverage_mutated==false' generated/cert/certified/diagnostic/CERTIFICATION_CHAIN.json
+          python - <<'PY'
+          from pathlib import Path
+          r=[x.split('\t') for x in Path('generated/source/cases.tsv').read_text().splitlines() if x]
+          assert len({x[1] for x in r})==32 and len({x[1] for x in r if x[15]=='1'})==31
+          print('WS33_G_SVAR_EVENT_HIDDEN_OBLIGATIONS=PASS hidden=31 paths=32 parents=33')
+          PY
+      - uses: actions/checkout@v4
+        with: {repository: Card-Forge/forge, ref: '${{ env.FORGE_PIN }}', path: forge, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.DIRECT_SOURCE }}', path: direct-source, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.WS01_HEAD }}', path: ws01, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.WS12_HEAD }}', path: ws12, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.WS32_HEAD }}', path: ws32, fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.WS31_HEAD }}', path: ws31, fetch-depth: 1, sparse-checkout: 'research/greenfield-qualification/actual-card-behavior/ws31/forge-overlay/Ws31HiddenRngReplayQualificationTest.java'}
+      - name: Apply exact runtime and observation overlays
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch | tee generated/overlay-logs/ws01.log
+          python direct-source/research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge | tee generated/overlay-logs/ws05.log
+          cp direct-source/research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          python direct-source/research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/record/RNG_INVENTORY.json | tee generated/overlay-logs/ws06.log
+          python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge | tee generated/overlay-logs/input.log
+          python "$ROOT/runtime-overlays/apply-ws33-observation-fanout.py" --forge-root forge | tee generated/overlay-logs/fanout.log
+          python "$ROOT/runtime-overlays/apply-ws33-external-card-decision-lifetime.py" --forge-root forge | tee generated/overlay-logs/lifetime.log
+          python direct-source/$ROOT/runtime-overlays/apply-ws33-stack-target.py --forge-root forge | tee generated/overlay-logs/stack-target.log
+          python "$ROOT/runtime-overlays/apply-ws33-target-selection.py" --forge-root forge | tee generated/overlay-logs/target.log
+          python "$ROOT/runtime-overlays/apply-ws33-trigger-reachability.py" --forge-root forge | tee generated/overlay-logs/trigger.log
+          python "$ROOT/runtime-overlays/apply-ws33-stack-resolution-reachability.py" --forge-root forge | tee generated/overlay-logs/stack-resolution.log
+          python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py --forge-root forge | tee generated/overlay-logs/ws12.log
+          python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py --forge-root forge | tee generated/overlay-logs/ws32.log
+          grep -Fx 'WS33_OBSERVATION_FANOUT=PASS' generated/overlay-logs/fanout.log
+          grep -Fx 'WS33_EXTERNAL_CARD_DECISION_LIFETIME=PASS' generated/overlay-logs/lifetime.log
+      - name: Prepare source-parent event harness with principal observation attribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          src=ws31/research/greenfield-qualification/actual-card-behavior/ws31/forge-overlay/Ws31HiddenRngReplayQualificationTest.java
+          dst=forge/forge-gui-desktop/src/test/java/forge/net/Ws33GSVarEventQualificationTest.java
+          python direct-source/$ROOT/ws33_prepare_g_ability_harness.py --source "$src" --out "$dst"
+          python "$ROOT/ws33_prepare_g_svar_event_harness.py" --harness "$dst"
+          python "$ROOT/ws33_instrument_g_principal_observations.py" --harness "$dst" | tee generated/diagnostic/instrument.log
+          grep -Fx 'WS33_G_PRINCIPAL_OBSERVATION_ATTRIBUTION=G_SVAR_EVENT' generated/diagnostic/instrument.log
+          ! grep -F 'sa.resolve()' "$dst"; ! grep -F 'sa.getTargets().add(' "$dst"; grep -F 'runTrigger(TriggerType.smartValueOf(spec.mode),rp,false)' "$dst"; grep -F 'ExternalObservationTrace.setPath(spec.pathId)' "$dst"
+          sha256sum "$dst" > generated/diagnostic/harness.sha256
+      - uses: actions/setup-java@v5
+        with: {distribution: temurin, java-version: '21'}
+      - name: Execute principal-observation record
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am -Dtest=forge.net.Ws33GSVarEventQualificationTest -Dws31.cases="$GITHUB_WORKSPACE/generated/source/cases.tsv" -Dws31.outDir="$GITHUB_WORKSPACE/generated/record" -Dws31.mode=record -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) 2>&1 | tee generated/record/runtime.log
+          test -s generated/record/PRINCIPAL_OBSERVATIONS.jsonl
+      - name: Execute tape-driven principal-observation replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am -Dtest=forge.net.Ws33GSVarEventQualificationTest -Dws31.cases="$GITHUB_WORKSPACE/generated/source/cases.tsv" -Dws31.outDir="$GITHUB_WORKSPACE/generated/replay" -Dws31.mode=replay -Dws31.decisionReplay="$GITHUB_WORKSPACE/generated/record/decision-tape.tsv" -Dws31.rngReplay="$GITHUB_WORKSPACE/generated/record/rng-tape.tsv" -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) 2>&1 | tee generated/replay/runtime.log
+          test -s generated/replay/PRINCIPAL_OBSERVATIONS.jsonl
+      - name: Adjudicate Hidden31 principal observation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_adjudicate_g_principal_observation_event.py" --cases generated/source/cases.tsv --record-dir generated/record --replay-dir generated/replay --out generated/diagnostic/PRINCIPAL_OBSERVATION.json --source-case-artifact-id "$RUNTIME_ARTIFACT_ID" --expected-paths 32 | tee generated/diagnostic/adjudication.log
+          jq -e '.status=="PASS" and .expected_paths==32 and .hidden_required_paths==31 and .retained_hidden_identity_payload==false and .coverage_mutated==false' generated/diagnostic/PRINCIPAL_OBSERVATION.json
+          cmp generated/record/PRINCIPAL_OBSERVATIONS.jsonl generated/replay/PRINCIPAL_OBSERVATIONS.jsonl || true
+      - name: Materialize immutable observation chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n --arg head "$GITHUB_SHA" --arg tree "$(git rev-parse 'HEAD^{tree}')" --arg runtime "$RUNTIME_ARTIFACT_ID" --arg cert "$CERT_ARTIFACT_ID" '{schema:"commander-simulator-next.ws33-g-svar-event-principal-observation.v1",status:"PASS",source_head:$head,source_tree:$tree,runtime_artifact_id:$runtime,abi_certification_artifact_id:$cert,path_count:32,hidden_required:31,principal_scoped:true,record_replay_observation_equivalent:true,coverage_mutated:false}' > generated/diagnostic/OBSERVATION_CHAIN.json
+          sha256sum generated/diagnostic/* generated/record/PRINCIPAL_OBSERVATIONS.jsonl generated/replay/PRINCIPAL_OBSERVATIONS.jsonl | sort > generated/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with: {name: 'ws33-g3-svar-event-principal-observation-${{ github.run_id }}', path: 'generated/diagnostic\ngenerated/SHA256SUMS\ngenerated/record/PRINCIPAL_OBSERVATIONS.jsonl\ngenerated/replay/PRINCIPAL_OBSERVATIONS.jsonl', retention-days: 90, if-no-files-found: error}

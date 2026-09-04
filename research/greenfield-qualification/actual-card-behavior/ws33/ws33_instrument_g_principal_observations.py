@@ -1,107 +1,42 @@
 #!/usr/bin/env python3
 """Add path-scoped principal-observation evidence to a prepared WS33 G harness.
 
-This is qualification instrumentation only. It does not alter legal options, targets,
-stack handling, decision policy, RNG, or semantic state. The production-facing adapter
-creates principal-scoped temporary Card observations; this script only binds those
-transport events to the exact effective path id and exports the payload-free trace.
-
-Exactly one supported campaign attribution anchor must be present:
-- Direct-G: currentPath.set(spec.pathId);bindTargets(sa);
-- SVar AF: currentPath.set(spec.pathId);prepareSourceParentChoices(spec,sa);bindTargets(sa);
-
-Missing, duplicated, or mixed attribution anchors fail closed.
+Qualification instrumentation only. It never alters legal options, targets, stack,
+decision policy, RNG, or semantic state. Supported campaign attribution shapes are
+Direct-G, SVar AF, and source-parent SVar Event. Missing/mixed anchors fail closed.
 """
 from __future__ import annotations
-
 import argparse
 from pathlib import Path
 
+def require(c,m):
+    if not c: raise SystemExit("WS33_G_PRINCIPAL_OBSERVATION_INSTRUMENT=FAIL "+m)
 
-def require(cond: bool, msg: str) -> None:
-    if not cond:
-        raise SystemExit("WS33_G_PRINCIPAL_OBSERVATION_INSTRUMENT=FAIL " + msg)
+def replace_once(t,o,n,l):
+    c=t.count(o); require(c==1,f"{l}: expected exactly one match, got {c}"); return t.replace(o,n,1)
 
-
-def replace_once(text: str, old: str, new: str, label: str) -> str:
-    count = text.count(old)
-    require(count == 1, f"{label}: expected exactly one match, got {count}")
-    return text.replace(old, new, 1)
-
-
-def bind_path_attribution(text: str) -> tuple[str, str]:
-    prefix = (
-        "awaitRemoteTransport(ps);leak0=Ws05HiddenInfoProbe.pilotVisibleLeaks();"
-        "cross0=Ws05HiddenInfoProbe.crossPrincipalLeaks();"
-    )
-    anchors = {
-        "DIRECT_G": prefix + "currentPath.set(spec.pathId);bindTargets(sa);",
-        "G_SVAR_AF": prefix + "currentPath.set(spec.pathId);prepareSourceParentChoices(spec,sa);bindTargets(sa);",
+def bind_path_attribution(t):
+    prefix="awaitRemoteTransport(ps);leak0=Ws05HiddenInfoProbe.pilotVisibleLeaks();cross0=Ws05HiddenInfoProbe.crossPrincipalLeaks();"
+    anchors={
+      "DIRECT_G":prefix+"currentPath.set(spec.pathId);bindTargets(sa);",
+      "G_SVAR_AF":prefix+"currentPath.set(spec.pathId);prepareSourceParentChoices(spec,sa);bindTargets(sa);",
+      "G_SVAR_EVENT":prefix+"currentPath.set(spec.pathId);ws33CurrentParentKey.set(pk);",
     }
-    matches = {name: text.count(anchor) for name, anchor in anchors.items()}
-    total = sum(matches.values())
-    require(total == 1, f"path attribution anchor ambiguous/missing: {matches}")
-    name = next(name for name, count in matches.items() if count == 1)
-    old = anchors[name]
-    new = old.replace(
-        "currentPath.set(spec.pathId);",
-        "ExternalObservationTrace.setPath(spec.pathId);currentPath.set(spec.pathId);",
-        1,
-    )
-    return text.replace(old, new, 1), name
+    matches={k:t.count(v) for k,v in anchors.items()}; require(sum(matches.values())==1,f"path attribution anchor ambiguous/missing: {matches}")
+    name=next(k for k,v in matches.items() if v==1); old=anchors[name]
+    new=old.replace("currentPath.set(spec.pathId);","ExternalObservationTrace.setPath(spec.pathId);currentPath.set(spec.pathId);",1)
+    return t.replace(old,new,1),name
 
-
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--harness", type=Path, required=True)
-    args = ap.parse_args()
-    path = args.harness
-    text = path.read_text(encoding="utf-8")
-
-    text = replace_once(
-        text,
-        "import forge.gamemodes.match.input.ExternalDecisionValidationException;\n",
-        "import forge.gamemodes.match.input.ExternalDecisionValidationException;\n"
-        "import forge.gamemodes.match.input.ExternalObservationTrace;\n",
-        "trace import",
-    )
-    text = replace_once(
-        text,
-        "Ws05HiddenInfoProbe.reset();Ws05HiddenInfoProbe.registerSecret(SECRET);",
-        "Ws05HiddenInfoProbe.reset();ExternalObservationTrace.reset();Ws05HiddenInfoProbe.registerSecret(SECRET);",
-        "trace reset",
-    )
-    text, attribution_mode = bind_path_attribution(text)
-    text = replace_once(
-        text,
-        "for(Player p:ps){ce.principalRequests.putIfAbsent(p.getId(),0L);ce.principalCardOptionRequests.putIfAbsent(p.getId(),0L);}currentPath.set(null);}}}",
-        "for(Player p:ps){ce.principalRequests.putIfAbsent(p.getId(),0L);ce.principalCardOptionRequests.putIfAbsent(p.getId(),0L);}ExternalObservationTrace.clearPath();currentPath.set(null);}}}",
-        "path clear",
-    )
-    text = replace_once(
-        text,
-        "writeEvidence(outDir,mode,cases,evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);PlayerControllerHuman.setExternalDecisionProviderFactory(null);",
-        "writeEvidence(outDir,mode,cases,evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);ExternalObservationTrace.write(outDir.resolve(\"PRINCIPAL_OBSERVATIONS.jsonl\"));PlayerControllerHuman.setExternalDecisionProviderFactory(null);",
-        "trace export",
-    )
-
-    require("ExternalObservationTrace.setPath(spec.pathId)" in text, "path binding missing")
-    require(text.count("ExternalObservationTrace.setPath(spec.pathId)") == 1, "path binding not unique")
-    require("ExternalObservationTrace.clearPath()" in text, "path clear missing")
-    require("PRINCIPAL_OBSERVATIONS.jsonl" in text, "trace export missing")
-    require("sa.resolve()" not in text, "direct SpellAbility.resolve reintroduced")
-    require("sa.getTargets().add(" not in text, "manual target injection reintroduced")
-    require("getStack().addAndUnfreeze(sa)" in text, "production stack admission missing")
-    require("getStack().resolveStack()" in text, "production stack resolution missing")
-    if attribution_mode == "G_SVAR_AF":
-        require("prepareSourceParentChoices(spec,sa)" in text, "AF source-parent choice phase missing")
-
-    path.write_text(text, encoding="utf-8")
-    print("WS33_G_PRINCIPAL_OBSERVATION_INSTRUMENT=PASS")
-    print(f"WS33_G_PRINCIPAL_OBSERVATION_ATTRIBUTION={attribution_mode}")
-    print("WS33_G_PRINCIPAL_OBSERVATION_PATH_SCOPED=TRUE")
-    print("WS33_G_PRINCIPAL_OBSERVATION_RULES_MUTATION=0")
-
-
-if __name__ == "__main__":
-    main()
+def main():
+    ap=argparse.ArgumentParser(); ap.add_argument('--harness',type=Path,required=True); a=ap.parse_args(); p=a.harness; t=p.read_text()
+    t=replace_once(t,"import forge.gamemodes.match.input.ExternalDecisionValidationException;\n","import forge.gamemodes.match.input.ExternalDecisionValidationException;\nimport forge.gamemodes.match.input.ExternalObservationTrace;\n","trace import")
+    t=replace_once(t,"Ws05HiddenInfoProbe.reset();Ws05HiddenInfoProbe.registerSecret(SECRET);","Ws05HiddenInfoProbe.reset();ExternalObservationTrace.reset();Ws05HiddenInfoProbe.registerSecret(SECRET);","trace reset")
+    t,mode=bind_path_attribution(t)
+    if mode=="G_SVAR_EVENT":
+        t=replace_once(t,"ws33CurrentParentKey.set(null);currentPath.set(null);retireSource(game,actor,source);","ws33CurrentParentKey.set(null);ExternalObservationTrace.clearPath();currentPath.set(null);retireSource(game,actor,source);","event path clear")
+    else:
+        t=replace_once(t,"for(Player p:ps){ce.principalRequests.putIfAbsent(p.getId(),0L);ce.principalCardOptionRequests.putIfAbsent(p.getId(),0L);}currentPath.set(null);}}}","for(Player p:ps){ce.principalRequests.putIfAbsent(p.getId(),0L);ce.principalCardOptionRequests.putIfAbsent(p.getId(),0L);}ExternalObservationTrace.clearPath();currentPath.set(null);}}}","path clear")
+    t=replace_once(t,"writeEvidence(outDir,mode,cases,evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);","writeEvidence(outDir,mode,cases,evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);ExternalObservationTrace.write(outDir.resolve(\"PRINCIPAL_OBSERVATIONS.jsonl\"));","trace export") if mode!="G_SVAR_EVENT" else replace_once(t,"writeEvidence(outDir,mode,uniqueCases(cases),evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);writeParentEvidence(outDir);writeResolutionLineage(outDir);","writeEvidence(outDir,mode,uniqueCases(cases),evidence,allRng,rngPath,allDecisions,decisionPath,result,outer);writeParentEvidence(outDir);writeResolutionLineage(outDir);ExternalObservationTrace.write(outDir.resolve(\"PRINCIPAL_OBSERVATIONS.jsonl\"));","event trace export")
+    require(t.count("ExternalObservationTrace.setPath(spec.pathId)")==1,"path binding not unique"); require("ExternalObservationTrace.clearPath()" in t,"path clear missing"); require("PRINCIPAL_OBSERVATIONS.jsonl" in t,"trace export missing"); require("sa.resolve()" not in t,"direct resolve reintroduced"); require("sa.getTargets().add(" not in t,"manual target injection reintroduced"); require("getStack().resolveStack()" in t,"production stack resolution missing")
+    p.write_text(t); print("WS33_G_PRINCIPAL_OBSERVATION_INSTRUMENT=PASS"); print(f"WS33_G_PRINCIPAL_OBSERVATION_ATTRIBUTION={mode}"); print("WS33_G_PRINCIPAL_OBSERVATION_PATH_SCOPED=TRUE"); print("WS33_G_PRINCIPAL_OBSERVATION_RULES_MUTATION=0")
+if __name__=='__main__': main()
