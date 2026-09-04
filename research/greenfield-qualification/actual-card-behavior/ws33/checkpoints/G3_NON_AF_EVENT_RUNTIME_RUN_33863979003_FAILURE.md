@@ -10,84 +10,97 @@ Status: `FAILURE`
 - Run: `33863979003`
 - Job: `100994503842`
 - SOURCE_HEAD: `35a2a267fa70b87a4d21d5cbae98be3f7bdd27eb`
-- SOURCE_TREE: `47ff4fdd99f63fc3489dc8a2055536de31a8165a`
+- SOURCE_TREE: `85c1d4fe2df0f980d1e4fe43c4bca11b2eeb5108`
 - Artifact ID: `9933311779`
 - Artifact name: `ws33-g3-svar-event-runtime-33863979003`
 - GitHub artifact digest: `sha256:204cd7c057196220fdb60cd9662443a8703f20cbb7bc02f90d022fe8508353fa`
 - Independent downloaded ZIP digest: `sha256:204cd7c057196220fdb60cd9662443a8703f20cbb7bc02f90d022fe8508353fa`
 - Digest comparison: `MATCH`
 
+The SOURCE_TREE is independently confirmed both by `generated/diagnostic/workflow-source-tree.txt` in the immutable artifact and by GitHub commit metadata for SOURCE_HEAD.
+
 ## Terminal adjudication
 
-The runtime record campaign itself is green; the run failed in the strict ABI/Decision/RNG gate before replay.
+The record campaign itself is green; the run fails in the strict pre-replay Decision/RNG gate.
 
-- Effective non-AF G paths in record evidence: `32/32 PASS`
-- Source-proven production parents in record evidence: `33/33 PASS`
-- `record/process.json`: `game_completed=true`, `path_count=32`
-- Principal/hidden/phase leak indicators: none observed in the run artifact
+- Effective non-AF G paths: `32/32 PASS`
+- Source-proven production parents: `33/33 PASS`
+- `record/process.json`: `game_completed=true`, `path_count=32`, `outer_failure=null`
+- Pilot-visible hidden leaks: `0`
+- Cross-principal decision leaks: `0`
+- Phase mismatches: `0`
 - Decision-required paths: `22/22 satisfied`, `0 missing`
 - RNG-required paths: `9/10 satisfied`, `1 missing`
-- Replay: `NOT_RUN` because the pre-replay qualification gate failed; this is the intended fail-closed ordering.
+- Replay: `NOT_RUN` because the pre-replay gate failed; fail-closed ordering is preserved.
 
-First material Step-15 failure, reproduced from the exact workflow predicate over the exact run artifact:
+Exact first material Step-15 failure, reproduced locally from the workflow predicate over this immutable artifact:
 
 ```text
 WS33_G_SVAR_EVENT_RNG_REQUIRED_MISSING=['forge-behavior-v2:24a5352cfaa6ae913df6549ceed0c447d526e89d']
 ```
 
-## Exactly missing RNG-required path
+## Missing RNG-required path
 
 - Effective path: `forge-behavior-v2:24a5352cfaa6ae913df6549ceed0c447d526e89d`
+- Oracle ID: `97079964-7a2e-42c5-ad4a-9015c18a1e97`
 - Source card / parent: `Descendants' Fury`
-- Trigger event: `DamageDoneOnce`
-- Target SVar: `TrigDig`
+- Parent mode: `DamageDoneOnce`
+- Target SVar: `TrigDigUntil`
 - Dispatch / API: `DigUntil`
-- Relevant target script semantic: `RevealRandomOrder$ True`
-- Trigger admission: achieved
-- Target binding: achieved
-- Target execution: achieved
-- Resolution callback: achieved
-- RNG tape rows correlated to this effective path: `0`
+- Target script contains `Cost$ Sac<1/Card.TriggeredSources>` and `RevealRandomOrder$ True`.
+- Parent admission: `1`
+- Target binding: `1`
+- Parent observer target-execution count: `1`
+- Resolution callback count: `1`
+- Correlated RNG tape events: `0`
 
-The event/trigger/stack/resolution chain therefore executed; the missing obligation is specifically an observable RNG-consumption witness for the required random-order branch.
-
-## Root-cause evidence
+## Corrected reachability diagnosis
 
 ### DIRECTLY_VERIFIED
 
-- Run/job/source/artifact binding above.
-- Artifact digest independently matches GitHub's digest.
-- The record campaign contains all `32` effective paths and all `33` source parents as PASS.
-- Decision obligation is complete at `22/22`.
-- The only missing required RNG path is `forge-behavior-v2:24a5352cfaa6ae913df6549ceed0c447d526e89d`.
-- That path is `Descendants' Fury -> DamageDoneOnce -> TrigDig -> DigUntil` with `RevealRandomOrder$ True`.
-- The pinned Forge `DigUntilEffect` removes the found card from `revealed` and, when `RevealRandomOrder` is true, executes `Collections.shuffle(revealed, MyRandom.getRandom())`.
+The observation-only `WS33_TRIGGER_PLAY` trace for the exact admitted target ability in this run is:
+
+```text
+abilityId=712 sourceTrigger=50010 hostId=385 api=DigUntil
+ANNOUNCE_TYPE=true
+ANNOUNCE_X=true
+CHECK_RESTRICTIONS=true
+CAST_TIMING=true
+LEGAL_AFTER_STACK=true
+PRECOST_REQUISITES=true
+PAY_COST=false
+PREREQUISITES_MET=false
+```
+
+The wrapping triggered ability itself reaches and resolves through MagicStack. The underlying `DigUntil` target ability then fails its cost-payment prerequisite. Therefore the `DigUntilEffect` random-order operation is not reached in this run.
+
+The existing resolution observer fires before the underlying paid ability's semantic effect and cannot, by itself, prove that the paid `DigUntil` effect body executed. Consequently the earlier diagnosis that this was merely a degenerate `Collections.shuffle` witness is withdrawn.
 
 ### CODE_DERIVED
 
-- The exact Step-15 missing-required assertion above is reproduced from the workflow's qualification predicate over this run's immutable artifact.
-- The current source-fixture preparation has no generalized guarantee that a `RevealRandomOrder$ True` `DigUntil` case leaves at least two nonmatching revealed cards after removal of the found card.
-- If the remaining `revealed` list is empty or singleton, Java shuffle is degenerate and need not consume an RNG value, so the branch can execute without producing an RNG tape event.
+Pinned `TriggerDamageDoneOnce.setTriggeringObjects` places the damage-source collection into triggering object `AbilityKey.Sources`. The qualification fixture creates a controlled `Runeclaw Bear` on the battlefield, places it in the `DamageMap`, and production trigger admission succeeds. The target script's sacrifice cost refers to `Card.TriggeredSources`.
 
-### MODELED diagnostic conclusion
+The exact unresolved boundary is therefore inside or immediately around authoritative cost materialization/payment for `Sac<1/Card.TriggeredSources>` on the source-proven triggered sub-ability. Current evidence does not yet distinguish among:
 
-This is currently classified as a **qualification-fixture under-exercise of a production-reachable random-order branch**, not as evidence of a Forge rules-core event-resolution defect. The successor must force a non-degenerate random-order case using script semantics rather than card/path-name special casing.
+1. an event-fixture omission relative to a real production damage event;
+2. loss/non-propagation of triggering `Sources` from the wrapper into the executed target ability;
+3. an authoritative-choice/payment integration defect;
+4. another pinned-Forge cost prerequisite.
 
 ### UNKNOWN
 
-Overall non-AF G runtime qualification remains `UNKNOWN` until a successor run passes the complete record + ABI/Decision/RNG + replay gates.
+No production rules-core repair is justified yet. No qualification-fixture repair is justified yet. The root cause remains `UNKNOWN` until the `TriggeredSources` value, sacrifice candidate set, authoritative decision result, and cost-part outcome are traced on this exact path.
 
-## Required successor repair
+## Required successor diagnostic
 
-Implement a generalized script-semantic fixture for supported `RevealRandomOrder$ True` cases that:
+Before any behavioral repair:
 
-1. is selected from parsed script semantics, never from card name or effective-path ID;
-2. guarantees a non-degenerate revealed remainder for the qualified random-order operation (at least two nonmatching revealed objects remain after the matching object is removed);
-3. preserves the actual matcher semantics used by the script;
-4. fails closed when the matcher shape cannot be safely materialized;
-5. does not modify production rules, legal actions, targets, costs, decisions, RNG implementation, coverage state, or fallback behavior.
-
-After that repair: exactly one successor workflow run, immediately followed by a persistent PENDING checkpoint before any other runtime-affecting write.
+1. add observation-only, generic cost-boundary tracing for `Sac<1/Card.TriggeredSources>` / sacrifice payment without card-name or effective-path branching;
+2. record the triggering `Sources` object visible to the target ability, authoritative sacrifice candidates, selected authoritative option/card, and the cost-part success/failure boundary;
+3. preserve rules, legal-option generation, payment semantics, decisions, RNG, coverage and fallbacks unchanged;
+4. run exactly one successor workflow from that single diagnostic commit;
+5. persist RUN/JOB/SOURCE_HEAD/SOURCE_TREE immediately as PENDING and make no runtime-affecting write until terminal;
+6. adjudicate the artifact before choosing fixture vs Forge repair.
 
 ## Closure flags
 
