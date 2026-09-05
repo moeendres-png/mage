@@ -1,0 +1,197 @@
+name: WS33 ABC A1 TargetRestrictions fresh closure v2
+
+on:
+  push:
+    branches: [work/ws33-g3-final-closure-20260902]
+    paths:
+      - .github/workflows/ws33-abc-a1-targetrestrictions-v2.yml
+      - research/greenfield-qualification/actual-card-behavior/ws33/ws33_apply_target_fixture_catalog_extension.py
+      - research/greenfield-qualification/actual-card-behavior/ws33/ws33_certify_abc_a1.py
+      - research/greenfield-qualification/actual-card-behavior/ws33/ws33_filter_abc_a1_target_campaign.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+  WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+  WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
+  MODEL_ARTIFACT_ID: '9823383539'
+  MODEL_ARTIFACT_DIGEST: sha256:aab73ba2ede151bbd0b803c2164d3067ddd65f17d49cf655c34eef67d903595d
+  MANIFEST_SHA256: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  CONSUMER_MODEL_SHA256: 82638e6b3e4408cc5bddedc49372b6357d3c2bdce6fba7bfab7ed119678f9a48
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+
+jobs:
+  a1-targetrestrictions-v2:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact current WS33 source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download and verify immutable authoritative model artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p generated/model generated/runtime generated/campaign/all generated/campaign/a1 generated/evidence
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$meta")" = "$MODEL_ARTIFACT_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID/zip" > generated/model.zip
+          test "sha256:$(sha256sum generated/model.zip | cut -d' ' -f1)" = "$MODEL_ARTIFACT_DIGEST"
+          unzip -q generated/model.zip -d generated/model
+          if test -d generated/model/output/ws33; then mv generated/model/output/ws33 generated/model/ws33; fi
+          test "$(sha256sum generated/model/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)" = "$MANIFEST_SHA256"
+          echo WS33_ABC_A1_MODEL_ARTIFACT=PASS
+
+      - name: Verify exact A1 queue and model binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path('research/greenfield-qualification/actual-card-behavior/ws33')
+          queue=json.loads((root/'WS33_INTEGRATED_WORK_QUEUE.json').read_text())
+          rows=[x for x in queue['items'] if x.get('logical_bucket')=='WS33A' and x.get('runtime_subsystem')=='forge.game.spellability.TargetRestrictions' and x.get('scenario_group_id')=='ws33-g2-template-123' and x.get('evidence_profile')=='DECISION+REPLAY']
+          assert len(rows)==1
+          ids=rows[0]['effective_path_ids']
+          assert rows[0]['unresolved_path_count']==122 and len(ids)==122 and len(set(ids))==122
+          manifest=json.loads(Path('generated/model/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json').read_text())
+          coverage=json.loads(Path('generated/model/ws33/WS33_PATH_COVERAGE.json').read_text())
+          assert manifest['path_count']==4188 and len(manifest['paths'])==4188
+          assert manifest['consumer_model_sha256']==os.environ['CONSUMER_MODEL_SHA256']
+          mp={p['v2_path_id']:p for p in manifest['paths']}
+          cp={p['effective_v2_path_id']:p for p in coverage['paths']}
+          assert all(i in mp and i in cp and cp[i]['status']=='UNKNOWN' for i in ids)
+          assert all(mp[i]['owner_family']=='ACTION_COST_DECISION' and mp[i]['implementation_target']=='forge.game.spellability.TargetRestrictions' for i in ids)
+          print('WS33_ABC_A1_QUEUE_BINDING=PASS paths=122 authoritative_model=4188')
+          PY
+
+      - name: Checkout exact pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Checkout retained Decision prerequisite
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS01_HEAD }}
+          path: ws01
+          fetch-depth: 1
+
+      - name: Checkout retained failure-semantics prerequisite
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS12_HEAD }}
+          path: ws12
+          fetch-depth: 1
+
+      - name: Checkout retained WS32 production binding
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS32_HEAD }}
+          path: ws32
+          fetch-depth: 1
+
+      - name: Verify exact runtime pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          test "$(git -C ws01 rev-parse HEAD)" = "$WS01_HEAD"
+          test "$(git -C ws12 rev-parse HEAD)" = "$WS12_HEAD"
+          test "$(git -C ws32 rev-parse HEAD)" = "$WS32_HEAD"
+          echo WS33_ABC_A1_RUNTIME_PINS=PASS
+
+      - name: Materialize authoritative runtime overlays
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch | tee generated/runtime/ws01-overlay.log
+          python research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge | tee generated/runtime/ws05-overlay.log
+          cp research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          python research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/runtime/RNG_INVENTORY.json | tee generated/runtime/ws06-overlay.log
+          python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge | tee generated/runtime/ws33-input-confirm-overlay.log
+          python "$ROOT/runtime-overlays/apply-ws33-stack-target.py" --forge-root forge | tee generated/runtime/ws33-stack-target-overlay.log
+          python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py --forge-root forge | tee generated/runtime/ws12-overlay.log
+          python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py --forge-root forge | tee generated/runtime/ws32-overlay.log
+
+      - name: Apply generic qualification fixture extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_apply_target_fixture_catalog_extension.py" --preparer "$ROOT/ws33_prepare_target_campaign.py" --test "$ROOT/runtime-tests/Ws33TargetRestrictionsCampaignTest.java" | tee generated/runtime/a1-fixture-extension.log
+
+      - name: Materialize exact ABC-A1 case set
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_prepare_target_campaign.py" --manifest generated/model/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json --forge-root forge --out-tsv generated/campaign/all/target-cases.tsv --out-plan generated/campaign/all/target-plan.json
+          python "$ROOT/ws33_filter_abc_a1_target_campaign.py" --queue "$ROOT/WS33_INTEGRATED_WORK_QUEUE.json" --input-tsv generated/campaign/all/target-cases.tsv --input-plan generated/campaign/all/target-plan.json --out-tsv generated/campaign/a1/target-cases.tsv --out-plan generated/campaign/a1/ABC_A1_PLAN.json
+          test "$(grep -vc '^#' generated/campaign/a1/target-cases.tsv)" = 122
+          jq -e '.path_count==122 and (.paths|length)==122 and ((.paths|unique|length)==122)' generated/campaign/a1/ABC_A1_PLAN.json
+          echo WS33_ABC_A1_MATERIALIZATION=PASS paths=122
+
+      - name: Install current qualification test
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "$ROOT/runtime-tests/Ws33TargetRestrictionsCampaignTest.java" forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
+
+      - name: Execute ABC-A1 Record
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am -Dtest=forge.gamesimulationtests.Ws33TargetRestrictionsCampaignTest -Dsurefire.failIfNoSpecifiedTests=false -Dws33.targetMode=record -Dws33.targetCases="$GITHUB_WORKSPACE/generated/campaign/a1/target-cases.tsv" -Dws33.targetOut="$GITHUB_WORKSPACE/generated/campaign/a1" test) 2>&1 | tee generated/runtime/a1-record-runtime.log
+          test ! -s generated/campaign/a1/target-record-diagnostics.jsonl
+          test "$(find generated/campaign/a1/records -name record-success.marker -type f | wc -l)" = 122
+          echo WS33_ABC_A1_RECORD=PASS paths=122
+
+      - name: Execute ABC-A1 tape-driven Replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am -Dtest=forge.gamesimulationtests.Ws33TargetRestrictionsCampaignTest -Dsurefire.failIfNoSpecifiedTests=false -Dws33.targetMode=replay -Dws33.targetCases="$GITHUB_WORKSPACE/generated/campaign/a1/target-cases.tsv" -Dws33.targetOut="$GITHUB_WORKSPACE/generated/campaign/a1" test) 2>&1 | tee generated/runtime/a1-replay-runtime.log
+          test ! -s generated/campaign/a1/target-replay-diagnostics.jsonl
+          test "$(jq '.records|length' generated/campaign/a1/campaign-index.json)" = 122
+          echo WS33_ABC_A1_REPLAY=PASS paths=122
+
+      - name: Certify exact per-path evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_certify_abc_a1.py" --campaign-root generated/campaign/a1 --out generated/evidence/ABC_A1_GATE.json --source-head "$GITHUB_SHA" --forge-pin "$FORGE_PIN" --model-artifact-id "$MODEL_ARTIFACT_ID" --model-artifact-digest "$MODEL_ARTIFACT_DIGEST" --manifest-sha256 "$MANIFEST_SHA256" --consumer-model-sha256 "$CONSUMER_MODEL_SHA256"
+          cp generated/campaign/a1/ABC_A1_PLAN.json generated/evidence/
+          cp generated/campaign/a1/target-record-diagnostics.jsonl generated/evidence/
+          cp generated/campaign/a1/target-replay-diagnostics.jsonl generated/evidence/
+          cp generated/campaign/a1/campaign-index.json generated/evidence/
+          cp -R generated/campaign/a1/records generated/evidence/
+          cp generated/runtime/a1-record-runtime.log generated/evidence/
+          cp generated/runtime/a1-replay-runtime.log generated/evidence/
+          cp generated/runtime/a1-fixture-extension.log generated/evidence/
+          cd generated/evidence
+          find . -type f ! -name ABC_A1_HASHES.sha256 -print0 | sort -z | xargs -0 sha256sum > ABC_A1_HASHES.sha256
+          sha256sum -c ABC_A1_HASHES.sha256
+
+      - name: Upload immutable ABC-A1 run evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-abc-a1-targetrestrictions-v2-${{ github.run_id }}
+          path: generated
+          if-no-files-found: error
+          retention-days: 90
