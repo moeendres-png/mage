@@ -9,13 +9,17 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 env:
   FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
   WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
   WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
   WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
+  MODEL_ARTIFACT_ID: '9823383539'
+  MODEL_ARTIFACT_DIGEST: sha256:aab73ba2ede151bbd0b803c2164d3067ddd65f17d49cf655c34eef67d903595d
   MANIFEST_SHA256: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  CONSUMER_MODEL_SHA256: 82638e6b3e4408cc5bddedc49372b6357d3c2bdce6fba7bfab7ed119678f9a48
   ROOT: research/greenfield-qualification/actual-card-behavior/ws33
 
 jobs:
@@ -28,23 +32,52 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify exact source lineage and immutable model
+      - name: Download and verify immutable authoritative model artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p generated/model
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$meta")" = "$MODEL_ARTIFACT_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' \
+            "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID/zip" > generated/model.zip
+          test "sha256:$(sha256sum generated/model.zip | cut -d' ' -f1)" = "$MODEL_ARTIFACT_DIGEST"
+          unzip -q generated/model.zip -d generated/model
+          if test -d generated/model/output/ws33; then mv generated/model/output/ws33 generated/model/ws33; fi
+          test -f generated/model/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json
+          test -f generated/model/ws33/WS33_PATH_COVERAGE.json
+          test "$(sha256sum generated/model/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)" = "$MANIFEST_SHA256"
+          echo WS33_ABC_A1_MODEL_ARTIFACT=PASS
+
+      - name: Verify exact source lineage and A1 queue binding
         shell: bash
         run: |
           set -euo pipefail
           echo "SOURCE_HEAD=$GITHUB_SHA"
           echo "SOURCE_TREE=$(git rev-parse 'HEAD^{tree}')"
-          test "$(sha256sum "$ROOT/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json" | cut -d' ' -f1)" = "$MANIFEST_SHA256"
           python - <<'PY'
-          import json
+          import json, os
           from pathlib import Path
           q=json.loads(Path('research/greenfield-qualification/actual-card-behavior/ws33/WS33_INTEGRATED_WORK_QUEUE.json').read_text())
           m=[x for x in q['items'] if x.get('logical_bucket')=='WS33A' and x.get('runtime_subsystem')=='forge.game.spellability.TargetRestrictions' and x.get('scenario_group_id')=='ws33-g2-template-123' and x.get('evidence_profile')=='DECISION+REPLAY']
           assert len(m)==1, len(m)
+          ids=m[0]['effective_path_ids']
           assert m[0]['unresolved_path_count']==122
-          assert len(m[0]['effective_path_ids'])==122
-          assert len(set(m[0]['effective_path_ids']))==122
-          print('WS33_ABC_A1_QUEUE_BINDING=PASS paths=122')
+          assert len(ids)==122 and len(set(ids))==122
+          manifest=json.loads(Path('generated/model/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json').read_text())
+          coverage=json.loads(Path('generated/model/ws33/WS33_PATH_COVERAGE.json').read_text())
+          assert manifest['path_count']==4188 and len(manifest['paths'])==4188
+          assert manifest['consumer_model_sha256']==os.environ['CONSUMER_MODEL_SHA256']
+          mp={p['v2_path_id']:p for p in manifest['paths']}
+          cp={p['effective_v2_path_id']:p for p in coverage['paths']}
+          assert set(ids) <= set(mp)
+          assert set(ids) <= set(cp)
+          assert all(cp[x]['status']=='UNKNOWN' for x in ids)
+          assert all(mp[x]['owner_family']=='ACTION_COST_DECISION' for x in ids)
+          assert all(mp[x]['implementation_target']=='forge.game.spellability.TargetRestrictions' for x in ids)
+          print('WS33_ABC_A1_QUEUE_BINDING=PASS paths=122 authoritative_model=4188')
           PY
 
       - name: Checkout exact pinned Forge
@@ -118,7 +151,7 @@ jobs:
         run: |
           set -euo pipefail
           python "$ROOT/ws33_prepare_target_campaign.py" \
-            --manifest "$ROOT/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json" \
+            --manifest generated/model/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json \
             --forge-root forge \
             --out-tsv generated/campaign/all/target-cases.tsv \
             --out-plan generated/campaign/all/target-plan.json
@@ -173,7 +206,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import hashlib,json
+          import json, os
           from pathlib import Path
           root=Path('generated/campaign/a1')
           plan=json.loads((root/'ABC_A1_PLAN.json').read_text())
@@ -200,10 +233,13 @@ jobs:
                   legal={o['option_id'] for o in e.get('authoritative_legal_options',[])}
                   if any(x not in legal for x in e.get('response_option_ids',[])): failures.append({'path_id':pid,'illegal_response':True})
           gate={
-            'schema':'commander-simulator-next.ws33-abc-a1-gate.v1',
-            'source_head':__import__('os').environ['GITHUB_SHA'],
-            'forge_pin':__import__('os').environ['FORGE_PIN'],
-            'manifest_sha256':__import__('os').environ['MANIFEST_SHA256'],
+            'schema':'commander-simulator-next.ws33-abc-a1-gate.v2',
+            'source_head':os.environ['GITHUB_SHA'],
+            'forge_pin':os.environ['FORGE_PIN'],
+            'model_artifact_id':os.environ['MODEL_ARTIFACT_ID'],
+            'model_artifact_digest':os.environ['MODEL_ARTIFACT_DIGEST'],
+            'manifest_sha256':os.environ['MANIFEST_SHA256'],
+            'consumer_model_sha256':os.environ['CONSUMER_MODEL_SHA256'],
             'scope':{'logical_bucket':'WS33A','runtime_subsystem':'forge.game.spellability.TargetRestrictions','scenario_group_id':'ws33-g2-template-123','evidence_profile':'DECISION+REPLAY'},
             'path_count':len(plan['paths']),
             'failures':failures,
