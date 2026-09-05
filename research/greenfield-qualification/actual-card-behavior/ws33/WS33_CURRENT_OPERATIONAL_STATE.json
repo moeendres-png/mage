@@ -1,4 +1,5 @@
 {
+  "ARCHITECTURE_FREEZE_ELIGIBLE": false,
   "Q6_CANDIDATE_FOR_CROSS_QUALIFICATION": false,
   "WORKSTREAM_COMPLETE": false,
   "WS34_ELIGIBLE": false,
@@ -6,42 +7,47 @@
   "classification": "DIRECTLY_VERIFIED_IMMUTABLE_SUCCESSOR",
   "effective_path_count": 4188,
   "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
-  "frontier_gate_sha256": "db54c9d5fe948a91cbf9f37df7c069917e84b2e3bf7be7a7bb8286682cb747ae",
-  "historical_partition_assignment_count": 3929,
-  "historical_partition_promoted_pass_overlap_count": 26,
-  "incomplete_scenario_group_count": 236,
-  "ledger_sha256": "544d0fa9dc84773a11c7bab98a283d2f14c0c3984776bb3d80be0f98633231b9",
+  "frontier_gate_sha256": "b195665d479fecb5308176a0fd0013e5c53cf0e0cae75f80975ebd326b39379b",
+  "model_manifest_sha256": "cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224",
+  "consumer_model_sha256": "82638e6b3e4408cc5bddedc49372b6357d3c2bdce6fba7bfab7ed119678f9a48",
+  "operational_artifact_layout": {
+    "frontier_gate": "successor/integrated/WS33_INTEGRATED_FRONTIER_GATE.json",
+    "integrated_ledger": "successor/integrated/WS33_INTEGRATED_CLOSURE_LEDGER.jsonl",
+    "work_queue": "successor/integrated/WS33_INTEGRATED_WORK_QUEUE.json",
+    "ws33_root": "successor/ws33"
+  },
   "path_status_counts": {
     "FAIL": 0,
-    "PASS": 285,
-    "UNKNOWN": 3903,
+    "PASS": 488,
+    "UNKNOWN": 3700,
     "UNSUPPORTED": 0
   },
   "predecessor": {
-    "artifact_digest": "sha256:a28834e59b86468dc8855c5db5b1f433cfa17b5eded2bc4061092566f95f4372",
-    "artifact_id": "9766400471",
+    "artifact_digest": "sha256:ae75ff01604f9fcc2b2cd2320e4cec1470347bcd47665d1989c1541542e76af0",
+    "artifact_id": "9979204198",
+    "artifact_name": "ws33-post-g3-a1-successor-34000014860",
     "internal_hash_entry_count": 1162,
-    "internal_hash_manifest_sha256": "bbfc426a7007ca07f6cb8d9f20f7e5993aa1baaf6a2c5e43457e38a48fce5ac4",
-    "source_head": "4596a58287ccd0f2b432ebeca2b4fd0d8bec4df3",
-    "source_tree": "422beaa5199305efb933f5866207ff2338841a93",
-    "workflow_job_id": "99560193066",
-    "workflow_run_id": "33414000812"
+    "internal_hash_manifest_sha256": "39ecedc7d3de1385473551a4ff060d362e6f848d66fd625eeef9343594380f8c",
+    "source_head": "1df1db4876efeebe737aa30bda8b5f6634d2365d",
+    "source_tree": "f99102c4a96905e9d43b8dca7ab9808d71e3250e",
+    "workflow_job_id": "101397071596",
+    "workflow_run_id": "34000014860"
   },
-  "scenario_group_counts": {
-    "FULLY_EXECUTED": 12,
-    "MISSING_SCENARIO_TEMPLATE": 232,
-    "PARTIALLY_EXECUTED": 4
+  "promotion": {
+    "a1_promoted_path_count": 122,
+    "g3_promoted_path_count": 81,
+    "previous_pass_regressions": 0,
+    "unrelated_path_status_changes": 0
   },
-  "schema": "commander-simulator-next.ws33-current-operational-state.v1",
+  "schema": "commander-simulator-next.ws33-current-operational-state.v2",
   "unknown_by_shard": {
-    "WS33A": 179,
+    "WS33A": 57,
     "WS33B": 675,
     "WS33C": 700,
     "WS33D": 920,
     "WS33E": 1029,
     "WS33F": 319,
-    "WS33G": 81,
+    "WS33G": 0,
     "WS33H": 0
-  },
-  "work_queue_sha256": "13fa869a129dd1ed895d550952a9cd9c4caf4bb692a474d931e0bd33a778538a"
+  }
 }
