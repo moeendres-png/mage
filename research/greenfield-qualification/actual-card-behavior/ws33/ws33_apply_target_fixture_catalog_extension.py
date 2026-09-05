@@ -28,6 +28,11 @@ def patch_preparer(path: Path) -> None:
     "Creature.attacking": "OPPONENT_ATTACKING_CREATURE",
     "Creature.attacking,Creature.blocking": "OPPONENT_ATTACKING_CREATURE",
     "Creature.powerGE4,Artifact,Enchantment": "OPPONENT_POWER4_CREATURE",
+    "Artifact.cmcLE2+YouOwn,Creature.cmcLE2+YouOwn": "OWN_ARTIFACT",
+    "Card.!wasCastFromTheirHand": "OPPONENT_NONHAND_SPELL",
+    "Creature.withFlying": "OPPONENT_ELEMENTAL",
+    "Creature.YouCtrl+HasCounters": "OWN_COUNTER_CREATURE",
+    "Creature.cmcLEX+YouOwn+nonBear+Other": "OWN_ZERO_CMC_NONBEAR_CREATURE",
 }
 def load(path: Path):'''
     text = replace_once(text, anchor, replacement, "preparer selector map")
@@ -39,8 +44,20 @@ def patch_test(path: Path) -> None:
     text = replace_once(
         text,
         "import forge.game.GameObject;\n",
-        "import forge.game.GameObject;\nimport forge.game.combat.Combat;\n",
-        "Combat import",
+        "import forge.game.GameObject;\nimport forge.game.combat.Combat;\nimport forge.game.card.CounterEnumType;\n",
+        "Combat/counter imports",
+    )
+    text = replace_once(
+        text,
+        '''            stackOwner.getZone(ZoneType.Hand).add(stackTarget);
+            final SpellAbility stackAbility = stackTarget.getSpells().get(0);
+''',
+        '''            final ZoneType stackOrigin = "OPPONENT_NONHAND_SPELL".equals(c.targetRole)
+                    ? ZoneType.Graveyard : ZoneType.Hand;
+            stackOwner.getZone(stackOrigin).add(stackTarget);
+            final SpellAbility stackAbility = stackTarget.getSpells().get(0);
+''',
+        "non-hand stack origin",
     )
     anchor = '''        } else switch (c.targetRole) {
             case "OPPONENT_PLAYER":
@@ -66,6 +83,20 @@ def patch_test(path: Path) -> None:
                 intended = addCardToZone("Air Elemental", opponent, ZoneType.Battlefield);
                 relation = "OPPONENT";
                 break;
+            case "OWN_COUNTER_CREATURE": {
+                final Card countered = addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield);
+                countered.addCounterInternal(CounterEnumType.P1P1, 1, actor, false, null, null);
+                if (countered.getCounters(CounterEnumType.P1P1) != 1) {
+                    throw new IllegalStateException("counter fixture was not retained by Forge Card state");
+                }
+                intended = countered;
+                relation = "ACTOR";
+                break;
+            }
+            case "OWN_ZERO_CMC_NONBEAR_CREATURE":
+                intended = addCardToZone("Ornithopter", actor, ZoneType.Graveyard);
+                relation = "ACTOR";
+                break;
             case "OPPONENT_PLAYER":
 '''
     text = replace_once(text, anchor, replacement, "target role switch")
@@ -82,7 +113,7 @@ def main() -> None:
     patch_preparer(args.preparer)
     patch_test(args.test)
     print("WS33_TARGET_FIXTURE_EXTENSION=PASS")
-    print("WS33_TARGET_FIXTURE_EXTENSION_SELECTOR_SHAPES=5")
+    print("WS33_TARGET_FIXTURE_EXTENSION_SELECTOR_SHAPES=10")
     print("WS33_TARGET_FIXTURE_EXTENSION_RULES_MUTATION=FALSE")
     print("WS33_TARGET_FIXTURE_EXTENSION_CARD_NAME_PRODUCTION_BRANCHES=0")
 
