@@ -33,6 +33,11 @@ def patch_preparer(path: Path) -> None:
     "Creature.withFlying": "OPPONENT_ELEMENTAL",
     "Creature.YouCtrl+HasCounters": "OWN_COUNTER_CREATURE",
     "Creature.cmcLEX+YouOwn+nonBear+Other": "OWN_ZERO_CMC_NONBEAR_CREATURE",
+    "Creature.YouCtrl+cmcLEX": "OWN_ZERO_CMC_NONBEAR_CREATURE",
+    "Creature.Black,Planeswalker.Red,Creature.Red,Planeswalker.Black": "OPPONENT_BLACK_CREATURE",
+    "Permanent.cmcLE3+YouCtrl": "OWN_ARTIFACT",
+    "Permanent.Legendary+Other+YouCtrl": "OWN_LEGENDARY_PERMANENT",
+    "Creature.White": "OPPONENT_WHITE_CREATURE",
 }
 def load(path: Path):'''
     text = replace_once(text, anchor, replacement, "preparer selector map")
@@ -97,6 +102,18 @@ def patch_test(path: Path) -> None:
                 intended = addCardToZone("Ornithopter", actor, ZoneType.Graveyard);
                 relation = "ACTOR";
                 break;
+            case "OPPONENT_BLACK_CREATURE":
+                intended = addCardToZone("Walking Corpse", opponent, ZoneType.Battlefield);
+                relation = "OPPONENT";
+                break;
+            case "OWN_LEGENDARY_PERMANENT":
+                intended = addCardToZone("Isamaru, Hound of Konda", actor, ZoneType.Battlefield);
+                relation = "ACTOR";
+                break;
+            case "OPPONENT_WHITE_CREATURE":
+                intended = addCardToZone("Isamaru, Hound of Konda", opponent, ZoneType.Battlefield);
+                relation = "OPPONENT";
+                break;
             case "OPPONENT_PLAYER":
 '''
     text = replace_once(text, anchor, replacement, "target role switch")
@@ -113,7 +130,7 @@ def main() -> None:
     patch_preparer(args.preparer)
     patch_test(args.test)
     print("WS33_TARGET_FIXTURE_EXTENSION=PASS")
-    print("WS33_TARGET_FIXTURE_EXTENSION_SELECTOR_SHAPES=10")
+    print("WS33_TARGET_FIXTURE_EXTENSION_SELECTOR_SHAPES=15")
     print("WS33_TARGET_FIXTURE_EXTENSION_RULES_MUTATION=FALSE")
     print("WS33_TARGET_FIXTURE_EXTENSION_CARD_NAME_PRODUCTION_BRANCHES=0")
 
