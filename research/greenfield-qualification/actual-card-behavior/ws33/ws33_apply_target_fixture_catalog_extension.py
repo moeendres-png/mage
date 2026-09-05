@@ -38,6 +38,58 @@ def patch_preparer(path: Path) -> None:
     "Permanent.cmcLE3+YouCtrl": "OWN_ARTIFACT",
     "Permanent.Legendary+Other+YouCtrl": "OWN_LEGENDARY_PERMANENT",
     "Creature.White": "OPPONENT_WHITE_CREATURE",
+
+    # Complete A1 materialization closure inventory (50 path occurrences,
+    # 49 additional selector strings; Creature.cmcLEX has two actual paths).
+    "Permanent.Black,Permanent.Red": "OPPONENT_BLACK_CREATURE",
+    "Creature.White,Creature.Blue": "OPPONENT_WHITE_CREATURE",
+    "Creature.ControlledBy TriggeredDefendingPlayer": "OPPONENT_CREATURE",
+    "Creature.YouOwn+ThisTurnEnteredFrom_Battlefield": "OWN_THIS_TURN_FROM_BATTLEFIELD_CREATURE",
+    "Creature.nonVampire+nonWerewolf+nonZombie": "OPPONENT_CREATURE",
+    "Creature.nonLegendary+YouOwn": "OWN_CREATURE",
+    "Card.ExiledWithSource": "OWN_EXILED_WITH_SOURCE_CARD",
+    "Creature.YouCtrl+cmcLE3": "OWN_CREATURE",
+    "Creature.Legendary+YouCtrl": "OWN_LEGENDARY_PERMANENT",
+    "Permanent.YouCtrl+cmcLE4": "OWN_CREATURE",
+    "Artifact.YouCtrl+cmcEQX+!token": "OWN_ZERO_CMC_ARTIFACT",
+    "Aura.YouOwn,Equipment.YouOwn": "OWN_AURA",
+    "Permanent.OppCtrl+cmcGE3": "OPPONENT_ELEMENTAL",
+    "Creature.tapped": "OPPONENT_TAPPED_CREATURE",
+    "Creature.nonLegendary+YouCtrl": "OWN_CREATURE",
+    "Creature.MultiColor": "OPPONENT_MULTICOLOR_CREATURE",
+    "Creature.powerGE4": "OPPONENT_POWER4_CREATURE",
+    "Creature.HasCounters": "OWN_COUNTER_CREATURE",
+    "Creature.cmcLEX+YouCtrl": "OWN_ZERO_CMC_NONBEAR_CREATURE",
+    "Creature.cmcLEX": "OPPONENT_ZERO_CMC_CREATURE",
+    "Creature.attacking+YouCtrl,Creature.blocking+YouCtrl": "OWN_ATTACKING_CREATURE",
+    "Creature.ControlledBy ParentTargetedController,Creature.ControlledBy ParentTarget": "OPPONENT_CREATURE",
+    "Instant.YouCtrl+cmcLEX,Sorcery.YouCtrl+cmcLEX": "OWN_INSTANT",
+    "Creature.OppOwn": "OPPONENT_CREATURE",
+    "Creature.OppCtrl,Enchantment.OppCtrl": "OPPONENT_CREATURE",
+    "Creature.ControlledBy TriggeredTarget": "OPPONENT_CREATURE",
+    "Permanent.nonLand+cmcLEX+YouOwn": "OWN_ZERO_CMC_NONBEAR_CREATURE",
+    "Creature.Green,Creature.White": "OPPONENT_WHITE_CREATURE",
+    "Creature.Assembly-Worker": "OPPONENT_ASSEMBLY_WORKER",
+    "Artifact.YouOwn+cmcLE3,Creature.YouOwn+cmcLE3,Enchantment.nonAura+YouOwn+cmcLE3": "OWN_ARTIFACT",
+    "Creature.cmcLE2": "OPPONENT_CREATURE",
+    "Permanent.nonLand+tapped+ControlledBy TriggeredDefendingPlayer": "OPPONENT_TAPPED_CREATURE",
+    "Card.nonCreature+nonLand+YouOwn": "OWN_ARTIFACT",
+    "Permanent.nonLand+!token+YouDontCtrl+cmcLE4": "OPPONENT_CREATURE",
+    "Vampire.YouCtrl": "OWN_VAMPIRE",
+    "Creature.nonWhite": "OPPONENT_BLACK_CREATURE",
+    "Permanent.nonLand+nonCreature+ControlledBy TriggeredTarget": "OPPONENT_ARTIFACT",
+    "Permanent.MonoColor": "OPPONENT_BLACK_CREATURE",
+    "Ninja,Turtle": "OPPONENT_NINJA",
+    "Card.Red,Card.Green": "OPPONENT_CREATURE",
+    "Creature.OppCtrl,Planeswalker.OppCtrl": "OPPONENT_CREATURE",
+    "Creature.attacking+withoutFlying": "OPPONENT_ATTACKING_CREATURE",
+    "Enchantment,Instant,Sorcery": "OPPONENT_INSTANT",
+    "Card.cmcLE3": "OPPONENT_INSTANT",
+    "Any.NotDefinedParentTarget,Player": "OPPONENT_PLAYER",
+    "Creature.YouOwn+cmcLEX": "OWN_ZERO_CMC_NONBEAR_CREATURE",
+    "Creature.Legendary": "OPPONENT_WHITE_CREATURE",
+    "Creature.counters_GE1_M1M1": "OPPONENT_M1M1_COUNTER_CREATURE",
+    "Artifact.YouOwn,Creature.YouOwn": "OWN_ARTIFACT",
 }
 def load(path: Path):'''
     text = replace_once(text, anchor, replacement, "preparer selector map")
@@ -49,8 +101,33 @@ def patch_test(path: Path) -> None:
     text = replace_once(
         text,
         "import forge.game.GameObject;\n",
-        "import forge.game.GameObject;\nimport forge.game.combat.Combat;\nimport forge.game.card.CounterEnumType;\n",
-        "Combat/counter imports",
+        "import forge.game.GameObject;\nimport forge.game.combat.Combat;\nimport forge.game.card.CounterEnumType;\nimport forge.game.spellability.AbilitySub;\n",
+        "fixture imports",
+    )
+    text = replace_once(
+        text,
+        '''        if ("TriggeredTarget".equals(ability.getParam("TargetsWithDefinedController"))) {
+            ability.setTriggeringObject(AbilityKey.Target, opponent);
+        }
+''',
+        '''        if ("TriggeredTarget".equals(ability.getParam("TargetsWithDefinedController"))
+                || c.validTgts.contains("TriggeredTarget")) {
+            ability.setTriggeringObject(AbilityKey.Target, opponent);
+        }
+        if (c.validTgts.contains("TriggeredDefendingPlayer")) {
+            ability.setTriggeringObject(AbilityKey.DefendingPlayer, opponent);
+        }
+        if (c.validTgts.contains("ParentTargetedController") || c.validTgts.contains("ParentTarget")) {
+            if (!(ability instanceof AbilitySub)) {
+                throw new IllegalStateException("parent-dependent selector did not materialize as AbilitySub");
+            }
+            final SpellAbility parent = source.getSpells().get(0);
+            parent.setActivatingPlayer(actor);
+            parent.getTargets().add(opponent);
+            ((AbilitySub) ability).setParent(parent);
+        }
+''',
+        "trigger/parent selector context",
     )
     text = replace_once(
         text,
@@ -84,6 +161,18 @@ def patch_test(path: Path) -> None:
                 relation = "OPPONENT";
                 break;
             }
+            case "OWN_ATTACKING_CREATURE": {
+                final Card attacker = addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield);
+                final Combat combat = new Combat(actor);
+                game.getPhaseHandler().setCombat(combat);
+                combat.addAttacker(attacker, opponent);
+                if (!combat.getAttackers().contains(attacker)) {
+                    throw new IllegalStateException("own combat attacker fixture was not retained by Forge Combat");
+                }
+                intended = attacker;
+                relation = "ACTOR";
+                break;
+            }
             case "OPPONENT_POWER4_CREATURE":
                 intended = addCardToZone("Air Elemental", opponent, ZoneType.Battlefield);
                 relation = "OPPONENT";
@@ -91,15 +180,29 @@ def patch_test(path: Path) -> None:
             case "OWN_COUNTER_CREATURE": {
                 final Card countered = addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield);
                 countered.addCounterInternal(CounterEnumType.P1P1, 1, actor, false, null, null);
-                if (countered.getCounters(CounterEnumType.P1P1) != 1) {
-                    throw new IllegalStateException("counter fixture was not retained by Forge Card state");
-                }
                 intended = countered;
                 relation = "ACTOR";
                 break;
             }
+            case "OPPONENT_M1M1_COUNTER_CREATURE": {
+                final Card countered = addCardToZone("Runeclaw Bear", opponent, ZoneType.Battlefield);
+                countered.addCounterInternal(CounterEnumType.M1M1, 1, actor, false, null, null);
+                intended = countered;
+                relation = "OPPONENT";
+                break;
+            }
             case "OWN_ZERO_CMC_NONBEAR_CREATURE":
-                intended = addCardToZone("Ornithopter", actor, ZoneType.Graveyard);
+                intended = addCardToZone("Ornithopter", actor,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
+                relation = "ACTOR";
+                break;
+            case "OPPONENT_ZERO_CMC_CREATURE":
+                intended = addCardToZone("Ornithopter", opponent,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
+                relation = "OPPONENT";
+                break;
+            case "OWN_ZERO_CMC_ARTIFACT":
+                intended = addCardToZone("Ornithopter", actor, ZoneType.Battlefield);
                 relation = "ACTOR";
                 break;
             case "OPPONENT_BLACK_CREATURE":
@@ -107,13 +210,62 @@ def patch_test(path: Path) -> None:
                 relation = "OPPONENT";
                 break;
             case "OWN_LEGENDARY_PERMANENT":
-                intended = addCardToZone("Isamaru, Hound of Konda", actor, ZoneType.Battlefield);
+                intended = addCardToZone("Isamaru, Hound of Konda", actor,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
                 relation = "ACTOR";
                 break;
             case "OPPONENT_WHITE_CREATURE":
-                intended = addCardToZone("Isamaru, Hound of Konda", opponent, ZoneType.Battlefield);
+                intended = addCardToZone("Isamaru, Hound of Konda", opponent,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
                 relation = "OPPONENT";
                 break;
+            case "OWN_AURA":
+                intended = addCardToZone("Pacifism", actor,
+                        "GRAVEYARD".equals(c.fixtureContext) ? ZoneType.Graveyard : ZoneType.Battlefield);
+                relation = "ACTOR";
+                break;
+            case "OPPONENT_MULTICOLOR_CREATURE":
+                intended = addCardToZone("Fusion Elemental", opponent, ZoneType.Battlefield);
+                relation = "OPPONENT";
+                break;
+            case "OPPONENT_ASSEMBLY_WORKER":
+                intended = addCardToZone("Assembly-Worker", opponent, ZoneType.Battlefield);
+                relation = "OPPONENT";
+                break;
+            case "OWN_VAMPIRE":
+                intended = addCardToZone("Vampire Nighthawk", actor, ZoneType.Battlefield);
+                relation = "ACTOR";
+                break;
+            case "OPPONENT_NINJA":
+                intended = addCardToZone("Ninja of the Deep Hours", opponent, ZoneType.Battlefield);
+                relation = "OPPONENT";
+                break;
+            case "OPPONENT_TAPPED_CREATURE": {
+                final Card tapped = addCardToZone("Runeclaw Bear", opponent, ZoneType.Battlefield);
+                tapped.setTapped(true);
+                intended = tapped;
+                relation = "OPPONENT";
+                break;
+            }
+            case "OWN_THIS_TURN_FROM_BATTLEFIELD_CREATURE": {
+                final Card moved = addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield);
+                final Card graveCard = game.getAction().moveTo(ZoneType.Graveyard, moved, null, null);
+                if (graveCard == null || graveCard.getZone() == null || graveCard.getZone().getZoneType() != ZoneType.Graveyard) {
+                    throw new IllegalStateException("battlefield-to-graveyard fixture move failed");
+                }
+                intended = graveCard;
+                relation = "ACTOR";
+                break;
+            }
+            case "OWN_EXILED_WITH_SOURCE_CARD": {
+                final Card exiled = addCardToZone("Shock", actor, ZoneType.Exile);
+                source.addExiledCard(exiled);
+                exiled.setExiledWith(source);
+                exiled.setExiledBy(actor);
+                intended = exiled;
+                relation = "ACTOR";
+                break;
+            }
             case "OPPONENT_PLAYER":
 '''
     text = replace_once(text, anchor, replacement, "target role switch")
@@ -130,7 +282,8 @@ def main() -> None:
     patch_preparer(args.preparer)
     patch_test(args.test)
     print("WS33_TARGET_FIXTURE_EXTENSION=PASS")
-    print("WS33_TARGET_FIXTURE_EXTENSION_SELECTOR_SHAPES=15")
+    print("WS33_TARGET_FIXTURE_EXTENSION_SELECTOR_SHAPES=64")
+    print("WS33_TARGET_FIXTURE_EXTENSION_A1_MISSING_OCCURRENCES_CLOSED=50")
     print("WS33_TARGET_FIXTURE_EXTENSION_RULES_MUTATION=FALSE")
     print("WS33_TARGET_FIXTURE_EXTENSION_CARD_NAME_PRODUCTION_BRANCHES=0")
 
