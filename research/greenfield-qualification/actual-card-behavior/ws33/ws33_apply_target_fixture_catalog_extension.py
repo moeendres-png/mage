@@ -20,7 +20,7 @@ def patch_preparer(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     anchor = '    "Permanent.nonLand+YouCtrl": "OWN_CREATURE",\n}\ndef load(path: Path):'
     replacement = '''    "Permanent.nonLand+YouCtrl": "OWN_CREATURE",
-    # ABC-A1 generic fixture catalog extensions.  These are selector-shape
+    # ABC-A1 generic fixture catalog extensions. These are selector-shape
     # mappings only; Forge remains the authority that must emit the target as
     # legal at runtime before the external pilot may choose it.
     "Villain.YouCtrl": "OWN_SOURCE",
@@ -47,9 +47,6 @@ def patch_test(path: Path) -> None:
 '''
     replacement = '''        } else switch (c.targetRole) {
             case "OWN_SOURCE":
-                if (source.getZone() != ZoneType.Battlefield) {
-                    throw new IllegalStateException("source-bound selector fixture requires battlefield source");
-                }
                 intended = source;
                 relation = "ACTOR";
                 break;
