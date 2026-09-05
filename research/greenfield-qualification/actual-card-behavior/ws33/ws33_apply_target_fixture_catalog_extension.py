@@ -51,10 +51,17 @@ def main() -> None:
         sys.executable, str(cardinality), "--test", str(args.test)
     ], check=True)
 
+    runtime_state = Path(__file__).with_name("ws33_apply_a1_runtime_state_repair.py")
+    require(runtime_state.is_file(), f"missing runtime-state harness repair {runtime_state}")
+    subprocess.run([
+        sys.executable, str(runtime_state), "--test", str(args.test)
+    ], check=True)
+
     print("WS33_TARGET_FIXTURE_COMPOSITION=PASS")
     print(f"WS33_TARGET_FIXTURE_PROVEN_COMMIT={PROVEN_EXTENSION_COMMIT}")
     print("WS33_TARGET_FIXTURE_MATERIALIZATION_LAYER=64_SHAPES")
     print("WS33_TARGET_FIXTURE_CARDINALITY_LAYER=FORGE_AUTHORITATIVE")
+    print("WS33_TARGET_FIXTURE_RUNTIME_STATE_LAYER=FORGE_LIFECYCLE_AND_DYNAMIC_CONTEXT")
     print("WS33_TARGET_FIXTURE_SILENT_FALLBACK=FALSE")
     print("WS33_TARGET_FIXTURE_RULES_MUTATION=FALSE")
 
