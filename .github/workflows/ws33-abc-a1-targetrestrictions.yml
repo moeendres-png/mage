@@ -1,0 +1,241 @@
+name: WS33 ABC A1 TargetRestrictions fresh closure
+
+on:
+  push:
+    branches: [work/ws33-g3-final-closure-20260902]
+    paths:
+      - .github/workflows/ws33-abc-a1-targetrestrictions.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+  WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+  WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
+  MANIFEST_SHA256: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+
+jobs:
+  a1-targetrestrictions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact current WS33 source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact source lineage and immutable model
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SOURCE_HEAD=$GITHUB_SHA"
+          echo "SOURCE_TREE=$(git rev-parse 'HEAD^{tree}')"
+          test "$(sha256sum "$ROOT/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json" | cut -d' ' -f1)" = "$MANIFEST_SHA256"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          q=json.loads(Path('research/greenfield-qualification/actual-card-behavior/ws33/WS33_INTEGRATED_WORK_QUEUE.json').read_text())
+          m=[x for x in q['items'] if x.get('logical_bucket')=='WS33A' and x.get('runtime_subsystem')=='forge.game.spellability.TargetRestrictions' and x.get('scenario_group_id')=='ws33-g2-template-123' and x.get('evidence_profile')=='DECISION+REPLAY']
+          assert len(m)==1, len(m)
+          assert m[0]['unresolved_path_count']==122
+          assert len(m[0]['effective_path_ids'])==122
+          assert len(set(m[0]['effective_path_ids']))==122
+          print('WS33_ABC_A1_QUEUE_BINDING=PASS paths=122')
+          PY
+
+      - name: Checkout exact pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Checkout retained Decision prerequisite
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS01_HEAD }}
+          path: ws01
+          fetch-depth: 1
+
+      - name: Checkout retained failure-semantics prerequisite
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS12_HEAD }}
+          path: ws12
+          fetch-depth: 1
+
+      - name: Checkout retained WS32 production binding
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS32_HEAD }}
+          path: ws32
+          fetch-depth: 1
+
+      - name: Verify exact runtime pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          test "$(git -C ws01 rev-parse HEAD)" = "$WS01_HEAD"
+          test "$(git -C ws12 rev-parse HEAD)" = "$WS12_HEAD"
+          test "$(git -C ws32 rev-parse HEAD)" = "$WS32_HEAD"
+          echo WS33_ABC_A1_RUNTIME_PINS=PASS
+
+      - name: Materialize authoritative runtime overlays
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p generated/runtime generated/campaign/all generated/campaign/a1 generated/evidence
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh \
+            forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch \
+            | tee generated/runtime/ws01-overlay.log
+          python research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge \
+            | tee generated/runtime/ws05-overlay.log
+          cp research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java \
+            forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          python research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py \
+            forge --inventory generated/runtime/RNG_INVENTORY.json \
+            | tee generated/runtime/ws06-overlay.log
+          python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge \
+            | tee generated/runtime/ws33-input-confirm-overlay.log
+          python "$ROOT/runtime-overlays/apply-ws33-stack-target.py" --forge-root forge \
+            | tee generated/runtime/ws33-stack-target-overlay.log
+          python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py \
+            --forge-root forge | tee generated/runtime/ws12-overlay.log
+          python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py \
+            --forge-root forge | tee generated/runtime/ws32-overlay.log
+
+      - name: Materialize exact ABC-A1 case set
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_prepare_target_campaign.py" \
+            --manifest "$ROOT/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json" \
+            --forge-root forge \
+            --out-tsv generated/campaign/all/target-cases.tsv \
+            --out-plan generated/campaign/all/target-plan.json
+          python "$ROOT/ws33_filter_abc_a1_target_campaign.py" \
+            --queue "$ROOT/WS33_INTEGRATED_WORK_QUEUE.json" \
+            --input-tsv generated/campaign/all/target-cases.tsv \
+            --input-plan generated/campaign/all/target-plan.json \
+            --out-tsv generated/campaign/a1/target-cases.tsv \
+            --out-plan generated/campaign/a1/ABC_A1_PLAN.json
+          test "$(grep -vc '^#' generated/campaign/a1/target-cases.tsv)" = 122
+          jq -e '.path_count == 122 and (.paths|length)==122 and ((.paths|unique|length)==122)' generated/campaign/a1/ABC_A1_PLAN.json
+
+      - name: Install current qualification test
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "$ROOT/runtime-tests/Ws33TargetRestrictionsCampaignTest.java" \
+            forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
+
+      - name: Execute ABC-A1 Record
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.gamesimulationtests.Ws33TargetRestrictionsCampaignTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws33.targetMode=record \
+            -Dws33.targetCases="$GITHUB_WORKSPACE/generated/campaign/a1/target-cases.tsv" \
+            -Dws33.targetOut="$GITHUB_WORKSPACE/generated/campaign/a1" test) \
+            2>&1 | tee generated/runtime/a1-record-runtime.log
+          test ! -s generated/campaign/a1/target-record-diagnostics.jsonl
+          test "$(find generated/campaign/a1/records -name record-success.marker -type f | wc -l)" = 122
+          echo WS33_ABC_A1_RECORD=PASS paths=122
+
+      - name: Execute ABC-A1 tape-driven Replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am \
+            -Dtest=forge.gamesimulationtests.Ws33TargetRestrictionsCampaignTest \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -Dws33.targetMode=replay \
+            -Dws33.targetCases="$GITHUB_WORKSPACE/generated/campaign/a1/target-cases.tsv" \
+            -Dws33.targetOut="$GITHUB_WORKSPACE/generated/campaign/a1" test) \
+            2>&1 | tee generated/runtime/a1-replay-runtime.log
+          test ! -s generated/campaign/a1/target-replay-diagnostics.jsonl
+          test "$(jq '.records|length' generated/campaign/a1/campaign-index.json)" = 122
+          echo WS33_ABC_A1_REPLAY=PASS paths=122
+
+      - name: Certify exact per-path evidence and fail-closed boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          root=Path('generated/campaign/a1')
+          plan=json.loads((root/'ABC_A1_PLAN.json').read_text())
+          failures=[]
+          for pid in plan['paths']:
+              short=pid.split(':',1)[1]
+              d=root/'records'/short
+              required=['record.json','record-success.marker','decision-tape.json','decision-replay.tsv','trace.json','final-state.txt','semantic-replay.json']
+              missing=[x for x in required if not (d/x).is_file()]
+              if missing:
+                  failures.append({'path_id':pid,'missing':missing}); continue
+              record=json.loads((d/'record.json').read_text())
+              replay=json.loads((d/'semantic-replay.json').read_text())
+              tape=json.loads((d/'decision-tape.json').read_text())
+              if record.get('v2_path_ids') != [pid]: failures.append({'path_id':pid,'record_path_binding':record.get('v2_path_ids')})
+              if record.get('execution',{}).get('actual_card_execution') != 'PASS': failures.append({'path_id':pid,'actual_card_execution':'FAIL'})
+              if record.get('execution',{}).get('actual_rules_core_path') is not True: failures.append({'path_id':pid,'rules_core':False})
+              if record.get('execution',{}).get('silent_fallbacks') != 0: failures.append({'path_id':pid,'silent_fallbacks':record.get('execution',{}).get('silent_fallbacks')})
+              if record.get('execution',{}).get('direct_effect_resolution') is not False: failures.append({'path_id':pid,'direct_effect_resolution':True})
+              if replay.get('semantic_divergence') != 0: failures.append({'path_id':pid,'semantic_divergence':replay.get('semantic_divergence')})
+              events=tape.get('events',[])
+              if not events or any(e.get('fallback_used') is not False or e.get('validation_result')!='ACCEPTED' for e in events): failures.append({'path_id':pid,'decision_tape_invalid':True})
+              for e in events:
+                  legal={o['option_id'] for o in e.get('authoritative_legal_options',[])}
+                  if any(x not in legal for x in e.get('response_option_ids',[])): failures.append({'path_id':pid,'illegal_response':True})
+          gate={
+            'schema':'commander-simulator-next.ws33-abc-a1-gate.v1',
+            'source_head':__import__('os').environ['GITHUB_SHA'],
+            'forge_pin':__import__('os').environ['FORGE_PIN'],
+            'manifest_sha256':__import__('os').environ['MANIFEST_SHA256'],
+            'scope':{'logical_bucket':'WS33A','runtime_subsystem':'forge.game.spellability.TargetRestrictions','scenario_group_id':'ws33-g2-template-123','evidence_profile':'DECISION+REPLAY'},
+            'path_count':len(plan['paths']),
+            'failures':failures,
+            'record_diagnostics_empty':(root/'target-record-diagnostics.jsonl').stat().st_size==0,
+            'replay_diagnostics_empty':(root/'target-replay-diagnostics.jsonl').stat().st_size==0,
+            'coverage_mutated':False,
+            'result':'PASS' if not failures and len(plan['paths'])==122 else 'FAIL'
+          }
+          Path('generated/evidence/ABC_A1_GATE.json').write_text(json.dumps(gate,indent=2,sort_keys=True)+'\n')
+          assert gate['result']=='PASS', failures[:5]
+          print('WS33_ABC_A1_CERTIFICATION=PASS paths=122 coverage_mutated=false')
+          PY
+          cp generated/campaign/a1/ABC_A1_PLAN.json generated/evidence/
+          cp generated/campaign/a1/target-record-diagnostics.jsonl generated/evidence/
+          cp generated/campaign/a1/target-replay-diagnostics.jsonl generated/evidence/
+          cp generated/campaign/a1/campaign-index.json generated/evidence/
+          cp -R generated/campaign/a1/records generated/evidence/
+          cp generated/runtime/a1-record-runtime.log generated/evidence/
+          cp generated/runtime/a1-replay-runtime.log generated/evidence/
+
+      - name: Generate and verify immutable internal hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd generated/evidence
+          find . -type f ! -name ABC_A1_HASHES.sha256 -print0 | sort -z | xargs -0 sha256sum > ABC_A1_HASHES.sha256
+          sha256sum -c ABC_A1_HASHES.sha256
+
+      - name: Upload immutable ABC-A1 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-abc-a1-targetrestrictions-${{ github.run_id }}
+          path: generated/evidence
+          if-no-files-found: error
+          retention-days: 90
