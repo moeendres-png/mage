@@ -1,0 +1,115 @@
+name: WS33 post-G3 plus A1 deterministic successor
+
+on:
+  push:
+    branches: [work/ws33-g3-final-closure-20260902]
+    paths:
+      - .github/workflows/ws33-post-g3-a1-successor.yml
+      - research/greenfield-qualification/actual-card-behavior/ws33/ws33_promote_g3_a1_successor.py
+      - research/greenfield-qualification/actual-card-behavior/ws33/ws33_promote_integrated_frontier.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+  MODEL_ARTIFACT_ID: '9823383539'
+  MODEL_ARTIFACT_DIGEST: sha256:aab73ba2ede151bbd0b803c2164d3067ddd65f17d49cf655c34eef67d903595d
+  A1_ARTIFACT_ID: '9979087306'
+  A1_ARTIFACT_DIGEST: sha256:a414f73b2f7d259dce19e64733fcb000a10b00ac4ca579f36190c1ba3064d11b
+  MANIFEST_SHA256: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+
+jobs:
+  post-g3-a1-successor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout frozen successor source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Download immutable predecessor and A1 evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p generated/base generated/a1 generated/successor/ws33 generated/successor/integrated generated/gate
+          model_meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$model_meta")" = "$MODEL_ARTIFACT_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID/zip" > generated/model.zip
+          test "sha256:$(sha256sum generated/model.zip | cut -d' ' -f1)" = "$MODEL_ARTIFACT_DIGEST"
+          unzip -q generated/model.zip -d generated/base
+          test "$(sha256sum generated/base/output/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)" = "$MANIFEST_SHA256"
+
+          a1_meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$A1_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$a1_meta")" = "$A1_ARTIFACT_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$A1_ARTIFACT_ID/zip" > generated/a1.zip
+          test "sha256:$(sha256sum generated/a1.zip | cut -d' ' -f1)" = "$A1_ARTIFACT_DIGEST"
+          unzip -q generated/a1.zip -d generated/a1
+          echo WS33_POST_G3_A1_INPUTS=PASS
+
+      - name: Materialize exact G3 plus A1 successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          TREE="$(git rev-parse HEAD^{tree})"
+          python "$ROOT/ws33_promote_g3_a1_successor.py" \
+            --base-root generated/base/output/ws33 \
+            --a1-root generated/a1/evidence \
+            --checkpoint "$ROOT/checkpoints/G3_COMPLETE_CROSS_QUALIFICATION_20260905.md" \
+            --out-root generated/successor/ws33 \
+            --source-head "$GITHUB_SHA" \
+            --source-tree "$TREE" | tee generated/gate/materialize.log
+          (cd generated/successor/ws33 && sha256sum -c WS33_HASHES.sha256)
+          echo WS33_POST_G3_A1_MATERIALIZATION=PASS
+
+      - name: Advance canonical integrated frontier without regrouping drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_promote_integrated_frontier.py" \
+            --ledger "$ROOT/WS33_INTEGRATED_CLOSURE_LEDGER.jsonl" \
+            --queue "$ROOT/WS33_INTEGRATED_WORK_QUEUE.json" \
+            --gate "$ROOT/WS33_INTEGRATED_FRONTIER_GATE.json" \
+            --promotion-index generated/successor/ws33/WS33_POST_G3_A1_PROMOTION_EVIDENCE.json \
+            --out generated/successor/integrated \
+            --a1-scenario-id ws33-g2-template-123 | tee generated/gate/frontier.log
+          jq -e '.path_status_counts.PASS==488 and .path_status_counts.UNKNOWN==3700 and .path_status_counts.FAIL==0 and .path_status_counts.UNSUPPORTED==0 and .unresolved_path_count==3700 and .status=="PASS"' generated/successor/integrated/WS33_INTEGRATED_FRONTIER_GATE.json
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+          rows=[json.loads(x) for x in Path('generated/successor/integrated/WS33_INTEGRATED_CLOSURE_LEDGER.jsonl').read_text().splitlines() if x.strip()]
+          unknown=Counter(r['logical_bucket'] for r in rows if r['current_status']=='UNKNOWN')
+          assert unknown == Counter({'WS33E':1029,'WS33D':920,'WS33C':700,'WS33B':675,'WS33F':319,'WS33A':57})
+          assert sum(unknown.values())==3700
+          print('WS33_POST_G3_A1_SHARDS=PASS A=57 B=675 C=700 D=920 E=1029 F=319 G=0 H=0')
+          PY
+
+      - name: Emit immutable successor gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          TREE="$(git rev-parse HEAD^{tree})"
+          WS33_HASH="$(sha256sum generated/successor/ws33/WS33_HASHES.sha256 | cut -d' ' -f1)"
+          FRONTIER_HASH="$(sha256sum generated/successor/integrated/WS33_INTEGRATED_FRONTIER_GATE.json | cut -d' ' -f1)"
+          jq -n \
+            --arg head "$GITHUB_SHA" --arg tree "$TREE" --arg run "$GITHUB_RUN_ID" \
+            --arg model "$MODEL_ARTIFACT_ID" --arg model_digest "$MODEL_ARTIFACT_DIGEST" \
+            --arg a1 "$A1_ARTIFACT_ID" --arg a1_digest "$A1_ARTIFACT_DIGEST" \
+            --arg ws33_hash "$WS33_HASH" --arg frontier_hash "$FRONTIER_HASH" \
+            '{schema:"commander-simulator-next.ws33-post-g3-a1-successor-gate.v1",status:"PASS",source_head:$head,source_tree:$tree,workflow_run_id:$run,predecessor_model_artifact_id:$model,predecessor_model_artifact_digest:$model_digest,a1_artifact_id:$a1,a1_artifact_digest:$a1_digest,ws33_internal_hash_manifest_sha256:$ws33_hash,frontier_gate_sha256:$frontier_hash,total:4188,pass:488,unknown:3700,fail:0,unsupported:0,unknown_by_shard:{WS33A:57,WS33B:675,WS33C:700,WS33D:920,WS33E:1029,WS33F:319,WS33G:0,WS33H:0},g3_promoted:81,a1_promoted:122,unrelated_path_changed:0,previous_pass_regressed:0,coverage_mutated_during_witness:false}' > generated/gate/WS33_POST_G3_A1_SUCCESSOR_GATE.json
+          jq -e '.status=="PASS" and .pass==488 and .unknown==3700 and .g3_promoted==81 and .a1_promoted==122' generated/gate/WS33_POST_G3_A1_SUCCESSOR_GATE.json
+
+      - name: Upload immutable post-G3 A1 successor
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-post-g3-a1-successor-${{ github.run_id }}
+          path: generated
+          if-no-files-found: error
+          retention-days: 90
