@@ -1,0 +1,71 @@
+name: WS33 ABC A-rest SVar production-root route refinement
+
+on:
+  push:
+    branches: [work/ws33-g3-final-closure-20260902]
+    paths:
+      - '.github/workflows/ws33-abc-a-rest-svar-route-refinement.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_refine_a_svar_execution_routes.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  CASE_ARTIFACT_ID: '9996808331'
+  CASE_ARTIFACT_DIGEST: sha256:ea34615a1ee8735b9f97fd1ee3e6e9ff2fa925569792339a90b15fd4f03e99ec
+  CASE_SOURCE_HEAD: 6dc8a3fb37f91026fb8b75a9614d528f4b88996d
+
+jobs:
+  refine_routes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 1}
+      - uses: actions/checkout@v4
+        with: {repository: Card-Forge/forge, ref: '${{ env.FORGE_PIN }}', path: forge, fetch-depth: 1}
+      - name: Consume immutable SVar26 cases
+        env: {GH_TOKEN: '${{ github.token }}'}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf generated; mkdir -p generated/cases generated/out generated/diagnostic
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$CASE_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$meta")" = "$CASE_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$meta")" = "$CASE_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$CASE_ARTIFACT_ID/zip" > generated/cases.zip
+          test "sha256:$(sha256sum generated/cases.zip|cut -d' ' -f1)" = "$CASE_ARTIFACT_DIGEST"
+          unzip -q generated/cases.zip -d generated/cases
+          printf '%s\n' "$GITHUB_SHA" > generated/diagnostic/workflow-source-head.txt
+          git rev-parse 'HEAD^{tree}' > generated/diagnostic/workflow-source-tree.txt
+      - name: Refine production-root routes fail closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=research/greenfield-qualification/actual-card-behavior/ws33
+          python "$ROOT/ws33_refine_a_svar_execution_routes.py" --cases-dir generated/cases --forge-root forge --out-dir generated/out | tee generated/diagnostic/refine.log
+          grep -Fx 'WS33_A_SVAR_ROUTE_REFINE=PASS effective=26 af=8 nested=1 nested_parents=2 trigger=17 runtime_parents=27' generated/diagnostic/refine.log
+          grep -Fx 'WS33_A_SVAR_ROUTE_MAGIC_LEGALITY_INFERENCE=FALSE' generated/diagnostic/refine.log
+          jq -e '.status=="PASS" and .effective_paths==26 and .af_effective_paths==8 and .nested_trigger_effective_paths==1 and .nested_trigger_parent_entrypoints==2 and .direct_trigger_effective_paths==17 and .total_runtime_parent_entrypoints==27 and .effective_path_overlap==0 and .magic_legality_inference==false and .coverage_mutated==false and .coverage_promotion==false' generated/out/A_REST_SVAR_EXECUTION_ROUTE_GATE.json
+          test "$(wc -l < generated/out/a-rest-svar-af8.tsv)" -eq 8
+          test "$(wc -l < generated/out/a-rest-svar-nested-trigger1.tsv)" -eq 2
+          test "$(wc -l < generated/out/a-rest-svar-trigger17.tsv)" -eq 17
+          awk -F '\t' 'NF!=19{exit 1}' generated/out/a-rest-svar-af8.tsv
+          awk -F '\t' 'NF!=23{exit 1}' generated/out/a-rest-svar-nested-trigger1.tsv
+          awk -F '\t' 'NF!=21{exit 1}' generated/out/a-rest-svar-trigger17.tsv
+          cut -f2 generated/out/a-rest-svar-af8.tsv > generated/diagnostic/af.ids
+          cut -f2 generated/out/a-rest-svar-nested-trigger1.tsv | sort -u > generated/diagnostic/nested.ids
+          cut -f2 generated/out/a-rest-svar-trigger17.tsv > generated/diagnostic/trigger.ids
+          test "$(cat generated/diagnostic/af.ids generated/diagnostic/nested.ids generated/diagnostic/trigger.ids|sort -u|wc -l)" -eq 26
+          (cd generated && find out diagnostic -type f ! -name SHA256SUMS -print0|sort -z|xargs -0 sha256sum) > generated/SHA256SUMS
+      - name: Upload immutable route evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-abc-a-rest-svar-routes-${{ github.run_id }}
+          path: generated/
+          if-no-files-found: error
+          retention-days: 90
