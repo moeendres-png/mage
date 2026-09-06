@@ -23,13 +23,21 @@ def b64(s: str) -> str:
     return base64.b64encode(s.encode("utf-8")).decode("ascii")
 
 
-def api(script: str) -> tuple[str, str]:
+def ability_api(script: str) -> tuple[str, str]:
     first = script.split("|", 1)[0].strip()
     require("$" in first, "script first token lacks $: " + first)
     prefix, name = first.split("$", 1)
     prefix = prefix.strip(); name = name.strip()
-    require(prefix in {"SP", "AB", "DB"} and bool(name), "unsupported first token: " + first)
+    require(prefix in {"SP", "AB", "DB"} and bool(name), "unsupported ability first token: " + first)
     return name, prefix + "$"
+
+
+def trigger_mode(script: str) -> str:
+    first=script.split("|",1)[0].strip()
+    require(first.startswith("Mode$"), "trigger first token is not Mode$: "+first)
+    mode=first.split("$",1)[1].strip()
+    require(bool(mode), "empty trigger mode")
+    return mode
 
 
 def main() -> None:
@@ -57,12 +65,18 @@ def main() -> None:
         p=parents[0]
         require(c.get("source_directive")=="SVAR", f"target source directive mismatch {c.get('v2_path_id')}")
         require(c.get("target_svar"), f"missing target SVar {c.get('v2_path_id')}")
-        target_api,_=api(c["exact_script"])
-        parent_api,parent_token=api(p["script"])
+        target_api,_=ability_api(c["exact_script"])
+        directive=p["directive"]
+        if directive=="TRIGGER":
+            parent_api=""; parent_token=""
+            parsed_mode=trigger_mode(p["script"])
+            require(parsed_mode==(p.get("event_mode") or ""), f"trigger mode/script mismatch {c.get('v2_path_id')}: {parsed_mode} != {p.get('event_mode')}")
+        else:
+            parent_api,parent_token=ability_api(p["script"])
         common={
             "ordinal":int(c["ordinal"]), "path":c["v2_path_id"], "oracle":c["oracle_identity"],
             "card":c["card_name"], "source_path":c["source_path"], "source_line":int(p["source_line"]),
-            "directive":p["directive"], "parent_svar":p.get("parent_svar") or "",
+            "directive":directive, "parent_svar":p.get("parent_svar") or "",
             "consumer":p.get("consumer_field") or "", "mode":p.get("event_mode") or "",
             "hidden":"1" if c.get("required_hidden_info_evidence") else "0",
             "rng":"1" if c.get("required_rng_evidence") else "0",
@@ -71,14 +85,14 @@ def main() -> None:
             "target_api":target_api, "target_script":c["exact_script"],
             "parent_api":parent_api, "parent_token":parent_token, "parent_script":p["script"],
         }
-        if p["directive"]=="TRIGGER":
+        if directive=="TRIGGER":
             require(common["consumer"]=="Execute", f"trigger parent is not Execute {common['path']}")
             require(bool(common["mode"]), f"trigger mode missing {common['path']}")
             trigger.append(common)
         else:
             require(p.get("ability_factory_compatible") is True, f"nontrigger parent not AbilityFactory-compatible {common['path']}")
             require(common["consumer"] in {"Choices","SubAbility"}, f"unsupported nontrigger consumer {common['path']}")
-            require(p["directive"] in {"ABILITY","SVAR"}, f"unsupported nontrigger directive {common['path']}")
+            require(directive in {"ABILITY","SVAR"}, f"unsupported nontrigger directive {common['path']}")
             nontrigger.append(common)
 
     require(len(nontrigger)==9, f"nontrigger count={len(nontrigger)}")
@@ -90,6 +104,7 @@ def main() -> None:
     require(modes=={"ChangesZone":14,"DamageDone":1,"SpellCast":1,"Phase":1}, "trigger mode partition mismatch: "+repr(modes))
     require(sum(x["rng"]=="1" for x in trigger)==2 and sum(x["rng"]=="1" for x in nontrigger)==0, "RNG partition mismatch")
 
+    by_path={c["v2_path_id"]:c for c in cases}
     a.out_dir.mkdir(parents=True,exist_ok=True)
     af=[]
     for x in sorted(nontrigger,key=lambda z:(z["ordinal"],z["path"])):
@@ -97,14 +112,12 @@ def main() -> None:
             x["ordinal"],x["path"],x["oracle"],x["card"],x["parent_api"],TARGET_IMPL,
             x["source_path"],x["source_line"],x["directive"],x["parent_token"],
             x["hidden"],x["rng"],x["replay"],x["decision"],b64(x["parent_script"]),
-            x["parent_svar"],next(c["target_svar"] for c in cases if c["v2_path_id"]==x["path"]),
-            x["target_api"],b64(x["target_script"])
+            x["parent_svar"],by_path[x["path"]]["target_svar"],x["target_api"],b64(x["target_script"])
         ])))
     ev=[]
     for x in sorted(trigger,key=lambda z:(z["ordinal"],z["path"])):
-        target_svar=next(c["target_svar"] for c in cases if c["v2_path_id"]==x["path"])
         ev.append("\t".join(map(str,[
-            x["ordinal"],x["path"],0,1,x["oracle"],x["card"],target_svar,x["target_api"],TARGET_IMPL,
+            x["ordinal"],x["path"],0,1,x["oracle"],x["card"],by_path[x["path"]]["target_svar"],x["target_api"],TARGET_IMPL,
             x["source_path"],x["source_line"],x["directive"],x["parent_svar"],x["consumer"],x["mode"],
             x["hidden"],x["rng"],x["replay"],x["decision"],b64(x["target_script"]),b64(x["parent_script"])
         ])))
