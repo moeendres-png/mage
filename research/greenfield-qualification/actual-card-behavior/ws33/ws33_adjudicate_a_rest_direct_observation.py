@@ -4,7 +4,12 @@
 This verifier never infers target legality. It validates only runtime evidence emitted by
 pinned Forge: exact path coverage, zero leak/cross-principal deltas, strict temporary
 identity lifecycles when Forge actually grants hidden identity, and fresh record/replay
-equality. No positive observation is manufactured for public-zone target paths.
+semantic equality. No positive observation is manufactured for public-zone target paths.
+
+Server observation reasons are semantic and therefore replay-compared exactly. Client
+`decision_kind` values are transport delta labels (for example `delta:67`), not rules or
+visibility semantics; replay equality therefore compares client path/kind/principal/card/
+identity while strict lifecycle validation independently proves each transport sequence.
 """
 from __future__ import annotations
 import argparse, json
@@ -66,6 +71,14 @@ def event_gate(label: str, events:list[dict], cases:dict[str,list[str]], failure
         if pid not in cases: failures.append(f'{label}:unknown_path={pid}'); continue
         if e.get('identity_match') is not True: failures.append(f'{label}:identity_mismatch={pid}:{e.get("principal_id")}:{e.get("card_id")}')
         kind=e.get('kind'); kinds[kind]+=1
+        if kind in {'SERVER_GRANT','SERVER_REVOKE'}:
+            reason=str(e.get('decision_kind',''))
+            if not reason or reason.startswith('delta:'):
+                failures.append(f'{label}:invalid_server_observation_reason={pid}:{reason}')
+        elif kind in {'CLIENT_VISIBLE','CLIENT_HIDDEN'}:
+            transport=str(e.get('decision_kind',''))
+            if transport and not transport.startswith('delta:'):
+                failures.append(f'{label}:invalid_client_transport_label={pid}:{transport}')
         if kind in {'SERVER_GRANT','CLIENT_VISIBLE','SERVER_REVOKE','CLIENT_HIDDEN'}:
             try: key=(pid,int(e['principal_id']),int(e['card_id']))
             except Exception: failures.append(f'{label}:bad_stream_identity={pid}'); continue
@@ -84,7 +97,14 @@ def event_gate(label: str, events:list[dict], cases:dict[str,list[str]], failure
 
 
 def normalized(events:list[dict]) -> Counter:
-    return Counter((e.get('path_id'),e.get('kind'),int(e.get('principal_id',-1)),int(e.get('card_id',-1)),e.get('decision_kind',''),bool(e.get('identity_match'))) for e in events)
+    rows=[]
+    for e in events:
+        kind=e.get('kind')
+        # SERVER reason is semantic. CLIENT decision_kind is only transport delta sequence
+        # metadata and is validated for shape by event_gate, then excluded from equality.
+        reason=e.get('decision_kind','') if kind in {'SERVER_GRANT','SERVER_REVOKE'} else ''
+        rows.append((e.get('path_id'),kind,int(e.get('principal_id',-1)),int(e.get('card_id',-1)),reason,bool(e.get('identity_match'))))
+    return Counter(rows)
 
 
 def main() -> None:
@@ -100,8 +120,8 @@ def main() -> None:
     if not rec: failures.append('record_observations_empty')
     if not rep: failures.append('replay_observations_empty')
     rk=event_gate('record',rec,cases,failures); pk=event_gate('replay',rep,cases,failures)
-    if normalized(rec)!=normalized(rep): failures.append('record_replay_observation_multiset_mismatch')
-    out={'schema':'commander-simulator-next.ws33-a-rest-direct31-principal-observation.v1','status':'PASS' if not failures else 'FAIL_CLOSED','expected_paths':31,'hidden_required_paths':31,'record_event_count':len(rec),'replay_event_count':len(rep),'record_event_kinds':dict(sorted(rk.items())),'replay_event_kinds':dict(sorted(pk.items())),'record_observed_path_count':len({e.get('path_id') for e in rec if e.get('path_id') in cases}),'replay_observed_path_count':len({e.get('path_id') for e in rep if e.get('path_id') in cases}),'positive_observation_policy':'ONLY_WHEN_FORGE_GRANTS_HIDDEN_IDENTITY','unauthorized_hidden_leak_required':0,'cross_principal_leak_required':0,'failure_count':len(failures),'failures':failures,'rules_mutation':False,'coverage_mutated':False,'coverage_promotion':False}
+    if normalized(rec)!=normalized(rep): failures.append('record_replay_observation_semantic_multiset_mismatch')
+    out={'schema':'commander-simulator-next.ws33-a-rest-direct31-principal-observation.v2','status':'PASS' if not failures else 'FAIL_CLOSED','expected_paths':31,'hidden_required_paths':31,'record_event_count':len(rec),'replay_event_count':len(rep),'record_event_kinds':dict(sorted(rk.items())),'replay_event_kinds':dict(sorted(pk.items())),'record_observed_path_count':len({e.get('path_id') for e in rec if e.get('path_id') in cases}),'replay_observed_path_count':len({e.get('path_id') for e in rep if e.get('path_id') in cases}),'replay_comparison':'SERVER_REASON_PLUS_CLIENT_SEMANTIC_VISIBILITY','client_transport_delta_metadata_compared':False,'positive_observation_policy':'ONLY_WHEN_FORGE_GRANTS_HIDDEN_IDENTITY','unauthorized_hidden_leak_required':0,'cross_principal_leak_required':0,'failure_count':len(failures),'failures':failures,'rules_mutation':False,'coverage_mutated':False,'coverage_promotion':False}
     a.out.parent.mkdir(parents=True,exist_ok=True); a.out.write_text(json.dumps(out,indent=2,sort_keys=True)+'\n',encoding='utf-8')
     print(json.dumps(out,sort_keys=True))
     if failures: fail(';'.join(failures[:20]))
