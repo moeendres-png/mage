@@ -1,0 +1,82 @@
+name: WS33 ABC A-rest SVar26 case projection
+
+on:
+  push:
+    branches:
+      - work/ws33-g3-final-closure-20260902
+    paths:
+      - .github/workflows/ws33-abc-a-rest-svar26-cases.yml
+      - research/greenfield-qualification/actual-card-behavior/ws33/ws33_project_a_rest_svar_cases.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  project_cases:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      TOPOLOGY_RUN_ID: '34002894410'
+      TOPOLOGY_ARTIFACT_ID: '9980023181'
+      TOPOLOGY_ARTIFACT_DIGEST: sha256:053ca7036eec2e13dd66022975a7f766e9c8c9ebc3cc30576ab03eaab99cb995
+      TOPOLOGY_SOURCE_HEAD: 60fa4ff1b224ede4983087a9c28bb6bbc89c728c
+      TOPOLOGY_SOURCE_TREE: 88f5d5460f10364a20d03e8c37854a7793eb00c0
+    steps:
+      - name: Checkout frozen projection source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Consume immutable A-rest topology
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf generated
+          mkdir -p generated/topology generated/out generated/diagnostic
+          printf '%s\n' "$GITHUB_SHA" > generated/diagnostic/workflow-source-head.txt
+          git rev-parse 'HEAD^{tree}' > generated/diagnostic/workflow-source-tree.txt
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$TOPOLOGY_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$meta")" = "$TOPOLOGY_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.id <<<"$meta")" = "$TOPOLOGY_RUN_ID"
+          test "$(jq -r .workflow_run.head_sha <<<"$meta")" = "$TOPOLOGY_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$TOPOLOGY_ARTIFACT_ID/zip" > generated/topology.zip
+          test "sha256:$(sha256sum generated/topology.zip | cut -d' ' -f1)" = "$TOPOLOGY_ARTIFACT_DIGEST"
+          unzip -q generated/topology.zip -d generated/topology
+          jq -e --arg h "$TOPOLOGY_SOURCE_HEAD" --arg t "$TOPOLOGY_SOURCE_TREE" '
+            .status=="PASS" and .source_head==$h and .source_tree==$t and
+            .a_rest_paths==57 and .direct_paths==31 and .svar_paths==26 and
+            .coverage_mutated==false and .coverage_promotion==false
+          ' generated/topology/out/A_REST_TOPOLOGY_GATE.json
+
+      - name: Project already-selected SVar parents
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=research/greenfield-qualification/actual-card-behavior/ws33
+          python "$ROOT/ws33_project_a_rest_svar_cases.py" \
+            --topology generated/topology/out/A_REST_TOPOLOGY.json --out-dir generated/out \
+            | tee generated/diagnostic/projector.log
+          grep -Fx 'WS33_A_REST_SVAR_PROJECT=PASS paths=26 nontrigger=9 trigger=17 inference=FALSE' generated/diagnostic/projector.log
+          jq -e '.status=="PASS" and .svar_paths==26 and .nontrigger_paths==9 and .trigger_paths==17 and .selected_parent_entrypoints==26 and .consumer_inference_performed==false and .rng_nontrigger==0 and .rng_trigger==2 and .coverage_mutated==false and .coverage_promotion==false' generated/out/A_REST_SVAR_CASE_GATE.json
+          test "$(wc -l < generated/out/a-rest-svar-nontrigger9.tsv)" -eq 9
+          test "$(wc -l < generated/out/a-rest-svar-trigger17.tsv)" -eq 17
+          awk -F '\t' 'NF != 19 { exit 1 }' generated/out/a-rest-svar-nontrigger9.tsv
+          awk -F '\t' 'NF != 21 { exit 1 }' generated/out/a-rest-svar-trigger17.tsv
+          cut -f2 generated/out/a-rest-svar-nontrigger9.tsv > generated/diagnostic/nontrigger.ids
+          cut -f2 generated/out/a-rest-svar-trigger17.tsv > generated/diagnostic/trigger.ids
+          test "$(cat generated/diagnostic/nontrigger.ids generated/diagnostic/trigger.ids | sort -u | wc -l)" -eq 26
+          (cd generated && find out diagnostic -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum) > generated/SHA256SUMS
+          echo 'WS33_A_REST_SVAR26_CASE_PROJECTION=PASS'
+          echo 'WS33_A_REST_SVAR26_COVERAGE_MUTATED=FALSE'
+
+      - name: Upload immutable SVar26 cases
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-abc-a-rest-svar26-cases-${{ github.run_id }}
+          path: generated/
+          if-no-files-found: error
+          retention-days: 90
