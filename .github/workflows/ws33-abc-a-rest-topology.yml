@@ -1,0 +1,129 @@
+name: WS33 ABC A-rest source topology
+
+on:
+  push:
+    branches: [work/ws33-g3-final-closure-20260902]
+    paths:
+      - '.github/workflows/ws33-abc-a-rest-topology.yml'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_a_rest_topology.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  PREDECESSOR_ARTIFACT_ID: '9979204198'
+  PREDECESSOR_ARTIFACT_DIGEST: sha256:ae75ff01604f9fcc2b2cd2320e4cec1470347bcd47665d1989c1541542e76af0
+  PREDECESSOR_SOURCE_HEAD: 1df1db4876efeebe737aa30bda8b5f6634d2365d
+  PREDECESSOR_SOURCE_TREE: f99102c4a96905e9d43b8dca7ab9808d71e3250e
+  MANIFEST_SHA256: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  CONSUMER_MODEL_SHA256: 82638e6b3e4408cc5bddedc49372b6357d3c2bdce6fba7bfab7ed119678f9a48
+
+jobs:
+  a-rest-topology:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout frozen topology source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Download and verify immutable 488/3700 predecessor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf generated
+          mkdir -p generated/predecessor generated/out generated/diagnostic
+          printf '%s\n' "$GITHUB_SHA" > generated/diagnostic/source-head.txt
+          git rev-parse 'HEAD^{tree}' > generated/diagnostic/source-tree.txt
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$PREDECESSOR_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$meta")" = "$PREDECESSOR_ARTIFACT_DIGEST"
+          test "$(jq -r .workflow_run.head_sha <<<"$meta")" = "$PREDECESSOR_SOURCE_HEAD"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$PREDECESSOR_ARTIFACT_ID/zip" > generated/predecessor.zip
+          test "sha256:$(sha256sum generated/predecessor.zip | cut -d' ' -f1)" = "$PREDECESSOR_ARTIFACT_DIGEST"
+          unzip -q generated/predecessor.zip -d generated/predecessor
+          test -d generated/predecessor/successor/ws33
+          test -d generated/predecessor/successor/integrated
+          test "$(sha256sum generated/predecessor/successor/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)" = "$MANIFEST_SHA256"
+          (cd generated/predecessor/successor/ws33 && sha256sum -c WS33_HASHES.sha256)
+          jq -e '.status_counts.PASS==488 and .status_counts.UNKNOWN==3700 and (.status_counts.FAIL//0)==0 and (.status_counts.UNSUPPORTED//0)==0' generated/predecessor/successor/ws33/WS33_PATH_COVERAGE.json
+          echo WS33_A_REST_PREDECESSOR=PASS
+
+      - name: Verify exact integrated A57 queue
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          q=json.loads(Path('generated/predecessor/successor/integrated/WS33_INTEGRATED_WORK_QUEUE.json').read_text())
+          want={
+            ('ws33-g2-template-122','DECISION+HIDDEN+REPLAY'):53,
+            ('ws33-g2-template-124','DECISION+RNG+HIDDEN+REPLAY'):2,
+            ('ws33-g2-template-125','DECISION+RNG+REPLAY'):2,
+          }
+          rows=[x for x in q['items'] if x.get('logical_bucket')=='WS33A' and x.get('runtime_subsystem')=='forge.game.spellability.TargetRestrictions' and (x.get('scenario_group_id'),x.get('evidence_profile')) in want]
+          assert len(rows)==3
+          ids=[]
+          for x in rows:
+            k=(x['scenario_group_id'],x['evidence_profile'])
+            assert x['unresolved_path_count']==want[k] and len(x['effective_path_ids'])==want[k]
+            ids.extend(x['effective_path_ids'])
+          assert len(ids)==57 and len(set(ids))==57
+          print('WS33_A_REST_QUEUE=PASS paths=57 units=3')
+          PY
+
+      - name: Checkout exact pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Materialize source-proven A57 topology
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          python "$ROOT/ws33_prepare_a_rest_topology.py" \
+            --model-dir generated/predecessor/successor/ws33 \
+            --queue generated/predecessor/successor/integrated/WS33_INTEGRATED_WORK_QUEUE.json \
+            --forge-root forge \
+            --out-json generated/out/A_REST_TOPOLOGY.json \
+            --direct-tsv generated/out/a-rest-direct.tsv \
+            --svar-tsv generated/out/a-rest-svar.tsv | tee generated/diagnostic/topology.log
+          jq -e --arg forge "$FORGE_PIN" --arg consumer "$CONSUMER_MODEL_SHA256" '.schema=="commander-simulator-next.ws33-a-rest-topology.v1" and .status=="PASS" and .forge_pin==$forge and .consumer_model_sha256==$consumer and .a_rest_path_count==57 and .direct_ability_path_count==31 and .svar_path_count==26 and .svar_parent_entrypoint_count>=26 and (.unresolved_svar_paths|length)==0 and .coverage_mutated==false' generated/out/A_REST_TOPOLOGY.json
+          test "$(wc -l < generated/out/a-rest-direct.tsv)" -eq 31
+          test "$(wc -l < generated/out/a-rest-svar.tsv)" -ge 26
+          echo WS33_A_REST_TOPOLOGY_GATE=PASS
+
+      - name: Emit immutable topology evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg head "$(cat generated/diagnostic/source-head.txt)" \
+            --arg tree "$(cat generated/diagnostic/source-tree.txt)" \
+            --arg predecessor "$PREDECESSOR_ARTIFACT_DIGEST" \
+            --arg forge "$FORGE_PIN" --arg manifest "$MANIFEST_SHA256" --arg consumer "$CONSUMER_MODEL_SHA256" \
+            '{schema:"commander-simulator-next.ws33-a-rest-topology-gate.v1",status:"PASS",source_head:$head,source_tree:$tree,predecessor_artifact_id:9979204198,predecessor_artifact_digest:$predecessor,forge_pin:$forge,effective_manifest_sha256:$manifest,consumer_model_sha256:$consumer,a_rest_paths:57,direct_paths:31,svar_paths:26,coverage_mutated:false,coverage_promotion:false}' > generated/out/A_REST_TOPOLOGY_GATE.json
+          (cd generated && find out diagnostic -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum) > generated/SHA256SUMS
+          sha256sum -c <(sed 's#  #  generated/#' generated/SHA256SUMS)
+          git diff --exit-code
+          echo WS33_A_REST_COVERAGE_MUTATED=FALSE
+
+      - name: Upload immutable A-rest topology
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-abc-a-rest-topology-${{ github.run_id }}
+          path: generated/
+          if-no-files-found: error
+          retention-days: 90
