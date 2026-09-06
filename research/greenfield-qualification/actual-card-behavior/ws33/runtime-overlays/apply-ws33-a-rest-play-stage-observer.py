@@ -47,7 +47,7 @@ def patch_input_pay_mana(root: Path) -> None:
     src = replace_once(
         src,
         '''    public void driveExternal() {\n        while (!isAlreadyPaid()) {\n            byte colorCanUse = 0;\n''',
-        '''    public void driveExternal() {\n        while (!isAlreadyPaid()) {\n            System.err.println("WS33_MANA_PAYMENT_TRACE\\tITERATION_BEGIN\\t"\n                    + (saPaidFor == null || saPaidFor.getHostCard() == null ? "" : saPaidFor.getHostCard().getName())\n                    + "\\t" + (saPaidFor == null ? -1 : saPaidFor.getId())\n                    + "\\t" + manaCost + "\\tpool=" + player.getManaPool().size());\n            byte colorCanUse = 0;\n''',
+        '''    public void driveExternal() {\n        while (!isAlreadyPaid()) {\n            System.err.println("WS33_MANA_PAYMENT_TRACE\\tITERATION_BEGIN\\t"\n                    + (saPaidFor == null || saPaidFor.getHostCard() == null ? "" : saPaidFor.getHostCard().getName())\n                    + "\\t" + (saPaidFor == null ? -1 : saPaidFor.getId())\n                    + "\\t" + manaCost);\n            byte colorCanUse = 0;\n''',
         "mana iteration begin",
     )
 
