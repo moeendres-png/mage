@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/ws33-abc-a-rest-direct31-runtime.yml
       - research/greenfield-qualification/actual-card-behavior/ws33/ws33_run_a_rest_direct31_runtime_v2.sh
+      - research/greenfield-qualification/actual-card-behavior/ws33/ws33_run_a_rest_direct31_runtime_v3.sh
       - research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_a_rest_direct_harness.py
       - research/greenfield-qualification/actual-card-behavior/ws33/ws33_repair_a_rest_direct_case_abi.py
       - research/greenfield-qualification/actual-card-behavior/ws33/ws33_bind_a_rest_direct_remote_actor.py
@@ -80,11 +81,11 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Execute frozen Direct31 record/replay driver v2
+      - name: Execute frozen Direct31 record/replay driver v3
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
-        run: bash research/greenfield-qualification/actual-card-behavior/ws33/ws33_run_a_rest_direct31_runtime_v2.sh
+        run: bash research/greenfield-qualification/actual-card-behavior/ws33/ws33_run_a_rest_direct31_runtime_v3.sh
 
       - name: Upload immutable Direct31 evidence
         if: always()
