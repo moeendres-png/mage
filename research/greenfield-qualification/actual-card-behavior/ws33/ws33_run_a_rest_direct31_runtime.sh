@@ -81,10 +81,13 @@ src='ws31-historical/research/greenfield-qualification/actual-card-behavior/ws31
 dst='forge/forge-gui-desktop/src/test/java/forge/net/Ws33ARestDirectQualificationTest.java'
 python "$ROOT/ws33_prepare_g_ability_harness.py" --source "$src" --out "$dst"
 python "$ROOT/ws33_prepare_a_rest_direct_harness.py" --harness "$dst" | tee generated/diagnostic/harness-adapter.log
+python "$ROOT/ws33_repair_a_rest_direct_case_abi.py" --harness "$dst" | tee generated/diagnostic/case-abi-repair.log
+grep -F 'WS33_A_REST_DIRECT_CASE_ABI=PASS' generated/diagnostic/case-abi-repair.log
 grep -F 'WS33_A_REST_DIRECT_HARNESS=PASS' generated/diagnostic/harness-adapter.log
 grep -F 'PlaySpellAbility.playSpellAbility(actor.getController(),actor,sa)' "$dst"
 grep -F 'resolveActualSourceAbility(spec,source)' "$dst"
 grep -F 'MagicStack.setWs33ResolutionObserver' "$dst"
+grep -F 'implementation="forge.game.spellability.TargetRestrictions"' "$dst"
 ! grep -F 'sa.resolve()' "$dst"
 ! grep -F 'sa.getTargets().add(' "$dst"
 ! grep -F 'AbilityFactory.getAbility(spec.script,source)' "$dst"
