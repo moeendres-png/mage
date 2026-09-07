@@ -4,15 +4,23 @@ TURN_STATUS=RUNNING
 TASK_COMPLETE=NO
 CURRENT_REPOSITORY=moeendres-png/mage
 CURRENT_BRANCH=work/ws33-g3-final-closure-20260902
-CURRENT_HEAD=26cad665dd7b63af7ad434c539f428592a98e8f1
-CURRENT_TREE=ced8616c15f6a16a014cd7d299bc841012e65e4d
-IDENTITY_NOTE=Verified source baseline before this metadata-only checkpoint; use git rev-parse HEAD and HEAD^{tree} for its containing commit.
+CURRENT_HEAD=43807b57b43be0191f3ae3151b303bf392fe2a3e
+CURRENT_TREE=f5806ce60ad809b7acbc2f402412426c5a233450
+IDENTITY_NOTE=Live GitHub branch identity verified immediately before this metadata reconciliation. This PROJECT_STATE update is metadata-only and therefore its containing commit will be newer; freeze/run checkpoints must record their own exact SOURCE_HEAD/SOURCE_TREE.
 FORGE_PIN=8c7e9afb8e6caee88644b94e25da5852e36f8928
 
 CANONICAL_COVERAGE=TOTAL=4188 PASS=488 UNKNOWN=3700 FAIL=0 UNSUPPORTED=0
-COVERAGE_EVIDENCE=artifact 9979204198; persisted POST_G3_A1_SUCCESSOR_RUN_34000014860_PASS.md; artifact contents not independently refreshed in this resume yet
-LAST_COMPLETED_GATE=A-rest SVar production-root route refinement, per AF8 immutable dependency metadata
-CURRENT_OPEN_GATE=AF8 systemic verifier/evidence repair and positive runtime obligations
+A_UNKNOWN=57
+B_UNKNOWN=675
+C_UNKNOWN=700
+D_UNKNOWN=920
+E_UNKNOWN=1029
+F_UNKNOWN=319
+G_UNKNOWN=0
+H_UNKNOWN=0
+COVERAGE_EVIDENCE=artifact 9979204198; persisted POST_G3_A1_SUCCESSOR_RUN_34000014860_PASS.md; no coverage promotion from AF8 repair source
+LAST_COMPLETED_GATE=A-rest SVar production-root route refinement; strict AF8 decision-path parser repair and negative regression suite also complete
+CURRENT_OPEN_GATE=Integrate AF8 runtime hardener and fail-closed adjudicator into workflow; make evidence sealing unconditional; then freeze and run replacement AF8 qualification
 CURRENT_CHECKPOINT=research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/ABC_A_REST_SVAR_AF8_RUN_34064602879_ROOT_CAUSE.md
 ACTIVE_OR_LAST_RUN=34064602879
 ACTIVE_OR_LAST_JOB=101571045115
@@ -26,22 +34,22 @@ PRODUCTION_IMPLEMENTATION=NOT_STARTED; forbidden before justified freeze
 
 ## Current evidence
 
-Live GitHub branch HEAD/TREE verified on 2026-09-07. Local checkout fast-forwarded without changing the pre-existing untracked materializer.
-Run/job terminal failure and exact artifact identity/digest are DIRECTLY_VERIFIED.
-Both runtime steps succeeded. Exact failed adjudicator output: record:decision_path_coverage and replay:decision_path_coverage.
-Job gate also reports zero Record/Replay observation events with hidden_required=8; this is not accepted as positive hidden evidence.
-Source inspection identifies Base64 path serialization versus raw-string comparison as a candidate PATH_ROUTE_PROJECTION cause; artifact confirmation remains pending.
+DIRECTLY_VERIFIED on 2026-09-07 against live GitHub:
+- branch HEAD/TREE = 43807b57b43be0191f3ae3151b303bf392fe2a3e / f5806ce60ad809b7acbc2f402412426c5a233450;
+- latest branch commit message = `ws33 af8: import Forge phase type in hardener`;
+- historical AF8 run 34064602879 remains terminal FAILURE with job 101571045115 and artifact 9998600937;
+- strict decision-path parser exists and its 12 targeted regressions pass;
+- AF8 runtime hardener and standalone fail-closed adjudicator exist in source;
+- current AF8 workflow still invokes the old inline adjudicator and does not invoke `ws33_harden_a_rest_svar_af8_runtime.py` or `ws33_adjudicate_a_rest_svar_af8.py`;
+- current workflow writes SOURCE_CHAIN/root SHA256SUMS only after fail-fast adjudication, so terminal adjudication failure can still skip complete sealing.
 
-BLOCKERS=No external blocker established. Root cause confirmed after full archive verification; missing positive observation/effect evidence remains fail closed.
-EXACT_NEXT_STEP=Repair strict Base64 path decoding and always-run evidence sealing with negative tests, then capture missing real client/target/characteristic evidence before AF8 qualification.
+Historical AF8 root cause remains PATH_ROUTE_PROJECTION: inherited decision path IDs are canonical Base64 UTF-8 while the old inline verifier compared them as cleartext. Record/Replay execution itself succeeded in run 34064602879. Empty positive client/effect evidence and historical packaging gaps remain fail closed and are not waived.
 
-## Tested repair component
-
-ws33_decision_path_evidence.py: 12 targeted unit tests PASS; immutable AF8 Record/Replay both decode exactly 8 paths and 18 accepted decisions, matching counts. This is a parser-only result, not AF8 behavior PASS. Workflow integration and unconditional evidence sealing remain to implement; no replacement runtime run has been started.
-
-Archive verification completed: outer SHA256 exact; 6174 CRC-checked files; all 25 entries in three available internal manifests verified. Root manifest absent, not waived. Root-cause checkpoint supersedes the earlier pending observations above.
+BLOCKERS=No external blocker established. AF8 replacement run must not start until workflow consumes the persisted hardener/adjudicator and sealing/upload are failure-resilient.
+EXACT_NEXT_STEP=Update `.github/workflows/ws33-abc-a-rest-svar-af8-runtime.yml`: add parser/hardener/adjudicator to trigger paths, run cheap parser regressions/py_compile, invoke runtime hardener after harness instrumentation, replace inline adjudication with `ws33_adjudicate_a_rest_svar_af8.py`, move SOURCE_CHAIN/root SHA256SUMS to an `if: always()` sealing step, retain `if: always()` artifact upload, then freeze exact source HEAD/TREE and register replacement AF8 run.
 
 ## Continuation scope
 
-AF8 -> nested trigger -> Trigger17 -> A57 certification/successor -> B/C/D/E/F serial certification/successors -> WS33 final cross-qualification -> WS01-WS33 reconciliation -> evidence-based freeze -> production P0-P10 -> final production qualification.
-Newest user master request governs scope. No new chats. Do not repeat valid predecessor qualification for reassurance.
+AF8 -> nested trigger -> Trigger17 -> A57 certification/successor -> B/C/D/E/F shard qualification/cross-certification/serial successors -> WS33 final cross-qualification -> WS01-WS33 reconciliation -> evidence-based Architecture Freeze -> production P0-P10 -> final production qualification.
+
+After AF8 source is frozen and its run exists, independent A-trigger and B-F materialization must proceed on isolated branches; canonical coverage promotion remains serial and deterministic only after immutable cross-certification.
