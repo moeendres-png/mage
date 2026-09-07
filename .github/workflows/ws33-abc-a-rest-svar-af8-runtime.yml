@@ -6,6 +6,10 @@ on:
     paths:
       - '.github/workflows/ws33-abc-a-rest-svar-af8-runtime.yml'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_adapt_g_svar_af_harness_to_a_af8.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_decision_path_evidence.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/test_ws33_decision_path_evidence.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_harden_a_rest_svar_af8_runtime.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_adjudicate_a_rest_svar_af8.py'
   workflow_dispatch:
 
 permissions:
@@ -34,6 +38,16 @@ jobs:
         uses: actions/checkout@v4
         with: {fetch-depth: 1}
 
+      - name: Validate AF8 parser hardener and adjudicator source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            "$ROOT/ws33_decision_path_evidence.py" \
+            "$ROOT/ws33_harden_a_rest_svar_af8_runtime.py" \
+            "$ROOT/ws33_adjudicate_a_rest_svar_af8.py"
+          (cd "$ROOT" && python -m unittest -v test_ws33_decision_path_evidence.py)
+
       - name: Consume immutable production-root routes
         env: {GH_TOKEN: '${{ github.token }}'}
         shell: bash
@@ -60,6 +74,8 @@ jobs:
           PY
           printf '%s\n' "$GITHUB_SHA" > generated/diagnostic/workflow-source-head.txt
           git rev-parse 'HEAD^{tree}' > generated/diagnostic/workflow-source-tree.txt
+          cut -f2 generated/routes/out/a-rest-svar-af8.tsv | sort > generated/diagnostic/expected-paths.txt
+          test "$(wc -l < generated/diagnostic/expected-paths.txt)" -eq 8
 
       - name: Checkout pinned runtime dependencies
         uses: actions/checkout@v4
@@ -112,6 +128,7 @@ jobs:
           python "$ROOT/ws33_strengthen_g_svar_af_hidden_witness.py" --harness "$dst" | tee generated/diagnostic/hidden-witness.log
           python "$ROOT/ws33_adapt_g_svar_af_harness_to_a_af8.py" --harness "$dst" | tee generated/diagnostic/a-af8-adapter.log
           python "$ROOT/ws33_instrument_g_principal_observations.py" --harness "$dst" | tee generated/diagnostic/observation-instrument.log
+          python "$ROOT/ws33_harden_a_rest_svar_af8_runtime.py" --harness "$dst" | tee generated/diagnostic/a-af8-hardener.log
           grep -Fx 'WS33_A_SVAR_AF8_ADAPTER=PASS paths=8 route=ABILITY_ROOT' generated/diagnostic/a-af8-adapter.log
           grep -Fx 'WS33_A_SVAR_AF8_MODE_SELECTION=FORGE_AUTHORITATIVE_DESIRED_PLUS_MINIMUM' generated/diagnostic/a-af8-adapter.log
           grep -Fx 'WS33_A_SVAR_AF8_FIXTURES=GENERIC_PUBLIC_ZONE_CANDIDATES' generated/diagnostic/a-af8-adapter.log
@@ -119,16 +136,24 @@ jobs:
           grep -Fx 'WS33_G_SVAR_AF_HIDDEN_WITNESS_CARD_NAME_BRANCH=0' generated/diagnostic/hidden-witness.log
           grep -Fx 'WS33_G_SVAR_AF_HIDDEN_WITNESS_PATH_ID_BRANCH=0' generated/diagnostic/hidden-witness.log
           grep -F 'WS33_G_PRINCIPAL_OBSERVATION_ATTRIBUTION=G_SVAR_AF' generated/diagnostic/observation-instrument.log
+          grep -Fx 'WS33_A_SVAR_AF8_RUNTIME_HARDEN=PASS paths=8 play=PlaySpellAbility actor=REMOTE_SLOT_1 phase=FORGE_MAIN1' generated/diagnostic/a-af8-hardener.log
+          grep -Fx 'WS33_A_SVAR_AF8_PAYMENT=FORGE_AUTHORITATIVE mana_pool_injection=0 cost_bypass=0' generated/diagnostic/a-af8-hardener.log
+          grep -Fx 'WS33_A_SVAR_AF8_EFFECT_EVIDENCE=TARGET_CARD_POSTCONDITION_FROM_TARGET_SCRIPT' generated/diagnostic/a-af8-hardener.log
+          grep -Fx 'WS33_A_SVAR_AF8_CLIENT_EVIDENCE=WS05_REAL_REMOTE_PHASE_SAMPLES' generated/diagnostic/a-af8-hardener.log
+          grep -Fx 'WS33_A_SVAR_AF8_RULES_MUTATION=0 card_name_branch=0 path_id_branch=0' generated/diagnostic/a-af8-hardener.log
           ! grep -F 'sa.resolve()' "$dst"
           ! grep -F 'sa.getTargets().add(' "$dst"
           ! grep -F 'AbilityFactory.getAbility(spec.script,source)' "$dst"
           ! grep -F 'forge-behavior-v2:' "$dst"
-          grep -F 'CharmEffect.makeChoices(sa)' "$dst"
-          grep -F 'desired.equals(o.getSemanticValue())' "$dst"
-          grep -F 'req.getMinimumSelection()' "$dst"
-          grep -F 'prepareAF8PublicCandidates(actor,opponent)' "$dst"
+          ! grep -F 'getStack().addAndUnfreeze(sa)' "$dst"
+          ! grep -F 'prepareSourceParentChoices(spec,sa)' "$dst"
+          grep -F 'PlaySpellAbility.playSpellAbility(actor.getController(),actor,sa)' "$dst"
+          grep -F 'MagicStack.setWs33ResolutionObserver' "$dst"
           grep -F 'AbilitySub.setWs33ResolutionObserver' "$dst"
-          grep -F 'getStack().addAndUnfreeze(sa)' "$dst"
+          grep -F 'PlaySpellAbility.setWs33PlayStageObserver' "$dst"
+          grep -F 'assertAF8PositiveEffect(spec,ce)' "$dst"
+          grep -F 'AF8_CLIENT_OBSERVATION_SAMPLES.tsv' "$dst"
+          grep -F 'Ws05HiddenInfoProbe.phaseSampleCount' "$dst"
           grep -F 'getStack().resolveStack()' "$dst"
           sha256sum "$dst" | tee generated/diagnostic/harness.sha256
 
@@ -143,7 +168,13 @@ jobs:
             -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) 2>&1 | tee generated/record/runtime.log
           test -s generated/record/case-summary.tsv
           test -s generated/record/decision-tape.tsv
+          test -s generated/record/decision-events-with-path.tsv
+          test -f generated/record/rng-tape.tsv
+          test -f generated/record/rng-events-with-path.tsv
           test -f generated/record/PRINCIPAL_OBSERVATIONS.jsonl
+          test -s generated/record/AF8_EFFECT_EVIDENCE.tsv
+          test -s generated/record/AF8_CLIENT_OBSERVATION_SAMPLES.tsv
+          test -s generated/record/play-stages.tsv
 
       - name: Fresh tape-driven AF8 Replay
         shell: bash
@@ -157,84 +188,67 @@ jobs:
             -Dws31.rngReplay="$GITHUB_WORKSPACE/generated/record/rng-tape.tsv" \
             -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false test) 2>&1 | tee generated/replay/runtime.log
           test -s generated/replay/case-summary.tsv
+          test -s generated/replay/decision-events-with-path.tsv
           test -f generated/replay/PRINCIPAL_OBSERVATIONS.jsonl
+          test -s generated/replay/AF8_EFFECT_EVIDENCE.tsv
+          test -s generated/replay/AF8_CLIENT_OBSERVATION_SAMPLES.tsv
+          test -s generated/replay/play-stages.tsv
 
       - name: Fail-closed AF8 adjudication
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          import json
-          from collections import Counter,defaultdict
-          from pathlib import Path
-          root=Path('generated'); cases=[x.split('\t') for x in (root/'routes/out/a-rest-svar-af8.tsv').read_text().splitlines() if x]
-          ids={x[1] for x in cases}; failures=[]
-          def rows(p): return {x.split('\t')[0]:x.split('\t') for x in p.read_text().splitlines() if x}
-          rec=rows(root/'record/case-summary.tsv'); rep=rows(root/'replay/case-summary.tsv')
-          if len(ids)!=8 or set(rec)!=ids or set(rep)!=ids: failures.append('path_set_mismatch')
-          for c in cases:
-            pid=c[1]; a=rec.get(pid); b=rep.get(pid)
-            if a is None or b is None: continue
-            for label,r in [('record',a),('replay',b)]:
-              if len(r)<21: failures.append(pid+':'+label+':summary_schema'); continue
-              if r[4]!='PASS': failures.append(pid+':'+label+':status='+r[4])
-              if int(r[7])<=0: failures.append(pid+':'+label+':missing_decision')
-              if int(r[8])!=0: failures.append(pid+':'+label+':unexpected_path_rng')
-              if int(r[9])!=0 or int(r[10])!=0: failures.append(pid+':'+label+':hidden_leak')
-              if int(r[18])!=1 or int(r[19])!=1 or int(r[20])<1: failures.append(pid+':'+label+':parent_target_reachability')
-              if r[14] or r[15]: failures.append(pid+':'+label+':runtime_failure')
-            if len(a)>=21 and len(b)>=21 and (a[5]!=b[5] or a[6]!=b[6]): failures.append(pid+':semantic_digest_mismatch')
-          for label in ('record','replay'):
-            p=root/label/'decision-events-with-path.tsv'; seen=set()
-            if not p.is_file(): failures.append(label+':decision_path_tape_missing')
-            else:
-              for line in p.read_text().splitlines():
-                if not line: continue
-                f=line.split('\t')
-                if f and f[0] in ids: seen.add(f[0])
-              if seen!=ids: failures.append(label+':decision_path_coverage')
-          def load(p): return [json.loads(x) for x in p.read_text().splitlines() if x.strip()] if p.is_file() else []
-          def check(label,ev):
-            streams=defaultdict(list); kinds=Counter()
-            for e in ev:
-              pid=e.get('path_id')
-              if pid not in ids: failures.append(label+':unknown_observation_path='+str(pid)); continue
-              if e.get('identity_match') is not True: failures.append(label+':identity_mismatch='+pid)
-              kind=e.get('kind'); kinds[kind]+=1
-              if kind in {'SERVER_GRANT','SERVER_REVOKE'}:
-                reason=str(e.get('decision_kind',''))
-                if not reason or reason.startswith('delta:'): failures.append(label+':invalid_server_reason='+pid)
-              elif kind in {'CLIENT_VISIBLE','CLIENT_HIDDEN'}:
-                d=str(e.get('decision_kind',''))
-                if d and not d.startswith('delta:'): failures.append(label+':invalid_client_delta='+pid)
-              if kind in {'SERVER_GRANT','CLIENT_VISIBLE','SERVER_REVOKE','CLIENT_HIDDEN'}:
-                streams[(pid,int(e['principal_id']),int(e['card_id']))].append(e)
-            for key,stream in streams.items():
-              state='HIDDEN'
-              for e in sorted(stream,key=lambda x:int(x.get('sequence',-1))):
-                exp={'HIDDEN':'SERVER_GRANT','GRANTED':'CLIENT_VISIBLE','VISIBLE':'SERVER_REVOKE','REVOKED':'CLIENT_HIDDEN'}[state]
-                if e.get('kind')!=exp: failures.append(label+':lifecycle:'+repr(key)); break
-                state={'HIDDEN':'GRANTED','GRANTED':'VISIBLE','VISIBLE':'REVOKED','REVOKED':'HIDDEN'}[state]
-              if state!='HIDDEN': failures.append(label+':incomplete_lifecycle:'+repr(key))
-            return kinds
-          re=load(root/'record/PRINCIPAL_OBSERVATIONS.jsonl'); pe=load(root/'replay/PRINCIPAL_OBSERVATIONS.jsonl'); rk=check('record',re); pk=check('replay',pe)
-          def norm(ev):
-            return Counter((e.get('path_id'),e.get('kind'),int(e.get('principal_id',-1)),int(e.get('card_id',-1)),e.get('decision_kind','') if e.get('kind') in {'SERVER_GRANT','SERVER_REVOKE'} else '',bool(e.get('identity_match'))) for e in ev)
-          if norm(re)!=norm(pe): failures.append('observation_semantic_multiset_mismatch')
-          out={'schema':'commander-simulator-next.ws33-a-rest-svar-af8.v1','status':'PASS' if not failures else 'FAIL_CLOSED','path_count':8,'hidden_required':8,'decision_required':8,'rng_required':0,'replay_required':8,'actual_card_parent_bound':True,'parent_route':'ABILITY_ROOT','target_svar_direct_entry':False,'mode_selection_authoritative_membership':True,'mode_selection_authoritative_minimum':True,'target_restrictions_authoritative':True,'stack_authoritative':True,'generic_public_candidate_fixtures':True,'semantic_replay_equal':not any('semantic' in x for x in failures),'record_observation_events':len(re),'replay_observation_events':len(pe),'record_observation_kinds':dict(rk),'replay_observation_kinds':dict(pk),'unauthorized_hidden_leaks':0,'cross_principal_leaks':0,'failure_count':len(failures),'failures':failures,'coverage_mutated':False,'coverage_promotion':False}
-          (root/'diagnostic/A_REST_SVAR_AF8_GATE.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
-          print(json.dumps(out,sort_keys=True))
-          if failures: raise SystemExit('WS33_A_SVAR_AF8=FAIL '+repr(failures[:30]))
-          print('WS33_A_SVAR_AF8=PASS')
-          PY
+          python "$ROOT/ws33_adjudicate_a_rest_svar_af8.py" \
+            --cases generated/routes/out/a-rest-svar-af8.tsv \
+            --record-dir generated/record \
+            --replay-dir generated/replay \
+            --out generated/diagnostic/A_REST_SVAR_AF8_GATE.json
+          jq -e '.status=="PASS" and .expected_paths==8 and .actual_card_source_bound==true and .play_spell_ability_authoritative==true and .mode_selection_authoritative==true and .target_selection_authoritative==true and .cost_payment_authoritative==true and .manual_target_injection==false and .direct_effect_resolution==false and .positive_target_effect_required==true and .real_client_confidentiality_samples_required==true and .coverage_mutated==false and .coverage_promotion==false' generated/diagnostic/A_REST_SVAR_AF8_GATE.json
           cmp generated/record/decision-tape.tsv generated/replay/decision-tape.tsv
           cmp generated/record/decision-events-with-path.tsv generated/replay/decision-events-with-path.tsv
           cmp generated/record/rng-tape.tsv generated/replay/rng-tape.tsv
           cmp generated/record/rng-events-with-path.tsv generated/replay/rng-events-with-path.tsv
-          cat > generated/diagnostic/SOURCE_CHAIN.json <<EOF
-          {"schema":"commander-simulator-next.ws33-a-rest-svar-af8-source-chain.v1","workflow_source_head":"$GITHUB_SHA","workflow_source_tree":"$(git rev-parse 'HEAD^{tree}')","route_run_id":$ROUTE_RUN_ID,"route_artifact_id":$ROUTE_ARTIFACT_ID,"route_artifact_digest":"$ROUTE_ARTIFACT_DIGEST","forge_pin":"$FORGE_PIN","coverage_mutated":false,"coverage_promotion":false}
+          cmp generated/record/AF8_EFFECT_EVIDENCE.tsv generated/replay/AF8_EFFECT_EVIDENCE.tsv
+          cmp generated/record/AF8_CLIENT_OBSERVATION_SAMPLES.tsv generated/replay/AF8_CLIENT_OBSERVATION_SAMPLES.tsv
+          cmp generated/record/play-stages.tsv generated/replay/play-stages.tsv
+
+      - name: Seal AF8 evidence even on failure
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p generated/diagnostic
+          printf '%s\n' "$GITHUB_SHA" > generated/diagnostic/workflow-source-head.txt
+          git rev-parse 'HEAD^{tree}' > generated/diagnostic/workflow-source-tree.txt
+          if [[ -f generated/routes/out/a-rest-svar-af8.tsv ]]; then
+            cut -f2 generated/routes/out/a-rest-svar-af8.tsv | sort > generated/diagnostic/expected-paths.txt
+          else
+            : > generated/diagnostic/expected-paths.txt
+          fi
+          if [[ ! -f generated/diagnostic/A_REST_SVAR_AF8_GATE.json ]]; then
+            cat > generated/diagnostic/A_REST_SVAR_AF8_GATE.json <<'EOF'
+          {
+            "schema": "commander-simulator-next.ws33-a-rest-svar-af8-runtime.v2",
+            "status": "FAIL_CLOSED_EARLY",
+            "expected_paths": 8,
+            "failure_count": 1,
+            "failures": ["adjudication_not_completed"],
+            "coverage_mutated": false,
+            "coverage_promotion": false
+          }
           EOF
-          find generated -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > generated/SHA256SUMS
+          fi
+          expected_sha="UNAVAILABLE"
+          if [[ -s generated/diagnostic/expected-paths.txt ]]; then
+            expected_sha="$(sha256sum generated/diagnostic/expected-paths.txt | cut -d' ' -f1)"
+          fi
+          cat > generated/SOURCE_CHAIN.json <<EOF
+          {"schema":"commander-simulator-next.ws33-a-rest-svar-af8-source-chain.v2","workflow_source_head":"$GITHUB_SHA","workflow_source_tree":"$(git rev-parse 'HEAD^{tree}')","workflow_file":".github/workflows/ws33-abc-a-rest-svar-af8-runtime.yml","expected_path_count":8,"expected_path_set_sha256":"$expected_sha","expected_artifact_name":"ws33-abc-a-rest-svar-af8-$GITHUB_RUN_ID","route_run_id":$ROUTE_RUN_ID,"route_artifact_id":$ROUTE_ARTIFACT_ID,"route_artifact_digest":"$ROUTE_ARTIFACT_DIGEST","route_source_head":"$ROUTE_SOURCE_HEAD","forge_pin":"$FORGE_PIN","coverage_mutated":false,"coverage_promotion":false}
+          EOF
+          (cd generated && find . -type f ! -path './SHA256SUMS' -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+          test -s generated/SOURCE_CHAIN.json
+          test -s generated/SHA256SUMS
+          (cd generated && sha256sum -c SHA256SUMS)
 
       - name: Upload immutable AF8 evidence
         if: always()
