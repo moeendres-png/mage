@@ -35,6 +35,10 @@ Source inspection identifies Base64 path serialization versus raw-string compari
 BLOCKERS=No external blocker established. Root cause confirmed after full archive verification; missing positive observation/effect evidence remains fail closed.
 EXACT_NEXT_STEP=Repair strict Base64 path decoding and always-run evidence sealing with negative tests, then capture missing real client/target/characteristic evidence before AF8 qualification.
 
+## Tested repair component
+
+ws33_decision_path_evidence.py: 12 targeted unit tests PASS; immutable AF8 Record/Replay both decode exactly 8 paths and 18 accepted decisions, matching counts. This is a parser-only result, not AF8 behavior PASS. Workflow integration and unconditional evidence sealing remain to implement; no replacement runtime run has been started.
+
 Archive verification completed: outer SHA256 exact; 6174 CRC-checked files; all 25 entries in three available internal manifests verified. Root manifest absent, not waived. Root-cause checkpoint supersedes the earlier pending observations above.
 
 ## Continuation scope
