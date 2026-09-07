@@ -12,7 +12,8 @@ FORGE_PIN=8c7e9afb8e6caee88644b94e25da5852e36f8928
 CANONICAL_COVERAGE=TOTAL=4188 PASS=488 UNKNOWN=3700 FAIL=0 UNSUPPORTED=0
 COVERAGE_EVIDENCE=artifact 9979204198; persisted POST_G3_A1_SUCCESSOR_RUN_34000014860_PASS.md; artifact contents not independently refreshed in this resume yet
 LAST_COMPLETED_GATE=A-rest SVar production-root route refinement, per AF8 immutable dependency metadata
-CURRENT_OPEN_GATE=AF8 artifact verification and root-cause adjudication
+CURRENT_OPEN_GATE=AF8 systemic verifier/evidence repair and positive runtime obligations
+CURRENT_CHECKPOINT=research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/ABC_A_REST_SVAR_AF8_RUN_34064602879_ROOT_CAUSE.md
 ACTIVE_OR_LAST_RUN=34064602879
 ACTIVE_OR_LAST_JOB=101571045115
 ACTIVE_OR_LAST_ARTIFACT=9998600937 sha256:2cf9c070ef04249eece466ce0b627b7e2c7a9270b57b54c923a1a5472361f3ec
@@ -31,8 +32,10 @@ Both runtime steps succeeded. Exact failed adjudicator output: record:decision_p
 Job gate also reports zero Record/Replay observation events with hidden_required=8; this is not accepted as positive hidden evidence.
 Source inspection identifies Base64 path serialization versus raw-string comparison as a candidate PATH_ROUTE_PROJECTION cause; artifact confirmation remains pending.
 
-BLOCKERS=No external blocker established. Complete artifact download/hash verification is pending; no source repair or replacement run authorized by evidence yet.
-EXACT_NEXT_STEP=Finish downloading artifact 9998600937, verify outer SHA256 and available internal manifests, inspect exact decision paths and observation obligations, then persist ROOT_CAUSE before repair.
+BLOCKERS=No external blocker established. Root cause confirmed after full archive verification; missing positive observation/effect evidence remains fail closed.
+EXACT_NEXT_STEP=Repair strict Base64 path decoding and always-run evidence sealing with negative tests, then capture missing real client/target/characteristic evidence before AF8 qualification.
+
+Archive verification completed: outer SHA256 exact; 6174 CRC-checked files; all 25 entries in three available internal manifests verified. Root manifest absent, not waived. Root-cause checkpoint supersedes the earlier pending observations above.
 
 ## Continuation scope
 
