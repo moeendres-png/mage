@@ -41,7 +41,7 @@ def main() -> None:
     t = replace_once(
         t,
         "import forge.game.spellability.SpellAbility;\n",
-        "import forge.game.player.PlaySpellAbility;\nimport forge.game.spellability.SpellAbility;\nimport forge.game.zone.MagicStack;\n",
+        "import forge.game.phase.PhaseType;\nimport forge.game.player.PlaySpellAbility;\nimport forge.game.spellability.SpellAbility;\nimport forge.game.zone.MagicStack;\n",
         "production play imports",
     )
 
@@ -66,6 +66,8 @@ def main() -> None:
         "play-stage evidence list",
     )
 
+    # Source-proven X needs a positive discretionary value so TargetMax$ X actually has
+    # a targetable cardinality. Selection remains strictly inside Forge's opaque options.
     policy_anchor = 'CaseSpec pathSpec=ws33CaseSpecs.get(path);'
     policy = policy_anchor + (
         'if(pathSpec!=null&&pathSpec.script.contains("Announce$ X")&&req.getMinimumSelection()==1&&req.getMaximumSelection()==1){'
@@ -74,6 +76,8 @@ def main() -> None:
     )
     t = replace_once(t, policy_anchor, policy, "positive source-proven X policy")
 
+    # Replace the synthetic pre-stack parent path with the same qualified production
+    # boundary used by Direct31: remote principal, real MAIN1, PlaySpellAbility and costs.
     run_start = 'private static void runCampaign(Game game,List<CaseSpec>cases,Map<String,CaseEvidence>evidence,AtomicReference<String>currentPath)'
     run_end = 'private static SpellAbility resolveSourceParent(CaseSpec spec,Card source){'
     run = r'''private static void runCampaign(Game game,List<CaseSpec>cases,Map<String,CaseEvidence>evidence,AtomicReference<String>currentPath){
@@ -113,10 +117,12 @@ def main() -> None:
     '''
     t = replace_once(t, helper_anchor, helpers + helper_anchor, "AF8 positive/runtime evidence helpers")
 
+    # Bind observational callbacks. They may record evidence but never choose/mutate a rule result.
     old_observer = 'AbilitySub.setWs33ResolutionObserver(sub->{String p=currentPath.get();if(p!=null){CaseEvidence ce=evidence.get(p);if(ce!=null&&matchesTarget(ce.spec,sub))ce.targetExecutions++;}});ExternalDecisionTape.setEventObserver(event->{'
     new_observer = 'MagicStack.setWs33ResolutionObserver(ability->{String q=currentPath.get();if(q!=null){CaseEvidence ce=evidence.get(q);if(ce!=null&&matchesSourceRoot(ce.spec,ability))ce.sourceRootExecutions++;}});AbilitySub.setWs33ResolutionObserver(sub->{String q=currentPath.get();if(q!=null)captureAF8TargetExecution(evidence.get(q),sub);});PlaySpellAbility.setWs33PlayStageObserver((stage,ability,result)->{String q=currentPath.get();if(q!=null)playStages.add(enc(q)+"\\t"+enc(stage)+"\\t"+result+"\\t"+enc(ability==null||ability.getApi()==null?"":ability.getApi().name()));});ExternalDecisionTape.setEventObserver(event->{'
     t = replace_once(t, old_observer, new_observer, "AF8 runtime observer bindings")
 
+    # Persist positive evidence and source-stage evidence beside inherited tapes/traces.
     trace_export = 'ExternalObservationTrace.write(outDir.resolve("PRINCIPAL_OBSERVATIONS.jsonl"));'
     t = replace_once(t, trace_export, trace_export + 'Files.write(outDir.resolve("play-stages.tsv"),playStages,StandardCharsets.UTF_8);writeAF8Evidence(outDir,cases,evidence);', "AF8 evidence export")
     t = replace_once(t, 'AbilitySub.setWs33ResolutionObserver(null);ExternalDecisionTape.setEventObserver(null);', 'PlaySpellAbility.setWs33PlayStageObserver(null);MagicStack.setWs33ResolutionObserver(null);AbilitySub.setWs33ResolutionObserver(null);ExternalDecisionTape.setEventObserver(null);', "AF8 observer cleanup")
