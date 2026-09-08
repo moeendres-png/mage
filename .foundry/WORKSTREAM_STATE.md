@@ -69,7 +69,7 @@ hacks; no pilot rules; fail closed.
 - [x] B3b: 273/273 record+replay green locally (batch 4+5; 6 default-zero flagged TECHNICALLY_CONFORMANT+REVIEW)
 - [x] B4: CI run 34266311850 SUCCESS + independently adjudicated PASS (artifact 10072131808, 2737/2737 hashes, 273/273 replay, 2457 RNG events) + PASS checkpoint persisted
 - [x] B5: 402 Cost cluster: preparer v1 + payment test, 397/402 record+replay green locally, 5 terminal blockers registered
-- [ ] B6: CI B2 gate PASS (workflow pushed; awaiting run) + B2 PASS checkpoint
+- [x] B6: CI run 34286249888 SUCCESS + independently adjudicated PASS (artifact 10079683394, 3977/3977 hashes, 397/397 replay, 3573 RNG events) + PASS checkpoint persisted
 - [ ] B7: B1/B2 coverage-promotion proposal for canonical/integration line
 
 ## Concurrency note (2026-09-08)
