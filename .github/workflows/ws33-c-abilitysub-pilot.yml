@@ -122,7 +122,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python "$CCAMPAIGN/ws33_certify_abilitysub_pilot.py" --campaign-root generated/campaign/pilot --manifest "$CCAMPAIGN/WS33_C_UNKNOWN_MANIFEST.json" --plan generated/campaign/pilot/ABILITYSUB_PILOT_PLAN.json --out generated/evidence/WS33_C_PILOT_GATE.json
+          python "$CCAMPAIGN/ws33_certify_abilitysub_pilot.py" --campaign-root generated/campaign/pilot --manifest "$CCAMPAIGN/WS33_C_UNKNOWN_MANIFEST.json" --plan generated/campaign/pilot/ABILITYSUB_PILOT_PLAN.json --out generated/evidence/WS33_C_PILOT_GATE.json --source-head "$GITHUB_SHA" --source-tree "$(git rev-parse 'HEAD^{tree}')"
           cp generated/campaign/pilot/ABILITYSUB_PILOT_PLAN.json generated/campaign/pilot/abilitysub-cases.tsv generated/campaign/pilot/abilitysub-record-diagnostics.jsonl generated/evidence/
           cp -R generated/campaign/pilot/records generated/evidence/
           cp generated/overlay-logs/pilot-record-runtime.log generated/evidence/

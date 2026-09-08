@@ -61,6 +61,8 @@ def main() -> int:
     ap.add_argument("--manifest", type=Path)
     ap.add_argument("--plan", type=Path)
     ap.add_argument("--out", type=Path)
+    ap.add_argument("--source-head", default="895240f4058076764227a418ad28e84f61d3a7ed")
+    ap.add_argument("--source-tree", default="cec73ae51b0168280ea648892f3e9edd46dcd883")
     args = ap.parse_args()
 
     if args.self_test:
@@ -141,8 +143,8 @@ def main() -> int:
     gate = {
         "schema": "commander-simulator-next.ws33-c-abilitysub-pilot-gate.v1",
         "forge_pin": FORGE_PIN,
-        "source_head": "895240f4058076764227a418ad28e84f61d3a7ed",
-        "source_tree": "cec73ae51b0168280ea648892f3e9edd46dcd883",
+        "source_head": args.source_head,
+        "source_tree": args.source_tree,
         "pilot_path_count": len(passed),
         "pilot_paths": sorted(passed),
         "coverage_mutated": False,
