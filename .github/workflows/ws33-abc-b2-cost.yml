@@ -1,0 +1,195 @@
+name: WS33 ABC B2 cost closure
+
+on:
+  push:
+    branches: [work/ws33-b-high-throughput-20260907]
+    paths:
+      - .github/workflows/ws33-abc-b2-cost.yml
+      - research/greenfield-qualification/actual-card-behavior/ws33/ws33_prepare_cost_campaign.py
+      - research/greenfield-qualification/actual-card-behavior/ws33/ws33_filter_abc_b2_cost_campaign.py
+      - research/greenfield-qualification/actual-card-behavior/ws33/ws33_certify_abc_b2.py
+      - research/greenfield-qualification/actual-card-behavior/ws33/runtime-tests/Ws33CostPaymentCampaignTest.java
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  FORGE_PIN: 8c7e9afb8e6caee88644b94e25da5852e36f8928
+  WS01_HEAD: bf089ea806f54a9bbb64ede205915729e3629684
+  WS12_HEAD: 80743bdbc2950b00e422f3deb38f04111f30a4d4
+  WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
+  MODEL_ARTIFACT_ID: '9823383539'
+  MODEL_ARTIFACT_DIGEST: sha256:aab73ba2ede151bbd0b803c2164d3067ddd65f17d49cf655c34eef67d903595d
+  MANIFEST_SHA256: cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224
+  CONSUMER_MODEL_SHA256: 82638e6b3e4408cc5bddedc49372b6357d3c2bdce6fba7bfab7ed119678f9a48
+  ROOT: research/greenfield-qualification/actual-card-behavior/ws33
+
+jobs:
+  b2-cost:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - name: Checkout exact current WS33B source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download and verify immutable authoritative model artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p generated/model generated/runtime generated/campaign/all generated/campaign/b2 generated/evidence
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID")"
+          test "$(jq -r .digest <<<"$meta")" = "$MODEL_ARTIFACT_DIGEST"
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$MODEL_ARTIFACT_ID/zip" > generated/model.zip
+          test "sha256:$(sha256sum generated/model.zip | cut -d' ' -f1)" = "$MODEL_ARTIFACT_DIGEST"
+          unzip -q generated/model.zip -d generated/model
+          if test -d generated/model/output/ws33; then mv generated/model/output/ws33 generated/model/ws33; fi
+          test "$(sha256sum generated/model/ws33/WS33_EFFECTIVE_BEHAVIOR_PATH_MANIFEST.json | cut -d' ' -f1)" = "$MANIFEST_SHA256"
+          echo WS33_ABC_B2_MODEL_ARTIFACT=PASS
+
+      - name: Verify exact B2 queue binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('research/greenfield-qualification/actual-card-behavior/ws33')
+          queue=json.loads((root/'WS33_INTEGRATED_WORK_QUEUE.json').read_text())
+          items=[x for x in queue['items'] if x.get('logical_bucket')=='WS33B' and x.get('runtime_subsystem')=='forge.game.cost.Cost']
+          assert len(items)==4, len(items)
+          total=sum(x['unresolved_path_count'] for x in items)
+          assert total==402, total
+          print('WS33_ABC_B2_QUEUE_BINDING=PASS items=4 paths=402')
+          PY
+
+      - name: Checkout exact pinned Forge
+        uses: actions/checkout@v4
+        with:
+          repository: Card-Forge/forge
+          ref: ${{ env.FORGE_PIN }}
+          path: forge
+          fetch-depth: 1
+
+      - name: Checkout retained Decision prerequisite
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS01_HEAD }}
+          path: ws01
+          fetch-depth: 1
+
+      - name: Checkout retained failure-semantics prerequisite
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS12_HEAD }}
+          path: ws12
+          fetch-depth: 1
+
+      - name: Checkout retained WS32 production binding
+        uses: actions/checkout@v4
+        with:
+          repository: moeendres-png/mage
+          ref: ${{ env.WS32_HEAD }}
+          path: ws32
+          fetch-depth: 1
+
+      - name: Verify exact runtime pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C forge rev-parse HEAD)" = "$FORGE_PIN"
+          test "$(git -C ws01 rev-parse HEAD)" = "$WS01_HEAD"
+          test "$(git -C ws12 rev-parse HEAD)" = "$WS12_HEAD"
+          test "$(git -C ws32 rev-parse HEAD)" = "$WS32_HEAD"
+          echo WS33_ABC_B2_RUNTIME_PINS=PASS
+
+      - name: Materialize authoritative runtime overlays
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch | tee generated/runtime/ws01-overlay.log
+          python research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge | tee generated/runtime/ws05-overlay.log
+          cp research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
+          python research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/runtime/RNG_INVENTORY.json | tee generated/runtime/ws06-overlay.log
+          python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge | tee generated/runtime/ws33-input-confirm-overlay.log
+          python "$ROOT/runtime-overlays/apply-ws33-stack-target.py" --forge-root forge | tee generated/runtime/ws33-stack-target-overlay.log
+          python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py --forge-root forge | tee generated/runtime/ws12-overlay.log
+          python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py --forge-root forge | tee generated/runtime/ws32-overlay.log
+
+      - name: Materialize exact ABC-B2 case set
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_prepare_cost_campaign.py" --ledger "$ROOT/WS33_INTEGRATED_CLOSURE_LEDGER.jsonl" --forge-root forge --out-tsv generated/campaign/all/cost-cases.tsv --out-plan generated/campaign/all/COST_PLAN.json
+          python "$ROOT/ws33_filter_abc_b2_cost_campaign.py" --queue "$ROOT/WS33_INTEGRATED_WORK_QUEUE.json" --input-tsv generated/campaign/all/cost-cases.tsv --input-plan generated/campaign/all/COST_PLAN.json --out-tsv generated/campaign/b2/cost-cases.tsv --out-plan generated/campaign/b2/ABC_B2_PLAN.json
+          test "$(grep -vc '^#' generated/campaign/b2/cost-cases.tsv)" = 397
+          jq -e '.path_count==397 and (.paths|length)==397 and ((.paths|unique|length)==397) and .terminal_blocker_count==5' generated/campaign/b2/ABC_B2_PLAN.json
+          echo WS33_ABC_B2_MATERIALIZATION=PASS paths=397 terminal=5
+
+      - name: Install current qualification test
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "$ROOT/runtime-tests/Ws33CostPaymentCampaignTest.java" forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
+
+      - name: Execute ABC-B2 Record
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am -Dtest=forge.gamesimulationtests.Ws33CostPaymentCampaignTest -Dsurefire.failIfNoSpecifiedTests=false -Dws33.costMode=record -Dws33.costCases="$GITHUB_WORKSPACE/generated/campaign/b2/cost-cases.tsv" -Dws33.costOut="$GITHUB_WORKSPACE/generated/campaign/b2" test) 2>&1 | tee generated/runtime/b2-record-runtime.log
+          python - "$GITHUB_WORKSPACE/generated/campaign/b2/cost-record-diagnostics.jsonl" <<'PY'
+          import json, sys
+          lines=[json.loads(x) for x in open(sys.argv[1]) if x.strip()]
+          terminal=json.load(open('generated/campaign/b2/ABC_B2_PLAN.json'))['terminal_blockers']
+          assert all(x.get('path_id') in terminal for x in lines), [x for x in lines if x.get('path_id') not in terminal][:3]
+          print(f'WS33_ABC_B2_RECORD=PASS terminal_only_diagnostics={len(lines)}')
+          PY
+          test "$(find generated/campaign/b2/records -name record-success.marker -type f | wc -l)" = 397
+          echo WS33_ABC_B2_RECORD=PASS paths=397
+
+      - name: Execute ABC-B2 tape-driven Replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am -Dtest=forge.gamesimulationtests.Ws33CostPaymentCampaignTest -Dsurefire.failIfNoSpecifiedTests=false -Dws33.costMode=replay -Dws33.costCases="$GITHUB_WORKSPACE/generated/campaign/b2/cost-cases.tsv" -Dws33.costOut="$GITHUB_WORKSPACE/generated/campaign/b2" test) 2>&1 | tee generated/runtime/b2-replay-runtime.log
+          python - "$GITHUB_WORKSPACE/generated/campaign/b2/cost-replay-diagnostics.jsonl" <<'PY'
+          import json, sys
+          lines=[json.loads(x) for x in open(sys.argv[1]) if x.strip()]
+          terminal=json.load(open('generated/campaign/b2/ABC_B2_PLAN.json'))['terminal_blockers']
+          assert all(x.get('path_id') in terminal for x in lines), [x for x in lines if x.get('path_id') not in terminal][:3]
+          print(f'WS33_ABC_B2_REPLAY_DIAGNOSTICS=PASS terminal_only={len(lines)}')
+          PY
+          test "$(jq '.records|length' generated/campaign/b2/campaign-index.json)" = 397
+          echo WS33_ABC_B2_REPLAY=PASS paths=397
+
+      - name: Certify exact per-path evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$ROOT/ws33_certify_abc_b2.py" --campaign-root generated/campaign/b2 --out generated/evidence/ABC_B2_GATE.json --source-head "$GITHUB_SHA" --forge-pin "$FORGE_PIN" --model-artifact-id "$MODEL_ARTIFACT_ID" --model-artifact-digest "$MODEL_ARTIFACT_DIGEST" --manifest-sha256 "$MANIFEST_SHA256" --consumer-model-sha256 "$CONSUMER_MODEL_SHA256"
+          cp generated/campaign/b2/ABC_B2_PLAN.json generated/evidence/
+          cp generated/campaign/b2/cost-record-diagnostics.jsonl generated/evidence/
+          cp generated/campaign/b2/cost-replay-diagnostics.jsonl generated/evidence/
+          cp generated/campaign/b2/campaign-index.json generated/evidence/
+          cp -R generated/campaign/b2/records generated/evidence/
+          cp generated/runtime/b2-record-runtime.log generated/evidence/
+          cp generated/runtime/b2-replay-runtime.log generated/evidence/
+          cd generated/evidence
+          find . -type f ! -name ABC_B2_HASHES.sha256 -print0 | sort -z | xargs -0 sha256sum > ABC_B2_HASHES.sha256
+          sha256sum -c ABC_B2_HASHES.sha256
+
+      - name: Upload immutable ABC-B2 run evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ws33-abc-b2-cost-${{ github.run_id }}
+          path: generated
+          if-no-files-found: error
+          retention-days: 90
