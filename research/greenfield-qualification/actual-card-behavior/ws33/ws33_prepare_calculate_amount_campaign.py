@@ -60,6 +60,71 @@ def assign_recipe(token: str, expr: str) -> tuple[str, dict]:
             {"match": ["Runeclaw Bear", "Runeclaw Bear", "Runeclaw Bear"],
              "distractor": [("Runeclaw Bear", "OPPONENT"), ("Island", "ACTOR")]},
         )
+    if expr == "Remembered$Amount":
+        return "REMEMBERED_AMOUNT", {"remembered_bears": 3}
+    if expr == "Remembered$CardPower":
+        return "REMEMBERED_CARDPOWER", {"remembered_bears": 3}
+    if expr == "Remembered$CardManaCost":
+        return "REMEMBERED_CARDMANACOST", {"remembered_bears": 3}
+    if expr == "Remembered$Valid Creature":
+        return "REMEMBERED_VALID_CREATURE", {"match_bears": 3, "nonmatch_islands": 1}
+    if expr == "Remembered$Valid Creature.inZoneGraveyard":
+        return "REMEMBERED_VALID_GRAVEYARD", {"match_bears": 3}
+    if expr == "Remembered$Valid Card.RememberedPlayerCtrl":
+        return "REMEMBERED_VALID_PLAYERCTRL", {"match_bears": 3, "opponent_bears": 1}
+    if expr == "Remembered$Valid Card.!token+YouCtrl":
+        return "REMEMBERED_VALID_YOUCTRL", {"match_bears": 3, "opponent_bears": 1}
+    if expr == "Sacrificed$CardPower":
+        return "SACRIFICED_CARDPOWER", {"sacrificed_bears": 3}
+    if expr == "Sacrificed$CardToughness":
+        return "SACRIFICED_CARDTOUGHNESS", {"sacrificed_bears": 3}
+    if expr == "Targeted$CardPower":
+        return "TARGETED_CARDPOWER", {"target_bears": 3}
+    if expr == "Targeted$CardManaCost":
+        return "TARGETED_CARDMANACOST", {"target_bears": 3}
+    if expr == "Targeted$CardCounters.LOYALTY":
+        return "TARGETED_COUNTERS", {"counter": "LOYALTY", "counters": 4}
+    if expr == "Targeted$CardToughness":
+        return "TARGETED_CARDTOUGHNESS", {"target_bears": 3}
+    if expr == "Targeted$Valid Creature.Human/Plus.1":
+        return "TARGETED_VALID_HUMAN_PLUS1", {"human": "Elite Vanguard"}
+    if expr == "TargetedPlayer$CardsInHand":
+        return "TARGETEDPLAYER_CARDSINHAND", {}
+    if expr == "TargetedPlayer$LifeTotal":
+        return "TARGETEDPLAYER_LIFETOTAL", {}
+    if expr == "TargetedPlayer$Counters.Poison":
+        return "TARGETEDPLAYER_POISON", {"poison": 3}
+    if expr == "TargetedPlayer$CardsInHand/Minus.X":
+        return "TARGETEDPLAYER_HAND_MINUS_X", {"actor_islands": 2, "opponent_islands": 1}
+    if expr == "TriggerCount$DamageAmount":
+        return "TRIGGERCOUNT_DAMAGE", {"damage": 4}
+    if expr == "TriggerCount$Amount":
+        return "TRIGGERCOUNT_AMOUNT", {"amount": 4}
+    if expr == "PlayerCountOpponents$Amount":
+        return "PLAYERCOUNT_OPPONENTS_AMOUNT", {"opponents": 2}
+    if expr == "PlayerCountOpponents$HighestValid Land.YouCtrl":
+        return "PLAYERCOUNT_OPPONENTS_HIGHEST_LAND", {"opp1_islands": 2, "opp2_islands": 3}
+    if expr in ("TriggeredCard$CardCounters.M1M1", "TriggeredCard$CardCounters.P1P1"):
+        counter = expr.split(".")[1]
+        return "TRIGGEREDCARD_COUNTERS", {"counter": counter, "counters": 3}
+    if expr == "TriggeredCard$CardManaCost":
+        return "TRIGGEREDCARD_CMC", {}
+    if expr == "TriggeredCard$CardPower":
+        return "TRIGGEREDCARD_POWER", {}
+    if expr == "TriggeredCard$CardNumColors":
+        return "TRIGGEREDCARD_COLORS", {}
+    if expr == "TriggeredCard$Valid Creature.attacking":
+        return "TRIGGEREDCARD_ATTACKING", {}
+    if expr == "TriggeredCard$Valid Card.greatestPower":
+        return "TRIGGEREDCARD_GREATESTPOWER", {}
+    if expr == "TriggeredCard$CardManaCost/Minus.Z":
+        return "TRIGGEREDCARD_CMC_MINUS_Z", {"remembered_bears": 2}
+    if expr == "TriggeredSpellAbility$CardManaCostLKI":
+        return "TRIGGEREDSPELLABILITY_CMC", {}
+    if expr == "ReplaceCount$DamageAmount":
+        return "REPLACECOUNT_DAMAGE", {"damage": 5}
+    if expr == "ParentTargeted$CardPower":
+        return "PARENTTARGETED_CARDPOWER", {"target_bears": 2}
     return "UNSUPPORTED_" + head_of(expr).upper(), {"expression": expr}
 
 

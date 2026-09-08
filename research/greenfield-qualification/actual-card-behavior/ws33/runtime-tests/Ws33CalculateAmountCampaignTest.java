@@ -3,8 +3,10 @@ package forge.gamesimulationtests;
 import forge.ai.AITest;
 import forge.game.Game;
 import forge.game.GameView;
+import forge.game.ability.AbilityKey;
 import forge.game.ability.AbilityUtils;
 import forge.game.card.Card;
+import forge.game.card.CounterType;
 import forge.game.player.Player;
 import forge.game.spellability.SpellAbility;
 import forge.game.zone.ZoneType;
@@ -249,9 +251,443 @@ public final class Ws33CalculateAmountCampaignTest extends AITest {
                 }
                 return new AmountResult(actual, expected);
             }
+            case "REMEMBERED_AMOUNT": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int count = intParam(c.recipeParams, "remembered_bears");
+                for (int i = 0; i < count; i++) {
+                    host.addRemembered(addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield));
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), count);
+            }
+            case "REMEMBERED_CARDPOWER": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int count = intParam(c.recipeParams, "remembered_bears");
+                int per = 0;
+                for (int i = 0; i < count; i++) {
+                    final Card remembered = addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield);
+                    if (i == 0) {
+                        per = remembered.getNetPower();
+                    }
+                    host.addRemembered(remembered);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), count * per);
+            }
+            case "REMEMBERED_CARDMANACOST": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int count = intParam(c.recipeParams, "remembered_bears");
+                int per = 0;
+                for (int i = 0; i < count; i++) {
+                    final Card remembered = addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield);
+                    if (i == 0) {
+                        per = remembered.getCMC();
+                    }
+                    host.addRemembered(remembered);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), count * per);
+            }
+            case "REMEMBERED_VALID_CREATURE": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int match = intParam(c.recipeParams, "match_bears");
+                final int nonmatch = intParam(c.recipeParams, "nonmatch_islands");
+                for (int i = 0; i < match; i++) {
+                    host.addRemembered(addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield));
+                }
+                for (int i = 0; i < nonmatch; i++) {
+                    host.addRemembered(addCardToZone("Island", actor, ZoneType.Battlefield));
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), match);
+            }
+            case "REMEMBERED_VALID_GRAVEYARD": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int match = intParam(c.recipeParams, "match_bears");
+                for (int i = 0; i < match; i++) {
+                    host.addRemembered(addCardToZone("Runeclaw Bear", actor, ZoneType.Graveyard));
+                }
+                host.addRemembered(addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield));
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), match);
+            }
+            case "REMEMBERED_VALID_PLAYERCTRL": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int match = intParam(c.recipeParams, "match_bears");
+                final int other = intParam(c.recipeParams, "opponent_bears");
+                host.addRemembered(actor);
+                for (int i = 0; i < match; i++) {
+                    host.addRemembered(addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield));
+                }
+                for (int i = 0; i < other; i++) {
+                    host.addRemembered(addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield));
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), match);
+            }
+            case "REMEMBERED_VALID_YOUCTRL": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int match = intParam(c.recipeParams, "match_bears");
+                final int other = intParam(c.recipeParams, "opponent_bears");
+                for (int i = 0; i < match; i++) {
+                    host.addRemembered(addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield));
+                }
+                for (int i = 0; i < other; i++) {
+                    host.addRemembered(addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield));
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), match);
+            }
+            case "SACRIFICED_CARDPOWER":
+            case "SACRIFICED_CARDTOUGHNESS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int count = intParam(c.recipeParams, "sacrificed_bears");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                int per = 0;
+                for (int i = 0; i < count; i++) {
+                    final Card sacrificed = addCardToZone("Runeclaw Bear", actor, ZoneType.Graveyard);
+                    if (i == 0) {
+                        per = "SACRIFICED_CARDPOWER".equals(c.recipe)
+                                ? sacrificed.getNetPower() : sacrificed.getNetToughness();
+                    }
+                    sa.getRootAbility().addCostToHashList(sacrificed, "Sacrificed", true);
+                }
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), count * per);
+            }
+            case "TARGETED_CARDPOWER":
+            case "TARGETED_CARDMANACOST":
+            case "TARGETED_CARDTOUGHNESS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int count = intParam(c.recipeParams, "target_bears");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                int per = 0;
+                for (int i = 0; i < count; i++) {
+                    final Card target = addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield);
+                    if (i == 0) {
+                        if ("TARGETED_CARDPOWER".equals(c.recipe)) {
+                            per = target.getNetPower();
+                        } else if ("TARGETED_CARDMANACOST".equals(c.recipe)) {
+                            per = target.getCMC();
+                        } else {
+                            per = target.getNetToughness();
+                        }
+                    }
+                    sa.getTargets().add(target);
+                }
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), count * per);
+            }
+            case "TARGETED_COUNTERS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int counters = intParam(c.recipeParams, "counters");
+                final Card target = addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield);
+                final CounterType counterType = CounterType.getType(c.recipeParams.get("counter"));
+                target.setCounters(counterType, counters);
+                if (target.getCounters(counterType) != counters) {
+                    throw new IllegalStateException("counter fixture write not visible");
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getTargets().add(target);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), counters);
+            }
+            case "TARGETED_VALID_HUMAN_PLUS1": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Card human = addCardToZone("Elite Vanguard", game.getPlayers().get(1), ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getTargets().add(human);
+                final int actual = AbilityUtils.calculateAmount(host, c.svarToken, sa);
+                final int expected = AbilityUtils.doXMath(1, "Plus.1", host, sa);
+                if (expected != 2) {
+                    throw new IllegalStateException("production doXMath baseline shifted");
+                }
+                return new AmountResult(actual, expected);
+            }
+            case "TARGETEDPLAYER_CARDSINHAND": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Player foe = game.getPlayers().get(1);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getTargets().add(foe);
+                return new AmountResult(
+                        AbilityUtils.calculateAmount(host, c.svarToken, sa),
+                        foe.getZone(ZoneType.Hand).size());
+            }
+            case "TARGETEDPLAYER_LIFETOTAL": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Player foe = game.getPlayers().get(1);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getTargets().add(foe);
+                return new AmountResult(
+                        AbilityUtils.calculateAmount(host, c.svarToken, sa), foe.getLife());
+            }
+            case "TARGETEDPLAYER_POISON": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Player foe = game.getPlayers().get(1);
+                final int poison = intParam(c.recipeParams, "poison");
+                foe.setPoisonCounters(poison, actor);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getTargets().add(foe);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), poison);
+            }
+            case "TARGETEDPLAYER_HAND_MINUS_X": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int actorExtra = intParam(c.recipeParams, "actor_islands");
+                final int oppExtra = intParam(c.recipeParams, "opponent_islands");
+                final Player foe = game.getPlayers().get(1);
+                for (int i = 0; i < actorExtra; i++) {
+                    addCardToZone("Island", actor, ZoneType.Hand);
+                }
+                for (int i = 0; i < oppExtra; i++) {
+                    addCardToZone("Island", foe, ZoneType.Hand);
+                }
+                final int expected = foe.getZone(ZoneType.Hand).size() - actor.getZone(ZoneType.Hand).size();
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getTargets().add(foe);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), expected);
+            }
+            case "TRIGGERCOUNT_DAMAGE":
+            case "TRIGGERCOUNT_AMOUNT": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int key = "TRIGGERCOUNT_DAMAGE".equals(c.recipe)
+                        ? intParam(c.recipeParams, "damage") : intParam(c.recipeParams, "amount");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setTriggeringObject(
+                        "TRIGGERCOUNT_DAMAGE".equals(c.recipe) ? AbilityKey.DamageAmount : AbilityKey.Amount, key);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), key);
+            }
+            case "PLAYERCOUNT_OPPONENTS_AMOUNT": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(
+                        AbilityUtils.calculateAmount(host, c.svarToken, sa),
+                        actor.getOpponents().size());
+            }
+            case "PLAYERCOUNT_OPPONENTS_HIGHEST_LAND": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int opp1 = intParam(c.recipeParams, "opp1_islands");
+                final int opp2 = intParam(c.recipeParams, "opp2_islands");
+                final Player foe1 = game.getPlayers().get(1);
+                final Player foe2 = game.getPlayers().get(2);
+                for (int i = 0; i < opp1; i++) {
+                    addCardToZone("Island", foe1, ZoneType.Battlefield);
+                }
+                for (int i = 0; i < opp2; i++) {
+                    addCardToZone("Island", foe2, ZoneType.Battlefield);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(
+                        AbilityUtils.calculateAmount(host, c.svarToken, sa), Math.max(opp1, opp2));
+            }
+            case "TRIGGEREDCARD_COUNTERS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int counters = intParam(c.recipeParams, "counters");
+                final Card trigger = addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield);
+                final CounterType counterType = CounterType.getType(c.recipeParams.get("counter"));
+                trigger.setCounters(counterType, counters);
+                if (trigger.getCounters(counterType) != counters) {
+                    throw new IllegalStateException("counter fixture write not visible");
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setTriggeringObject(AbilityKey.Card, trigger);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), counters);
+            }
+            case "TRIGGEREDCARD_CMC": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Card trigger = addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield);
+                final int cmc = trigger.getCMC();
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setTriggeringObject(AbilityKey.Card, trigger);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), cmc);
+            }
+            case "TRIGGEREDCARD_POWER": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Card trigger = addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield);
+                final int power = trigger.getNetPower();
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setTriggeringObject(AbilityKey.Card, trigger);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), power);
+            }
+            case "TRIGGEREDCARD_COLORS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Card trigger = addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield);
+                final int colors = trigger.getColor().countColors();
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setTriggeringObject(AbilityKey.Card, trigger);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), colors);
+            }
+            case "TRIGGEREDCARD_GREATESTPOWER": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Card trigger = addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setTriggeringObject(AbilityKey.Card, trigger);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 1);
+            }
+            case "TRIGGEREDCARD_ATTACKING": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Player foe = game.getPlayers().get(1);
+                final Card trigger = addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield);
+                game.getPhaseHandler().setCombat(new forge.game.combat.Combat(actor));
+                game.getCombat().addAttacker(trigger, foe);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setTriggeringObject(AbilityKey.Card, trigger);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 1);
+            }
+            case "TRIGGEREDCARD_CMC_MINUS_Z": {
+                // Z (Remembered$CardManaCost) is evaluated by production against
+                // the trigger card's remembered set (doXMath passes the trigger
+                // as amount context). Remembering identical sets on host and
+                // trigger keeps the expectation independent of that scoping.
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int count = intParam(c.recipeParams, "remembered_bears");
+                final Card trigger = addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield);
+                final int trigCmc = trigger.getCMC();
+                int per = 0;
+                for (int i = 0; i < count; i++) {
+                    final Card remembered = addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield);
+                    if (i == 0) {
+                        per = remembered.getCMC();
+                    }
+                    host.addRemembered(remembered);
+                    trigger.addRemembered(remembered);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setTriggeringObject(AbilityKey.Card, trigger);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), trigCmc - count * per);
+            }
+            case "TRIGGEREDSPELLABILITY_CMC": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Card triggerSource = addCardToZone("Prodigal Sorcerer", actor, ZoneType.Battlefield);
+                SpellAbility triggerAbility = null;
+                for (final SpellAbility candidate : triggerSource.getSpellAbilities()) {
+                    if (candidate.isActivatedAbility()) {
+                        triggerAbility = candidate;
+                        break;
+                    }
+                }
+                if (triggerAbility == null) {
+                    throw new IllegalStateException("trigger source lacks activated ability");
+                }
+                final int cmc = triggerSource.getCMC();
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setTriggeringObject(AbilityKey.SpellAbility, triggerAbility);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), cmc);
+            }
+            case "REPLACECOUNT_DAMAGE": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int damage = intParam(c.recipeParams, "damage");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setReplacingObject(AbilityKey.DamageAmount, damage);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), damage);
+            }
+            case "PARENTTARGETED_CARDPOWER": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int count = intParam(c.recipeParams, "target_bears");
+                final SpellAbility sub = findSubAbility(host);
+                if (sub == null) {
+                    throw new IllegalStateException("host card has no sub-ability for parent targeting");
+                }
+                sub.setActivatingPlayer(actor);
+                final Card parentSource = addCardToZone("Prodigal Sorcerer", actor, ZoneType.Battlefield);
+                SpellAbility parent = null;
+                for (final SpellAbility candidate : parentSource.getSpellAbilities()) {
+                    if (candidate.usesTargeting()) {
+                        parent = candidate;
+                        break;
+                    }
+                }
+                if (parent == null) {
+                    throw new IllegalStateException("parent fixture lacks targeting ability");
+                }
+                parent.setActivatingPlayer(actor);
+                int per = 0;
+                for (int i = 0; i < count; i++) {
+                    final Card target = addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield);
+                    if (i == 0) {
+                        per = target.getNetPower();
+                    }
+                    parent.getTargets().add(target);
+                }
+                parent.appendSubAbility((forge.game.spellability.AbilitySub) sub);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sub), count * per);
+            }
             default:
                 throw new IllegalStateException("fail-closed unsupported amount recipe " + c.recipe);
         }
+    }
+
+    private SpellAbility findSubAbility(final Card host) {
+        for (final SpellAbility candidate : host.getSpellAbilities()) {
+            final SpellAbility found = findSubAbilityRecursive(candidate);
+            if (found != null) {
+                return found;
+            }
+        }
+        // Charm-style cards parse choice sub-abilities lazily; build each DB
+        // script directly through production AbilityFactory as fallback.
+        for (final SpellAbility candidate : host.getSpellAbilities()) {
+            forge.game.card.CardState state = null;
+            for (final forge.card.CardStateName stateName : forge.card.CardStateName.values()) {
+                if (host.hasState(stateName)) {
+                    state = host.getState(stateName);
+                    break;
+                }
+            }
+            if (state == null) {
+                break;
+            }
+            for (final String svarName : host.getSVars().keySet()) {
+                if (!svarName.startsWith("DB")) {
+                    continue;
+                }
+                try {
+                    final SpellAbility built = forge.game.ability.AbilityFactory.getAbility(
+                            state, svarName, state);
+                    if (built instanceof forge.game.spellability.AbilitySub) {
+                        return built;
+                    }
+                } catch (RuntimeException ignored) {
+                    // Not every DB script builds standalone; keep searching.
+                }
+            }
+            break;
+        }
+        return null;
+    }
+
+    private SpellAbility findSubAbilityRecursive(final SpellAbility ability) {
+        if (ability instanceof forge.game.spellability.AbilitySub) {
+            return ability;
+        }
+        final SpellAbility sub = ability.getSubAbility();
+        if (sub != null) {
+            return findSubAbilityRecursive(sub);
+        }
+        return null;
     }
 
     private SpellAbility firstAbility(final Card host) {
@@ -655,7 +1091,7 @@ public final class Ws33CalculateAmountCampaignTest extends AITest {
             if (colon < 0) {
                 throw new IllegalArgumentException("malformed recipe param part " + part);
             }
-            out.put(unquote(part.substring(0, colon).trim()), part.substring(colon + 1).trim());
+            out.put(unquote(part.substring(0, colon).trim()), unquote(part.substring(colon + 1).trim()));
         }
         return out;
     }
