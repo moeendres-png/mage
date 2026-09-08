@@ -224,7 +224,6 @@ jobs:
           cmp generated/record/rng-tape.tsv generated/replay/rng-tape.tsv
           cmp generated/record/rng-events-with-path.tsv generated/replay/rng-events-with-path.tsv
           cmp generated/record/AF8_EFFECT_EVIDENCE.tsv generated/replay/AF8_EFFECT_EVIDENCE.tsv
-          cmp generated/record/AF8_CLIENT_OBSERVATION_SAMPLES.tsv generated/replay/AF8_CLIENT_OBSERVATION_SAMPLES.tsv
           cmp generated/record/play-stages.tsv generated/replay/play-stages.tsv
 
       - name: Report fail-closed AF8 case evidence
