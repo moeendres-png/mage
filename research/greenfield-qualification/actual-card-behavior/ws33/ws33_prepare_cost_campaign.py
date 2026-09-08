@@ -41,7 +41,8 @@ def parse_mana_tokens(cost: str) -> tuple[int, Counter, int]:
     generic = 0
     colors: Counter = Counter()
     x_count = 0
-    for token in cost.split():
+    for raw in cost.split():
+        token = raw.rstrip("$")
         if token == "X":
             x_count += 1
         elif token.isdigit():
@@ -51,7 +52,9 @@ def parse_mana_tokens(cost: str) -> tuple[int, Counter, int]:
                 colors[ch] += 1
         elif re.fullmatch(r"2/[WUBRG]", token):
             colors[token.split("/")[1]] += 1
-            generic += 0
+        elif re.fullmatch(r"[WUBRG]P", token):
+            # Phyrexian mana: payable in color or life; supply the color.
+            colors[token[0]] += 1
         elif token in ("T",):
             pass
         else:
@@ -60,9 +63,15 @@ def parse_mana_tokens(cost: str) -> tuple[int, Counter, int]:
 
 
 def plan_supply(generic: int, colors: Counter, x_value: int) -> dict:
-    """Deterministic mana supply plan: Sol Rings cover generic+X, basics cover colors."""
+    """Deterministic mana supply plan: Sol Rings cover generic+X, basics cover colors.
+
+    A flat +2 ring margin is included: the AI mana payer keeps reserves and
+    declines exact large payments.
+    """
     total_generic = generic + x_value
     rings = (total_generic + 1) // 2 if total_generic > 0 else 0
+    if total_generic > 0:
+        rings += 2
     lands = []
     for color, count in sorted(colors.items()):
         lands.extend([BASIC_FOR_COLOR[color]] * count)
@@ -101,7 +110,7 @@ def assign_recipe(card_name: str, directive: str, token: str, expr: str,
         if generic < 0:
             return "UNSUPPORTED_COST_MANA", {"cost": cost}
         x_value = 2 if x_count else 0
-        return "CAST_SPELL", {"cost": cost, "supply": plan_supply(generic, colors, x_value)}
+        return "CAST_SPELL", {"cost": cost, "supply": supply_spec(plan_supply(generic, colors, x_value)), "x_value": x_value}
     if directive == "MANA_COST":
         if expr in ("no cost",):
             return "CAST_NO_COST", {}
@@ -109,16 +118,16 @@ def assign_recipe(card_name: str, directive: str, token: str, expr: str,
         if generic < 0:
             return "UNSUPPORTED_COST_MANA", {"cost": expr}
         x_value = 2 if x_count else 0
-        return "CAST_SPELL", {"cost": expr, "supply": plan_supply(generic, colors, x_value)}
+        return "CAST_SPELL", {"cost": expr, "supply": supply_spec(plan_supply(generic, colors, x_value)), "x_value": x_value}
     if token == "Cost$":
-        parts = expr.split()
+        parts = split_cost(expr)
         # Pure tap.
         if parts == ["T"]:
             return "PAY_TAP", {}
         # Pure generic mana.
         if all(p.isdigit() for p in parts):
             generic = sum(int(p) for p in parts)
-            return "PAY_MANA", {"cost": expr, "supply": plan_supply(generic, Counter(), 0)}
+            return "PAY_MANA", {"cost": expr, "supply": supply_spec(plan_supply(generic, Counter(), 0))}
         # Mana + tap mixtures without special parts.
         simple = [p for p in parts if p not in ("T",)]
         if simple and all(p.isdigit() or (set(p) <= COLOR_TOKENS and p) or re.fullmatch(r"2/[WUBRG]", p) for p in simple):
@@ -130,7 +139,7 @@ def assign_recipe(card_name: str, directive: str, token: str, expr: str,
                         colors[ch] += 1
                 elif re.fullmatch(r"2/[WUBRG]", p):
                     colors[p.split("/")[1]] += 1
-            return "PAY_MANA_TAP", {"cost": expr, "supply": plan_supply(generic, colors, 0)}
+            return "PAY_MANA_TAP", {"cost": expr, "supply": supply_spec(plan_supply(generic, colors, 0))}
         # X costs.
         if "X" in parts and all(p in ("X", "T") or p.isdigit() or (set(p) <= COLOR_TOKENS and p) for p in parts):
             generic = sum(int(p) for p in parts if p.isdigit())
@@ -143,26 +152,34 @@ def assign_recipe(card_name: str, directive: str, token: str, expr: str,
             x_value = 2 * x_count
             supply = plan_supply(generic, colors, x_value)
             if "T" in parts:
-                return "PAY_X_MANA_TAP", {"cost": expr, "supply": supply}
-            return "PAY_X_MANA", {"cost": expr, "supply": supply}
+                return "PAY_X_MANA_TAP", {"cost": expr, "supply": supply_spec(supply), "x_value": supply["x_value"]}
+            return "PAY_X_MANA", {"cost": expr, "supply": supply_spec(supply), "x_value": supply["x_value"]}
         # Sacrifice-led shapes (single Sac part, optional mana/tap).
         sac = [p for p in parts if p.startswith("Sac<")]
         exotic = [p for p in parts if p.startswith(("Choose", "Choice", "Reveal", "Mill<", "Clash", "Flip"))]
         if exotic:
             return "UNSUPPORTED_COST_PART", {"expression": expr}
         rest = [p for p in parts if not p.startswith("Sac<")]
-        if len(sac) == 1 and all(p in ("T",) or p.isdigit() or (set(p) <= COLOR_TOKENS and p) for p in rest):
+        if sac and all(p in ("T",) or p.isdigit() or (set(p) <= COLOR_TOKENS and p) for p in rest):
             generic = sum(int(p) for p in rest if p.isdigit())
             colors = Counter()
             for p in rest:
                 if set(p) <= COLOR_TOKENS and p and not p.isdigit():
                     for ch in p:
                         colors[ch] += 1
-            fodder = sac_fodder(sac[0])
-            if fodder is None:
-                return "UNSUPPORTED_COST_SAC", {"expression": expr}
-            return "PAY_SAC", {"cost": expr, "supply": plan_supply(generic, colors, 0),
-                               "tap": "T" in rest, "fodder": fodder}
+            specs = []
+            for part in sac:
+                fodder = sac_fodder(part)
+                if fodder is None:
+                    break
+                if fodder.get("host"):
+                    specs.append("HOST,0,ACTOR,Battlefield")
+                else:
+                    specs.append(fodder_spec(fodder["card"], fodder["count"],
+                                             fodder["controller"], "Battlefield"))
+            else:
+                return "PAY_SAC", {"cost": expr, "supply": supply_spec(plan_supply(generic, colors, 0)),
+                                   "tap": "T" in rest, "fodder": ";".join(specs)}
         # Exile-led shapes.
         exile = [p for p in parts if p.startswith(("Exile<", "ExileFromGrave<", "ExileAnyGrave<"))]
         if len(exile) == 1 and all(p in ("T",) or p.isdigit() or (set(p) <= COLOR_TOKENS and p) for p in
@@ -177,8 +194,20 @@ def assign_recipe(card_name: str, directive: str, token: str, expr: str,
             zone = exile_zone(exile[0])
             if zone is None:
                 return "UNSUPPORTED_COST_EXILE", {"expression": expr}
-            return "PAY_EXILE", {"cost": expr, "supply": plan_supply(generic, colors, 0),
-                                 "tap": "T" in rest2, "zone": zone}
+            zone = exile_zone(exile[0])
+            if zone is None:
+                return "UNSUPPORTED_COST_EXILE", {"expression": expr}
+            count = exile_count(exile[0])
+            # CARDNAME-qualified exile takes the source card itself.
+            if "/CARDNAME" in exile[0]:
+                fodder_param = "HOST,0,ACTOR,ANY"
+            else:
+                fzone = "Graveyard" if "GRAVEYARD" in zone else "Hand"
+                fodder_param = fodder_spec("Runeclaw Bear", count, "ACTOR", fzone)
+            trigger = "FIRST_FODDER" if "Triggered" in exile[0] else "NONE"
+            return "PAY_EXILE", {"cost": expr, "supply": supply_spec(plan_supply(generic, colors, 0)),
+                                 "tap": "T" in rest2, "zone": zone,
+                                 "fodder": fodder_param, "trigger": trigger}
         # Discard-led shapes.
         discard = [p for p in parts if p.startswith("Discard<")]
         if len(discard) == 1 and all(p in ("T",) or p.isdigit() or (set(p) <= COLOR_TOKENS and p) for p in
@@ -190,8 +219,15 @@ def assign_recipe(card_name: str, directive: str, token: str, expr: str,
                 if set(p) <= COLOR_TOKENS and p and not p.isdigit():
                     for ch in p:
                         colors[ch] += 1
-            return "PAY_DISCARD", {"cost": expr, "supply": plan_supply(generic, colors, 0),
-                                   "tap": "T" in rest3}
+            count = discard_count(discard[0])
+            # CARDNAME-qualified discard takes the source card itself from hand.
+            if "/CARDNAME" in discard[0]:
+                fodder_param = "HOST,0,ACTOR,Hand"
+            else:
+                fodder_param = fodder_spec("Island", count, "ACTOR", "Hand")
+            return "PAY_DISCARD", {"cost": expr, "supply": supply_spec(plan_supply(generic, colors, 0)),
+                                   "tap": "T" in rest3,
+                                   "fodder": fodder_param}
         # Counter-led shapes.
         counters = [p for p in parts if p.startswith(("AddCounter<", "SubCounter<"))]
         if counters and all(p in ("T",) or p.isdigit() or (set(p) <= COLOR_TOKENS and p)
@@ -203,8 +239,8 @@ def assign_recipe(card_name: str, directive: str, token: str, expr: str,
                 if set(p) <= COLOR_TOKENS and p and not p.isdigit():
                     for ch in p:
                         colors[ch] += 1
-            return "PAY_COUNTERS", {"cost": expr, "supply": plan_supply(generic, colors, 0),
-                                    "tap": "T" in rest4, "counters": counters}
+            return "PAY_COUNTERS", {"cost": expr, "supply": supply_spec(plan_supply(generic, colors, 0)),
+                                    "tap": "T" in rest4, "counterset": counter_set(counters)}
         # Life-led shapes.
         if any(p.startswith("PayLife<") for p in parts):
             rest5 = [x for x in parts if not x.startswith("PayLife<")]
@@ -215,7 +251,7 @@ def assign_recipe(card_name: str, directive: str, token: str, expr: str,
                     if set(p) <= COLOR_TOKENS and p and not p.isdigit():
                         for ch in p:
                             colors[ch] += 1
-                return "PAY_LIFE", {"cost": expr, "supply": plan_supply(generic, colors, 0),
+                return "PAY_LIFE", {"cost": expr, "supply": supply_spec(plan_supply(generic, colors, 0)),
                                     "tap": "T" in rest5}
         # Return-led shapes.
         if any(p.startswith("Return<") for p in parts):
@@ -227,8 +263,10 @@ def assign_recipe(card_name: str, directive: str, token: str, expr: str,
                     if set(p) <= COLOR_TOKENS and p and not p.isdigit():
                         for ch in p:
                             colors[ch] += 1
-                return "PAY_RETURN", {"cost": expr, "supply": plan_supply(generic, colors, 0),
-                                      "tap": "T" in rest6}
+                count = exile_count([x for x in parts if x.startswith("Return<")][0].replace("Return<", "Exile<", 1))
+                return "PAY_RETURN", {"cost": expr, "supply": supply_spec(plan_supply(generic, colors, 0)),
+                                      "tap": "T" in rest6,
+                                      "fodder": fodder_spec("Runeclaw Bear", count, "ACTOR", "Battlefield")}
         # tapXType shapes.
         tapx = [p for p in parts if p.startswith("tapXType<")]
         if len(tapx) == 1 and len(parts) == 1:
@@ -239,8 +277,79 @@ def assign_recipe(card_name: str, directive: str, token: str, expr: str,
             except ValueError:
                 return "UNSUPPORTED_COST_PART", {"expression": expr}
             return "PAY_TAPXTYPE", {"cost": expr, "type": _type.strip(), "need": need}
+        # Unattach-led shapes (optionally with tap/mana).
+        unattach = [p for p in parts if p.startswith("Unattach<")]
+        if len(unattach) == 1 and all(p in ("T",) or p.isdigit() or (set(p) <= COLOR_TOKENS and p)
+                                      for p in [x for x in parts if x not in unattach]):
+            return "PAY_UNATTACH", {"cost": expr}
+        # Draw-led shapes.
+        draw = [p for p in parts if p.startswith("Draw<")]
+        if len(draw) == 1 and len(parts) == 1:
+            return "PAY_DRAW", {"cost": expr, "x_value": 2}
         return "UNSUPPORTED_COST_PART", {"expression": expr}
+    # Amount-backed cost bindings (091-group hybrids): evaluate the
+    # production amount binding like the B1 campaign.
+    if directive == "SVAR" and token in ("X", "Y", "Z", "Remembered"):
+        if expr == "Count$CardCounters.ALL":
+            return "AMOUNT_HOST_COUNTERS_ALL", {"P1P1": 2, "M1M1": 1}
+        if expr == "Count$xPaid":
+            return "AMOUNT_XPAID", {"paid": 5}
+        if expr == "TriggeredCard$CardManaCost":
+            return "AMOUNT_TRIGGER_CMC", {}
+        if expr == "Count$TotalCommanderCastFromCommandZone":
+            return "AMOUNT_COMMANDER_TOTAL", {"casts": 2}
+        if expr == "Count$Compare Y GE1.4.1":
+            return "AMOUNT_LOFTY_COMPARE", {"flyers": 2}
+        if expr == "Remembered$CardCounters.ALL":
+            return "AMOUNT_REMEMBERED_COUNTERS", {"bears": 2, "P1P1": 2, "M1M1": 1}
     return "UNSUPPORTED_COST_DIRECTIVE", {"directive": directive, "token": token}
+
+
+
+def supply_spec(supply: dict) -> str:
+    """Flatten a supply plan to rings=N;lands=A,B."""
+    lands = ",".join(supply.get("lands", []))
+    return f"rings={supply.get('sol_rings', 0)};lands={lands}"
+
+
+def split_cost(expr: str) -> list[str]:
+    """Split a cost expression on spaces outside angle brackets."""
+    parts: list[str] = []
+    depth = 0
+    current: list[str] = []
+    for ch in expr:
+        if ch == "<":
+            depth += 1
+        elif ch == ">":
+            depth = max(0, depth - 1)
+        if ch == " " and depth == 0:
+            if current:
+                parts.append("".join(current))
+                current = []
+        else:
+            current.append(ch)
+    if current:
+        parts.append("".join(current))
+    return parts
+
+
+def fodder_spec(card: str, count: int, ctrl: str, zone: str) -> str:
+    return f"{card}|{count}|{ctrl}|{zone}"
+
+
+def counter_set(counters: list[str]) -> str:
+    """Flatten counter parts to TYPE:need;... (need = max number per type)."""
+    need: dict[str, int] = {}
+    for part in counters:
+        inner = part.split("<", 1)[1].rstrip(">")
+        num, _, _type = inner.partition("/")
+        try:
+            n = int(num)
+        except ValueError:
+            n = 0
+        _type = _type.strip()
+        need[_type] = max(need.get(_type, 0), n)
+    return ";".join(f"{t}:{n}" for t, n in sorted(need.items()))
 
 
 def sac_fodder(part: str) -> dict | None:
@@ -254,21 +363,46 @@ def sac_fodder(part: str) -> dict | None:
     except ValueError:
         return None
     valid = valid.split("/")[0]
-    if valid in ("CARDNAME", "Creature", "Creature.Other", "another creature"):
+    if valid == "CARDNAME" or valid.startswith("CARDNAME/"):
+        # Sacrifice the source card itself; no extra fodder is placed.
+        return {"host": True, "count": need}
+    if valid in ("Creature", "Creature.Other", "another creature"):
         return {"card": "Runeclaw Bear", "count": need, "controller": "ACTOR"}
     if valid == "Land" or valid == "land":
         return {"card": "Island", "count": need, "controller": "ACTOR"}
-    if valid == "Artifact":
+    if "Artifact" in valid:
         return {"card": "Sol Ring", "count": need, "controller": "ACTOR"}
     if "Spirit" in valid:
-        return None
+        return {"card": "Selfless Spirit", "count": need, "controller": "ACTOR"}
     if "Legendary" in valid:
-        return None
+        return {"card": "Thalia, Guardian of Thraben", "count": need, "controller": "ACTOR"}
+    if "Green" in valid and "White" not in valid and "Blue" not in valid:
+        return {"card": "Runeclaw Bear", "count": need, "controller": "ACTOR"}
+    if "White" in valid and "Green" not in valid and "Blue" not in valid:
+        return {"card": "Elite Vanguard", "count": need, "controller": "ACTOR"}
+    if "Blue" in valid and "Green" not in valid and "White" not in valid:
+        return {"card": "Flying Men", "count": need, "controller": "ACTOR"}
     if "Green" in valid or "White" in valid or "Blue" in valid:
         return {"card": "Runeclaw Bear", "count": need, "controller": "ACTOR"}
     if valid in ("Creature.Green", "Creature.White", "Creature.Blue"):
         return {"card": "Runeclaw Bear", "count": need, "controller": "ACTOR"}
     return None
+
+
+def part_count(part: str) -> int:
+    inner = part.split("<", 1)[1].rstrip(">")
+    try:
+        return int(inner.split("/")[0])
+    except ValueError:
+        return 1
+
+
+def exile_count(part: str) -> int:
+    return part_count(part)
+
+
+def discard_count(part: str) -> int:
+    return part_count(part)
 
 
 def exile_zone(part: str) -> str | None:
