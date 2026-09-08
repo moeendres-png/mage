@@ -68,8 +68,17 @@ hacks; no pilot rules; fail closed.
 - [x] B3: 238/273 record+replay green locally (all implemented recipes, 0 actionable failures)
 - [x] B3b: 273/273 record+replay green locally (batch 4+5; 6 default-zero flagged TECHNICALLY_CONFORMANT+REVIEW)
 - [x] B4: CI run 34266311850 SUCCESS + independently adjudicated PASS (artifact 10072131808, 2737/2737 hashes, 273/273 replay, 2457 RNG events) + PASS checkpoint persisted
-- [ ] B5: 402 Cost cluster (4 queue items; recon done) — IN PROGRESS
-- [ ] B6: B1/B2 coverage-promotion proposal for canonical/integration line
+- [x] B5: 402 Cost cluster: preparer v1 + payment test, 397/402 record+replay green locally, 5 terminal blockers registered
+- [ ] B6: CI B2 gate PASS (workflow pushed; awaiting run) + B2 PASS checkpoint
+- [ ] B7: B1/B2 coverage-promotion proposal for canonical/integration line
+
+## Concurrency note (2026-09-08)
+
+The shared worktree was found checked out to work/ws33-c-high-throughput-20260907
+with B commits intact on origin (32227dc7eb). No C-branch state was modified
+(git status clean apart from new B2 files); returned to B and verified
+integrity (preparer output identical). Possible parallel C worker: do not
+assume exclusive worktree ownership; verify branch before editing.
 
 ## B1/B2 evidence (CODE_DERIVED, local scratch /tmp/opencode/forge-pin @ FORGE_PIN)
 
