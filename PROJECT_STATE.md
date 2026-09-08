@@ -1,59 +1,77 @@
-# Commander Simulator Next — canonical resume index
+# Commander Simulator Next — serial integration successor resume index
 
 TURN_STATUS=RUNNING
 TASK_COMPLETE=NO
 CURRENT_REPOSITORY=moeendres-png/mage
-CURRENT_BRANCH=work/ws33-g3-final-closure-20260902
-CURRENT_HEAD=6f2bbac9a3aeca739e7c70dc6c6b1124249b3fc9
-CURRENT_TREE=METADATA_PARENT_TREE; live branch must be re-read before any further canonical write
-IDENTITY_NOTE=CURRENT_HEAD is the metadata checkpoint commit immediately before this PROJECT_STATE update. AF8 qualification source is separately frozen and immutable below; this metadata-only update is not part of that run source.
+CURRENT_BRANCH=work/ws33-serial-integration-af8-b-20260909
+CURRENT_HEAD=c8d04e1064dfdd7fc068b03b2a170e19bc62cf7b
+CURRENT_TREE=f06f94376250e54f94af33539c712066c3db14f3
+IDENTITY_NOTE=Live integration-branch identity verified immediately before this metadata reconciliation. CURRENT_HEAD/TREE name the Phase V promotion commit (last code commit); this PROJECT_STATE update is metadata-only and its containing commit will be newer. Freeze/run checkpoints record their own exact SOURCE_HEAD/SOURCE_TREE. This branch is a serial integration successor/candidate, NOT final canonical until Sol/integration adjudication promotes it.
 FORGE_PIN=8c7e9afb8e6caee88644b94e25da5852e36f8928
 
-CANONICAL_COVERAGE=TOTAL=4188 PASS=488 UNKNOWN=3700 FAIL=0 UNSUPPORTED=0
-A_UNKNOWN=57
-B_UNKNOWN=675
+CANONICAL_COVERAGE=TOTAL=4188 PASS=949 UNKNOWN=3239 FAIL=0 UNSUPPORTED=0
+A_UNKNOWN=179
+B_UNKNOWN=11
 C_UNKNOWN=700
 D_UNKNOWN=920
 E_UNKNOWN=1029
 F_UNKNOWN=319
-G_UNKNOWN=0
+G_UNKNOWN=81
 H_UNKNOWN=0
-COVERAGE_PROMOTION=FALSE
+COVERAGE_EVIDENCE=branch ledger recomputed live post-promotion (949/3239) + WS33_POST_AF8B_PROMOTION_EVIDENCE.json; operational successor truth 488/3700 inherited via immutable artifact 9979204198; branch files at 285/3903 superseded for operational frontier purposes per POST_G3_A1_SUCCESSOR_RUN_34000014860_PASS.md
+LAST_COMPLETED_GATE=Serial AF8->B integration: AF8 repair inherited (run 34222323657 SUCCESS) + 664 B positive-evidence paths promoted (267 B1 + 397 B2), 6 defaults + 5 Cost blockers held UNKNOWN
+CURRENT_OPEN_GATE=Sol High adjudication of this integration successor (no Architecture Freeze claimed; no further promotion authorized here)
+CURRENT_CHECKPOINT=research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/WS33_SERIAL_INT_AF8B_TERMINAL_HANDOFF_20260909.md
+ACTIVE_OR_LAST_RUN=34286249888
+ACTIVE_OR_LAST_JOB=102262427048
+ACTIVE_OR_LAST_ARTIFACT=10079683394 sha256:a8a498f63a776a772a78d531b21ffc1542c59bb218f10185f135271078aa00b3
+COVERAGE_PROMOTION=TRUE
 
-LAST_COMPLETED_GATE=AF8 workflow integration + frozen replacement run registration
-CURRENT_OPEN_GATE=AF8 replacement run 34164631499 terminal adjudication; independent A-trigger/B-F materialization may proceed on isolated branches while CI runs
-CURRENT_CHECKPOINT=research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/ABC_A_REST_SVAR_AF8_RUN_34164631499_PENDING.md
-ACTIVE_OR_LAST_RUN=34164631499
-ACTIVE_OR_LAST_JOB=101873135926
-ACTIVE_OR_LAST_ARTIFACT=PENDING expected=ws33-abc-a-rest-svar-af8-34164631499
-
-AF8_SOURCE_HEAD=895240f4058076764227a418ad28e84f61d3a7ed
-AF8_SOURCE_TREE=cec73ae51b0168280ea648892f3e9edd46dcd883
-AF8_EXPECTED_PATH_COUNT=8
-AF8_EXPECTED_PATH_SET_SHA256=10c3825fa3ba1e58aadcaacad1012263c4201438cf8c694db6cb10b3bae7b0f1
-AF8_STATUS=PENDING
+AF8_SOURCE_HEAD=1922a5172f0e004dd95c279744c641775a80b15a
+AF8_SOURCE_TREE=ef71c0d06398dd4ae760ccf5cef69264b1b02fa6
+AF8_RUN=34222323657
+AF8_ARTIFACT=10054400356 sha256:026df6dd6f770fe8f93c5efc96c17b2d473876a5b01f44d9ccbc24df96ae727c
+AF8_EVIDENCE_STATUS=DIRECTLY_VERIFIED
 AF8_COVERAGE_PROMOTION=FALSE
 
+B_SOURCE_HEAD=2c6ceedebb250165893d942251acf7550346c405
+B_SOURCE_TREE=e352588fad89977b4fbd98824e4b3872dc3bd41a
+B1_RUN=34266311850
+B1_JOB=102196461658
+B1_ARTIFACT=10072131808 sha256:118de4169ae9abf4ab500213430a62cd67630d44cb9b34ce3032a93907a29c2f
+B2_RUN=34286249888
+B2_JOB=102262427048
+B2_ARTIFACT=10079683394 sha256:a8a498f63a776a772a78d531b21ffc1542c59bb218f10185f135271078aa00b3
+AUTHORIZED_B_PROMOTION_COUNT=664
+ACTUAL_B_PROMOTION_COUNT=664
+AUTHORIZED_UNION_DIGEST=sha256:57e210b8d2a5a79f3aaa3a4b124e3d92e2d6d3fc8447fa74d31f299d9366f75c
+B1_DEFAULT_ZERO_HELD_UNKNOWN_COUNT=6
+COST_BLOCKERS_HELD_UNKNOWN_COUNT=5
+UNEXPECTED_STATUS_TRANSITIONS=0
+PASS_EVIDENCE_INVALIDATED=FALSE
+
 WS33_COMPLETE=FALSE
-PROJECT_RECONCILIATION=NOT_ADJUDICATED
+PROJECT_RECONCILIATION=RECONCILED_ON_SUCCESSOR
 ARCHITECTURE_FREEZE=NOT_ADJUDICATED
 PRODUCTION_IMPLEMENTATION=NOT_STARTED; forbidden before justified freeze
 
 ## Current evidence
 
-DIRECTLY_VERIFIED:
-- AF8 frozen source HEAD/TREE = 895240f4058076764227a418ad28e84f61d3a7ed / cec73ae51b0168280ea648892f3e9edd46dcd883.
-- Replacement run = 34164631499; job = 101873135926; run registered in progress from exactly that source.
-- Immutable route dependency artifact 9998291348 outer SHA256 = 646594434eb987009561127f012bd0d974dcec97e67bef0bf478294f1fd9d0e9 and equals expected metadata digest; its internal SHA256SUMS verifies.
-- Exact expected AF8 path count = 8; sorted path-set SHA256 = 10c3825fa3ba1e58aadcaacad1012263c4201438cf8c694db6cb10b3bae7b0f1.
-- Strict decision-path parser 12-test regression set PASS.
-- Workflow now consumes the persisted runtime hardener and standalone adjudicator, and sealing/upload are `always()` paths.
+DIRECTLY_VERIFIED on 2026-09-09 against live GitHub and recomputed worktree state:
+- source locks: canonical base 6da237b7/8f6d0151, AF8 1922a51/ef71c0d0, B 2c6ceedb/e352588f; all branch refs unmoved; AF8 exactly 6 ahead/0 behind canonical base; integration history linear with AF8 HEAD in ancestry;
+- AF8 run 34222323657 SUCCESS at AF8 source; artifact gate 8 paths/0 failures/coverage unmutated; in-artifact source binding equals AF8 locks; no AF8 rerun (no invalidation);
+- B1 run 34266311850 SUCCESS (273 records: 267 EXTERNALLY_RULE_VALIDATED + 6 flagged defaults); B2 run 34286249888 SUCCESS (397 EXTERNALLY_RULE_VALIDATED); artifact digests equal live GitHub metadata; B1 273 target digest reproduces 30dd81f7...;
+- promotion executed by authoritative ws33_promote_b_frontier.py (G3/A1-pattern mechanism) from frozen index; staged outputs independently re-verified: exactly 664 UNKNOWN->PASS transitions equal to the authorized set, zero out-of-scope field changes, zero non-transition row changes;
+- post state: TOTAL=4188 PASS=949 UNKNOWN=3239 FAIL=0 UNSUPPORTED=0; B_UNKNOWN 675->11 (6 defaults + 5 blockers, all still UNKNOWN, card-mapped and corroborated); all other shards unchanged; queue unresolved=3239 over 234 items; frontier gate SHAs verify;
+- Sol High decisions enforced: six B1 default-zero paths remain UNKNOWN; five Cost terminal blockers remain UNKNOWN; no Architecture Freeze claimed.
 
-No AF8 behavior PASS is claimed while the run is nonterminal. No coverage changed.
+Stale-metadata repairs applied on this successor: AF8-PENDING open-gate text replaced; coverage now describes live recomputed state (branch layer 949/3239; operational layer inherited 488/3700 via artifact 9979204198); B proposal cached totals not used.
 
-BLOCKERS=No external blocker. Await terminal AF8 evidence while doing dependency-independent materialization on isolated branches.
-EXACT_NEXT_STEP=Create isolated A-trigger and B-F branches from frozen AF8 source; materialize deterministic current UNKNOWN cluster manifests and reusable shard infrastructure without coverage mutation; periodically re-read AF8 run/job and, at terminal status, persist immutable PASS/FAIL before any repair or promotion.
+BLOCKERS=Sol High adjudication required before this successor is treated as canonical; remaining UNKNOWN waves (A-rest incl. 6 defaults, B 11, C 700, D 920, E 1029, F 319, G 81) need future serial qualifications. No external blocker established.
+EXACT_NEXT_STEP=Sol High reviews this successor (handoff checkpoint WS33_SERIAL_INT_AF8B_TERMINAL_HANDOFF_20260909.md); on acceptance, promote this branch as the new canonical line. No further coverage mutation on this branch without a new PENDING freeze.
 
 ## Continuation scope
 
 AF8 -> nested trigger -> Trigger17 -> A57 certification/successor -> B/C/D/E/F shard qualification/cross-certification/serial successors -> WS33 final cross-qualification -> WS01-WS33 reconciliation -> evidence-based Architecture Freeze -> production P0-P10 -> final production qualification.
+
+This branch consumed AF8 + WS33B(B1/B2-positive only). C/A/D/E/F untouched and out of scope.
