@@ -70,7 +70,8 @@ hacks; no pilot rules; fail closed.
 - [x] B4: CI run 34266311850 SUCCESS + independently adjudicated PASS (artifact 10072131808, 2737/2737 hashes, 273/273 replay, 2457 RNG events) + PASS checkpoint persisted
 - [x] B5: 402 Cost cluster: preparer v1 + payment test, 397/402 record+replay green locally, 5 terminal blockers registered
 - [x] B6: CI run 34286249888 SUCCESS + independently adjudicated PASS (artifact 10079683394, 3977/3977 hashes, 397/397 replay, 3573 RNG events) + PASS checkpoint persisted
-- [ ] B7: B1/B2 coverage-promotion proposal for canonical/integration line
+- [x] B7: B1/B2 coverage-promotion proposal for canonical/integration line (proposal only)
+- [ ] Remaining: canonical-line promotion, C–F waves, AF8, reconciliation, freeze (all blocked — see below)
 
 ## Concurrency note (2026-09-08)
 
@@ -79,6 +80,28 @@ with B commits intact on origin (32227dc7eb). No C-branch state was modified
 (git status clean apart from new B2 files); returned to B and verified
 integrity (preparer output identical). Possible parallel C worker: do not
 assume exclusive worktree ownership; verify branch before editing.
+
+## Phase 3 survey (2026-09-09, DIRECTLY_VERIFIED from live refs)
+
+- Canonical work/ws33-g3-final-closure-20260902 unchanged at
+  6da237b704ba5e66c58c2334f47e36ef68ca980d (no promotion consumed B1/B2 yet).
+- C/D/E/F/A high-throughput branches: all still at 895240f405 (2026-09-07
+  AF8 base). Zero shard commits — C–F frontiers are unowned in Git terms,
+  but this shared worktree flips to C spontaneously, so no C–F implementation
+  was started here (collision risk; needs a dedicated worktree/worker).
+- work/ws33-af8-evidence-contract-repair-20260908: ACTIVE (commits through
+  2026-09-08 13:44). Owned by parallel work — not inspected beyond log, not touched.
+- B1 run 34266311850 + B2 run 34286249888 remain terminal SUCCESS, latest on B branch.
+- No production contracts (P0–P10) exist in-repo; production work is NOT_ELIGIBLE
+  (no ARCHITECTURE_FREEZE). No freeze dossier started — WS33 gates are far
+  from met (A–F waves + AF8 + cross-qualification outstanding).
+
+## WS33B terminal state
+
+670/675 B paths with passing CI evidence (B1 273 + B2 397, disjoint, disjoint
+from base PASS). 5 Cost terminal blockers + 6 B1 fail-closed defaults remain
+UNKNOWN-or-held (exact IDs in checkpoints). B workstream has no open engineering
+items; all that remains is canonical-owned or review-gated.
 
 ## B1/B2 evidence (CODE_DERIVED, local scratch /tmp/opencode/forge-pin @ FORGE_PIN)
 
@@ -95,6 +118,10 @@ assume exclusive worktree ownership; verify branch before editing.
   no RNG); decision-fixture Prodigal Sorcerer counts as actor creature (+1);
   opponent bear / actor Island exercise Valid-filter exclusion.
 
-EXACT_NEXT_ACTION = Build ws33_prepare_calculate_amount_campaign.py (family
-classification + representative selection + case TSV/plan), then apply overlay
-stack to /tmp/opencode/forge-pin and smoke-test compile.
+EXACT_NEXT_ACTION = Canonical worker: consume
+checkpoints/WS33B_PROMOTION_PROPOSAL_20260909.md (re-verify digests +
+disjointness against live state, adjudicate 6 defaults, persist PENDING,
+promote serially). Shard worker with dedicated worktree: own one of C/D/E/F
+(zero commits since 895240f405) following the B1/B2 campaign pattern
+(preparer + campaign test + filter + certifier + workflow + run + adjudicated
+PASS checkpoint). Do NOT start C–F work in this shared worktree.
