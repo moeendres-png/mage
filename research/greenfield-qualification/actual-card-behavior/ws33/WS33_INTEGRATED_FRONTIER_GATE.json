@@ -18,7 +18,7 @@
   "generation2_base_tree": "c8ba229cf428973bd7711844563987d69517b5b8",
   "generation2_workflow_job_id": "99482482207",
   "generation2_workflow_run_id": "33390404824",
-  "ledger_sha256": "544d0fa9dc84773a11c7bab98a283d2f14c0c3984776bb3d80be0f98633231b9",
+  "ledger_sha256": "4db1d70b302390f72cd5265e8ade58ec48b92da36ae843e0a1395f0f202a6611",
   "missing_partition_ids": [],
   "model_source_head": "991486fd012463d29173a9aba15ebb3296d64dda",
   "model_source_tree": "c8ba229cf428973bd7711844563987d69517b5b8",
@@ -26,14 +26,15 @@
   "pass_overlap_ids": [],
   "path_status_counts": {
     "FAIL": 0,
-    "PASS": 285,
-    "UNKNOWN": 3903,
+    "PASS": 949,
+    "UNKNOWN": 3239,
     "UNSUPPORTED": 0
   },
-  "queue_sha256": "13fa869a129dd1ed895d550952a9cd9c4caf4bb692a474d931e0bd33a778538a",
+  "promotion_evidence_sha256": "b53d535af2a5c2ae5f01ab972fd8b312df03a6dd4993c51b566816bbe03556e4",
+  "queue_sha256": "02397404ebdc9d7a105466c3d24dc73c0f9844a8dbb55e626f4e0fb813202d3c",
   "schema": "commander-simulator-next.ws33-integrated-frontier-gate.v1",
   "split_scenario_group_ids": [],
   "status": "PASS",
-  "unresolved_path_count": 3903,
-  "work_item_count": 236
+  "unresolved_path_count": 3239,
+  "work_item_count": 234
 }
