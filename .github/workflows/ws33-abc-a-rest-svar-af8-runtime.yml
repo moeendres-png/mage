@@ -2,7 +2,7 @@ name: WS33 ABC A-rest SVar AF8 runtime
 
 on:
   push:
-    branches: [work/ws33-g3-final-closure-20260902]
+    branches: [work/ws33-af8-evidence-contract-repair-20260908]
     paths:
       - '.github/workflows/ws33-abc-a-rest-svar-af8-runtime.yml'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_adapt_g_svar_af_harness_to_a_af8.py'
@@ -12,6 +12,7 @@ on:
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_adjudicate_a_rest_svar_af8.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-stack-resolution-reachability.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-a-rest-play-stage-observer.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-bounded-number.py'
   workflow_dispatch:
 
 permissions:
@@ -49,7 +50,8 @@ jobs:
             "$ROOT/ws33_harden_a_rest_svar_af8_runtime.py" \
             "$ROOT/ws33_adjudicate_a_rest_svar_af8.py" \
             "$ROOT/runtime-overlays/apply-ws33-stack-resolution-reachability.py" \
-            "$ROOT/runtime-overlays/apply-ws33-a-rest-play-stage-observer.py"
+            "$ROOT/runtime-overlays/apply-ws33-a-rest-play-stage-observer.py" \
+            "$ROOT/runtime-overlays/apply-ws33-bounded-number.py"
           (cd "$ROOT" && python -m unittest -v test_ws33_decision_path_evidence.py)
 
       - name: Consume immutable production-root routes
@@ -113,6 +115,7 @@ jobs:
           cp direct-source/research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
           python direct-source/research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/record/RNG_INVENTORY.json | tee generated/overlay-logs/ws06.log
           python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge | tee generated/overlay-logs/ws33-input-confirm.log
+          python "$ROOT/runtime-overlays/apply-ws33-bounded-number.py" --forge-root forge | tee generated/overlay-logs/ws33-bounded-number.log
           python "$ROOT/runtime-overlays/apply-ws33-observation-fanout.py" --forge-root forge | tee generated/overlay-logs/ws33-observation-fanout.log
           python "$ROOT/runtime-overlays/apply-ws33-external-card-decision-lifetime.py" --forge-root forge | tee generated/overlay-logs/ws33-card-decision-lifetime.log
           python "$ROOT/runtime-overlays/apply-ws33-stack-resolution-reachability.py" --forge-root forge | tee generated/overlay-logs/ws33-stack-resolution-reachability.log
@@ -127,6 +130,7 @@ jobs:
           grep -Fx 'WS33_STACK_RESOLUTION_REACHABILITY=PASS boundary=TRIGGER_PLAY_PREREQUISITES_ADD_TARGET_REJECT_FROZEN_PUSH_FIZZLE_POST_FIZZLE_PRE_API_RESOLVE semantics_mutated=FALSE' generated/overlay-logs/ws33-stack-resolution-reachability.log
           grep -Fx 'WS33_A_REST_PLAY_STAGE_OBSERVER=PASS semantics_mutated=FALSE booleans_mutated=FALSE' generated/overlay-logs/ws33-a-rest-play-stage-observer.log
           grep -Fx 'WS33_A_REST_MANA_PAYMENT_OBSERVER=PASS options_mutated=FALSE selection_mutated=FALSE mana_mutated=FALSE cost_mutated=FALSE' generated/overlay-logs/ws33-a-rest-play-stage-observer.log
+          grep -Fx 'WS33_BOUNDED_NUMBER_EXTERNALIZED=PASS finite_range=true gui_fallback_external_mode=0 rules_mutation=0' generated/overlay-logs/ws33-bounded-number.log
 
       - name: Prepare exact AF8 production-parent harness
         shell: bash

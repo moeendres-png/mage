@@ -73,6 +73,7 @@ def main() -> None:
         'if(pathSpec!=null&&pathSpec.script.contains("Announce$ X")&&req.getMinimumSelection()==1&&req.getMaximumSelection()==1){'
         'ExternalDecisionRequest.Option best=null;int bestValue=Integer.MAX_VALUE;for(ExternalDecisionRequest.Option o:options){if(o.isEntityBacked())continue;try{int v=Integer.parseInt(o.getSemanticValue());if(v>0&&v<bestValue){best=o;bestValue=v;}}catch(NumberFormatException ignored){}}'
         'if(best!=null){selected.add(best.getOptionId());return;}}'
+        'if(pathSpec!=null&&"MANA_PAYMENT".equals(req.getDecisionKind())){for(ExternalDecisionRequest.Option o:options)if(o.getSemanticValue().startsWith("ABILITY:")){selected.add(o.getOptionId());return;}throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,"authoritative mana transition absent");}'
     )
     t = replace_once(t, policy_anchor, policy, "positive source-proven X policy")
 
@@ -86,7 +87,7 @@ def main() -> None:
         restoreMain1(game,actor);if(game.getPhaseHandler().getPlayerTurn()!=actor||!game.getPhaseHandler().is(PhaseType.MAIN1))throw new IllegalStateException("failed to establish remote actor MAIN1");seedPayableResources(actor);
         for(CaseSpec spec:cases){CaseEvidence ce=evidence.get(spec.pathId);long leak0=-1,cross0=-1,mismatch0=-1;Card source=null;try{
             refreshPayableResources(actor);restoreMain1(game,actor);seedCommon(game,actor,opponent);prepareAF8PublicCandidates(actor,opponent);
-            Card canary=addCard(SECRET,actor,ZoneType.Library);Ws05HiddenInfoProbe.setPhase(spec.pathId,canary.getId(),Set.of());mismatch0=Ws05HiddenInfoProbe.phaseMismatchCount();
+            Card canary=addCard(SECRET,actor,ZoneType.Hand);Ws05HiddenInfoProbe.setPhase(spec.pathId,canary.getId(),Set.of(actor.getName()));mismatch0=Ws05HiddenInfoProbe.phaseMismatchCount();
             source=addCard(spec.cardName,actor,"SP$".equals(spec.sourceToken)?ZoneType.Hand:ZoneType.Battlefield);source.setSickness(false);source.setTapped(false);source.addRemembered(opponent);source.addRemembered(addCard("Runeclaw Bear",opponent,ZoneType.Battlefield));opponent.setNamedCard("Runeclaw Bear");actor.setNamedCard("Runeclaw Bear");
             SpellAbility sa=resolveSourceParent(spec,source);sa.setActivatingPlayer(actor);prepareSourceDependentPositiveWitness(spec,sa,source,actor);if(sa.getApi()==null||!spec.dispatch.equals(sa.getApi().name()))throw new IllegalStateException("dispatch mismatch runtime="+(sa.getApi()==null?"null":sa.getApi().name()));
             armSourceParentPolicy(spec,sa);awaitRemoteTransport(ps);leak0=Ws05HiddenInfoProbe.pilotVisibleLeaks();cross0=Ws05HiddenInfoProbe.crossPrincipalLeaks();ExternalObservationTrace.setPath(spec.pathId);currentPath.set(spec.pathId);
