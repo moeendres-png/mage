@@ -65,8 +65,8 @@ hacks; no pilot rules; fail closed.
 - [x] B0: source lock + target reproduction + workstream state
 - [x] B1: preparer v1 (273 cases, 0 skipped) + full overlay stack applied locally
 - [x] B2: Java test + 3-case local record+replay smoke green (XPAID/HAND/BATTLEFIELD)
-- [ ] B3: all families green locally (273/273 record+replay)
-- [ ] B4: certifier + workflow + CI gate PASS + checkpoint
+- [x] B3: 238/273 record+replay green locally (all implemented recipes, 0 actionable failures)
+- [ ] B4: batch 4 (real-cast/payment/combat-flow/attach infrastructure for remaining 35) + certifier + workflow + CI gate PASS + checkpoint
 - [ ] B5: 402 Cost cluster (recompute frontier first)
 
 ## B1/B2 evidence (CODE_DERIVED, local scratch /tmp/opencode/forge-pin @ FORGE_PIN)

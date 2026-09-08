@@ -635,9 +635,604 @@ public final class Ws33CalculateAmountCampaignTest extends AITest {
                 parent.appendSubAbility((forge.game.spellability.AbilitySub) sub);
                 return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sub), count * per);
             }
+            case "COUNT_HOST_COUNTERS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int counters = intParam(c.recipeParams, "counters");
+                final CounterType counterType = CounterType.getType(c.recipeParams.get("counter"));
+                host.setCounters(counterType, counters);
+                if (host.getCounters(counterType) != counters) {
+                    throw new IllegalStateException("counter fixture write not visible");
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), counters);
+            }
+            case "COUNT_LIFE": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int life = intParam(c.recipeParams, "life");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                final int current = actor.getLife();
+                if (current < life) {
+                    actor.gainLife(life - current, host, sa);
+                } else if (current > life) {
+                    actor.loseLife(current - life, false, false, sa);
+                }
+                if (actor.getLife() != life) {
+                    throw new IllegalStateException("life fixture state mismatch");
+                }
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), life);
+            }
+            case "COUNT_BATTLEFIELD_VALID": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int base = intParam(c.recipeParams, "base");
+                int placed = 0;
+                for (final String spec : c.recipeParams.get("place").split(";")) {
+                    final String[] parts = spec.split(",", -1);
+                    final Player owner = "ACTOR".equals(parts[1]) ? actor : game.getPlayers().get(1);
+                    final Card placedCard = addCardToZone(parts[0], owner, ZoneType.Battlefield);
+                    if (parts.length > 2 && "1".equals(parts[2])) {
+                        placedCard.setTapped(true);
+                    }
+                    placed++;
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), placed + base);
+            }
+            case "COUNT_COLORS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int expectedColors = intParam(c.recipeParams, "expected_colors");
+                // Basic lands are colorless: use colored permanents. The
+                // decision-fixture Prodigal Sorcerer (blue) and Runeclaw Bear
+                // are already inside the covered color set.
+                for (final String permanent : new String[]{"Elite Vanguard", "Flying Men",
+                        "Drudge Skeletons", "Raging Goblin", "Runeclaw Bear"}) {
+                    addCardToZone(permanent, actor, ZoneType.Battlefield);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), expectedColors);
+            }
+            case "COUNT_VALID_ANY": {
+                // Valid "Any" matches creatures, planeswalkers and battles.
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), countValidAny(game));
+            }
+            case "COUNT_GATE_NAMES": {
+                // Maze's End itself is Land without the Gate subtype: it does
+                // not match. Two real Gates give two distinct names.
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                addCardToZone("Gruul Guildgate", actor, ZoneType.Battlefield);
+                addCardToZone("Azorius Guildgate", actor, ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 2);
+            }
+            case "COUNT_GATE_TIMES2": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                addCardToZone("Gruul Guildgate", actor, ZoneType.Battlefield);
+                addCardToZone("Azorius Guildgate", actor, ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 4);
+            }
+            case "COUNT_NAMED": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int count = intParam(c.recipeParams, "count");
+                for (int i = 0; i < count; i++) {
+                    addCardToZone(c.recipeParams.get("name"), actor, ZoneType.Battlefield);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), count);
+            }
+            case "COUNT_GRAVE_CREATURE": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int actorBears = intParam(c.recipeParams, "actor_bears");
+                final int oppBears = intParam(c.recipeParams, "opponent_bears");
+                for (int i = 0; i < actorBears; i++) {
+                    addCardToZone("Runeclaw Bear", actor, ZoneType.Graveyard);
+                }
+                for (int i = 0; i < oppBears; i++) {
+                    addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Graveyard);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(
+                        AbilityUtils.calculateAmount(host, c.svarToken, sa), actorBears + oppBears);
+            }
+            case "COUNT_GRAVE_SPELLS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int actorShocks = intParam(c.recipeParams, "actor_shocks");
+                final int oppShocks = intParam(c.recipeParams, "opponent_shocks");
+                for (int i = 0; i < actorShocks; i++) {
+                    addCardToZone("Shock", actor, ZoneType.Graveyard);
+                }
+                for (int i = 0; i < oppShocks; i++) {
+                    addCardToZone("Shock", game.getPlayers().get(1), ZoneType.Graveyard);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(
+                        AbilityUtils.calculateAmount(host, c.svarToken, sa), actorShocks);
+            }
+            case "COUNT_HAND_ACTIVE": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                final Player active = game.getPhaseHandler().getPlayerTurn();
+                return new AmountResult(
+                        AbilityUtils.calculateAmount(host, c.svarToken, sa),
+                        active.getZone(ZoneType.Hand).size());
+            }
+            case "COUNT_MAXCMC": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Card ring = addCardToZone("Sol Ring", actor, ZoneType.Battlefield);
+                final Card shock = addCardToZone("Shock", actor, ZoneType.Graveyard);
+                final Card divination = addCardToZone("Divination", actor, ZoneType.Graveyard);
+                int expected = ring.getCMC();
+                expected = Math.max(expected, shock.getCMC());
+                expected = Math.max(expected, divination.getCMC());
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), expected);
+            }
+            case "COUNT_ATTACKERS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int attackers = intParam(c.recipeParams, "attackers");
+                final Player foe = game.getPlayers().get(1);
+                for (int i = 0; i < attackers; i++) {
+                    actor.addCreaturesAttackedThisTurn(
+                            addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield), foe);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), attackers);
+            }
+            case "COUNT_HOST_POWER": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int power = host.getNetPower();
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), power);
+            }
+            case "COUNT_REMEMBERED_SIZE": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int count = intParam(c.recipeParams, "remembered");
+                for (int i = 0; i < count; i++) {
+                    host.addRemembered(addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield));
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), count);
+            }
+            case "COUNT_MORBID": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int trueVal = intParam(c.recipeParams, "true_val");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                game.getAction().moveTo(ZoneType.Graveyard,
+                        addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield), null, null);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), trueVal);
+            }
+            case "COUNT_FORETOLD": {
+                Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int trueVal = intParam(c.recipeParams, "true_val");
+                host = game.getAction().moveTo(ZoneType.Exile, host, null, null);
+                host.setForetold(true);
+                if (!host.isForetold()) {
+                    throw new IllegalStateException("foretold fixture state mismatch");
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), trueVal);
+            }
+            case "COUNT_LANDFALL": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int trueVal = intParam(c.recipeParams, "true_val");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                final Card land = addCardToZone("Island", actor, ZoneType.Hand);
+                game.getAction().moveTo(ZoneType.Battlefield, land, null, null);
+                if (!actor.hasLandfall()) {
+                    throw new IllegalStateException("landfall fixture did not register");
+                }
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), trueVal);
+            }
+            case "COUNT_ENTERED_MODIFIED": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                final Card modified = addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield);
+                modified.setCounters(CounterType.getType("P1P1"), 1);
+                game.getAction().moveTo(ZoneType.Graveyard, modified, null, null);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 1);
+            }
+            case "NUMBER_DEFAULT": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int value = intParam(c.recipeParams, "value");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), value);
+            }
+            case "NUMBER_VRASKA": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Player foe = game.getPlayers().get(1);
+                final int poison = intParam(c.recipeParams, "poison");
+                foe.setPoisonCounters(poison, actor);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getTargets().add(foe);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 9 - poison);
+            }
+            case "PLAYERCOUNT_PLAYERS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(
+                        AbilityUtils.calculateAmount(host, c.svarToken, sa),
+                        game.getPlayers().size());
+            }
+            case "PLAYERCOUNT_CONDITION": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Player foe = game.getPlayers().get(1);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                foe.loseLife(foe.getLife() - intParam(c.recipeParams, "low_life"), false, false, sa);
+                int expected = 0;
+                for (final Player p : game.getPlayers()) {
+                    if (p.getLife() <= p.getStartingLife() / 2) {
+                        expected++;
+                    }
+                }
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), expected);
+            }
+            case "PLAYERCOUNT_LOSTLIFE": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Player foe = game.getPlayers().get(1);
+                foe.setLifeLostThisTurn(intParam(c.recipeParams, "lost"));
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 1);
+            }
+            case "PLAYERCOUNT_LIFELOST_SUM": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Player foe = game.getPlayers().get(1);
+                final int lost = intParam(c.recipeParams, "lost");
+                foe.setLifeLostThisTurn(lost);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), lost);
+            }
+            case "PLAYERCOUNT_DISCARDED": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int discarded = intParam(c.recipeParams, "discarded");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                for (int i = 0; i < discarded; i++) {
+                    addCardToZone("Island", actor, ZoneType.Hand);
+                }
+                int done = 0;
+                for (final Card card : new java.util.ArrayList<>(actor.getZone(ZoneType.Hand).getCards())) {
+                    if (done >= discarded) {
+                        break;
+                    }
+                    if (!"Island".equals(card.getName())) {
+                        continue;
+                    }
+                    if (actor.discard(card, null, false, AbilityKey.newMap()) == null) {
+                        throw new IllegalStateException("fixture discard rejected");
+                    }
+                    done++;
+                }
+                if (done != discarded) {
+                    throw new IllegalStateException("fixture discard shortfall");
+                }
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), discarded);
+            }
+            case "PLAYERCOUNT_SACRIFICED": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int sacrificed = intParam(c.recipeParams, "sacrificed");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                final List<Card> victims = new ArrayList<>();
+                for (int i = 0; i < sacrificed; i++) {
+                    victims.add(addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield));
+                }
+                final Map<AbilityKey, Object> sacParams = AbilityKey.newMap();
+                AbilityKey.addCardZoneTableParams(sacParams, sa);
+                game.getAction().sacrifice(victims, sa, false, sacParams);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), sacrificed);
+            }
+            case "PLAYERCOUNT_HAND_LE1": {
+                // Test games start with empty hands: give the other players
+                // cards so only the fixture opponent satisfies LE1.
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Player foe = game.getPlayers().get(1);
+                for (int i = 0; i < 3; i++) {
+                    addCardToZone("Island", actor, ZoneType.Hand);
+                }
+                for (int i = 0; i < 2; i++) {
+                    addCardToZone("Island", game.getPlayers().get(2), ZoneType.Hand);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 1);
+            }
+            case "PLAYERCOUNT_DEFINEDREGISTERED": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Player foe = game.getPlayers().get(1);
+                final int lost = intParam(c.recipeParams, "lost");
+                foe.setLifeLostThisTurn(lost);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), lost);
+            }
+            case "PLAYERCOUNT_REMEMBERED": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Player foe = game.getPlayers().get(1);
+                host.addRemembered(foe);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 1);
+            }
+            case "PLAYERCOUNT_HIGHEST_GRAVE": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int opp1 = intParam(c.recipeParams, "opp1_bears");
+                final int opp2 = intParam(c.recipeParams, "opp2_bears");
+                for (int i = 0; i < opp1; i++) {
+                    addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Graveyard);
+                }
+                for (int i = 0; i < opp2; i++) {
+                    addCardToZone("Runeclaw Bear", game.getPlayers().get(2), ZoneType.Graveyard);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(
+                        AbilityUtils.calculateAmount(host, c.svarToken, sa), Math.max(opp1, opp2));
+            }
+            case "PLAYERCOUNT_LOWEST_LIFE": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Player foe = game.getPlayers().get(2);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                foe.loseLife(foe.getLife() - intParam(c.recipeParams, "low_life"), false, false, sa);
+                int expected = Integer.MAX_VALUE;
+                for (final Player p : game.getPlayers()) {
+                    expected = Math.min(expected, p.getLife());
+                }
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), expected);
+            }
+            case "REMEMBEREDLKI_TOUGHNESS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int count = intParam(c.recipeParams, "remembered_bears");
+                int per = 0;
+                for (int i = 0; i < count; i++) {
+                    final Card remembered = addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield);
+                    if (i == 0) {
+                        per = remembered.getNetToughness();
+                    }
+                    host.addRemembered(remembered);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), count * per);
+            }
+            case "REPLACECOUNT_OPS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int value = intParam(c.recipeParams, "value");
+                final String ops = c.recipeParams.get("ops");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setReplacingObject(
+                        AbilityKey.fromString(c.recipeParams.get("key")), value);
+                return new AmountResult(
+                        AbilityUtils.calculateAmount(host, c.svarToken, sa),
+                        AbilityUtils.doXMath(value, ops, host, sa));
+            }
+            case "SVAR_FIRSTFAMILY": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int white = intParam(c.recipeParams, "white");
+                final int blue = intParam(c.recipeParams, "blue");
+                final int black = intParam(c.recipeParams, "black");
+                final int red = intParam(c.recipeParams, "red");
+                final int green = intParam(c.recipeParams, "green");
+                for (int i = 0; i < white; i++) {
+                    addCardToZone("Elite Vanguard", actor, ZoneType.Battlefield);
+                }
+                for (int i = 0; i < blue; i++) {
+                    addCardToZone("Flying Men", actor, ZoneType.Battlefield);
+                }
+                for (int i = 0; i < black; i++) {
+                    addCardToZone("Drudge Skeletons", actor, ZoneType.Battlefield);
+                }
+                for (int i = 0; i < red; i++) {
+                    addCardToZone("Raging Goblin", actor, ZoneType.Battlefield);
+                }
+                for (int i = 0; i < green; i++) {
+                    addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield);
+                }
+                // Decision-fixture Prodigal Sorcerer is a blue actor permanent.
+                // Host First Family ({2}{G}{U} instant on the battlefield)
+                // satisfies the Permanent token via isInPlay and contributes
+                // its blue and green colors.
+                final int wp = white;
+                final int up = blue + 2;
+                final int bp = black;
+                final int rp = red;
+                final int gp = green + 1;
+                final int w2 = wp;
+                final int u2 = up;
+                final int b2 = bp;
+                final int r2 = rp;
+                final int g2 = gp;
+                final int w = Math.min(w2, 1);
+                final int u = Math.min(u2, 1);
+                final int b = Math.min(b2, 1);
+                final int r = Math.min(r2, 1);
+                final int g = Math.min(g2, 1);
+                final int wu = w + u;
+                final int br = b + r;
+                final int wubr = wu + br;
+                final int x = wubr + g;
+                final int expected;
+                switch (c.svarToken) {
+                    case "W": expected = w; break;
+                    case "U": expected = u; break;
+                    case "B": expected = b; break;
+                    case "R": expected = r; break;
+                    case "G": expected = g; break;
+                    case "W2": expected = w2; break;
+                    case "U2": expected = u2; break;
+                    case "B2": expected = b2; break;
+                    case "R2": expected = r2; break;
+                    case "G2": expected = g2; break;
+                    case "WU": expected = wu; break;
+                    case "BR": expected = br; break;
+                    case "WUBR": expected = wubr; break;
+                    case "X": expected = x; break;
+                    case "WP": expected = wp; break;
+                    case "UP": expected = up; break;
+                    case "BP": expected = bp; break;
+                    case "RP": expected = rp; break;
+                    case "GP": expected = gp; break;
+                    case "WS": case "US": case "BS": case "RS": case "GS": expected = 0; break;
+                    default: throw new IllegalStateException("unknown First Family token " + c.svarToken);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), expected);
+            }
+            case "SVAR_SOULBURN": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int paid = intParam(c.recipeParams, "paid");
+                final int black = intParam(c.recipeParams, "black");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setXManaCostPaid(paid);
+                host.setXManaCostPaidByColor(java.util.Map.of("B", black));
+                return new AmountResult(
+                        AbilityUtils.calculateAmount(host, c.svarToken, sa), Math.min(black, paid));
+            }
+            case "SVAR_FANDANIEL": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int actorShocks = intParam(c.recipeParams, "actor_shocks");
+                final int oppShocks = intParam(c.recipeParams, "opponent_shocks");
+                for (int i = 0; i < actorShocks; i++) {
+                    addCardToZone("Shock", actor, ZoneType.Graveyard);
+                }
+                for (int i = 0; i < oppShocks; i++) {
+                    addCardToZone("Shock", game.getPlayers().get(1), ZoneType.Graveyard);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), actorShocks * 2);
+            }
+            case "SVAR_SCEPTER": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                addCardToZone("Crown of Empires", actor, ZoneType.Battlefield);
+                addCardToZone("Throne of Empires", actor, ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 1);
+            }
+            case "SVAR_LOKI_ABS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int count = intParam(c.recipeParams, "remembered_bears");
+                final Card trigger = addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield);
+                final int trigCmc = trigger.getCMC();
+                int per = 0;
+                for (int i = 0; i < count; i++) {
+                    final Card remembered = addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield);
+                    if (i == 0) {
+                        per = remembered.getCMC();
+                    }
+                    host.addRemembered(remembered);
+                    trigger.addRemembered(remembered);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setTriggeringObject(AbilityKey.Card, trigger);
+                return new AmountResult(
+                        AbilityUtils.calculateAmount(host, c.svarToken, sa), Math.abs(trigCmc - count * per));
+            }
+            case "SVAR_FIREBALL": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(
+                        AbilityUtils.calculateAmount(host, c.svarToken, sa),
+                        3 + countValidAny(game));
+            }
+            case "TARGETEDCONTROLLER_GRAVELANDS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int actorLands = intParam(c.recipeParams, "actor_lands");
+                final int oppLands = intParam(c.recipeParams, "opponent_lands");
+                for (int i = 0; i < actorLands; i++) {
+                    addCardToZone("Island", actor, ZoneType.Graveyard);
+                }
+                for (int i = 0; i < oppLands; i++) {
+                    addCardToZone("Island", game.getPlayers().get(1), ZoneType.Graveyard);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getTargets().add(addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield));
+                sa.getTargets().add(addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield));
+                return new AmountResult(
+                        AbilityUtils.calculateAmount(host, c.svarToken, sa), actorLands + oppLands);
+            }
+            case "TARGETEDOBJECTS_AMOUNT": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Player foe = game.getPlayers().get(1);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getTargets().add(addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield));
+                sa.getTargets().add(addCardToZone("Runeclaw Bear", foe, ZoneType.Battlefield));
+                sa.getTargets().add(foe);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 2);
+            }
+            case "TRIGGEREDATTACKER_POWER": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Card trigger = addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield);
+                final int power = trigger.getNetPower();
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setTriggeringObject(AbilityKey.Attacker, trigger);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), power);
+            }
+            case "TRIGGEREDOBJECT_KREE": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setTriggeringObject(AbilityKey.Object, host);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 1);
+            }
+            case "TRIGGEREDTARGET_LIFE": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Player foe = game.getPlayers().get(1);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setTriggeringObject(AbilityKey.Target, foe);
+                return new AmountResult(
+                        AbilityUtils.calculateAmount(host, c.svarToken, sa),
+                        AbilityUtils.doXMath(foe.getLife(), "HalfUp", host, sa));
+            }
             default:
                 throw new IllegalStateException("fail-closed unsupported amount recipe " + c.recipe);
         }
+    }
+
+    private static int countValidAny(final Game game) {
+        int expected = 0;
+        for (final Card card : game.getCardsIn(ZoneType.Battlefield)) {
+            if (card.isCreature() || card.isPlaneswalker() || card.isBattle()) {
+                expected++;
+            }
+        }
+        return expected;
     }
 
     private SpellAbility findSubAbility(final Card host) {

@@ -48,12 +48,149 @@ def read_card_svars(card_path: Path) -> tuple[str, dict[str, str], list[str]]:
     return name, svars, lines
 
 
-def assign_recipe(token: str, expr: str) -> tuple[str, dict]:
+def place_spec(entries: list[tuple[str, str, bool]]) -> str:
+    """Semicolon-joined placement list: Name,CTRL,tapped01 entries."""
+    return ";".join(f"{name},{ctrl},{1 if tapped else 0}" for name, ctrl, tapped in entries)
+
+
+def assign_recipe(card_name: str, token: str, expr: str) -> tuple[str, dict]:
     """Return (recipe, params). Params are fixture inputs, never engine outputs."""
     if expr == "Count$xPaid":
         return "COUNT_XPAID", {"paid": 5}
     if expr == "Count$ValidHand Card.YouOwn":
         return "COUNT_HAND_YOUOWN", {"hand_cards": 4}
+    if expr.startswith("Count$CardCounters."):
+        return "COUNT_HOST_COUNTERS", {"counter": expr.split(".")[1], "counters": 3}
+    if expr == "Count$YourLifeTotal":
+        return "COUNT_LIFE", {"life": 17}
+    if expr == "Count$Valid Land.YouCtrl":
+        return "COUNT_BATTLEFIELD_VALID", {"place": place_spec([("Island", "ACTOR", False)] * 3), "base": 0}
+    if expr == "Count$Valid Artifact.YouCtrl":
+        # Host Uthros Research Craft is itself an actor artifact: base 1.
+        return "COUNT_BATTLEFIELD_VALID", {"place": place_spec([("Sol Ring", "ACTOR", False)] * 2), "base": 1}
+    if expr == "Count$Valid Artifact.YouCtrl+tapped":
+        return "COUNT_BATTLEFIELD_VALID", {"place": place_spec([("Sol Ring", "ACTOR", True)] * 2), "base": 0}
+    if expr == "Count$Valid Plains.YouCtrl":
+        return "COUNT_BATTLEFIELD_VALID", {"place": place_spec([("Plains", "ACTOR", False)] * 3), "base": 0}
+    if expr == "Count$Valid Swamp.YouCtrl":
+        return "COUNT_BATTLEFIELD_VALID", {"place": place_spec([("Swamp", "ACTOR", False)] * 2), "base": 0}
+    if expr == "Count$Valid Artifact.nonCreature+YouCtrl":
+        return "COUNT_BATTLEFIELD_VALID", {"place": place_spec([("Sol Ring", "ACTOR", False)] * 2), "base": 0}
+    if expr == "Count$Valid Creature":
+        # Base: decision-fixture Prodigal Sorcerer (actor) + opponent bear.
+        return "COUNT_BATTLEFIELD_VALID", {"place": place_spec([("Runeclaw Bear", "ACTOR", False)] * 3), "base": 2}
+    if expr == "Count$Valid Creature.Other+YouCtrl":
+        # Other excludes the host itself; base is Prodigal Sorcerer only.
+        return "COUNT_BATTLEFIELD_VALID", {"place": place_spec([("Runeclaw Bear", "ACTOR", False)] * 3), "base": 1}
+    if expr == "Count$Valid Creature.YouCtrl+withFlying":
+        return "COUNT_BATTLEFIELD_VALID", {"place": place_spec([("Air Elemental", "ACTOR", False)] * 2), "base": 0}
+    if expr == "Count$Valid Permanent.YouCtrl$Colors":
+        return "COUNT_COLORS", {"expected_colors": 5}
+    if expr == "Count$Valid Permanent.YouCtrl+Other":
+        return "COUNT_BATTLEFIELD_VALID", {"place": place_spec([("Runeclaw Bear", "ACTOR", False)] * 2), "base": 1}
+    if expr == "Count$Valid Permanent.nonLand+YouCtrl":
+        # Host instant on the battlefield satisfies the Permanent token via
+        # isInPlay: base is Prodigal Sorcerer plus the host itself.
+        return "COUNT_BATTLEFIELD_VALID", {"place": place_spec([("Runeclaw Bear", "ACTOR", False)] * 2), "base": 2}
+    if expr == "Count$Valid Any":
+        return "COUNT_VALID_ANY", {}
+    if expr == "Count$Valid Gate.YouCtrl$DifferentCardNames":
+        # Host Maze's End is itself a Gate watched by YouCtrl: counts.
+        return "COUNT_GATE_NAMES", {}
+    if expr == "Count$Valid Gate.YouCtrl/Times.2":
+        return "COUNT_GATE_TIMES2", {}
+    if expr == "Count$Valid Artifact.namedCrown of Empires+YouCtrl":
+        return "COUNT_NAMED", {"name": "Crown of Empires", "count": 1}
+    if expr == "Count$ValidGraveyard Creature":
+        return "COUNT_GRAVE_CREATURE", {"actor_bears": 3, "opponent_bears": 1}
+    if expr == "Count$ValidGraveyard Instant.YouOwn,Sorcery.YouOwn":
+        return "COUNT_GRAVE_SPELLS", {"actor_shocks": 2, "opponent_shocks": 1}
+    if expr == "Count$ValidHand Card.ActivePlayerCtrl":
+        return "COUNT_HAND_ACTIVE", {}
+    if expr == "Count$ValidBattlefield,Graveyard Card.nonCreature+YouCtrl$GreatestCardManaCost":
+        return "COUNT_MAXCMC", {}
+    if expr == "Count$AttackersDeclared":
+        return "COUNT_ATTACKERS", {"attackers": 2}
+    if expr == "Count$CardPower":
+        return "COUNT_HOST_POWER", {}
+    if expr == "Count$RememberedSize":
+        return "COUNT_REMEMBERED_SIZE", {"remembered": 3}
+    if expr == "Count$Morbid.1.0":
+        return "COUNT_MORBID", {"true_val": 1}
+    if expr == "Count$Morbid.5.3":
+        return "COUNT_MORBID", {"true_val": 5}
+    if expr == "Count$Foretold.1.0":
+        return "COUNT_FORETOLD", {"true_val": 1}
+    if expr == "Count$Landfall.3.1":
+        return "COUNT_LANDFALL", {"true_val": 3}
+    if expr == "Count$ThisTurnEntered_Graveyard_from_Battlefield_Creature.modified+YouCtrl":
+        return "COUNT_ENTERED_MODIFIED", {}
+    if expr == "Number$0":
+        return "NUMBER_DEFAULT", {"value": 0}
+    if expr == "Number$9/Minus.X":
+        return "NUMBER_VRASKA", {"poison": 3}
+    if expr == "PlayerCountPlayers$Amount":
+        return "PLAYERCOUNT_PLAYERS", {"players": 3}
+    if expr == "PlayerCountPlayers$ConditionLEY LifeTotal":
+        return "PLAYERCOUNT_CONDITION", {"low_life": 5}
+    if expr == "PlayerCountPlayers$HasPropertyLostLifeThisTurn":
+        return "PLAYERCOUNT_LOSTLIFE", {"lost": 5}
+    if expr == "PlayerCountPlayers$LifeLostThisTurn":
+        return "PLAYERCOUNT_LIFELOST_SUM", {"lost": 5}
+    if expr == "PlayerCountPropertyYou$CardsDiscardedThisTurn":
+        return "PLAYERCOUNT_DISCARDED", {"discarded": 2}
+    if expr == "PlayerCountPropertyYou$SacrificedThisTurn Permanent.!token":
+        return "PLAYERCOUNT_SACRIFICED", {"sacrificed": 2}
+    if expr == "PlayerCount$HasPropertyHasCardsInHand_Card_LE1":
+        return "PLAYERCOUNT_HAND_LE1", {}
+    if expr == "PlayerCountDefinedRegistered$HighestLifeLostThisTurn":
+        return "PLAYERCOUNT_DEFINEDREGISTERED", {"lost": 5}
+    if expr == "PlayerCountOpponents$HasPropertyIsRememberedOrController":
+        return "PLAYERCOUNT_REMEMBERED", {}
+    if expr == "PlayerCountOpponents$HighestCardsInGraveyard":
+        return "PLAYERCOUNT_HIGHEST_GRAVE", {"opp1_bears": 2, "opp2_bears": 5}
+    if expr == "PlayerCountOpponents$LowestLifeTotal":
+        return "PLAYERCOUNT_LOWEST_LIFE", {"low_life": 15}
+    if expr == "RememberedLKI$CardToughness":
+        return "REMEMBEREDLKI_TOUGHNESS", {"remembered_bears": 2}
+    if expr == "ReplaceCount$CounterNum/Plus.1":
+        return "REPLACECOUNT_OPS", {"key": "CounterNum", "value": 3, "ops": "Plus.1"}
+    if expr == "ReplaceCount$CounterNum/Twice":
+        return "REPLACECOUNT_OPS", {"key": "CounterNum", "value": 3, "ops": "Twice"}
+    if expr == "ReplaceCount$DamageAmount/Plus.1":
+        return "REPLACECOUNT_OPS", {"key": "DamageAmount", "value": 4, "ops": "Plus.1"}
+    if expr == "ReplaceCount$DamageAmount/Thrice":
+        return "REPLACECOUNT_OPS", {"key": "DamageAmount", "value": 4, "ops": "Thrice"}
+    if expr == "ReplaceCount$DamageAmount/Twice":
+        return "REPLACECOUNT_OPS", {"key": "DamageAmount", "value": 4, "ops": "Twice"}
+    if expr == "ReplaceCount$LifeGained/Plus.1":
+        return "REPLACECOUNT_OPS", {"key": "LifeGained", "value": 5, "ops": "Plus.1"}
+    if token == "Difference" and expr == "Number$9/Minus.X":
+        return "NUMBER_VRASKA", {"poison": 3}
+    if expr == "SVar$BManaPaid/LimitMax.Limit":
+        return "SVAR_SOULBURN", {"paid": 4, "black": 2}
+    if expr == "SVar$Y/Times.2" and token == "X":
+        return "SVAR_FANDANIEL", {"actor_shocks": 2, "opponent_shocks": 1}
+    if expr == "SVar$Z/Times.Y" and token == "AllM12Empires":
+        return "SVAR_SCEPTER", {}
+    if expr == "SVar$Y/Abs" and token == "X":
+        return "SVAR_LOKI_ABS", {"remembered_bears": 2}
+    if expr == "SVar$MaxPlayers/Plus.MaxPermanents":
+        return "SVAR_FIREBALL", {}
+    if token in {"W", "U", "B", "R", "G", "W2", "U2", "B2", "R2", "G2",
+                 "WU", "BR", "WUBR", "X", "WP", "UP", "BP", "RP", "GP",
+                 "WS", "US", "BS", "RS", "GS"} and card_name == "First Family":
+        return "SVAR_FIRSTFAMILY", {"white": 2, "blue": 2, "black": 2, "red": 2, "green": 2}
+    if expr == "TargetedController$LandsInGraveyard":
+        return "TARGETEDCONTROLLER_GRAVELANDS", {"actor_lands": 2, "opponent_lands": 1}
+    if expr == "TargetedObjects$Amount/Minus.1":
+        return "TARGETEDOBJECTS_AMOUNT", {"objects": 3}
+    if expr == "TriggeredAttacker$CardPower":
+        return "TRIGGEREDATTACKER_POWER", {}
+    if expr == "TriggeredObject$Valid Kree":
+        return "TRIGGEREDOBJECT_KREE", {}
+    if expr == "TriggeredTarget$LifeTotal/HalfUp":
+        return "TRIGGEREDTARGET_LIFE", {}
     if expr == "Count$Valid Creature.YouCtrl":
         return (
             "COUNT_BATTLEFIELD_CREATURE_YOUCTRL",
@@ -190,7 +327,7 @@ def main() -> None:
         except ValueError:
             skipped["bad_source_line"] += 1
             continue
-        recipe, params = assign_recipe(token, recorded)
+        recipe, params = assign_recipe(name, token, recorded)
         cases.append({
             "path_id": row["effective_path_id"],
             "oracle_id": prov["oracle_identity"],
