@@ -1220,6 +1220,264 @@ public final class Ws33CalculateAmountCampaignTest extends AITest {
                         AbilityUtils.calculateAmount(host, c.svarToken, sa),
                         AbilityUtils.doXMath(foe.getLife(), "HalfUp", host, sa));
             }
+            case "COUNT_COMMANDER_CAST": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int casts = intParam(c.recipeParams, "casts");
+                for (int i = 0; i < casts; i++) {
+                    actor.incCommanderCast(addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield));
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), casts);
+            }
+            case "COUNT_EQUIPMENT_ATTACHED_ZERO": {
+                // No zone token parses from "Equipment.Attached": the engine
+                // counts over an empty zone set and yields 0 even with an
+                // attached Equipment present. REVIEW: dead expression.
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Card bearer = addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield);
+                final Card equipment = addCardToZone("Lightning Greaves", actor, ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                equipment.attachToEntity(bearer, sa);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 0);
+            }
+            case "COUNT_CARDNUMATTACKS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int attacks = intParam(c.recipeParams, "attacks");
+                final Player foe = game.getPlayers().get(1);
+                final Player foe2 = game.getPlayers().get(2);
+                host.getDamageHistory().setCreatureAttackedThisCombat(foe, 0);
+                host.getDamageHistory().setCreatureAttackedThisCombat(foe2, 0);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), attacks);
+            }
+            case "PLAYERCOUNT_UNBOUND_ZERO": {
+                // Property string has no production branch: unknown-property
+                // tail returns false for every player. REVIEW: dead expression.
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 0);
+            }
+            case "COUNT_ATTACKED_LASTTURN": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Player foe = game.getPlayers().get(1);
+                foe.setAttackedPlayersMyLastTurn(java.util.List.of(actor));
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 1);
+            }
+            case "TRIGGEREDCARD_ATTACHED": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Card trigger = addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield);
+                final Card aura = addCardToZone("Rancor", actor, ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                aura.attachToEntity(trigger, sa);
+                if (!trigger.getAttachedCards().contains(aura)) {
+                    throw new IllegalStateException("aura fixture did not attach");
+                }
+                sa.getRootAbility().setTriggeringObject(AbilityKey.Card, trigger);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 1);
+            }
+            case "TRIGGEREDCARD_CASTSA_MANA":
+            case "REPLACEDCARD_CASTSA": {
+                final boolean replaced = "REPLACEDCARD_CASTSA".equals(c.recipe);
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int mana = intParam(c.recipeParams, "mana");
+                final Card payer = addCardToZone("Sol Ring", actor, ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                final forge.game.spellability.AbilityManaPart part =
+                        new forge.game.spellability.AbilityManaPart(payer, java.util.Map.of("Produced", "R"));
+                for (int i = 0; i < mana; i++) {
+                    sa.getPayingMana().add(new forge.game.mana.Mana(
+                            forge.card.MagicColor.RED, payer, part, actor));
+                }
+                if (replaced) {
+                    final Card trigger = addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield);
+                    trigger.setCastSA(sa);
+                    sa.getRootAbility().setReplacingObject(AbilityKey.Card, trigger);
+                } else {
+                    final Card trigger = addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield);
+                    trigger.setCastSA(sa);
+                    sa.getRootAbility().setTriggeringObject(AbilityKey.Card, trigger);
+                }
+                if (sa.getTotalManaSpent() != mana) {
+                    throw new IllegalStateException("paying-mana fixture state mismatch");
+                }
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), mana);
+            }
+            case "TRIGGEREDCARD_COMMANDERCAST": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int casts = intParam(c.recipeParams, "casts");
+                final Card trigger = addCardToZone("Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield);
+                for (int i = 0; i < casts; i++) {
+                    actor.incCommanderCast(trigger);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setTriggeringObject(AbilityKey.Card, trigger);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), casts);
+            }
+            case "TRIGGERREMEMBERED_ZERO": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int value = intParam(c.recipeParams, "value");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), value);
+            }
+            case "COUNT_KICKED_FALSE": {
+                // Fixture pays no kicker: production takes the not-kicked branch.
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int falseVal = intParam(c.recipeParams, "false_val");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                if (sa.isKicked()) {
+                    throw new IllegalStateException("fixture unexpectedly kicked");
+                }
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), falseVal);
+            }
+            case "COUNT_TIMESKICKED_ZERO": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 0);
+            }
+            case "COUNT_OPTIONALGENERIC_FALSE": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int falseVal = intParam(c.recipeParams, "false_val");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), falseVal);
+            }
+            case "CAST_SPELLS": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                int cast = 0;
+                for (final String spell : c.recipeParams.get("spells").split(";")) {
+                    final Card spellCard = addCardToZone(spell, actor, ZoneType.Hand);
+                    final SpellAbility spellAbility = spellCard.getSpells().get(0);
+                    spellAbility.setActivatingPlayer(actor);
+                    if (spellAbility.usesTargeting()) {
+                        spellAbility.getTargets().add(addCardToZone(
+                                "Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield));
+                    }
+                    game.getStack().addAndUnfreeze(spellAbility);
+                    cast++;
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), cast);
+            }
+            case "CAST_SPELLS_PLUS1": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                int cast = 0;
+                for (final String spell : c.recipeParams.get("spells").split(";")) {
+                    final Card spellCard = addCardToZone(spell, actor, ZoneType.Hand);
+                    final SpellAbility spellAbility = spellCard.getSpells().get(0);
+                    spellAbility.setActivatingPlayer(actor);
+                    if (spellAbility.usesTargeting()) {
+                        spellAbility.getTargets().add(addCardToZone(
+                                "Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield));
+                    }
+                    game.getStack().addAndUnfreeze(spellAbility);
+                    cast++;
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), cast + 1);
+            }
+            case "CAST_SPELLS_MAXCMC": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                int best = 0;
+                for (final String spell : c.recipeParams.get("spells").split(";")) {
+                    final Card spellCard = addCardToZone(spell, actor, ZoneType.Hand);
+                    best = Math.max(best, spellCard.getCMC());
+                    final SpellAbility spellAbility = spellCard.getSpells().get(0);
+                    spellAbility.setActivatingPlayer(actor);
+                    if (spellAbility.usesTargeting()) {
+                        spellAbility.getTargets().add(addCardToZone(
+                                "Runeclaw Bear", game.getPlayers().get(1), ZoneType.Battlefield));
+                    }
+                    game.getStack().addAndUnfreeze(spellAbility);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), best);
+            }
+            case "CAST_ACTIVATE_ARTIFACT": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Card ring = addCardToZone("Sol Ring", actor, ZoneType.Battlefield);
+                final SpellAbility manaAbility = firstAbility(ring);
+                manaAbility.setActivatingPlayer(actor);
+                game.getStack().addAndUnfreeze(manaAbility);
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 1);
+            }
+            case "COUNT_WASCAST_HAND": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int trueVal = intParam(c.recipeParams, "true_val");
+                host.setCastFrom(actor.getZone(ZoneType.Hand));
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                host.setCastSA(sa);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), trueVal);
+            }
+            case "COUNT_NUMDAMAGE_ZERO": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int value = intParam(c.recipeParams, "value");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), value);
+            }
+            case "COUNT_XCOLORPAID": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int black = intParam(c.recipeParams, "black");
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                host.setXManaCostPaidByColor(java.util.Map.of("B", black));
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), black);
+            }
+            case "COUNT_MONARCH": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                game.setMonarch(game.getPlayers().get(1));
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 1);
+            }
+            case "COUNT_OPPONENTS_ATTACKED": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final int attackers = intParam(c.recipeParams, "attackers");
+                final Player foe = game.getPlayers().get(1);
+                for (int i = 0; i < attackers; i++) {
+                    actor.addCreaturesAttackedThisTurn(
+                            addCardToZone("Runeclaw Bear", actor, ZoneType.Battlefield), foe);
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 1);
+            }
+            case "TRIGGEREDSPELLABILITY_TIMESKICKED_ZERO": {
+                final Card host = addCardToZone(c.cardName, actor, ZoneType.Battlefield);
+                final Card triggerSource = addCardToZone("Prodigal Sorcerer", actor, ZoneType.Battlefield);
+                SpellAbility triggerAbility = null;
+                for (final SpellAbility candidate : triggerSource.getSpellAbilities()) {
+                    if (candidate.isActivatedAbility()) {
+                        triggerAbility = candidate;
+                        break;
+                    }
+                }
+                if (triggerAbility == null) {
+                    throw new IllegalStateException("trigger source lacks activated ability");
+                }
+                final SpellAbility sa = firstAbility(host);
+                sa.setActivatingPlayer(actor);
+                sa.getRootAbility().setTriggeringObject(AbilityKey.SpellAbility, triggerAbility);
+                return new AmountResult(AbilityUtils.calculateAmount(host, c.svarToken, sa), 0);
+            }
             default:
                 throw new IllegalStateException("fail-closed unsupported amount recipe " + c.recipe);
         }
@@ -1415,6 +1673,11 @@ public final class Ws33CalculateAmountCampaignTest extends AITest {
         Files.writeString(observation, observationJson(c, result), StandardCharsets.UTF_8);
 
         final String rel = "records/" + shortId(c.pathId) + "/";
+        final boolean defaultZero = "COUNT_EQUIPMENT_ATTACHED_ZERO".equals(c.recipe)
+                || "PLAYERCOUNT_UNBOUND_ZERO".equals(c.recipe)
+                || "COUNT_NUMDAMAGE_ZERO".equals(c.recipe)
+                || "NUMBER_DEFAULT".equals(c.recipe);
+        final String evidenceClass = defaultZero ? "TECHNICALLY_CONFORMANT" : "EXTERNALLY_RULE_VALIDATED";
         final String record = "{"
                 + "\"schema\":\"commander-simulator-next.ws33-runtime-campaign-record.v1\","
                 + "\"witness_id\":" + q("ws33-calculate-amount-" + shortId(c.pathId)) + ","
@@ -1456,7 +1719,8 @@ public final class Ws33CalculateAmountCampaignTest extends AITest {
                 + "\"rules_authority_refs\":["
                 + q("https://magic.wizards.com/en/rules (current Comprehensive Rules), 107.3")
                 + "],"
-                + "\"evidence_class\":\"EXTERNALLY_RULE_VALIDATED\""
+                + "\"evidence_class\":" + q(evidenceClass)
+                + (defaultZero ? ",\"default_zero_evidence\":true,\"review_required\":\"DEAD_EXPRESSION\"" : "")
                 + "}\n";
         Files.writeString(dir.resolve("record.json"), record, StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("record-success.marker"), "PASS\n", StandardCharsets.UTF_8);

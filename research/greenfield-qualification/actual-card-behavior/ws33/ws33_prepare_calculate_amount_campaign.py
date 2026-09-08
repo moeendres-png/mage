@@ -59,6 +59,63 @@ def assign_recipe(card_name: str, token: str, expr: str) -> tuple[str, dict]:
         return "COUNT_XPAID", {"paid": 5}
     if expr == "Count$ValidHand Card.YouOwn":
         return "COUNT_HAND_YOUOWN", {"hand_cards": 4}
+    if expr == "Count$TotalCommanderCastFromCommandZone":
+        return "COUNT_COMMANDER_CAST", {"casts": 2}
+    if expr == "Count$Valid Equipment.Attached":
+        # Dead zone token in-pin (no zone parses): engine yields 0 even with
+        # an attached Equipment. Fail-closed default, flagged for review.
+        return "COUNT_EQUIPMENT_ATTACHED_ZERO", {}
+    if expr == "Count$CardNumAttacksThisTurn":
+        return "COUNT_CARDNUMATTACKS", {"attacks": 2}
+    if expr == "PlayerCountRegisteredOpponents$HasPropertywasDealtCombatDamageThisTurnBy Card.Self,Dragon GE1":
+        # Property string unbound in-pin: engine yields 0. Flagged for review.
+        return "PLAYERCOUNT_UNBOUND_ZERO", {}
+    if expr == "PlayerCountPlayers$HasPropertyattackedYouTheirLastTurn":
+        return "COUNT_ATTACKED_LASTTURN", {}
+    if expr == "PlayerCountPlayers$HasPropertyattackedYouTheirLastTurn":
+        return "COUNT_ATTACKED_LASTTURN", {}
+    if expr == "TriggeredCard$AttachedTo Aura.YouCtrl":
+        return "TRIGGEREDCARD_ATTACHED", {}
+    if expr == "TriggeredCard$CastTotalManaSpent":
+        return "TRIGGEREDCARD_CASTSA_MANA", {"mana": 2}
+    if expr == "TriggeredCard$CommanderCastFromCommandZone":
+        return "TRIGGEREDCARD_COMMANDERCAST", {"casts": 2}
+    if expr == "TriggerRemembered$Amount":
+        return "TRIGGERREMEMBERED_ZERO", {"value": 0}
+    if expr == "ReplacedCard$CastTotalManaSpent Artifact":
+        return "REPLACEDCARD_CASTSA", {"mana": 2}
+    if expr in ("Count$Kicked.2.1", "Count$Kicked.4.2", "Count$Kicked.5.1", "Count$Kicked.Z.1"):
+        # No kicker paid in-fixture: the false branch selects sq[2].
+        false_val = {"Count$Kicked.2.1": 1, "Count$Kicked.4.2": 2,
+                     "Count$Kicked.5.1": 1, "Count$Kicked.Z.1": 1}[expr]
+        return "COUNT_KICKED_FALSE", {"false_val": false_val}
+    if expr == "Count$TimesKicked":
+        return "COUNT_TIMESKICKED_ZERO", {}
+    if expr == "Count$OptionalGenericCostPaid.3.2":
+        return "COUNT_OPTIONALGENERIC_FALSE", {"false_val": 2}
+    if expr == "Count$ThisTurnCast_Card.YouCtrl":
+        return "CAST_SPELLS", {"spells": "Shock;Shock"}
+    if expr == "Count$ThisTurnCast_Card.nonCreature+YouCtrl":
+        return "CAST_SPELLS", {"spells": "Shock;Divination"}
+    if expr == "Count$ThisTurnCast_Instant.YouCtrl,Sorcery.YouCtrl/Plus.1":
+        return "CAST_SPELLS_PLUS1", {"spells": "Shock;Divination"}
+    if expr == "Count$ThisTurnCast_Instant.YouCtrl,Sorcery.YouCtrl$GreatestCardManaCost":
+        return "CAST_SPELLS_MAXCMC", {"spells": "Shock;Divination"}
+    if expr == "Count$ThisTurnActivated_Activated.Artifact+YouCtrl+inZoneBattlefield":
+        return "CAST_ACTIVATE_ARTIFACT", {}
+    if expr == "Count$wasCastFromYourHandByYou.1.0":
+        return "COUNT_WASCAST_HAND", {"true_val": 1}
+    if expr == "Count$NumDamageThisTurn Creature You":
+        # No production xCount branch matches: fail-closed engine default 0.
+        return "COUNT_NUMDAMAGE_ZERO", {"value": 0}
+    if expr == "Count$xColorPaid B":
+        return "COUNT_XCOLORPAID", {"black": 2}
+    if expr == "PlayerCountPlayers$HasPropertyisMonarch":
+        return "COUNT_MONARCH", {}
+    if expr == "PlayerCountPropertyYou$OpponentsAttackedThisTurn":
+        return "COUNT_OPPONENTS_ATTACKED", {"attackers": 2}
+    if expr == "TriggeredSpellAbility$TimesKicked":
+        return "TRIGGEREDSPELLABILITY_TIMESKICKED_ZERO", {}
     if expr.startswith("Count$CardCounters."):
         return "COUNT_HOST_COUNTERS", {"counter": expr.split(".")[1], "counters": 3}
     if expr == "Count$YourLifeTotal":
