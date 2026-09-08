@@ -67,8 +67,9 @@ hacks; no pilot rules; fail closed.
 - [x] B2: Java test + 3-case local record+replay smoke green (XPAID/HAND/BATTLEFIELD)
 - [x] B3: 238/273 record+replay green locally (all implemented recipes, 0 actionable failures)
 - [x] B3b: 273/273 record+replay green locally (batch 4+5; 6 default-zero flagged TECHNICALLY_CONFORMANT+REVIEW)
-- [ ] B4: CI gate PASS (workflow pushed; awaiting run) + checkpoint + coverage-promotion proposal
-- [ ] B5: 402 Cost cluster (recompute frontier first)
+- [x] B4: CI run 34266311850 SUCCESS + independently adjudicated PASS (artifact 10072131808, 2737/2737 hashes, 273/273 replay, 2457 RNG events) + PASS checkpoint persisted
+- [ ] B5: 402 Cost cluster (4 queue items; recon done) — IN PROGRESS
+- [ ] B6: B1/B2 coverage-promotion proposal for canonical/integration line
 
 ## B1/B2 evidence (CODE_DERIVED, local scratch /tmp/opencode/forge-pin @ FORGE_PIN)
 
