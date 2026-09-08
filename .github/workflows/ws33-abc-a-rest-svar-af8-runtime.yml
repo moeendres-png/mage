@@ -227,6 +227,33 @@ jobs:
           cmp generated/record/AF8_CLIENT_OBSERVATION_SAMPLES.tsv generated/replay/AF8_CLIENT_OBSERVATION_SAMPLES.tsv
           cmp generated/record/play-stages.tsv generated/replay/play-stages.tsv
 
+      - name: Report fail-closed AF8 case evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64
+          from pathlib import Path
+
+          for mode in ("record", "replay"):
+              summary = Path("generated") / mode / "case-summary.tsv"
+              if not summary.is_file():
+                  print(f"AF8_CASE_SUMMARY=UNAVAILABLE mode={mode}")
+                  continue
+              for line in summary.read_text(encoding="utf-8").splitlines():
+                  fields = line.split("\t")
+                  if len(fields) < 16 or fields[4] == "PASS":
+                      continue
+                  decode = lambda value: base64.b64decode(value).decode("utf-8", "replace")
+                  print(
+                      "AF8_CASE_FAILURE"
+                      f" mode={mode} path_id={fields[0]} status={fields[4]}"
+                      f" failure_type={decode(fields[14])!r}"
+                      f" failure_message={decode(fields[15])!r}"
+                  )
+          PY
+
       - name: Seal AF8 evidence even on failure
         if: always()
         shell: bash
@@ -264,12 +291,27 @@ jobs:
           test -s generated/SOURCE_CHAIN.json
           test -s generated/SHA256SUMS
           (cd generated && sha256sum -c SHA256SUMS)
+          bundle=generated/immutable-af8-evidence
+          rm -rf "$bundle"
+          mkdir -p "$bundle"
+          cp generated/SOURCE_CHAIN.json "$bundle/"
+          for evidence in diagnostic routes/out record replay overlay-logs; do
+            if [[ -d "generated/$evidence" ]]; then
+              mkdir -p "$bundle/$(dirname "$evidence")"
+              cp -a "generated/$evidence" "$bundle/$evidence"
+            fi
+          done
+          (cd "$bundle" && find . -type f -print0 | sort -z | xargs -0 sha256sum > AF8_EVIDENCE_SHA256SUMS)
+          (cd "$bundle" && sha256sum -c AF8_EVIDENCE_SHA256SUMS)
+          test -s "$bundle/diagnostic/A_REST_SVAR_AF8_GATE.json"
+          test -s "$bundle/record/case-summary.tsv"
+          test -s "$bundle/replay/case-summary.tsv"
 
       - name: Upload immutable AF8 evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ws33-abc-a-rest-svar-af8-${{ github.run_id }}
-          path: generated/
+          path: generated/immutable-af8-evidence/
           if-no-files-found: error
           retention-days: 90
