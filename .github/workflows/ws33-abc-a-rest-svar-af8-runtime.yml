@@ -130,7 +130,7 @@ jobs:
           grep -Fx 'WS33_STACK_RESOLUTION_REACHABILITY=PASS boundary=TRIGGER_PLAY_PREREQUISITES_ADD_TARGET_REJECT_FROZEN_PUSH_FIZZLE_POST_FIZZLE_PRE_API_RESOLVE semantics_mutated=FALSE' generated/overlay-logs/ws33-stack-resolution-reachability.log
           grep -Fx 'WS33_A_REST_PLAY_STAGE_OBSERVER=PASS semantics_mutated=FALSE booleans_mutated=FALSE' generated/overlay-logs/ws33-a-rest-play-stage-observer.log
           grep -Fx 'WS33_A_REST_MANA_PAYMENT_OBSERVER=PASS options_mutated=FALSE selection_mutated=FALSE mana_mutated=FALSE cost_mutated=FALSE' generated/overlay-logs/ws33-a-rest-play-stage-observer.log
-          grep -Fx 'WS33_BOUNDED_NUMBER_EXTERNALIZED=PASS finite_range=true gui_fallback_external_mode=0 rules_mutation=0' generated/overlay-logs/ws33-bounded-number.log
+          grep -Fx 'WS33_BOUNDED_NUMBER_EXTERNALIZED=PASS finite_range=true x_mana_feasibility=true gui_fallback_external_mode=0 rules_mutation=0' generated/overlay-logs/ws33-bounded-number.log
 
       - name: Prepare exact AF8 production-parent harness
         shell: bash
@@ -301,7 +301,7 @@ jobs:
               cp -a "generated/$evidence" "$bundle/$evidence"
             fi
           done
-          (cd "$bundle" && find . -type f -print0 | sort -z | xargs -0 sha256sum > AF8_EVIDENCE_SHA256SUMS)
+          (cd "$bundle" && find . -type f ! -name AF8_EVIDENCE_SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > AF8_EVIDENCE_SHA256SUMS)
           (cd "$bundle" && sha256sum -c AF8_EVIDENCE_SHA256SUMS)
           test -s "$bundle/diagnostic/A_REST_SVAR_AF8_GATE.json"
           test -s "$bundle/record/case-summary.tsv"
