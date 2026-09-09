@@ -503,12 +503,29 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         // Resolve the stack, then flush state-based actions so assertions
         // observe settled state (e.g. lethal-marked creatures destroyed).
         // Bounded: at most one extra clear pass; matching decides validity.
+        // Then drain triggers the engine queued during resolution or the
+        // SBA flush (e.g. a dies trigger from an SBA kill): waiting
+        // triggers never reach the stack on their own, so without this
+        // drain they would read as silence. Bounded 8 waves, fail-closed
+        // on excess. Resolves only what the engine already queued; link
+        // matching below remains the real gate.
         playUntilStackClear(game);
         game.getAction().checkStateEffects(true);
         if (!game.getStack().isEmpty()) {
             playUntilStackClear(game);
             game.getAction().checkStateEffects(true);
         }
+        for (int wave = 0; wave < 8; wave++) {
+            if (!game.getTriggerHandler().runWaitingTriggers()) {
+                return;
+            }
+            game.getStack().addAllTriggeredAbilitiesToStack();
+            playUntilStackClear(game);
+            game.getAction().checkStateEffects(true);
+        }
+        throw new IllegalStateException(
+                "waiting-trigger drain exceeded bound: possible retrigger loop"
+                        + " roster=" + rosterSnapshot(game));
     }
 
     private String rosterSnapshot(final Game game) {
