@@ -8,7 +8,7 @@
   "consumer_model_sha256": "82638e6b3e4408cc5bddedc49372b6357d3c2bdce6fba7bfab7ed119678f9a48",
   "effective_path_count": 4188,
   "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
-  "frontier_gate_sha256": "9b1823378f2d3293a922eb7416f1fc2599019011279e54280f7871925c5086c9",
+  "frontier_gate_sha256": "cb45c8ee5a11848fff934cd58746c1cb6cbc60ef9cec7e5a42e8dbd11ba611a1",
   "integration": {
     "af8_run": "34222323657",
     "af8_source_head": "1922a5172f0e004dd95c279744c641775a80b15a",
@@ -16,9 +16,10 @@
     "branch": "work/ws33-serial-integration-af8-b-20260909",
     "canonical_base_head": "6da237b704ba5e66c58c2334f47e36ef68ca980d",
     "pending_source_head": "f2950cf6428a4bb37a88251ca3999f7557ce7e5b",
-    "pending_source_tree": "061c7f02df022aab0c274f3c3f6d56f2114fdeb2"
+    "pending_source_tree": "061c7f02df022aab0c274f3c3f6d56f2114fdeb2",
+    "preservation_repair": "CONFIRMED_CASE1_203_restored"
   },
-  "ledger_sha256": "4db1d70b302390f72cd5265e8ade58ec48b92da36ae843e0a1395f0f202a6611",
+  "ledger_sha256": "c2d4abb90b6c7b980c206a0dcd4f554c59c845ade671148c9ef9fe3dac53477d",
   "model_manifest_sha256": "cd48f4279d682ab944e2534bf937d87e5311e83989e97179ae73c5c7d1bb6224",
   "operational_artifact_layout": {
     "frontier_gate": "successor/integrated/WS33_INTEGRATED_FRONTIER_GATE.json",
@@ -28,8 +29,8 @@
   },
   "path_status_counts": {
     "FAIL": 0,
-    "PASS": 949,
-    "UNKNOWN": 3239,
+    "PASS": 1152,
+    "UNKNOWN": 3036,
     "UNSUPPORTED": 0
   },
   "predecessor": {
@@ -45,6 +46,7 @@
   },
   "promotion": {
     "a1_promoted_path_count": 122,
+    "a1_repaired": 122,
     "authorized_union_digest": "sha256:57e210b8d2a5a79f3aaa3a4b124e3d92e2d6d3fc8447fa74d31f299d9366f75c",
     "b1_artifact_digest": "sha256:118de4169ae9abf4ab500213430a62cd67630d44cb9b34ce3032a93907a29c2f",
     "b1_artifact_id": "10072131808",
@@ -55,24 +57,32 @@
     "b2_promoted_path_count": 397,
     "b2_run": "34286249888",
     "b_promoted_total": 664,
+    "b_regression_guarded": 664,
     "g3_promoted_path_count": 81,
+    "g3_repaired": 81,
     "held_default_zero_count": 6,
     "held_terminal_blocker_count": 5,
+    "held_unknown_guarded": 11,
+    "new_coverage_credit": 0,
     "previous_pass_regressions": 0,
+    "prior_pass_repaired_count": 203,
     "promotion_evidence_file": "WS33_POST_AF8B_PROMOTION_EVIDENCE.json",
     "promotion_evidence_sha256": "b53d535af2a5c2ae5f01ab972fd8b312df03a6dd4993c51b566816bbe03556e4",
+    "repair_evidence_file": "WS33_PRESERVATION_REPAIR_EVIDENCE.json",
+    "repair_evidence_sha256": "295606d62bdf80aa620e66ce9f9eaba50126648e328ed109fc43df7e8687025e",
+    "repair_union_digest": "sha256:a51c01b8cb953eda0c79bf1a6416061ae47be6672c326e4a92a8122fb8955b43",
     "unrelated_path_status_changes": 0
   },
   "schema": "commander-simulator-next.ws33-current-operational-state.v2",
   "unknown_by_shard": {
-    "WS33A": 179,
+    "WS33A": 57,
     "WS33B": 11,
     "WS33C": 700,
     "WS33D": 920,
     "WS33E": 1029,
     "WS33F": 319,
-    "WS33G": 81,
+    "WS33G": 0,
     "WS33H": 0
   },
-  "work_queue_sha256": "02397404ebdc9d7a105466c3d24dc73c0f9844a8dbb55e626f4e0fb813202d3c"
+  "work_queue_sha256": "a475b66d2ea54d2d3e284533c990b1021936b049f7b4ca3298e94f04dc91e4f2"
 }

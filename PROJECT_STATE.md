@@ -9,19 +9,19 @@ CURRENT_TREE=f06f94376250e54f94af33539c712066c3db14f3
 IDENTITY_NOTE=Live integration-branch identity verified immediately before this metadata reconciliation. CURRENT_HEAD/TREE name the Phase V promotion commit (last code commit); this PROJECT_STATE update is metadata-only and its containing commit will be newer. Freeze/run checkpoints record their own exact SOURCE_HEAD/SOURCE_TREE. This branch is a serial integration successor/candidate, NOT final canonical until Sol/integration adjudication promotes it.
 FORGE_PIN=8c7e9afb8e6caee88644b94e25da5852e36f8928
 
-CANONICAL_COVERAGE=TOTAL=4188 PASS=949 UNKNOWN=3239 FAIL=0 UNSUPPORTED=0
-A_UNKNOWN=179
+CANONICAL_COVERAGE=TOTAL=4188 PASS=1152 UNKNOWN=3036 FAIL=0 UNSUPPORTED=0
+A_UNKNOWN=57
 B_UNKNOWN=11
 C_UNKNOWN=700
 D_UNKNOWN=920
 E_UNKNOWN=1029
 F_UNKNOWN=319
-G_UNKNOWN=81
+G_UNKNOWN=0
 H_UNKNOWN=0
-COVERAGE_EVIDENCE=branch ledger recomputed live post-promotion (949/3239) + WS33_POST_AF8B_PROMOTION_EVIDENCE.json; operational successor truth 488/3700 inherited via immutable artifact 9979204198; branch files at 285/3903 superseded for operational frontier purposes per POST_G3_A1_SUCCESSOR_RUN_34000014860_PASS.md
-LAST_COMPLETED_GATE=Serial AF8->B integration: AF8 repair inherited (run 34222323657 SUCCESS) + 664 B positive-evidence paths promoted (267 B1 + 397 B2), 6 defaults + 5 Cost blockers held UNKNOWN
-CURRENT_OPEN_GATE=Sol High adjudication of this integration successor (no Architecture Freeze claimed; no further promotion authorized here)
-CURRENT_CHECKPOINT=research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/WS33_SERIAL_INT_AF8B_TERMINAL_HANDOFF_20260909.md
+COVERAGE_EVIDENCE=branch ledger recomputed live post-preservation-repair (1152/3036) + WS33_POST_AF8B_PROMOTION_EVIDENCE.json + WS33_PRESERVATION_REPAIR_EVIDENCE.json; 203 predecessor PASS (122 A1 + 81 G3) restored Case-1; operational successor truth 488/3700 inherited via immutable artifact 9979204198 and now fully materialized in-ledger (285 + 203 + 664)
+LAST_COMPLETED_GATE=Serial AF8->B integration + preservation repair: AF8 inherited (run 34222323657 SUCCESS), 664 B positive-evidence paths promoted, 203 predecessor PASS restored (122 A1 + 81 G3, Case-1 CONFIRMED), 6 defaults + 5 Cost blockers held UNKNOWN
+CURRENT_OPEN_GATE=Sol High adjudication of the repaired successor (no Architecture Freeze claimed; no further promotion authorized here)
+CURRENT_CHECKPOINT=research/greenfield-qualification/actual-card-behavior/ws33/checkpoints/WS33_SERIAL_INT_PRESERVATION_REPAIR_HANDOFF_20260909.md
 ACTIVE_OR_LAST_RUN=34286249888
 ACTIVE_OR_LAST_JOB=102262427048
 ACTIVE_OR_LAST_ARTIFACT=10079683394 sha256:a8a498f63a776a772a78d531b21ffc1542c59bb218f10185f135271078aa00b3
@@ -62,13 +62,13 @@ DIRECTLY_VERIFIED on 2026-09-09 against live GitHub and recomputed worktree stat
 - AF8 run 34222323657 SUCCESS at AF8 source; artifact gate 8 paths/0 failures/coverage unmutated; in-artifact source binding equals AF8 locks; no AF8 rerun (no invalidation);
 - B1 run 34266311850 SUCCESS (273 records: 267 EXTERNALLY_RULE_VALIDATED + 6 flagged defaults); B2 run 34286249888 SUCCESS (397 EXTERNALLY_RULE_VALIDATED); artifact digests equal live GitHub metadata; B1 273 target digest reproduces 30dd81f7...;
 - promotion executed by authoritative ws33_promote_b_frontier.py (G3/A1-pattern mechanism) from frozen index; staged outputs independently re-verified: exactly 664 UNKNOWN->PASS transitions equal to the authorized set, zero out-of-scope field changes, zero non-transition row changes;
-- post state: TOTAL=4188 PASS=949 UNKNOWN=3239 FAIL=0 UNSUPPORTED=0; B_UNKNOWN 675->11 (6 defaults + 5 blockers, all still UNKNOWN, card-mapped and corroborated); all other shards unchanged; queue unresolved=3239 over 234 items; frontier gate SHAs verify;
+- post state: TOTAL=4188 PASS=1152 UNKNOWN=3036 FAIL=0 UNSUPPORTED=0 (285 base + 203 predecessor repair + 664 B); A_UNKNOWN 179->57 (122 A1 restored), G_UNKNOWN 81->0 (81 G3 restored), B_UNKNOWN 675->11 (6 defaults + 5 blockers, all still UNKNOWN); all other shards unchanged; queue unresolved=3036 over 219 items; frontier gate SHAs verify;
 - Sol High decisions enforced: six B1 default-zero paths remain UNKNOWN; five Cost terminal blockers remain UNKNOWN; no Architecture Freeze claimed.
 
-Stale-metadata repairs applied on this successor: AF8-PENDING open-gate text replaced; coverage now describes live recomputed state (branch layer 949/3239; operational layer inherited 488/3700 via artifact 9979204198); B proposal cached totals not used.
+Stale-metadata repairs applied on this successor: AF8-PENDING open-gate text replaced; coverage describes live recomputed state (1152/3036: 285 branch base + 203 sealed predecessor PASS now materialized in-ledger + 664 B); B proposal cached totals not used; "branch files superseded" doctrine retired for this frontier (all adjudicated PASS now in-ledger, queue/gate/PROJECT_STATE/operational-state mutually consistent).
 
-BLOCKERS=Sol High adjudication required before this successor is treated as canonical; remaining UNKNOWN waves (A-rest incl. 6 defaults, B 11, C 700, D 920, E 1029, F 319, G 81) need future serial qualifications. No external blocker established.
-EXACT_NEXT_STEP=Sol High reviews this successor (handoff checkpoint WS33_SERIAL_INT_AF8B_TERMINAL_HANDOFF_20260909.md); on acceptance, promote this branch as the new canonical line. No further coverage mutation on this branch without a new PENDING freeze.
+BLOCKERS=Sol High adjudication required before this successor is treated as canonical; remaining UNKNOWN waves (A 57, B 11, C 700, D 920, E 1029, F 319) need future serial qualifications. No external blocker established.
+EXACT_NEXT_STEP=Sol High reviews the repaired successor (handoff checkpoint WS33_SERIAL_INT_PRESERVATION_REPAIR_HANDOFF_20260909.md + C read-only readiness dossier); on acceptance, promote this branch as the new canonical line. No further coverage mutation on this branch without a new PENDING freeze.
 
 ## Continuation scope
 
