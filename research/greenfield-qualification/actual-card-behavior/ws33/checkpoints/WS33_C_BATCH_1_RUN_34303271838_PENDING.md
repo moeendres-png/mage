@@ -1,0 +1,14 @@
+# WS33-C Batch 1 R6-fix run PENDING
+
+RUN = 34303271838
+EVENT = push
+SOURCE_HEAD = 4dbf271a5a
+BATCH_DIGEST = 2adfe66ef6bbfb99d9bdb21580587a9e878f3cb78ac7c60d4eeba31c091c462d (unchanged: harness+certifier only)
+FORGE_PIN = 8c7e9afb8e6caee88644b94e25da5852e36f8928
+EXPECTED_ARTIFACT = ws33-c-abilitysub-batch-34303271838
+EXPECTED_EXECUTIONS = 7, EXPECTED_NEW_PATHS = 7 (+ pilot re-witness + 2 shared)
+COVERAGE_PROMOTION = FALSE
+PRIOR = 34302341424 PARTIAL (JSON typing only; all values correct; adjudicated)
+
+TURN_STATUS = INTERRUPTED
+TASK_COMPLETE = NO
