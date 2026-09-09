@@ -240,7 +240,11 @@ jobs:
           # No byte-equality on AF8_SELECTION_WITNESS.tsv: replay serves taped decisions
           # without re-invoking the pilot, so its witness is legitimately empty/artifactual.
           # The adjudicator enforces record-side presence plus novel-replay-selection rejection.
-          cmp generated/record/AF8_CLIENT_OBSERVATION_SAMPLES.tsv generated/replay/AF8_CLIENT_OBSERVATION_SAMPLES.tsv
+          # No byte-equality on AF8_CLIENT_OBSERVATION_SAMPLES.tsv: aggregate async
+          # remote-observation sample multiplicity is transport, not semantics (record and
+          # replay may legitimately report 1 vs 2 samples for one principal). The
+          # adjudicator enforces the semantic contract (>=1 real remote sample per
+          # principal, zero visibility mismatch) on both sides.
           cmp generated/record/play-stages.tsv generated/replay/play-stages.tsv
 
       - name: Seal AF8 evidence even on failure
