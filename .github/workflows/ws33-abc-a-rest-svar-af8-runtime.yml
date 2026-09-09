@@ -10,6 +10,9 @@ on:
       - 'research/greenfield-qualification/actual-card-behavior/ws33/test_ws33_decision_path_evidence.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_harden_a_rest_svar_af8_runtime.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/ws33_adjudicate_a_rest_svar_af8.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-stack-resolution-reachability.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-a-rest-play-stage-observer.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-mana-cancel-boundary.py'
   workflow_dispatch:
 
 permissions:
@@ -46,7 +49,7 @@ jobs:
             "$ROOT/ws33_decision_path_evidence.py" \
             "$ROOT/ws33_harden_a_rest_svar_af8_runtime.py" \
             "$ROOT/ws33_adjudicate_a_rest_svar_af8.py"
-          (cd "$ROOT" && python -m unittest -v test_ws33_decision_path_evidence.py)
+          (cd "$ROOT" && python -m unittest -v test_ws33_decision_path_evidence.py test_ws33_adjudicate_a_rest_svar_af8.py)
 
       - name: Consume immutable production-root routes
         env: {GH_TOKEN: '${{ github.token }}'}
@@ -114,8 +117,18 @@ jobs:
           python "$ROOT/runtime-overlays/apply-ws33-stack-target.py" --forge-root forge | tee generated/overlay-logs/ws33-stack-target.log
           python "$ROOT/runtime-overlays/apply-ws33-target-selection.py" --forge-root forge | tee generated/overlay-logs/ws33-target-selection.log
           python "$ROOT/runtime-overlays/apply-ws33-svar-reachability.py" --forge-root forge | tee generated/overlay-logs/ws33-svar-reachability.log
+          python "$ROOT/runtime-overlays/apply-ws33-stack-resolution-reachability.py" --forge-root forge | tee generated/overlay-logs/ws33-stack-resolution.log
+          python "$ROOT/runtime-overlays/apply-ws33-a-rest-play-stage-observer.py" --forge-root forge | tee generated/overlay-logs/ws33-a-rest-play-stage.log
+          python "$ROOT/runtime-overlays/apply-ws33-mana-cancel-boundary.py" --forge-root forge | tee generated/overlay-logs/ws33-mana-cancel-boundary.log
           python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py --forge-root forge | tee generated/overlay-logs/ws12.log
           python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py --forge-root forge | tee generated/overlay-logs/ws32.log
+          grep -Fx 'WS33_STACK_RESOLUTION_REACHABILITY=PASS boundary=TRIGGER_PLAY_PREREQUISITES_ADD_TARGET_REJECT_FROZEN_PUSH_FIZZLE_POST_FIZZLE_PRE_API_RESOLVE semantics_mutated=FALSE' generated/overlay-logs/ws33-stack-resolution.log
+          grep -Fx 'WS33_A_REST_PLAY_STAGE_OBSERVER=PASS semantics_mutated=FALSE booleans_mutated=FALSE' generated/overlay-logs/ws33-a-rest-play-stage.log
+          grep -F 'WS33_MANA_CANCEL_BOUNDARY=PASS cancel_encoding=REQUEST_LEVEL ordinary_cancel_option=FALSE rail=TRACED' generated/overlay-logs/ws33-mana-cancel-boundary.log
+          grep -Fx 'WS33_MANA_CANCEL_RULES_MUTATION=0 payment_transition_filter=FORGE payment_revalidation=FORGE' generated/overlay-logs/ws33-mana-cancel-boundary.log
+          ! grep -F 'actions.add("CANCEL")' forge/forge-gui/src/main/java/forge/gamemodes/match/input/InputPayMana.java
+          grep -F 'actions, 1, 1, !mandatory, false, "MANA_PAYMENT"' forge/forge-gui/src/main/java/forge/gamemodes/match/input/InputPayMana.java
+          grep -F 'isManaAbilityFor(saPaidFor, colorCanUse)' forge/forge-gui/src/main/java/forge/gamemodes/match/input/InputPayMana.java
 
       - name: Prepare exact AF8 production-parent harness
         shell: bash
@@ -139,6 +152,9 @@ jobs:
           grep -Fx 'WS33_A_SVAR_AF8_RUNTIME_HARDEN=PASS paths=8 play=PlaySpellAbility actor=REMOTE_SLOT_1 phase=FORGE_MAIN1' generated/diagnostic/a-af8-hardener.log
           grep -Fx 'WS33_A_SVAR_AF8_PAYMENT=FORGE_AUTHORITATIVE mana_pool_injection=0 cost_bypass=0' generated/diagnostic/a-af8-hardener.log
           grep -Fx 'WS33_A_SVAR_AF8_EFFECT_EVIDENCE=TARGET_CARD_POSTCONDITION_FROM_TARGET_SCRIPT' generated/diagnostic/a-af8-hardener.log
+          grep -Fx 'WS33_A_SVAR_AF8_IDENTITY_EVIDENCE=SOURCE_ROOT_CHILD_ACTOR_TARGET_BEFORE_AFTER' generated/diagnostic/a-af8-hardener.log
+          grep -Fx 'WS33_A_SVAR_AF8_SELECTION_WITNESS=POLICY_BRANCHES_X_MODE_GENERIC_FORCED_CLASSIFIED' generated/diagnostic/a-af8-hardener.log
+          grep -Fx 'WS33_A_SVAR_AF8_POSITIVE_X_KIND=NUMBER' generated/diagnostic/a-af8-hardener.log
           grep -Fx 'WS33_A_SVAR_AF8_CLIENT_EVIDENCE=WS05_REAL_REMOTE_PHASE_SAMPLES' generated/diagnostic/a-af8-hardener.log
           grep -Fx 'WS33_A_SVAR_AF8_RULES_MUTATION=0 card_name_branch=0 path_id_branch=0' generated/diagnostic/a-af8-hardener.log
           ! grep -F 'sa.resolve()' "$dst"
@@ -173,6 +189,8 @@ jobs:
           test -f generated/record/rng-events-with-path.tsv
           test -f generated/record/PRINCIPAL_OBSERVATIONS.jsonl
           test -s generated/record/AF8_EFFECT_EVIDENCE.tsv
+          test -s generated/record/AF8_TARGET_EVIDENCE.tsv
+          test -s generated/record/AF8_SELECTION_WITNESS.tsv
           test -s generated/record/AF8_CLIENT_OBSERVATION_SAMPLES.tsv
           test -s generated/record/play-stages.tsv
 
@@ -191,6 +209,8 @@ jobs:
           test -s generated/replay/decision-events-with-path.tsv
           test -f generated/replay/PRINCIPAL_OBSERVATIONS.jsonl
           test -s generated/replay/AF8_EFFECT_EVIDENCE.tsv
+          test -s generated/replay/AF8_TARGET_EVIDENCE.tsv
+          test -s generated/replay/AF8_SELECTION_WITNESS.tsv
           test -s generated/replay/AF8_CLIENT_OBSERVATION_SAMPLES.tsv
           test -s generated/replay/play-stages.tsv
 
@@ -203,12 +223,14 @@ jobs:
             --record-dir generated/record \
             --replay-dir generated/replay \
             --out generated/diagnostic/A_REST_SVAR_AF8_GATE.json
-          jq -e '.status=="PASS" and .expected_paths==8 and .actual_card_source_bound==true and .play_spell_ability_authoritative==true and .mode_selection_authoritative==true and .target_selection_authoritative==true and .cost_payment_authoritative==true and .manual_target_injection==false and .direct_effect_resolution==false and .positive_target_effect_required==true and .real_client_confidentiality_samples_required==true and .coverage_mutated==false and .coverage_promotion==false' generated/diagnostic/A_REST_SVAR_AF8_GATE.json
+          jq -e '.status=="PASS" and .expected_paths==8 and .actual_card_source_bound==true and .play_spell_ability_authoritative==true and .mode_selection_authoritative==true and .target_selection_authoritative==true and .cost_payment_authoritative==true and .manual_target_injection==false and .direct_effect_resolution==false and .positive_target_effect_required==true and .real_client_confidentiality_samples_required==true and .identity_bound_evidence_required==true and .forced_selection_classification_required==true and .coverage_mutated==false and .coverage_promotion==false' generated/diagnostic/A_REST_SVAR_AF8_GATE.json
           cmp generated/record/decision-tape.tsv generated/replay/decision-tape.tsv
           cmp generated/record/decision-events-with-path.tsv generated/replay/decision-events-with-path.tsv
           cmp generated/record/rng-tape.tsv generated/replay/rng-tape.tsv
           cmp generated/record/rng-events-with-path.tsv generated/replay/rng-events-with-path.tsv
           cmp generated/record/AF8_EFFECT_EVIDENCE.tsv generated/replay/AF8_EFFECT_EVIDENCE.tsv
+          cmp generated/record/AF8_TARGET_EVIDENCE.tsv generated/replay/AF8_TARGET_EVIDENCE.tsv
+          cmp generated/record/AF8_SELECTION_WITNESS.tsv generated/replay/AF8_SELECTION_WITNESS.tsv
           cmp generated/record/AF8_CLIENT_OBSERVATION_SAMPLES.tsv generated/replay/AF8_CLIENT_OBSERVATION_SAMPLES.tsv
           cmp generated/record/play-stages.tsv generated/replay/play-stages.tsv
 

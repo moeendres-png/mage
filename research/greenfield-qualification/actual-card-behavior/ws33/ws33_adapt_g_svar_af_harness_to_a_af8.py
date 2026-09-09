@@ -76,7 +76,7 @@ def main() -> None:
          'int min=req.getMinimumSelection(),max=req.getMaximumSelection();if(min<0||max<1||min>max||min>options.size())throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,"invalid authoritative mode cardinality for "+path+" min="+min+" max="+max+" options="+options.size());'
          'selected.add(match.getOptionId());int need=Math.max(1,min);if(need>max)throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,"desired mode cannot satisfy authoritative max cardinality for "+path);'
          'List<ExternalDecisionRequest.Option>rest=new ArrayList<>();for(ExternalDecisionRequest.Option o:options)if(!o.getOptionId().equals(match.getOptionId()))rest.add(o);rest.sort(Comparator.comparing(o->stableKey(path,req.getDecisionKind(),o)));'
-         'for(int i=0;selected.size()<need&&i<rest.size();i++)selected.add(rest.get(i).getOptionId());if(selected.size()!=need)throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,"authoritative mode minimum not satisfiable for "+path);return;}')
+         'for(int i=0;selected.size()<need&&i<rest.size();i++)selected.add(rest.get(i).getOptionId());if(selected.size()!=need)throw new ExternalDecisionValidationException(ExternalDecisionValidationException.Code.UNSUPPORTED_DECISION_PATH,"authoritative mode minimum not satisfiable for "+path);recordAf8Selection(path,req,selected,"SOURCE_PROVEN_DESIRED_PLUS_MINIMUM");return;}')
     t=replace_once(t,old,new,'authoritative mode minimum cardinality')
 
     required=(
@@ -87,6 +87,7 @@ def main() -> None:
         'req.getMinimumSelection()',
         'desired.equals(o.getSemanticValue())',
         'rest.sort(Comparator.comparing(o->stableKey(path,req.getDecisionKind(),o)))',
+        'recordAf8Selection(path,req,selected,"SOURCE_PROVEN_DESIRED_PLUS_MINIMUM")',
         'resolveSourceParent(spec,source)',
         'prepareSourceParentChoices(spec,sa)',
         'CharmEffect.makeChoices(sa)',
