@@ -150,6 +150,10 @@ public final class Ws33D3DamageallCampaignTest extends AITest {
 
             driveRecipe(c, game, actor, controller);
             playUntilStackClear(game);
+            if (!game.isGameOver()) {
+                game.getAction().checkStateEffects(true);
+                playUntilStackClear(game);
+            }
 
             if (game.isGameOver()) {
                 throw new IllegalStateException("fixture game ended during D3 case");
