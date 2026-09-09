@@ -217,6 +217,26 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 }
             }
         }
+        // Post-setup trigger reconciliation (generic, all executions):
+        // direct (via=place) setup placements bypass production moveTo,
+        // so the engine never registered the placed cards' standing
+        // triggers in TriggerHandler.activeTriggers (AITest.addCardToZone
+        // is createCard plus a raw zone add at the pin; GameAction.
+        // changeZone registers only the moved card; runTrigger and
+        // runWaitingTrigger iterate activeTriggers only; no
+        // checkStateEffects runs between setup placement and the fixture
+        // trigger). Rebuild the active set from all in-game cards exactly
+        // as the engine itself does inside checkStateEffects (GameAction
+        // calls TriggerHandler.resetActiveTriggers after every SBA flush
+        // at the pin). This fires nothing and fabricates no entry event:
+        // a via=place card's own entry trigger correctly stays silent
+        // (retrospective ChangesZone events do not exist), while its
+        // standing triggers become observable for the fixture window.
+        // Via=move placements are unaffected: their triggers were already
+        // registered by their own production moveTo, and rebuild-then-
+        // re-add is duplicate-safe via isTriggerActive identity
+        // suppression. No card names consulted, no outcome injected.
+        game.getTriggerHandler().resetActiveTriggers();
 
         final int lifeActorBefore = actor.getLife();
         final int lifeOpponentBefore = opponent.getLife();

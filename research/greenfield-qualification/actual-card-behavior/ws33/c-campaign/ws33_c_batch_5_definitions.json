@@ -1,0 +1,63 @@
+{
+  "schema": "commander-simulator-next.ws33-c-batch-definitions.v1",
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "batch_id": "WS33_C_BATCH_5",
+  "executions": [
+    {
+      "execution_id": "kappa-etb-other-place",
+      "card_name": "Kappa Cannoneer",
+      "oracle_identity": "7fffbe7f-ad78-4bb6-a611-c37e495c6ee0",
+      "source_path": "forge-gui/res/cardsfolder/k/kappa_cannoneer.txt",
+      "fixture": {
+        "kind": "ETB_OTHER_ENTER",
+        "entering_card": "Sol Ring"
+      },
+      "setup": [
+        {
+          "card_name": "Kappa Cannoneer",
+          "zone": "Battlefield",
+          "who": "actor",
+          "count": 1,
+          "via": "place"
+        }
+      ],
+      "links": [
+        {
+          "path_id": "forge-behavior-v2:634a4b2d09d12a138afd0544c87c7d2bdb57a05a",
+          "parent_svar": "TrigPutCounter",
+          "parent_api": "PutCounter",
+          "parent_line": 8,
+          "child_sub": "DBUnblockable",
+          "child_api": "Effect"
+        }
+      ],
+      "assertions": [
+        {
+          "id": "kappa-counters",
+          "type": "counters",
+          "card": "source",
+          "counter": "P1P1",
+          "expected": 1
+        },
+        {
+          "id": "kappa-static",
+          "type": "effect_static_present",
+          "static_mode_contains": [
+            "CantBlockBy"
+          ],
+          "static_has_param": [],
+          "expected": 1,
+          "after_eot_absent": true
+        },
+        {
+          "id": "hand-net-actor",
+          "type": "hand",
+          "who": "actor",
+          "expected": -1
+        }
+      ],
+      "expected_consultations": [],
+      "note": "Solo re-witness of the batch-4 UNKNOWN sub-link. Setup via=place puts Kappa directly on the Battlefield (no ChangesZone event, no setup firing); the R11 post-setup resetActiveTriggers reconciliation registers its standing ChangesZone trigger without fabricating an entry event. Fixture Sol Ring entry fires exactly once: absolute finals 1/1 (counters/static) prove exactly-once. Ward/Improvise dormant."
+    }
+  ]
+}
