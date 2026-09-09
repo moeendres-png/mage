@@ -90,10 +90,11 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
     @Test
     public void directChildWithoutProductionParentIsRejected() {
         // Predicate-level negative: parentless observations never match.
-        final ChildObs direct = new ChildObs(0, 7, "Draw", "Cloudblazer", -1, 7);
+        final ChildObs direct = new ChildObs(0, 7, "Draw", "Cloudblazer", -1, 7, true);
         Assert.assertFalse(isProductionChildReach(
-                direct, new ParentEvent(0, 9, "GainLife", "Cloudblazer", "DBDraw"),
-                "GainLife", "Draw", "Cloudblazer", "DBDraw", 9),
+                direct, new ParentEvent(0, 9, "GainLife", "Cloudblazer", "DBDraw",
+                        "p9", true),
+                "GainLife", "Draw", "DBDraw", 9),
                 "direct child without production parent must be rejected");
     }
 
@@ -110,16 +111,17 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         Assert.assertNull(direct.getParent(),
                 "directly constructed AbilitySub must have no parent");
         final ChildObs observed = new ChildObs(0, direct.getId(), "Draw",
-                direct.getHostCard().getName(), -1, direct.getId());
+                direct.getHostCard().getName(), -1, direct.getId(), true);
         Assert.assertFalse(isProductionChildReach(
-                observed, new ParentEvent(0, 4242, "GainLife", "Cloudblazer", "DBDraw"),
-                "GainLife", "Draw", "Cloudblazer", "DBDraw", 4242),
+                observed, new ParentEvent(0, 4242, "GainLife", "Cloudblazer", "DBDraw",
+                        "p9", true),
+                "GainLife", "Draw", "DBDraw", 4242),
                 "unlinked AbilitySub must not satisfy the production-child contract");
     }
 
     static boolean isProductionChildReach(
             final ChildObs child, final ParentEvent parent,
-            final String parentApi, final String childApi, final String host,
+            final String parentApi, final String childApi,
             final String relation, final int rootId) {
         if (child.parentId < 0 || parent.id < 0) {
             return false;
@@ -130,7 +132,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         if (!childApi.equals(child.api) || !parentApi.equals(parent.api)) {
             return false;
         }
-        if (!host.equals(child.host) || !host.equals(parent.host)) {
+        if (!child.hostIsSource || !parent.hostIsSource) {
             return false;
         }
         if (parent.subParam == null || !relation.equals(parent.subParam)) {
@@ -165,6 +167,9 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     if (viaMove) {
                         game.getAction().moveTo(ZoneType.valueOf(parts[1]), placed, null, null);
                     }
+                    if (unb64(parts[0]).equals(first.cardName)) {
+                        sourceRef[0] = placed;
+                    }
                 }
             }
         }
@@ -181,26 +186,34 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         final List<ChildObs> children = new ArrayList<>();
         final List<TripwireHit> tripwireHits = new ArrayList<>();
         final int[] seq = {0};
+        // Stable production object identity: the fixture source Card object
+        // reference. Attribution gates on reference equality with this
+        // object, never on mutable card names (double-faced/transform).
+        final Card[] sourceRef = new Card[1];
         AbilityUtils.setWs33ParentResolutionObserver(sa -> {
             final Player activator = sa.getActivatingPlayer();
+            final Card hostCard = sa.getHostCard();
             parents.add(new ParentEvent(seq[0]++,
                     sa.getId(),
                     sa.getApi() == null ? null : sa.getApi().name(),
-                    sa.getHostCard() == null ? null : sa.getHostCard().getName(),
+                    hostCard == null ? null : hostCard.getName(),
                     sa.hasParam("SubAbility") ? sa.getParam("SubAbility") : null,
                     activator == null ? "null"
-                            : activator.getName() + (activator.isInGame() ? "" : ":OUT")));
+                            : activator.getName() + (activator.isInGame() ? "" : ":OUT"),
+                    hostCard != null && hostCard == sourceRef[0]));
         });
         AbilitySub.setWs33ResolutionObserver(sa -> {
             final SpellAbility parent = sa.getParent();
+            final Card hostCard = sa.getHostCard();
             children.add(new ChildObs(seq[0]++,
                     sa.getId(),
                     sa.getApi() == null ? null : sa.getApi().name(),
-                    sa.getHostCard() == null ? null : sa.getHostCard().getName(),
+                    hostCard == null ? null : hostCard.getName(),
                     parent == null ? -1 : parent.getId(),
-                    sa.getRootAbility().getId()));
+                    sa.getRootAbility().getId(),
+                    hostCard != null && hostCard == sourceRef[0]));
         });
-        PlayerControllerAi.setWs33DecisionTripwire((site, options) -> {
+        PlayerControllerAi.setWs33DecisionTripwire((site, options, actorName) -> {
             // Capture the Forge caller frames test-side: the probe fires
             // synchronously on the AI thread, so the current stack reveals
             // which engine path invoked the discretionary decision method.
@@ -232,29 +245,33 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             // must match a declared singleton consultation or fail closed.
             final boolean incidental =
                     caller.toString().startsWith("PhaseHandler.mainLoopStep");
-            tripwireHits.add(new TripwireHit(site, caller.toString(), options, incidental));
+            tripwireHits.add(new TripwireHit(site, caller.toString(), options, incidental,
+                    actorName));
         });
         Card source;
         try {
             if ("ETB_SELF_MOVE".equals(first.fixtureKind)) {
                 source = addCardToZone(first.cardName, actor, ZoneType.Hand);
+                sourceRef[0] = source;
                 handActorBefore = actor.getCardsIn(ZoneType.Hand).size();
                 game.getAction().moveTo(ZoneType.Battlefield, source, null, null);
                 driveWaitingTrigger(game, "ETB_SELF_MOVE", source);
-                playUntilStackClear(game);
+                clearStackAndSettle(game);
             } else if ("ETB_OTHER_ENTER".equals(first.fixtureKind)) {
                 source = findCardWithName(game, first.cardName);
                 if (source == null) {
                     throw new IllegalStateException(
                             "fixture source not on battlefield: " + first.cardName);
                 }
+                sourceRef[0] = source;
                 final Card entering = addCardToZone(first.enteringCard, actor, ZoneType.Hand);
                 handActorBefore = actor.getCardsIn(ZoneType.Hand).size();
                 game.getAction().moveTo(ZoneType.Battlefield, entering, null, null);
                 driveWaitingTrigger(game, "ETB_OTHER_ENTER:" + first.enteringCard, entering);
-                playUntilStackClear(game);
+                clearStackAndSettle(game);
             } else if ("PHASE_EOT_OUR_TURN".equals(first.fixtureKind)) {
                 source = addCardToZone(first.cardName, actor, ZoneType.Hand);
+                sourceRef[0] = source;
                 handActorBefore = actor.getCardsIn(ZoneType.Hand).size();
                 game.getAction().moveTo(ZoneType.Battlefield, source, null, null);
                 playUntilPhase(game, PhaseType.END_OF_TURN);
@@ -265,6 +282,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     throw new IllegalStateException(
                             "fixture source not on battlefield: " + first.cardName);
                 }
+                sourceRef[0] = source;
                 playUntilPhase(game, PhaseType.UPKEEP);
                 drivePostTravelStack(game, "PHASE_UPKEEP_OPP_TURN");
             } else if ("PHASE_UPKEEP_OWN_TURN".equals(first.fixtureKind)) {
@@ -273,6 +291,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     throw new IllegalStateException(
                             "fixture source not on battlefield: " + first.cardName);
                 }
+                sourceRef[0] = source;
                 travelToOwnUpkeep(game, actor);
                 drivePostTravelStack(game, "PHASE_UPKEEP_OWN_TURN");
             } else {
@@ -337,21 +356,24 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             // postconditions) can never satisfy this and stay unattributed.
             MatchedLink match = null;
             for (final ParentEvent parent : parents) {
-                if (!row.parentApi.equals(parent.api)
-                        || !row.cardName.equals(parent.host)) {
+                if (!row.parentApi.equals(parent.api) || !parent.hostIsSource) {
                     continue;
                 }
                 if (parent.subParam == null || !row.childSub.equals(parent.subParam)) {
                     continue;
                 }
                 for (final ChildObs child : children) {
+                    if (!child.hostIsSource) {
+                        continue;
+                    }
                     if (isProductionChildReach(child, parent, row.parentApi, row.childApi,
-                            row.cardName, row.childSub, rootId)) {
+                            row.childSub, rootId)) {
                         if (match != null) {
                             throw new IllegalStateException(
                                     "pair attribution ambiguous for " + row.linkPath
                                             + " all_parents=" + parents
-                                            + " all_children=" + children);
+                                            + " all_children=" + children
+                                            + " roster=" + rosterSnapshot(game));
                         }
                         match = new MatchedLink(row, parent, child, rootId);
                     }
@@ -362,6 +384,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                         "production-linked child not reached for " + row.linkPath
                                 + " observations=" + children
                                 + " parents=" + parents
+                                + " roster=" + rosterSnapshot(game)
                                 + " sem=" + semanticSnapshot(
                                         game, actor, opponent, lifeActorBefore,
                                         lifeOpponentBefore, handActorBefore));
@@ -393,8 +416,38 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         }
         return new Result(lifeActorBefore, lifeOpponentBefore, handActorBefore,
                 actor.getLife(), opponent.getLife(),
-                actor.getCardsIn(ZoneType.Hand).size(),
+                actor.getCardsIn(ZoneType.Hand).size(), actor.getName(), opponent.getName(),
                 parents, children, matched, tripwireHits, unique);
+    }
+
+    private void clearStackAndSettle(final Game game) {
+        // Resolve the stack, then flush state-based actions so assertions
+        // observe settled state (e.g. lethal-marked creatures destroyed).
+        // Bounded: at most one extra clear pass; matching decides validity.
+        playUntilStackClear(game);
+        game.getAction().checkStateEffects(true);
+        if (!game.getStack().isEmpty()) {
+            playUntilStackClear(game);
+            game.getAction().checkStateEffects(true);
+        }
+    }
+
+    private String rosterSnapshot(final Game game) {
+        final StringBuilder out = new StringBuilder("[");
+        boolean firstZone = true;
+        for (final Player player : game.getPlayers()) {
+            if (!firstZone) out.append(';');
+            firstZone = false;
+            out.append(player.getName()).append(':');
+            boolean first = true;
+            for (final Card card : player.getCardsIn(ZoneType.Battlefield)) {
+                if (!first) out.append(',');
+                first = false;
+                out.append(card.getName());
+                if (card.isTransformed()) out.append("(T)");
+            }
+        }
+        return out.append(']').toString();
     }
 
     private void drivePostTravelStack(final Game game, final String context) {
@@ -404,11 +457,11 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         // three; link matching below remains the real gate.
         game.getStack().addAllTriggeredAbilitiesToStack();
         if (!game.getStack().isEmpty()) {
-            playUntilStackClear(game);
+            clearStackAndSettle(game);
         }
         if (game.getTriggerHandler().runWaitingTriggers()) {
             driveWaitingTrigger(game, context + ":post-travel-waiting", null);
-            playUntilStackClear(game);
+            clearStackAndSettle(game);
         }
     }
 
@@ -471,7 +524,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         // child) stay unattributed, exactly as for sub-links.
         MatchedLink match = null;
         for (final ChildObs child : children) {
-            if (!row.childApi.equals(child.api) || !row.cardName.equals(child.host)
+            if (!row.childApi.equals(child.api) || !child.hostIsSource
                     || child.parentId != -1 || child.rootId != child.id) {
                 continue;
             }
@@ -482,8 +535,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 if (parent.subParam != null) {
                     continue;
                 }
-                if (!row.parentApi.equals(parent.api)
-                        || !row.cardName.equals(parent.host)) {
+                if (!row.parentApi.equals(parent.api) || !parent.hostIsSource) {
                     continue;
                 }
                 if (!(child.seq < parent.seq)) {
@@ -493,7 +545,8 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     throw new IllegalStateException(
                             "terminal pair attribution ambiguous for " + row.linkPath
                                     + " all_parents=" + parents
-                                    + " all_children=" + children);
+                                    + " all_children=" + children
+                                    + " roster=" + rosterSnapshot(game));
                 }
                 match = new MatchedLink(row, parent, child, child.id);
             }
@@ -503,6 +556,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     "terminal root resolution not observed for " + row.linkPath
                             + " observations=" + children
                             + " parents=" + parents
+                            + " roster=" + rosterSnapshot(game)
                             + " sem=" + semanticSnapshot(
                                     game, actor, opponent, lifeActorBefore,
                                     lifeOpponentBefore, handActorBefore));
@@ -616,7 +670,8 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     .append(",\"api\":").append(q(event.api))
                     .append(",\"host\":").append(q(event.host))
                     .append(",\"activator\":").append(q(event.activator))
-                    .append(",\"sub_param\":").append(q(event.subParam)).append('}');
+                    .append(",\"sub_param\":").append(q(event.subParam))
+                    .append(",\"host_is_fixture_source\":").append(event.hostIsSource).append('}');
         }
         parentJson.append(']');
         final StringBuilder childJson = new StringBuilder("[");
@@ -628,7 +683,8 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     .append(",\"api\":").append(q(obs.api))
                     .append(",\"host\":").append(q(obs.host))
                     .append(",\"parent_id\":").append(obs.parentId)
-                    .append(",\"root_id\":").append(obs.rootId).append('}');
+                    .append(",\"root_id\":").append(obs.rootId)
+                    .append(",\"host_is_fixture_source\":").append(obs.hostIsSource).append('}');
         }
         childJson.append(']');
         final StringBuilder linksJson = new StringBuilder("[");
@@ -666,7 +722,8 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             hitsJson.append("{\"site\":").append(q(hit.site))
                     .append(",\"options\":").append(hit.options)
                     .append(",\"caller\":").append(q(hit.caller))
-                    .append(",\"incidental\":").append(hit.incidental).append('}');
+                    .append(",\"incidental\":").append(hit.incidental)
+                    .append(",\"actor\":").append(q(hit.actor)).append('}');
         }
         hitsJson.append(']');
         final StringBuilder consultationsJson = new StringBuilder("[");
@@ -684,6 +741,46 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             }
         }
         consultationsJson.append(']');
+        // Forced-choice bundles: one per declared consultation actually
+        // observed. Binds actor, callback, singleton count, derived unique
+        // option, selected identity (postcondition card), source effect,
+        // and the no-pilot/no-fallback classification.
+        final StringBuilder forcedJson = new StringBuilder("[");
+        boolean firstForced = true;
+        final List<String> seenForced = new ArrayList<>();
+        for (final CaseRow row : rows) {
+            for (final Consultation consultation : row.consultations) {
+                final String key = consultation.site + "|" + consultation.options;
+                if (seenForced.contains(key)) continue;
+                seenForced.add(key);
+                TripwireHit evidence = null;
+                for (final TripwireHit hit : result.tripwireHits) {
+                    if (!hit.incidental && hit.site.equals(consultation.site)
+                            && hit.options == consultation.options) {
+                        evidence = hit;
+                        break;
+                    }
+                }
+                if (evidence == null) continue;
+                if (!firstForced) forcedJson.append(',');
+                firstForced = false;
+                forcedJson.append("{\"site\":").append(q(consultation.site))
+                        .append(",\"options\":").append(consultation.options)
+                        .append(",\"actor\":").append(q(evidence.actor))
+                        .append(",\"caller\":").append(q(evidence.caller))
+                        .append(",\"offered_identity_derived\":")
+                        .append(q(consultation.selectedCard))
+                        .append(",\"selected_identity\":")
+                        .append(q(consultation.selectedCard))
+                        .append(",\"derivation\":")
+                        .append(q("count==1 AND outcome observed on selected"))
+                        .append(",\"classification\":\"FORCED_SINGLETON\"")
+                        .append(",\"external_discretionary_pilot\":false")
+                        .append(",\"hidden_fallback\":false")
+                        .append('}');
+            }
+        }
+        forcedJson.append(']');
 
         final String trace = "{"
                 + "\"schema\":\"commander-simulator-next.ws33-abilitysub-trace.v2\","
@@ -703,6 +800,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 + "\"decision_tripwire\":{\"methods\":" + tripJson
                 + ",\"hits\":" + hitsJson
                 + ",\"declared_consultations\":" + consultationsJson
+                + ",\"forced_choices\":" + forcedJson
                 + ",\"incidental_flow_rule\":"
                 + "\"PhaseHandler.mainLoopStep-originated play-consideration queries\"},"
                 + "\"runtime_profile\":{\"static_screen\":\"PASS\","
@@ -712,7 +810,9 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 + "\"replay_required\":false},"
                 + "\"initial\":{\"life_actor\":" + result.lifeActorBefore
                 + ",\"life_opponent\":" + result.lifeOpponentBefore
-                + ",\"hand_actor\":" + result.handActorBefore + "},"
+                + ",\"hand_actor\":" + result.handActorBefore
+                + ",\"actor_name\":" + q(result.actorName)
+                + ",\"opponent_name\":" + q(result.opponentName) + "},"
                 + "\"final\":{\"life_actor\":" + result.lifeActorAfter
                 + ",\"life_opponent\":" + result.lifeOpponentAfter
                 + ",\"hand_actor\":" + result.handActorAfter + "},"
@@ -896,9 +996,10 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 for (final String cell : consultationText.split(";", -1)) {
                     if (cell.isBlank()) continue;
                     final String[] parts = cell.split("\\|", -1);
-                    // site|options
+                    // site|options|selected_b64
                     this.consultations.add(new Consultation(
-                            parts[0], Integer.parseInt(parts[1])));
+                            parts[0], Integer.parseInt(parts[1]),
+                            parts.length > 2 ? unb64(parts[2]) : ""));
                 }
             }
         }
@@ -932,28 +1033,34 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         final String caller;
         final int options;
         final boolean incidental;
+        final String actor;
 
-        TripwireHit(String site, String caller, int options, boolean incidental) {
+        TripwireHit(String site, String caller, int options, boolean incidental,
+                String actor) {
             this.site = site;
             this.caller = caller;
             this.options = options;
             this.incidental = incidental;
+            this.actor = actor;
         }
 
         @Override
         public String toString() {
             return site + "(options=" + options + ")@" + caller
-                    + (incidental ? "[incidental]" : "[EFFECT]");
+                    + (incidental ? "[incidental]" : "[EFFECT]")
+                    + " actor=" + actor;
         }
     }
 
     private static final class Consultation {
         final String site;
         final int options;
+        final String selectedCard;
 
-        Consultation(String site, int options) {
+        Consultation(String site, int options, String selectedCard) {
             this.site = site;
             this.options = options;
+            this.selectedCard = selectedCard;
         }
     }
 
@@ -965,25 +1072,25 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         final String subParam;
         final String activator;
 
-        ParentEvent(int seq, int id, String api, String host, String subParam) {
-            this(seq, id, api, host, subParam, "?");
-        }
+        final boolean hostIsSource;
 
         ParentEvent(int seq, int id, String api, String host, String subParam,
-                String activator) {
+                String activator, boolean hostIsSource) {
             this.seq = seq;
             this.id = id;
             this.api = api;
             this.host = host;
             this.subParam = subParam;
             this.activator = activator;
+            this.hostIsSource = hostIsSource;
         }
 
         @Override
         public String toString() {
             return "Parent{seq=" + seq + " id=" + id + " api=" + api
                     + " host=" + host + " sub=" + subParam
-                    + " by=" + activator + "}";
+                    + " by=" + activator
+                    + (hostIsSource ? " [SRC]" : " [FOREIGN]") + "}";
         }
     }
 
@@ -994,20 +1101,24 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         final String host;
         final int parentId;
         final int rootId;
+        final boolean hostIsSource;
 
-        ChildObs(int seq, int id, String api, String host, int parentId, int rootId) {
+        ChildObs(int seq, int id, String api, String host, int parentId, int rootId,
+                boolean hostIsSource) {
             this.seq = seq;
             this.id = id;
             this.api = api;
             this.host = host;
             this.parentId = parentId;
             this.rootId = rootId;
+            this.hostIsSource = hostIsSource;
         }
 
         @Override
         public String toString() {
             return "Child{seq=" + seq + " id=" + id + " api=" + api
-                    + " host=" + host + " parent=" + parentId + " root=" + rootId + "}";
+                    + " host=" + host + " parent=" + parentId + " root=" + rootId
+                    + (hostIsSource ? " [SRC]" : " [FOREIGN]") + "}";
         }
     }
 
@@ -1051,6 +1162,8 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         final int lifeActorAfter;
         final int lifeOpponentAfter;
         final int handActorAfter;
+        final String actorName;
+        final String opponentName;
         final List<ParentEvent> parents;
         final List<ChildObs> children;
         final List<MatchedLink> matched;
@@ -1059,6 +1172,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
 
         Result(int lifeActorBefore, int lifeOpponentBefore, int handActorBefore,
                 int lifeActorAfter, int lifeOpponentAfter, int handActorAfter,
+                String actorName, String opponentName,
                 List<ParentEvent> parents, List<ChildObs> children,
                 List<MatchedLink> matched, List<TripwireHit> tripwireHits,
                 List<AssertionResult> assertions) {
@@ -1068,6 +1182,8 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             this.lifeActorAfter = lifeActorAfter;
             this.lifeOpponentAfter = lifeOpponentAfter;
             this.handActorAfter = handActorAfter;
+            this.actorName = actorName;
+            this.opponentName = opponentName;
             this.parents = new ArrayList<>(parents);
             this.children = new ArrayList<>(children);
             this.matched = new ArrayList<>(matched);

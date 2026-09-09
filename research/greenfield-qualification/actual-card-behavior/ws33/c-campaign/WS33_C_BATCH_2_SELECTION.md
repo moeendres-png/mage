@@ -1,6 +1,6 @@
 # WS33-C Batch 2 selection (phase-fixture family)
 
-Batch digest: `0b79430545e2928f35684500ef5ceedd5b253b30d0479bf633fcd8ab43aa14e7` (5 executions, 5 rows/slots, 3 unique new paths).
+Batch digest: `9845779cbfd430b52008c2888d677866d81f74e45224c1ff712e29624f4a1e15` (R7: gnarlbark forced-choice declaration; reference-identity attribution; SBA settle; roster/damage diagnostics) (5 executions, 5 rows/slots, 3 unique new paths).
 
 ## Selection-gate outcome for the primary priority (targeted-ETB)
 

@@ -37,7 +37,14 @@
           "expected": 1
         }
       ],
-      "expected_consultations": [],
+      "expected_consultations": [
+        {
+          "site": "chooseSingleEntityForEffect",
+          "options": 1,
+          "selected_card": "Sinister Gnarlbark",
+          "rationale": "BlightEffect.resolve reaffirms the target over the singleton Defined set (verified at FORGE_PIN: unconditional chooseSingleEntityForEffect over p.getCreaturesInPlay filtered by canReceiveCounters; fixture holds exactly one own creature). Outcome forced; asserted via gnarlbark-blight counter on source."
+        }
+      ],
       "note": "Restored from deferred with post-travel addAll (R5 silence hypothesis: simultaneous-pending never moved to stack)."
     },
     {

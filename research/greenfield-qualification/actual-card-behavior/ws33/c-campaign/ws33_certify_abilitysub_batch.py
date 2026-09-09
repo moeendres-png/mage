@@ -131,8 +131,11 @@ def check_execution(trace: dict, record: dict, expect: dict, owned: dict) -> str
             return f"relation match not certified: {pid}"
         if p.get("api") != link["parent_api"] or c.get("api") != link["child_api"]:
             return f"wrong child match: {pid}"
-        if p.get("host") != expect["card_name"] or c.get("host") != expect["card_name"]:
-            return f"host identity mismatch: {pid}"
+        # Stable production object identity (reference equality observed at
+        # runtime); mutable card names are recorded, never gating.
+        if p.get("host_is_fixture_source") is not True \
+                or c.get("host_is_fixture_source") is not True:
+            return f"host not fixture source object: {pid}"
         own = owned.get(pid, {})
         if m.get("modeled_class") != own.get("implementation_target"):
             return f"modeled class mismatch: {pid}"
@@ -156,6 +159,46 @@ def check_execution(trace: dict, record: dict, expect: dict, owned: dict) -> str
         if not any(h.get("site") == site and h.get("options") == options
                    and h.get("incidental") is not True for h in trip.get("hits", [])):
             return f"declared consultation not observed: {site} options={options}"
+    bundles = {(b.get("site"), b.get("options")): b
+               for b in trip.get("forced_choices", [])}
+    actor_name = (trace.get("initial", {}) or {}).get("actor_name", "")
+    for dec in expect.get("expected_consultations", []):
+        key = (dec.get("site"), dec.get("options"))
+        b = bundles.get(key)
+        if b is None:
+            return f"forced-choice bundle missing: {dec.get('site')}"
+        if b.get("options") != 1:
+            return f"forced choice not singleton: {dec.get('site')}"
+        if not b.get("actor"):
+            return f"forced-choice actor missing: {dec.get('site')}"
+        if actor_name and b.get("actor") != actor_name:
+            return f"forced-choice actor mismatch: {dec.get('site')}"
+        if b.get("selected_identity") != dec.get("selected_card"):
+            return f"forced-choice selected mismatch: {dec.get('site')}"
+        if b.get("offered_identity_derived") != dec.get("selected_card"):
+            return f"forced-choice offered mismatch: {dec.get('site')}"
+        if b.get("classification") != "FORCED_SINGLETON":
+            return f"forced-choice misclassified: {dec.get('site')}"
+        if b.get("external_discretionary_pilot") is not False:
+            return f"forced choice used external pilot: {dec.get('site')}"
+        if b.get("hidden_fallback") is not False:
+            return f"forced choice used hidden fallback: {dec.get('site')}"
+        if not b.get("caller"):
+            return f"forced-choice source effect missing: {dec.get('site')}"
+        # The selected identity must carry a passing outcome assertion:
+        # singleton offered AND outcome observed on selected. Coverage is
+        # plan-driven: preparer resolves each assertion to covered card names.
+        sel = dec.get("selected_card", "")
+        covered = set()
+        rec_asserts = {a["assertion_id"]: a for a in record.get("state_assertions", [])}
+        for adef in expect.get("assertions", []):
+            got4 = rec_asserts.get(adef["assertion_id"])
+            if got4 is None or got4.get("result") != "PASS":
+                continue
+            for nm in adef.get("covers", []):
+                covered.add(nm)
+        if sel not in covered:
+            return f"forced-choice selected has no passing covering assertion: {dec.get('site')}"
     prof = trace.get("runtime_profile", {})
     if prof.get("static_screen") != "PASS":
         return "static screen not passed"
@@ -196,10 +239,11 @@ def selftest() -> int:
         "production_entrypoint": "forge.game.ability.AbilityUtils.resolve",
         "parent_resolution_events": [
             {"seq": 4, "id": 11, "api": "GainLife", "host": "Cloudblazer",
-             "sub_param": "DBDraw"}],
+             "sub_param": "DBDraw", "host_is_fixture_source": True}],
         "child_observations": [
             {"seq": 5, "id": 12, "api": "Draw", "host": "Cloudblazer",
-             "parent_id": 11, "root_id": 11}],
+             "parent_id": 11, "root_id": 11, "host_is_fixture_source": True}],
+        "initial": {"actor_name": "p2", "opponent_name": "p1"},
         "matched_links": [{
             "path_id": "P", "parent_id": 11, "child_id": 12,
             "parent_seq": 4, "child_seq": 5,
@@ -260,7 +304,7 @@ def selftest() -> int:
     t = copy.deepcopy(base_trace)
     t["decision_tripwire"]["hits"] = [
         {"site": "chooseTargetsFor", "options": 2,
-         "caller": "AttachEffect.resolve", "incidental": False}]
+         "caller": "AttachEffect.resolve", "incidental": False, "actor": "p2"}]
     cases.append(("unexpected-decision", t, copy.deepcopy(base_record),
                   "unexpected decision requirement"))
     t = copy.deepcopy(base_trace)
@@ -279,19 +323,94 @@ def selftest() -> int:
     t = copy.deepcopy(base_trace)
     t["decision_tripwire"]["hits"] = [
         {"site": "chooseSingleEntityForEffect", "options": 1,
-         "caller": "AttachEffect.resolve", "incidental": False}]
+         "caller": "AttachEffect.resolve", "incidental": False, "actor": "p2"}]
+    t["decision_tripwire"]["forced_choices"] = [{
+        "site": "chooseSingleEntityForEffect", "options": 1, "actor": "p2",
+        "caller": "AttachEffect.resolve",
+        "offered_identity_derived": "Cloudblazer",
+        "selected_identity": "Cloudblazer",
+        "classification": "FORCED_SINGLETON",
+        "external_discretionary_pilot": False, "hidden_fallback": False}]
     expect_declared = copy.deepcopy(expect)
     expect_declared["expected_consultations"] = [
-        {"site": "chooseSingleEntityForEffect", "options": 1}]
+        {"site": "chooseSingleEntityForEffect", "options": 1,
+         "selected_card": "Cloudblazer"}]
+    expect_declared["assertions"] = [
+        {"assertion_id": "life-delta-actor", "expected": 2,
+         "covers": ["Cloudblazer"]}]
     cases.append(("declared-consultation-observed", t, copy.deepcopy(base_record),
                   None, None, expect_declared))
     # Declared consultation with different option count: reject.
     t = copy.deepcopy(base_trace)
     t["decision_tripwire"]["hits"] = [
         {"site": "chooseSingleEntityForEffect", "options": 3,
-         "caller": "AttachEffect.resolve", "incidental": False}]
+         "caller": "AttachEffect.resolve", "incidental": False, "actor": "p2"}]
     cases.append(("consultation-options-mismatch", t, copy.deepcopy(base_record),
                   "unexpected decision requirement", None, expect_declared))
+    # Forced bundle with wrong selected identity: reject.
+    t = copy.deepcopy(base_trace)
+    t["decision_tripwire"]["hits"] = [
+        {"site": "chooseSingleEntityForEffect", "options": 1,
+         "caller": "AttachEffect.resolve", "incidental": False, "actor": "p2"}]
+    t["decision_tripwire"]["forced_choices"] = [{
+        "site": "chooseSingleEntityForEffect", "options": 1, "actor": "p2",
+        "caller": "AttachEffect.resolve",
+        "offered_identity_derived": "SomeoneElse",
+        "selected_identity": "SomeoneElse",
+        "classification": "FORCED_SINGLETON",
+        "external_discretionary_pilot": False, "hidden_fallback": False}]
+    cases.append(("forced-selected-mismatch", t, copy.deepcopy(base_record),
+                  "forced-choice selected mismatch", None, expect_declared))
+    # Forced bundle claiming an external pilot: reject.
+    t = copy.deepcopy(base_trace)
+    t["decision_tripwire"]["hits"] = [
+        {"site": "chooseSingleEntityForEffect", "options": 1,
+         "caller": "AttachEffect.resolve", "incidental": False, "actor": "p2"}]
+    t["decision_tripwire"]["forced_choices"] = [{
+        "site": "chooseSingleEntityForEffect", "options": 1, "actor": "p2",
+        "caller": "AttachEffect.resolve",
+        "offered_identity_derived": "Cloudblazer",
+        "selected_identity": "Cloudblazer",
+        "classification": "FORCED_SINGLETON",
+        "external_discretionary_pilot": True, "hidden_fallback": False}]
+    cases.append(("forced-external-pilot", t, copy.deepcopy(base_record),
+                  "forced choice used external pilot", None, expect_declared))
+    # Forced bundle with actor mismatch: reject.
+    t = copy.deepcopy(base_trace)
+    t["decision_tripwire"]["hits"] = [
+        {"site": "chooseSingleEntityForEffect", "options": 1,
+         "caller": "AttachEffect.resolve", "incidental": False, "actor": "p1"}]
+    t["decision_tripwire"]["forced_choices"] = [{
+        "site": "chooseSingleEntityForEffect", "options": 1, "actor": "p1",
+        "caller": "AttachEffect.resolve",
+        "offered_identity_derived": "Cloudblazer",
+        "selected_identity": "Cloudblazer",
+        "classification": "FORCED_SINGLETON",
+        "external_discretionary_pilot": False, "hidden_fallback": False}]
+    cases.append(("forced-actor-mismatch", t, copy.deepcopy(base_record),
+                  "forced-choice actor mismatch", None, expect_declared))
+    # Selected card without covering outcome assertion: reject.
+    expect_nocover = copy.deepcopy(expect_declared)
+    expect_nocover["assertions"] = [
+        {"assertion_id": "life-delta-actor", "expected": 2, "covers": []}]
+    t = copy.deepcopy(base_trace)
+    t["decision_tripwire"]["hits"] = [
+        {"site": "chooseSingleEntityForEffect", "options": 1,
+         "caller": "AttachEffect.resolve", "incidental": False, "actor": "p2"}]
+    t["decision_tripwire"]["forced_choices"] = [{
+        "site": "chooseSingleEntityForEffect", "options": 1, "actor": "p2",
+        "caller": "AttachEffect.resolve",
+        "offered_identity_derived": "Cloudblazer",
+        "selected_identity": "Cloudblazer",
+        "classification": "FORCED_SINGLETON",
+        "external_discretionary_pilot": False, "hidden_fallback": False}]
+    cases.append(("forced-no-covering-assertion", t, copy.deepcopy(base_record),
+                  "no passing covering assertion", None, expect_nocover))
+    # Foreign host object on matched pair: reject (mutable names never gate).
+    t = copy.deepcopy(base_trace)
+    t["parent_resolution_events"][0]["host_is_fixture_source"] = False
+    cases.append(("foreign-host-object", t, copy.deepcopy(base_record),
+                  "host not fixture source object"))
     # Incidental-only flow queries: accept.
     t = copy.deepcopy(base_trace)
     t["decision_tripwire"]["hits"] = [
@@ -315,10 +434,10 @@ def selftest() -> int:
         "production_entrypoint": "forge.game.ability.AbilityUtils.resolve",
         "parent_resolution_events": [
             {"seq": 7, "id": 44, "api": "DamageAll", "host": "Thunder Dragon",
-             "sub_param": None}],
+             "sub_param": None, "host_is_fixture_source": True}],
         "child_observations": [
             {"seq": 6, "id": 44, "api": "DamageAll", "host": "Thunder Dragon",
-             "parent_id": -1, "root_id": 44}],
+             "parent_id": -1, "root_id": 44, "host_is_fixture_source": True}],
         "matched_links": [{
             "path_id": "PT", "parent_id": 44, "child_id": 44,
             "parent_seq": 7, "child_seq": 6, "terminal": True,
@@ -381,9 +500,9 @@ def selftest() -> int:
         for f in failures:
             print("  " + f)
         return 1
-    print("WS33_C_BATCH_ADJUDICATION_SELFTEST=PASS cases=18 "
+    print("WS33_C_BATCH_ADJUDICATION_SELFTEST=PASS cases=22 "
           "(positive + incidental-only + declared-consultation + "
-          "typed-expected-string + terminal-accept + 13 fail-closed negatives)")
+          "typed-expected-string + terminal-accept + 17 fail-closed negatives)")
     return 0
 
 

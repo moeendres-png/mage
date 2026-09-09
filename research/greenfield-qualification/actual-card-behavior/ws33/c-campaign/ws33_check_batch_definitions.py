@@ -125,9 +125,27 @@ def main() -> None:
                 fail(f"bad setup via {ex['execution_id']}")
             if s.get("via") == "move" and s.get("zone") != "Battlefield":
                 fail(f"via=move requires Battlefield zone {ex['execution_id']}")
+        declared_cards = {ex["card_name"]}
+        declared_cards.update(s.get("card_name", "") for s in ex.get("setup", []))
+        if ex["fixture"].get("entering_card"):
+            declared_cards.add(ex["fixture"]["entering_card"])
+        for a in ex.get("assertions", []):
+            if a.get("name"):
+                declared_cards.add(a["name"])
+            if a.get("card") and a["card"] != "source":
+                declared_cards.add(a["card"])
         for c in ex.get("expected_consultations", []):
             if not c.get("site") or not isinstance(c.get("options"), int):
                 fail(f"bad consultation declaration {ex['execution_id']}")
+            if c["options"] != 1:
+                fail(f"only singleton consultations supported {ex['execution_id']}")
+            if not c.get("selected_card") or c["selected_card"] not in declared_cards:
+                fail(f"consultation selected_card not in declared universe {ex['execution_id']}")
+            if not any((a.get("card") == c["selected_card"] or
+                        (a.get("card") == "source" and ex["card_name"] == c["selected_card"]) or
+                        a.get("name") == c["selected_card"])
+                       for a in ex.get("assertions", [])):
+                fail(f"consultation selected_card has no covering assertion {ex['execution_id']}")
         if ex["fixture"]["kind"] == "ETB_OTHER_ENTER" and not ex["fixture"].get("entering_card"):
             fail(f"ETB_OTHER_ENTER without entering_card {ex['execution_id']}")
         txt = script(ex["source_path"])

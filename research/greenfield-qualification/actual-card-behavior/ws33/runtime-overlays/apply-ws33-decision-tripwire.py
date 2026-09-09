@@ -77,20 +77,14 @@ def main() -> None:
         raise SystemExit("WS33_DECISION_TRIPWIRE_OVERLAY=FAIL overlay already present")
     s = replace_once(
         s,
-        "import java.util.function.Consumer;",
-        "import java.util.function.BiConsumer;\nimport java.util.function.Consumer;",
-        "BiConsumer import",
-    )
-    s = replace_once(
-        s,
         "public class PlayerControllerAi extends PlayerController {\n    private final AiController brains;",
-        "public class PlayerControllerAi extends PlayerController {\n    private static volatile BiConsumer<String, Integer> ws33DecisionTripwire;\n\n    public static void setWs33DecisionTripwire(final BiConsumer<String, Integer> tripwire) {\n        ws33DecisionTripwire = tripwire;\n    }\n\n    private static void ws33NoteDecision(final String site, final int options) {\n        final BiConsumer<String, Integer> tripwire = ws33DecisionTripwire;\n        if (tripwire != null) {\n            tripwire.accept(site, options);\n        }\n    }\n\n    private final AiController brains;",
+        "public class PlayerControllerAi extends PlayerController {\n    public interface Ws33DecisionSink {\n        void accept(String site, int options, String actor);\n    }\n\n    private static volatile Ws33DecisionSink ws33DecisionTripwire;\n\n    public static void setWs33DecisionTripwire(final Ws33DecisionSink tripwire) {\n        ws33DecisionTripwire = tripwire;\n    }\n\n    private static void ws33NoteDecision(final String site, final int options, final String actor) {\n        final Ws33DecisionSink tripwire = ws33DecisionTripwire;\n        if (tripwire != null) {\n            tripwire.accept(site, options, actor);\n        }\n    }\n\n    private final AiController brains;",
         "tripwire slot",
     )
     for sig, expr in PROBES:
         method = sig.split("(")[0].rsplit(" ", 1)[-1]
         old = sig + "\n"
-        new = sig + '\n        ws33NoteDecision("' + method + '", ' + expr + ');\n'
+        new = sig + '\n        ws33NoteDecision("' + method + '", ' + expr + ', player.getName());\n'
         s = replace_once(s, old, new, f"site {method}")
     path.write_text(s, encoding="utf-8")
     print("WS33_DECISION_TRIPWIRE_OVERLAY=PASS sites=9 observation_only=TRUE "

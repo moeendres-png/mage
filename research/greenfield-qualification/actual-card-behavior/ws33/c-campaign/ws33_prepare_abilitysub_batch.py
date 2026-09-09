@@ -67,7 +67,8 @@ def main() -> None:
                 b64(a.get("card", "")), a.get("counter", ""), a.get("keyword", ""),
                 str(a["expected"])]))
         consultations = ";".join(
-            f"{c['site']}|{c['options']}" for c in ex.get("expected_consultations", []))
+            f"{c['site']}|{c['options']}|{b64(c.get('selected_card', ''))}"
+            for c in ex.get("expected_consultations", []))
         plan_execs.append({
             "execution_id": ex["execution_id"],
             "card_name": ex["card_name"],
@@ -86,10 +87,18 @@ def main() -> None:
             "assertions": [{
                 "assertion_id": a["id"],
                 "expected": a["expected"],
+                # Card names this assertion observes (source resolves to
+                # the execution card). Used to bind forced-choice selected
+                # identities to passing outcome assertions.
+                "covers": sorted(
+                    ({ex["card_name"]} if a.get("card") == "source" else set())
+                    | ({a["card"]} if a.get("card") not in ("", "source", None) else set())
+                    | ({a["name"]} if a.get("name") else set())),
             } for a in ex["assertions"]],
             "expected_consultations": [{
                 "site": c["site"],
                 "options": c["options"],
+                "selected_card": c.get("selected_card", ""),
             } for c in ex.get("expected_consultations", [])],
         })
         for link in ex["links"]:
