@@ -1,0 +1,1 @@
+{"notes":[{"limitation":"creature-damage leg vacuous in fixture (mass-destroy kills all witnesses before trigger resolution; no state-only observer exists without damage-mark asserts or D6/D8 kill fixtures)","path_id":"forge-behavior-v2:21ee81f2abd9e074bc2c55769551461d30580fd1","status":"CANDIDATE_LIMITATION"}],"schema":"commander-simulator-next.ws33d-evidence-qualifications.v1"}
