@@ -648,7 +648,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             if (i != 0) stateAssertions.append(',');
             final AssertionResult assertion = result.assertions.get(i);
             stateAssertions.append("{\"assertion_id\":").append(q(assertion.id))
-                    .append(",\"expected\":").append(q(assertion.expected))
+                    .append(",\"expected\":").append(jsonTyped(assertion.expected))
                     .append(",\"actual\":").append(jsonValue(assertion.actual))
                     .append(",\"result\":\"PASS\"}");
         }
@@ -695,6 +695,18 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             return value.toString();
         }
         return String.valueOf(((Number) value).intValue());
+    }
+
+    private static String jsonTyped(final String value) {
+        try {
+            return String.valueOf(Integer.parseInt(value));
+        } catch (NumberFormatException notAnInt) {
+            // fall through
+        }
+        if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value)) {
+            return value.toLowerCase(java.util.Locale.ROOT);
+        }
+        return q(value);
     }
 
     private static List<CaseRow> loadCases(final Path path) throws IOException {

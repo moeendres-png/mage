@@ -42,6 +42,23 @@ def load(p: Path):
     return json.loads(p.read_text(encoding="utf-8"))
 
 
+def norm_json_scalar(value):
+    """Normalize JSON scalar typing across record/plan (int vs numeric
+    string, bool vs boolean string). Semantic value comparison only."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            pass
+        if value.lower() in ("true", "false"):
+            return value.lower() == "true"
+    return value
+
+
 def check_execution(trace: dict, record: dict, expect: dict, owned: dict) -> str | None:
     """Return None on accept, else the fail-closed reason."""
     if trace.get("schema") != TRACE_SCHEMA_V2:
@@ -137,7 +154,7 @@ def check_execution(trace: dict, record: dict, expect: dict, owned: dict) -> str
         got = by_id.get(a["assertion_id"])
         if got is None or got.get("result") != "PASS":
             return f"semantic assertion not PASS: {a['assertion_id']}"
-        if got.get("expected") != a["expected"]:
+        if norm_json_scalar(got.get("expected")) != norm_json_scalar(a["expected"]):
             return f"semantic expectation mismatch: {a['assertion_id']}"
     for link in expect["links"]:
         short = link["path_id"].removeprefix("forge-behavior-v2:")
@@ -263,6 +280,16 @@ def selftest() -> int:
         {"site": "chooseSpellAbilityToPlay", "options": -1,
          "caller": "PhaseHandler.mainLoopStep", "incidental": True}]
     cases.append(("incidental-only", t, copy.deepcopy(base_record), None))
+    # JSON typing: string "2" in record vs int 2 in plan is the same value.
+    r = copy.deepcopy(base_record)
+    r["state_assertions"][0]["expected"] = "2"
+    cases.append(("typed-expected-string", copy.deepcopy(base_trace), r, None))
+    # Genuinely different semantic value still fails closed.
+    r = copy.deepcopy(base_record)
+    r["state_assertions"][0]["expected"] = 3
+    r["state_assertions"][0]["actual"] = 3
+    cases.append(("wrong-semantic-value", copy.deepcopy(base_trace), r,
+                  "semantic expectation mismatch"))
     failures = []
     for entry in cases:
         name, t, r, want = entry[0], entry[1], entry[2], entry[3]
@@ -284,8 +311,9 @@ def selftest() -> int:
         for f in failures:
             print("  " + f)
         return 1
-    print("WS33_C_BATCH_ADJUDICATION_SELFTEST=PASS cases=13 "
-          "(positive + incidental-only + declared-consultation + 10 fail-closed negatives)")
+    print("WS33_C_BATCH_ADJUDICATION_SELFTEST=PASS cases=15 "
+          "(positive + incidental-only + declared-consultation + "
+          "typed-expected-string + 11 fail-closed negatives)")
     return 0
 
 
