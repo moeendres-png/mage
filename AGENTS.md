@@ -57,13 +57,29 @@ Architecture Freeze must be separately adjudicated from those verified facts. Do
 
 ## OpenCode execution-model contract
 
-All Commander Simulator Next repository execution performed through OpenCode is restricted to **Muse Spark 1.3 Contributor Free**.
+All Commander Simulator Next repository execution performed through OpenCode is restricted to **OpenCode Go + Muse Spark 1.3 Contributor**.
 
-Authoritative OpenCode model ID:
+Authoritative OpenCode provider ID:
 
-`opencode/muse-spark-1.3-contributor-free`
+`opencode-go`
+
+Authoritative Go model ID:
+
+`muse-spark-1.3-contributor`
+
+Authoritative full OpenCode model selector:
+
+`opencode-go/muse-spark-1.3-contributor`
 
 The repository `opencode.json` is the executable project configuration for this policy.
+
+### Go-only provider policy
+
+Project execution must use **OpenCode Go**, not OpenCode Zen.
+
+The Zen model `opencode/muse-spark-1.3-contributor-free` is a different provider/SKU and is not authorized for project execution while this Go-only policy is active.
+
+Do not silently route through Zen, Zen Free, another OpenCode provider, or any third-party provider if the Go model is unavailable.
 
 ### Allowed reasoning range
 
@@ -81,38 +97,44 @@ Use `xhigh` for difficult root-cause analysis, complex multi-file repair, subtle
 
 `none`, `minimal`, `low`, and `max` are outside the project-authorized range and must not be used.
 
-### No model fallback
+### No model or provider fallback
 
-Do not switch to another model family, another Muse version, a generic small model, or another provider when Muse Spark 1.3 Contributor Free is unavailable, rate-limited, missing from the catalog, or errors.
+Do not switch to another model family, another Muse version, another Muse SKU, a generic small model, OpenCode Zen, or another provider when `opencode-go/muse-spark-1.3-contributor` is unavailable, rate-limited, missing from the catalog, or errors.
 
 Fail closed instead:
 
 1. preserve current work and evidence;
-2. record the exact OpenCode version, requested model ID, requested variant, and error;
+2. record the exact OpenCode version, provider ID, requested model ID, requested variant, and error;
 3. classify the condition as `EXECUTION_MODEL_UNAVAILABLE`;
 4. stop model-dependent execution and hand back the blocker.
 
-Do not silently use Muse Spark 1.2, paid Muse Spark, GPT, Claude, Gemini, DeepSeek, or any other substitute.
+Do not silently use Muse Spark 1.2, Muse Spark 1.3 Contributor Free on Zen, another Muse Spark route, GPT, Claude, Gemini, DeepSeek, or any other substitute.
 
-A change of provider/SKU, including a paid Muse Spark 1.3 route, requires explicit coordinator/user authorization because it may change cost, service contract, or evidence environment.
+A change of provider/SKU requires explicit coordinator/user authorization because it may change cost, service contract, privacy/training terms, routing behavior, or evidence environment.
 
 ### Agent and subagent model inheritance
 
-Primary agents, planning agents, exploration agents, summary/title/compaction helpers, and any custom/subagent used for project work must remain on the same authoritative Muse Spark 1.3 Contributor Free model.
+Primary agents, planning agents, exploration agents, summary/title/compaction helpers, and any custom/subagent used for project work must remain on the same authoritative Go model:
 
-Before using a newly configured custom agent or subagent, verify its effective model and variant.
+`opencode-go/muse-spark-1.3-contributor`
 
-Do not delegate to a subagent if OpenCode cannot prove that its effective model is `opencode/muse-spark-1.3-contributor-free` and its reasoning variant is within `medium` through `xhigh`.
+Before using a newly configured custom agent or subagent, verify its effective provider, model, and variant.
+
+Do not delegate to a subagent if OpenCode cannot prove that its effective provider is `opencode-go`, its effective model is `muse-spark-1.3-contributor`, and its reasoning variant is `medium`, `high`, or `xhigh`.
 
 ### Effective-config verification
 
 At the beginning of a new OpenCode workstream, or after any OpenCode/provider/config change:
 
 1. read `opencode.json` and this `AGENTS.md`;
-2. verify OpenCode's live model catalog contains `opencode/muse-spark-1.3-contributor-free`;
-3. verify the effective agent model is that exact ID;
-4. verify the effective variant is `medium`, `high`, or `xhigh`;
-5. if any check fails, fail closed before material repository mutation.
+2. verify OpenCode's live `/models` catalog under the connected **OpenCode Go** provider contains `opencode-go/muse-spark-1.3-contributor`;
+3. verify the effective agent provider is `opencode-go`;
+4. verify the effective agent model is `muse-spark-1.3-contributor`;
+5. verify the effective variant is `medium`, `high`, or `xhigh`;
+6. run a minimal non-mutating model-identity smoke check when the OpenCode version/provider configuration has changed materially;
+7. if any check fails, fail closed before material repository mutation.
+
+Do not rely only on a requested CLI `--model` / `-m` string as proof of the effective model. Verify the effective session/provider/model identity because OpenCode versions may have model-selection or fallback defects.
 
 CLI `--model` / `-m`, session model changes, custom commands, custom agents, or user/global configuration must not be used to bypass this project policy.
 
