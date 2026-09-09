@@ -69,7 +69,8 @@ def main() -> int:
         resolutions = trace.get("intent_resolutions", [])
         assert len(resolutions) == len(tape["events"]), "resolution/tape count mismatch"
         for res in resolutions:
-            assert res["selected_option_id"] == res["expected_option_id"], "unmatched intent resolution"
+            assert res["selected"] == res["expected_select"] and res["match"] is True, \
+                "unmatched intent resolution"
         intent = plan.get("intents", {}).get(pid, "NONE")
         if intent == "NONE":
             assert len(tape["events"]) == 0, "unexpected decision events on NONE-intent path"

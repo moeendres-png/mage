@@ -523,7 +523,8 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
         ExternalDecisionResponse decide(final ExternalDecisionRequest request) {
             logRequest(request);
             final ExternalDecisionRequest.Option chosen;
-            final String expectedId;
+            final String expectedSelect;
+            final String selectedSelect;
             if (replay != null) {
                 if (replayIndex >= replay.size()) {
                     throw new IllegalStateException("replay decision tape exhausted");
@@ -538,16 +539,18 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
                         .findFirst()
                         .orElseThrow(() -> new IllegalStateException(
                                 "recorded fixture response absent from authoritative replay options"));
-                expectedId = expected.optionId;
+                expectedSelect = expected.optionId + "|" + expected.semanticValue;
+                selectedSelect = chosen.getOptionId() + "|" + chosen.getSemanticValue();
             } else if ("ENTITY_LIST_SELECTION".equals(request.getDecisionKind())) {
                 if (!"ENTITY".equals(intentKind) || designated == null) {
                     throw new IllegalStateException("fail-closed entity selection without ENTITY intent kind="
                             + request.getDecisionKind());
                 }
-                expectedId = ExternalDecisionRequest.optionIdFor(designated);
+                final String expectedSemantic =
+                        "ENTITY:" + ExternalDecisionRequest.optionIdFor(designated);
                 final List<ExternalDecisionRequest.Option> entityOptions = new ArrayList<>();
                 for (final ExternalDecisionRequest.Option option : request.getOptions()) {
-                    if (option.isEntityBacked()) {
+                    if (expectedSemantic.equals(option.getSemanticValue())) {
                         entityOptions.add(option);
                     } else if (!"CANCEL".equals(option.getSemanticValue()) || request.isCancelAllowed()
                             || request.getMinimumSelection() < 1) {
@@ -556,12 +559,13 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
                                 + " semantic=" + option.getSemanticValue());
                     }
                 }
-                if (entityOptions.size() != 1
-                        || !expectedId.equals(entityOptions.get(0).getOptionId())) {
+                if (entityOptions.size() != 1) {
                     throw new IllegalStateException("fail-closed designated entity not the sole option kind="
-                            + request.getDecisionKind() + " expected=" + expectedId);
+                            + request.getDecisionKind() + " expectedSemantic=" + expectedSemantic);
                 }
                 chosen = entityOptions.get(0);
+                expectedSelect = expectedSemantic;
+                selectedSelect = chosen.getSemanticValue();
             } else if ("CONFIRM_PAYMENT".equals(request.getDecisionKind())) {
                 if (!"CONFIRM_TRUE".equals(intentKind)) {
                     throw new IllegalStateException("fail-closed payment confirm without CONFIRM intent kind="
@@ -586,8 +590,9 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
                 if (affirm == null || !hasDeny) {
                     throw new IllegalStateException("fail-closed payment confirm options malformed");
                 }
-                expectedId = affirm.getOptionId();
                 chosen = affirm;
+                expectedSelect = "true";
+                selectedSelect = chosen.getSemanticValue();
             } else {
                 final StringBuilder ids = new StringBuilder();
                 for (final ExternalDecisionRequest.Option o : request.getOptions()) {
@@ -600,9 +605,9 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
             }
             captured.add(new CapturedDecision(request, chosen.getOptionId(), chosen.getSemanticValue()));
             resolutions.add("{\"kind\":" + q(request.getDecisionKind())
-                    + ",\"expected_option_id\":" + q(expectedId)
-                    + ",\"selected_option_id\":" + q(chosen.getOptionId())
-                    + ",\"match\":" + expectedId.equals(chosen.getOptionId())
+                    + ",\"expected_select\":" + q(expectedSelect)
+                    + ",\"selected\":" + q(selectedSelect)
+                    + ",\"match\":" + expectedSelect.equals(selectedSelect)
                     + "}");
             return new ExternalDecisionResponse(
                     request.getDecisionId(), request.getToken(), request.getActorId(),
