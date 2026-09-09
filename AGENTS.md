@@ -55,6 +55,69 @@ At terminal status, persist PASS or FAIL before any repair or coverage promotion
 
 Architecture Freeze must be separately adjudicated from those verified facts. Do not infer it from workflow greenness.
 
+## OpenCode execution-model contract
+
+All Commander Simulator Next repository execution performed through OpenCode is restricted to **Muse Spark 1.3 Contributor Free**.
+
+Authoritative OpenCode model ID:
+
+`opencode/muse-spark-1.3-contributor-free`
+
+The repository `opencode.json` is the executable project configuration for this policy.
+
+### Allowed reasoning range
+
+Only these reasoning variants are authorized for project work:
+
+- `medium`
+- `high`
+- `xhigh`
+
+Default for substantive implementation, debugging, qualification, integration, and evidence work is `high`.
+
+Use `medium` for bounded mechanical/read-heavy work where higher reasoning has no material expected benefit.
+
+Use `xhigh` for difficult root-cause analysis, complex multi-file repair, subtle semantic integration, or other tasks where the additional reasoning budget is justified.
+
+`none`, `minimal`, `low`, and `max` are outside the project-authorized range and must not be used.
+
+### No model fallback
+
+Do not switch to another model family, another Muse version, a generic small model, or another provider when Muse Spark 1.3 Contributor Free is unavailable, rate-limited, missing from the catalog, or errors.
+
+Fail closed instead:
+
+1. preserve current work and evidence;
+2. record the exact OpenCode version, requested model ID, requested variant, and error;
+3. classify the condition as `EXECUTION_MODEL_UNAVAILABLE`;
+4. stop model-dependent execution and hand back the blocker.
+
+Do not silently use Muse Spark 1.2, paid Muse Spark, GPT, Claude, Gemini, DeepSeek, or any other substitute.
+
+A change of provider/SKU, including a paid Muse Spark 1.3 route, requires explicit coordinator/user authorization because it may change cost, service contract, or evidence environment.
+
+### Agent and subagent model inheritance
+
+Primary agents, planning agents, exploration agents, summary/title/compaction helpers, and any custom/subagent used for project work must remain on the same authoritative Muse Spark 1.3 Contributor Free model.
+
+Before using a newly configured custom agent or subagent, verify its effective model and variant.
+
+Do not delegate to a subagent if OpenCode cannot prove that its effective model is `opencode/muse-spark-1.3-contributor-free` and its reasoning variant is within `medium` through `xhigh`.
+
+### Effective-config verification
+
+At the beginning of a new OpenCode workstream, or after any OpenCode/provider/config change:
+
+1. read `opencode.json` and this `AGENTS.md`;
+2. verify OpenCode's live model catalog contains `opencode/muse-spark-1.3-contributor-free`;
+3. verify the effective agent model is that exact ID;
+4. verify the effective variant is `medium`, `high`, or `xhigh`;
+5. if any check fails, fail closed before material repository mutation.
+
+CLI `--model` / `-m`, session model changes, custom commands, custom agents, or user/global configuration must not be used to bypass this project policy.
+
+If a higher-precedence user/global OpenCode configuration prevents this project policy from taking effect, report the conflict explicitly rather than silently continuing.
+
 ## Turn boundary
 
 If a model turn ends before the completion gate is satisfied, repository state must say:
