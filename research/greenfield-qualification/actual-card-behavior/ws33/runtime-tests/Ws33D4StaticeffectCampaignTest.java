@@ -678,7 +678,7 @@ public final class Ws33D4StaticeffectCampaignTest extends AITest {
             default:
                 throw new IllegalStateException("fail-closed unsupported D4a recipe " + c.recipe);
         }
-        return assertions;
+        return acc;
     }
 
     private void checkCount(final Game game, final AssertionAcc acc, final String id,
