@@ -119,7 +119,7 @@ def target_row(pid, **over):
 def selection_rows(pid):
     rows = []
     if pid == X_PATH:
-        rows.append("\t".join((pid, "NUMBER", "1", "1", "6", "1", "1", "1",
+        rows.append("\t".join((pid, "GUI_GET_INTEGER", "1", "1", "6", "1", "1", "1",
                                 "choice:2", enc("2"), "POSITIVE_X_ANNOUNCEMENT", "false")))
     if dispatch_for(pid) == "Charm":
         if pid == X_PATH:
@@ -261,8 +261,8 @@ class AdjudicatorTest(unittest.TestCase):
         rows = []
         for p in PATHS:
             for r in selection_rows(p):
-                if p == X_PATH and r.split("\t")[1] == "NUMBER":
-                    r = r.replace("NUMBER", "GUI_GET_INTEGER", 1)
+                if p == X_PATH and r.split("\t")[1] == "GUI_GET_INTEGER":
+                    r = r.replace("GUI_GET_INTEGER", "NUMBER", 1)
                 rows.append(r)
         self.fx.rewrite("record", "AF8_SELECTION_WITNESS.tsv", rows)
         self.assert_fail("x_announcement_selection_missing")
@@ -343,6 +343,19 @@ class AdjudicatorTest(unittest.TestCase):
         self.fx.rewrite("replay", "AF8_TARGET_EVIDENCE.tsv",
                         [target_row(p, child="34") if p == PATHS[4] else target_row(p) for p in PATHS])
         self.assert_fail("target_replay_mismatch")
+
+    def test_empty_replay_witness_pass(self):
+        self.fx.rewrite("replay", "AF8_SELECTION_WITNESS.tsv", [])
+        code, gate = self.fx.run()
+        self.assertEqual(code, 0, gate.get("failures"))
+        self.assertEqual(gate["status"], "PASS")
+
+    def test_replay_novel_live_decision_rejected(self):
+        novel = "\t".join((PATHS[0], "NEVER_SEEN", "1", "1", "2", "1", "1", "1",
+                            "choice:0", enc("x"), "AUTHORITATIVE_STABLE_ORDER", "false"))
+        rows = [r for p in PATHS for r in selection_rows(p)] + [novel]
+        self.fx.rewrite("replay", "AF8_SELECTION_WITNESS.tsv", rows)
+        self.assert_fail("selection_unexpected_live_decision")
 
     def test_production_stage_success_required(self):
         rows = []

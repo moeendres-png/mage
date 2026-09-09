@@ -73,14 +73,14 @@ def main() -> None:
 
     # Source-proven X needs a positive discretionary value so TargetMax$ X actually has
     # a targetable cardinality. Selection remains strictly inside Forge's opaque options.
-    # The authoritative X-announcement request for a mandatory-cost production is exactly
-    # PlayerControllerHuman.chooseNumber -> external kind NUMBER (Forge pin,
-    # PlaySpellAbility.announceValuesLikeX -> announceRequirements -> chooseNumber).
-    # Non-mandatory announcements arrive as GUI_GET_INTEGER and unrelated numeric
-    # requests arrive under other kinds; none of those may take the positive-X branch.
+    # The authoritative X-announcement request for a normally-cast production is exactly
+    # PlayerControllerHuman.announceRequirements -> getGui().getInteger -> external kind
+    # GUI_GET_INTEGER (Forge pin: Cost.isMandatory is false for ordinary casts; only
+    # PlayEffect/Discover free casts set mandatory and reach chooseNumber/NUMBER).
+    # Other getInteger dialogs on other sources never match the Announce$ X script marker.
     policy_anchor = 'CaseSpec pathSpec=ws33CaseSpecs.get(path);'
     policy = policy_anchor + (
-        'if(pathSpec!=null&&"NUMBER".equals(req.getDecisionKind())&&pathSpec.script.contains("Announce$ X")&&req.getMinimumSelection()==1&&req.getMaximumSelection()==1){'
+        'if(pathSpec!=null&&"GUI_GET_INTEGER".equals(req.getDecisionKind())&&pathSpec.script.contains("Announce$ X")&&req.getMinimumSelection()==1&&req.getMaximumSelection()==1){'
         'ExternalDecisionRequest.Option best=null;int bestValue=Integer.MAX_VALUE;for(ExternalDecisionRequest.Option o:options){if(o.isEntityBacked())continue;try{int v=Integer.parseInt(o.getSemanticValue());if(v>0&&v<bestValue){best=o;bestValue=v;}}catch(NumberFormatException ignored){}}'
         'if(best!=null){selected.add(best.getOptionId());recordAf8Selection(path,req,selected,"POSITIVE_X_ANNOUNCEMENT");return;}}'
     )
@@ -117,7 +117,7 @@ def main() -> None:
     private static void armSourceParentPolicy(CaseSpec spec,SpellAbility sa){if(!"Charm".equals(spec.dispatch))return;String desired=desiredTargetModeSemantic(spec,sa);ws33DesiredModeSemantic.put(spec.pathId,desired);}
     private static long af8Binom(int n,int k){if(k<0||k>n)return 0;long r=1;for(int i=1;i<=k;i++)r=r*(n-k+i)/i;return r;}
     private static boolean isAf8ForcedSelection(int n,int min,int max){long total=0;for(int k=Math.max(0,min);k<=Math.min(n,max);k++){total+=af8Binom(n,k);if(total>1)return false;}return total==1;}
-    private static void recordAf8Selection(String path,ExternalDecisionRequest req,List<String> selected,String basis){List<ExternalDecisionRequest.Option> opts=new ArrayList<>(req.getOptions());int n=opts.size(),min=req.getMinimumSelection(),max=req.getMaximumSelection();boolean entityBacked=false;for(ExternalDecisionRequest.Option o:opts)if(o.isEntityBacked())entityBacked=true;StringBuilder ids=new StringBuilder(),sems=new StringBuilder();if(!entityBacked){for(String id:selected)ids.append(ids.length()==0?"":",").append(id);for(ExternalDecisionRequest.Option o:opts)for(String id:selected)if(o.getOptionId().equals(id))sems.append(sems.length()==0?"":",").append(enc(o.getSemanticValue()==null?"":o.getSemanticValue()));}ws33Af8Selections.add(path+"\\t"+req.getDecisionKind()+"\\t"+req.getActorId()+"\\t"+req.getPrincipalId()+"\\t"+n+"\\t"+min+"\\t"+max+"\\t"+selected.size()+"\\t"+ids.toString()+"\\t"+sems.toString()+"\\t"+basis+"\\t"+isAf8ForcedSelection(n,min,max));}
+    private static void recordAf8Selection(String path,ExternalDecisionRequest req,List<String> selected,String basis){List<ExternalDecisionRequest.Option> opts=new ArrayList<>(req.getOptions());int n=opts.size(),min=req.getMinimumSelection(),max=req.getMaximumSelection();boolean entityBacked=false;for(ExternalDecisionRequest.Option o:opts)if(o.isEntityBacked())entityBacked=true;StringBuilder ids=new StringBuilder(),sems=new StringBuilder();if(!entityBacked){for(String id:selected)ids.append(ids.length()==0?"":",").append(id);for(ExternalDecisionRequest.Option o:opts)for(String id:selected)if(o.getOptionId().equals(id))sems.append(sems.length()==0?"":",").append(enc(o.getSemanticValue()==null?"":o.getSemanticValue()));}ws33Af8Selections.add(path+"\t"+req.getDecisionKind()+"\t"+req.getActorId()+"\t"+req.getPrincipalId()+"\t"+n+"\t"+min+"\t"+max+"\t"+selected.size()+"\t"+ids.toString()+"\t"+sems.toString()+"\t"+basis+"\t"+isAf8ForcedSelection(n,min,max));}
     private static boolean af8HasKeywords(Card c,String expected){for(String kw:expected.split(" & "))if(!kw.isBlank()&&!c.hasKeyword(kw.trim()))return false;return true;}
     private static String af8ZoneName(Card c){try{return c.getZone()==null?"null":String.valueOf(c.getZone().getZoneType());}catch(Throwable x){return "UNKNOWN";}}
     private static void captureAF8TargetExecution(CaseEvidence ce,AbilitySub sub){if(ce==null||sub==null||!matchesTarget(ce.spec,sub))return;ce.targetExecutions++;Af8EffectEvidence e=ws33Af8Effects.computeIfAbsent(ce.spec.pathId,k->new Af8EffectEvidence());try{Map<String,String>m=AbilityFactory.getMapParams(ce.spec.targetScript);String api=m.get("DB");if("ChangeZone".equals(api)){e.kind="ZONE";e.expected=m.getOrDefault("Destination","");}else if("Pump".equals(api)&&m.containsKey("KW")){e.kind="KEYWORD";e.expected=m.get("KW");}else{e.error="unsupported positive effect shape "+String.valueOf(api);return;}int sourceCard=ws33Af8SourceCard.getOrDefault(ce.spec.pathId,-1);int rootAbility=ws33Af8RootAbility.getOrDefault(ce.spec.pathId,-1);int actorId=ws33Af8Actor.getOrDefault(ce.spec.pathId,-1);for(Card c:sub.getTargets().getTargetCards()){if(c==null||!e.ids.add(c.getId()))continue;e.targets.add(c);Af8TargetRow row=new Af8TargetRow();row.cardId=c.getId();row.sourceCardId=sourceCard;row.rootAbilityId=rootAbility;row.childSubId=sub.getId();row.actorId=actorId;try{row.name=c.getName();}catch(Throwable x){row.name="";}try{row.types=String.valueOf(c.getType());}catch(Throwable x){row.types="";}try{row.isCreature=c.isCreature();}catch(Throwable x){row.isCreature=false;}row.beforeZone=af8ZoneName(c);if("KEYWORD".equals(e.kind)){try{row.beforeHasKw=af8HasKeywords(c,e.expected);}catch(Throwable x){row.beforeHasKw=false;}}e.rows.add(row);}}catch(Throwable x){e.error=x.getClass().getName()+":"+String.valueOf(x.getMessage());}}
@@ -186,7 +186,7 @@ def main() -> None:
         'refreshPayableResources(actor)',
         'c.isLand()&&c.isTapped())c.untap()',
         'sourceRootExecutions',
-        '"NUMBER".equals(req.getDecisionKind())&&pathSpec.script.contains("Announce$ X")',
+        '"GUI_GET_INTEGER".equals(req.getDecisionKind())&&pathSpec.script.contains("Announce$ X")',
     )
     for token in required:
         require(token in t, "missing hardened invariant " + token)
@@ -203,7 +203,7 @@ def main() -> None:
     print("WS33_A_SVAR_AF8_EFFECT_EVIDENCE=TARGET_CARD_POSTCONDITION_FROM_TARGET_SCRIPT")
     print("WS33_A_SVAR_AF8_IDENTITY_EVIDENCE=SOURCE_ROOT_CHILD_ACTOR_TARGET_BEFORE_AFTER")
     print("WS33_A_SVAR_AF8_SELECTION_WITNESS=POLICY_BRANCHES_X_MODE_GENERIC_FORCED_CLASSIFIED")
-    print("WS33_A_SVAR_AF8_POSITIVE_X_KIND=NUMBER")
+    print("WS33_A_SVAR_AF8_POSITIVE_X_KIND=GUI_GET_INTEGER")
     print("WS33_A_SVAR_AF8_CLIENT_EVIDENCE=WS05_REAL_REMOTE_PHASE_SAMPLES")
     print("WS33_A_SVAR_AF8_RULES_MUTATION=0 card_name_branch=0 path_id_branch=0")
 

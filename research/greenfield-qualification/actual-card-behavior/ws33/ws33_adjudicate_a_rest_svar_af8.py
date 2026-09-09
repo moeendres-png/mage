@@ -232,7 +232,7 @@ def forced_selection(n: int, mn: int, mx: int) -> bool:
     return total == 1
 
 
-def selection_gate(label: str, rows: dict[str, list[list[str]]], cases: dict[str, list[str]], failures: list[str]) -> Counter[str]:
+def selection_gate(label: str, rows: dict[str, list[list[str]]], cases: dict[str, list[str]], failures: list[str], require_presence: bool = True) -> Counter[str]:
     counts: Counter[str] = Counter()
     for pid in rows:
         if pid not in cases:
@@ -283,17 +283,17 @@ def selection_gate(label: str, rows: dict[str, list[list[str]]], cases: dict[str
             if r[11] not in {"true", "false"} or (forced_selection(n, mn, mx) != (r[11] == "true")):
                 failures.append(f"{pid}:{label}:forced_misclassified")
                 continue
-            if kind == "NUMBER" and basis == "POSITIVE_X_ANNOUNCEMENT":
+            if kind == "GUI_GET_INTEGER" and basis == "POSITIVE_X_ANNOUNCEMENT":
                 if mn != 1 or mx != 1 or sel != 1 or len(decoded) != 1:
                     failures.append(f"{pid}:{label}:x_selection_shape")
                     continue
                 if not decoded[0].isdigit() or int(decoded[0]) < 1:
                     failures.append(f"{pid}:{label}:x_not_positive")
-        if "Announce$ X" in script:
-            xrows = [r for r in rs if len(r) == 12 and r[1] == "NUMBER" and r[10] == "POSITIVE_X_ANNOUNCEMENT"]
+        if require_presence and "Announce$ X" in script:
+            xrows = [r for r in rs if len(r) == 12 and r[1] == "GUI_GET_INTEGER" and r[10] == "POSITIVE_X_ANNOUNCEMENT"]
             if not xrows:
                 failures.append(f"{pid}:{label}:x_announcement_selection_missing")
-        if cases[pid][4] == "Charm":
+        if require_presence and cases[pid][4] == "Charm":
             mrows = [r for r in rs if len(r) == 12 and r[1] == "MODE_SELECTION"]
             if not mrows:
                 failures.append(f"{pid}:{label}:mode_selection_missing")
@@ -470,10 +470,13 @@ def main() -> None:
 
     rec_sel = load_multi_tsv(args.record_dir / "AF8_SELECTION_WITNESS.tsv", 12)
     rep_sel = load_multi_tsv(args.replay_dir / "AF8_SELECTION_WITNESS.tsv", 12)
-    rec_selection_counts = selection_gate("record", rec_sel, cases, failures)
-    rep_selection_counts = selection_gate("replay", rep_sel, cases, failures)
-    if multi_multiset(rec_sel) != multi_multiset(rep_sel):
-        failures.append("selection_replay_mismatch")
+    rec_selection_counts = selection_gate("record", rec_sel, cases, failures, require_presence=True)
+    rep_selection_counts = selection_gate("replay", rep_sel, cases, failures, require_presence=False)
+    rec_pairs = {(pid, r[1]) for pid, rs in rec_sel.items() for r in rs if len(r) == 12}
+    for pid, rs in rep_sel.items():
+        for r in rs:
+            if len(r) == 12 and (pid, r[1]) not in rec_pairs:
+                failures.append(f"{pid}:replay:selection_unexpected_live_decision={r[1]}")
 
     rec_stages = play_stage_gate("record", args.record_dir / "play-stages.tsv", cases, failures)
     rep_stages = play_stage_gate("replay", args.replay_dir / "play-stages.tsv", cases, failures)

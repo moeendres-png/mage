@@ -154,7 +154,7 @@ jobs:
           grep -Fx 'WS33_A_SVAR_AF8_EFFECT_EVIDENCE=TARGET_CARD_POSTCONDITION_FROM_TARGET_SCRIPT' generated/diagnostic/a-af8-hardener.log
           grep -Fx 'WS33_A_SVAR_AF8_IDENTITY_EVIDENCE=SOURCE_ROOT_CHILD_ACTOR_TARGET_BEFORE_AFTER' generated/diagnostic/a-af8-hardener.log
           grep -Fx 'WS33_A_SVAR_AF8_SELECTION_WITNESS=POLICY_BRANCHES_X_MODE_GENERIC_FORCED_CLASSIFIED' generated/diagnostic/a-af8-hardener.log
-          grep -Fx 'WS33_A_SVAR_AF8_POSITIVE_X_KIND=NUMBER' generated/diagnostic/a-af8-hardener.log
+          grep -Fx 'WS33_A_SVAR_AF8_POSITIVE_X_KIND=GUI_GET_INTEGER' generated/diagnostic/a-af8-hardener.log
           grep -Fx 'WS33_A_SVAR_AF8_CLIENT_EVIDENCE=WS05_REAL_REMOTE_PHASE_SAMPLES' generated/diagnostic/a-af8-hardener.log
           grep -Fx 'WS33_A_SVAR_AF8_RULES_MUTATION=0 card_name_branch=0 path_id_branch=0' generated/diagnostic/a-af8-hardener.log
           ! grep -F 'sa.resolve()' "$dst"
