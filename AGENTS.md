@@ -85,17 +85,27 @@ Do not silently route through Zen, Zen Free, another OpenCode provider, or any t
 
 Only these reasoning variants are authorized for project work:
 
-- `medium`
 - `high`
 - `xhigh`
 
-Default for substantive implementation, debugging, qualification, integration, and evidence work is `high`.
+`high` is the minimum and the normal default: use it for bounded implementation, normal repository work, straightforward tests/fixes, mechanical but still project-substantive work, exploration, title/summary/compaction helpers, and read-heavy project work.
 
-Use `medium` for bounded mechanical/read-heavy work where higher reasoning has no material expected benefit.
+There is no longer an authorized Muse `medium` project lane. `medium` must not be used.
 
-Use `xhigh` for difficult root-cause analysis, complex multi-file repair, subtle semantic integration, or other tasks where the additional reasoning budget is justified.
+Use `xhigh` preferentially for difficult/high-blast-radius/long-horizon work:
 
-`none`, `minimal`, `low`, and `max` are outside the project-authorized range and must not be used.
+- long-horizon implementation campaigns;
+- difficult root-cause analysis;
+- subtle Rules-Core/provider debugging;
+- complex multi-file remediation;
+- qualification campaigns with repeated diagnose/test/fix loops;
+- serial integration with nontrivial semantic/evidence impact;
+- difficult replay/RNG/hidden-information analysis;
+- complex evidence/provenance reconciliation.
+
+`none`, `off`, `minimal`, `low`, `medium`, `max`, and any other variant are outside the project-authorized range and must not be used.
+
+If `xhigh` is requested but unavailable in the live OpenCode Go model catalog, `high` is the explicitly authorized fallback: record that `xhigh` was unavailable and do not fall below `high`.
 
 ### No model or provider fallback
 
@@ -110,6 +120,8 @@ Fail closed instead:
 
 Do not silently use Muse Spark 1.2, Muse Spark 1.3 Contributor Free on Zen, another Muse Spark route, GPT, Claude, Gemini, DeepSeek, or any other substitute.
 
+If `high` itself is unavailable, fail closed with `EXECUTION_MODEL_UNAVAILABLE` as above: preserve state and do not silently route to `medium` or another provider/model.
+
 A change of provider/SKU requires explicit coordinator/user authorization because it may change cost, service contract, privacy/training terms, routing behavior, or evidence environment.
 
 ### Agent and subagent model inheritance
@@ -120,7 +132,7 @@ Primary agents, planning agents, exploration agents, summary/title/compaction he
 
 Before using a newly configured custom agent or subagent, verify its effective provider, model, and variant.
 
-Do not delegate to a subagent if OpenCode cannot prove that its effective provider is `opencode-go`, its effective model is `muse-spark-1.3-contributor`, and its reasoning variant is `medium`, `high`, or `xhigh`.
+Do not delegate to a subagent if OpenCode cannot prove that its effective provider is `opencode-go`, its effective model is `muse-spark-1.3-contributor`, and its reasoning variant is `high` or `xhigh`.
 
 ### Effective-config verification
 
@@ -130,7 +142,7 @@ At the beginning of a new OpenCode workstream, or after any OpenCode/provider/co
 2. verify OpenCode's live `/models` catalog under the connected **OpenCode Go** provider contains `opencode-go/muse-spark-1.3-contributor`;
 3. verify the effective agent provider is `opencode-go`;
 4. verify the effective agent model is `muse-spark-1.3-contributor`;
-5. verify the effective variant is `medium`, `high`, or `xhigh`;
+5. verify the effective variant is `high` or `xhigh`; if the effective variant is `medium` or lower, FAIL CLOSED;
 6. run a minimal non-mutating model-identity smoke check when the OpenCode version/provider configuration has changed materially;
 7. if any check fails, fail closed before material repository mutation.
 

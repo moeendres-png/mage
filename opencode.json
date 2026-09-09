@@ -24,7 +24,7 @@
               "disabled": true
             },
             "medium": {
-              "reasoningEffort": "medium"
+              "disabled": true
             },
             "high": {
               "reasoningEffort": "high"
@@ -55,19 +55,19 @@
     },
     "explore": {
       "model": "opencode-go/muse-spark-1.3-contributor",
-      "variant": "medium"
+      "variant": "high"
     },
     "title": {
       "model": "opencode-go/muse-spark-1.3-contributor",
-      "variant": "medium"
+      "variant": "high"
     },
     "summary": {
       "model": "opencode-go/muse-spark-1.3-contributor",
-      "variant": "medium"
+      "variant": "high"
     },
     "compaction": {
       "model": "opencode-go/muse-spark-1.3-contributor",
-      "variant": "medium"
+      "variant": "high"
     }
   }
 }
