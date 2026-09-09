@@ -168,7 +168,12 @@ public final class Ws33D2LifeloseCampaignTest extends AITest {
             if (!actor.getManaPool().isEmpty()) {
                 throw new IllegalStateException("fixture mana pool not fully consumed; cost payment suspect");
             }
-            assertRecipePostconditions(c, game, actor, opponent);
+            try {
+                assertRecipePostconditions(c, game, actor, opponent);
+            } catch (IllegalStateException e) {
+                throw new IllegalStateException(e.getMessage()
+                        + " finalZones={" + canonicalFinalState(game, actor, opponent).replace('\n', ';') + "}", e);
+            }
             decisions.assertConsumed();
 
             final List<ExternalDecisionTape.Event> tape = controller.getExternalDecisionTapeSnapshot();
