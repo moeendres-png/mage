@@ -1,6 +1,34 @@
 # WS33-C Batch 1 selection (8 new paths + 1 intended re-witness)
 
-Batch digest: `5723f7c4536fa9a2318b1afc672ed974570734df6732c8992a8cc5800214073c` (R3: Cap via-move fixture, Attach singleton consultation declared, incidental-flow rule)
+Batch digest: `2adfe66ef6bbfb99d9bdb21580587a9e878f3cb78ac7c60d4eeba31c091c462d` (R6 revision).
+
+## R6 revision notes
+
+- Pair-matching by exact object relation replaces exactly-1 parent
+  uniqueness: the certified pair is the unique (parent, child) with
+  child.parentId == parent.id, integer parent.seq < child.seq,
+  runtime-derived relation agreement, and root linkage.
+- Root cause of R3-R5 duplicates understood at FORGE_PIN source: the
+  stacked trigger ability is a WrappedAbility (own runtime id, delegated
+  api/host/params); its resolve() delegates to the inner executing ability
+  via playSpellAbilityNoStack, and resolveSubAbilities skips wrappers via
+  the isWrapper guard, so no double application. The seq-last same-api
+  parent event is the stack-level envelope frame. Engine self-resolution
+  by effects excluded by source inspection. NOT a Forge defect.
+- Outcome-neutrality of envelope frames proven per execution by exact
+  semantic snapshots (R5 diagnostics: all life/hand deltas match
+  single-resolution predictions).
+- Hand snapshot rule: snapshot AFTER all hand placements, BEFORE zone
+  movement, so deltas measure resolution effects only (Cap hand back to -1).
+- Gnarlbark EOT deferred as FIXTURE_INFRASTRUCTURE_PENDING (Phase-trigger
+  silence in-test, mechanism open, zero evidence either way; no defect
+  demonstrated). Armor added as diversity re-witness of the two
+  chopper-shared paths under a second production parent (declared shared,
+  no new count).
+- Final batch: 7 executions, 10 path-slots, 7 unique new paths + pilot
+  re-witness + 2 shared-path diversity witnesses. Exhaustive ETB sweep
+  proves 7 is the complete clean ETB yield under the audit rules; padding
+  with shaky fixtures would violate the no-PASS-maximizing rule.
 Scope: template-113 / AbilitySub only (cap honored; 105/119 excluded).
 All 8 new paths verified UNKNOWN, STATE_ONLY, provenance-bound; pilot path
 declared re-witness (upgrades its order evidence under the v2 contract).

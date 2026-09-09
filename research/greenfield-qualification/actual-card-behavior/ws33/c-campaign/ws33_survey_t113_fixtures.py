@@ -37,8 +37,10 @@ DECISION_FIELDS = {
 }
 TARGET_FIELDS = {"ValidTgts"}
 RNG_FIELDS = {"Coin", "Dice", "Flip", "Random"}
-HIDDEN_FIELDS = {"Hidden", "Reveal", "RememberRevealed", "NoPeek"}
+HIDDEN_FIELDS = {"Hidden", "Reveal", "RememberRevealed", "NoPeek",
+                 "DigNum", "Dig", "RevealNumber", "RememberMilled"}
 SEARCH_FIELDS = {"ChangeType"}  # only meaningful combined with Origin$ Library
+CHOICE_MODES = {"TgtChoose"}
 VALUE_RNG_RE = re.compile(r"\b(Random|CoinFlip|DiceRoll)\b")
 
 
@@ -78,6 +80,8 @@ def screen_script(text: str) -> dict:
                 hits["DECISION"].append(f"{kind}:{name}:{k}@{n}")
             if k in TARGET_FIELDS:
                 hits["TARGET"].append(f"{kind}:{name}:{k}@{n}")
+            if k == "Mode" and v in CHOICE_MODES:
+                hits["DECISION"].append(f"{kind}:{name}:Mode={v}@{n}")
             if k in RNG_FIELDS or VALUE_RNG_RE.search(v or ""):
                 hits["RNG"].append(f"{kind}:{name}:{k}@{n}")
             if k in HIDDEN_FIELDS:

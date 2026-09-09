@@ -293,48 +293,111 @@
           "id": "hand-net-actor",
           "type": "hand",
           "who": "actor",
-          "expected": 0
+          "expected": -1
         }
       ],
       "expected_consultations": [],
       "note": "Captain America is entered via production moveTo (registers its trigger, mirroring engine entry); Shang-Chi (Human Warrior Hero) has no ETB trigger and its Drawn/CounterAdded triggers cannot fire in-window."
     },
     {
-      "execution_id": "gnarlbark-eot",
-      "card_name": "Sinister Gnarlbark",
-      "oracle_identity": "fcd2142e-ba84-4693-9b29-ecc43feba2b8",
-      "source_path": "forge-gui/res/cardsfolder/s/sinister_gnarlbark.txt",
+      "execution_id": "armor-etb",
+      "card_name": "Midnight Angel Armor",
+      "oracle_identity": "cdcfc66d-3d3a-4311-b864-937e7b624d61",
+      "source_path": "forge-gui/res/cardsfolder/m/midnight_angel_armor.txt",
       "fixture": {
-        "kind": "PHASE_EOT_OUR_TURN"
+        "kind": "ETB_SELF_MOVE"
       },
       "setup": [],
       "links": [
         {
-          "path_id": "forge-behavior-v2:2c49adc7c2a39011fc279674c98869b66e0ec335",
-          "parent_svar": "TrigDraw",
-          "parent_api": "Draw",
+          "path_id": "forge-behavior-v2:8d18d77c6cc46f1c9baafc032e5c179aa9651d98",
+          "parent_svar": "TrigToken",
+          "parent_api": "Token",
+          "parent_line": 5,
+          "child_sub": "DBAttach",
+          "child_api": "Attach"
+        },
+        {
+          "path_id": "forge-behavior-v2:746c658d3f4fbbf75f59b19593399c8a49530a5a",
+          "parent_svar": "DBAttach",
+          "parent_api": "Attach",
           "parent_line": 6,
-          "child_sub": "DBBlight",
-          "child_api": "Blight"
+          "child_sub": "DBCleanup",
+          "child_api": "Cleanup"
         }
       ],
       "assertions": [
         {
+          "id": "token-count-actor",
+          "type": "token_count",
+          "who": "actor",
+          "expected": 1
+        },
+        {
+          "id": "token-equipped",
+          "type": "token_equipped_by_source",
+          "who": "actor",
+          "expected": true
+        },
+        {
           "id": "hand-net-actor",
           "type": "hand",
           "who": "actor",
-          "expected": 0
-        },
-        {
-          "id": "gnarlbark-blight",
-          "type": "counters",
-          "card": "source",
-          "counter": "M1M1",
-          "expected": 1
+          "expected": -1
         }
       ],
-      "note": "Blight Defined You with Gnarlbark as the only own creature: deterministic. EOT reached by real phase progression on our turn; AI opponent idle.",
-      "expected_consultations": []
+      "expected_consultations": [
+        {
+          "site": "chooseSingleEntityForEffect",
+          "options": 1,
+          "rationale": "AttachEffect.resolve reaffirms the attach target over the singleton Remembered set; outcome forced, asserted via token_equipped."
+        }
+      ],
+      "note": "DIVERSITY re-witness of the two chopper-shared paths under a second production parent (different card + Soldier token). No new path count.",
+      "allow_shared_paths": true
+    }
+  ],
+  "deferred_executions": [
+    {
+      "execution_id": "gnarlbark-eot",
+      "reason": "FIXTURE_INFRASTRUCTURE_PENDING: EOT trigger silent in-test (zero parent/child events, phase reached on actor turn, game live). No engine defect demonstrated; phase-fixture family needs dedicated infrastructure.",
+      "definition": {
+        "execution_id": "gnarlbark-eot",
+        "card_name": "Sinister Gnarlbark",
+        "oracle_identity": "fcd2142e-ba84-4693-9b29-ecc43feba2b8",
+        "source_path": "forge-gui/res/cardsfolder/s/sinister_gnarlbark.txt",
+        "fixture": {
+          "kind": "PHASE_EOT_OUR_TURN"
+        },
+        "setup": [],
+        "links": [
+          {
+            "path_id": "forge-behavior-v2:2c49adc7c2a39011fc279674c98869b66e0ec335",
+            "parent_svar": "TrigDraw",
+            "parent_api": "Draw",
+            "parent_line": 6,
+            "child_sub": "DBBlight",
+            "child_api": "Blight"
+          }
+        ],
+        "assertions": [
+          {
+            "id": "hand-net-actor",
+            "type": "hand",
+            "who": "actor",
+            "expected": 0
+          },
+          {
+            "id": "gnarlbark-blight",
+            "type": "counters",
+            "card": "source",
+            "counter": "M1M1",
+            "expected": 1
+          }
+        ],
+        "note": "Blight Defined You with Gnarlbark as the only own creature: deterministic. EOT reached by real phase progression on our turn; AI opponent idle.",
+        "expected_consultations": []
+      }
     }
   ]
 }

@@ -114,14 +114,14 @@ def main() -> None:
         if ex["fixture"]["kind"] == "ETB_OTHER_ENTER" and not ex["fixture"].get("entering_card"):
             fail(f"ETB_OTHER_ENTER without entering_card {ex['execution_id']}")
         txt = script(ex["source_path"])
+        screen_hits = screen_script(txt)
+        if screen_hits:
+            fail(f"{ex['execution_id']}: structural screen hits {screen_hits}")
         svars = parse_svars(txt)
-        hits = screen_script(txt)
-        if hits:
-            fail(f"{ex['execution_id']}: structural screen hits {hits}")
         for link in ex["links"]:
             pid = link["path_id"]
-            if pid in seen_paths:
-                fail(f"duplicate path in batch: {pid}")
+            if pid in seen_paths and not ex.get("allow_shared_paths", False):
+                fail(f"duplicate path in batch (not declared shared): {pid}")
             seen_paths.add(pid)
             row = owned.get(pid)
             if row is None:

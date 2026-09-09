@@ -171,8 +171,11 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
 
         final int lifeActorBefore = actor.getLife();
         final int lifeOpponentBefore = opponent.getLife();
-        final int handActorBefore = actor.getCardsIn(ZoneType.Hand).size();
         final int tokensActorBefore = countTokens(actor);
+        // Hand snapshot rule: snapshot AFTER all hand placements (setup moves
+        // and fixture hand placement), BEFORE zone movement/phase travel, so
+        // hand deltas measure resolution effects only.
+        int handActorBefore = actor.getCardsIn(ZoneType.Hand).size();
 
         final List<ParentEvent> parents = new ArrayList<>();
         final List<ChildObs> children = new ArrayList<>();
@@ -235,6 +238,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         try {
             if ("ETB_SELF_MOVE".equals(first.fixtureKind)) {
                 source = addCardToZone(first.cardName, actor, ZoneType.Hand);
+                handActorBefore = actor.getCardsIn(ZoneType.Hand).size();
                 game.getAction().moveTo(ZoneType.Battlefield, source, null, null);
                 driveWaitingTrigger(game, "ETB_SELF_MOVE", source);
                 playUntilStackClear(game);
@@ -245,11 +249,13 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                             "fixture source not on battlefield: " + first.cardName);
                 }
                 final Card entering = addCardToZone(first.enteringCard, actor, ZoneType.Hand);
+                handActorBefore = actor.getCardsIn(ZoneType.Hand).size();
                 game.getAction().moveTo(ZoneType.Battlefield, entering, null, null);
                 driveWaitingTrigger(game, "ETB_OTHER_ENTER:" + first.enteringCard, entering);
                 playUntilStackClear(game);
             } else if ("PHASE_EOT_OUR_TURN".equals(first.fixtureKind)) {
                 source = addCardToZone(first.cardName, actor, ZoneType.Hand);
+                handActorBefore = actor.getCardsIn(ZoneType.Hand).size();
                 game.getAction().moveTo(ZoneType.Battlefield, source, null, null);
                 game.getTriggerHandler().runWaitingTriggers();
                 if (!game.getStack().isEmpty()) {
@@ -316,38 +322,33 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         final int rootId = parents.get(0).id;
         final List<MatchedLink> matched = new ArrayList<>();
         for (final CaseRow row : rows) {
-            final List<ParentEvent> candidates = new ArrayList<>();
-            for (final ParentEvent event : parents) {
-                if (row.parentApi.equals(event.api) && row.cardName.equals(event.host)) {
-                    candidates.add(event);
+            // Pair matching by exact object relation: the certified pair is
+            // the unique (parent, child) with child.parentId == parent.id,
+            // parent.seq < child.seq, runtime-derived relation agreement, and
+            // root linkage. Same-api wrapper/envelope frames without a
+            // consistent child (e.g. trigger WrappedAbility stack frames, or
+            // inert duplicate resolutions proven outcome-neutral by exact
+            // postconditions) can never satisfy this and stay unattributed.
+            MatchedLink match = null;
+            for (final ParentEvent parent : parents) {
+                if (!row.parentApi.equals(parent.api)
+                        || !row.cardName.equals(parent.host)) {
+                    continue;
                 }
-            }
-            if (candidates.size() != 1) {
-                throw new IllegalStateException(
-                        "parent attribution ambiguous for " + row.linkPath
-                                + " candidates=" + candidates.size()
-                                + " candidates_detail=" + candidates
-                                + " all_parents=" + parents
-                                + " all_children=" + children
-                                + " sem=" + semanticSnapshot(
-                                        game, actor, opponent, lifeActorBefore,
-                                        lifeOpponentBefore, handActorBefore));
-            }
-            final ParentEvent parent = candidates.get(0);
-            if (parent.subParam == null || !row.childSub.equals(parent.subParam)) {
-                throw new IllegalStateException(
-                        "runtime parent SubAbility relation mismatch for " + row.linkPath
-                                + " runtime=" + parent.subParam + " declared=" + row.childSub);
-            }
-            ChildObs match = null;
-            for (final ChildObs child : children) {
-                if (isProductionChildReach(child, parent, row.parentApi, row.childApi,
-                        row.cardName, row.childSub, rootId)) {
-                    if (match != null) {
-                        throw new IllegalStateException(
-                                "child attribution ambiguous for " + row.linkPath);
+                if (parent.subParam == null || !row.childSub.equals(parent.subParam)) {
+                    continue;
+                }
+                for (final ChildObs child : children) {
+                    if (isProductionChildReach(child, parent, row.parentApi, row.childApi,
+                            row.cardName, row.childSub, rootId)) {
+                        if (match != null) {
+                            throw new IllegalStateException(
+                                    "pair attribution ambiguous for " + row.linkPath
+                                            + " all_parents=" + parents
+                                            + " all_children=" + children);
+                        }
+                        match = new MatchedLink(row, parent, child, rootId);
                     }
-                    match = child;
                 }
             }
             if (match == null) {
@@ -359,7 +360,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                                         game, actor, opponent, lifeActorBefore,
                                         lifeOpponentBefore, handActorBefore));
             }
-            matched.add(new MatchedLink(row, parent, match, rootId));
+            matched.add(match);
         }
 
         final List<AssertionResult> assertions = new ArrayList<>();
