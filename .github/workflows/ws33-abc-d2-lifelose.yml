@@ -65,7 +65,7 @@ jobs:
           rows=[x for x in queue['items'] if x.get('logical_bucket')=='WS33D' and x.get('scenario_group_id')=='ws33-g2-template-061' and x.get('evidence_profile')=='STATE_ONLY' and x.get('runtime_subsystem')=='forge.game.ability.effects.LifeLoseEffect']
           assert len(rows)==1
           ids=rows[0]['effective_path_ids']
-          assert rows[0]['unresolved_path_count']==18 and len(ids)==18 and len(set(ids))==22
+          assert rows[0]['unresolved_path_count']==18 and len(ids)==18 and len(set(ids))==18
           ledger=[json.loads(l) for l in (root/'WS33_INTEGRATED_CLOSURE_LEDGER.jsonl').read_text().splitlines() if l.strip()]
           assert len(ledger)==4188
           sel=sorted(r['effective_path_id'] for r in ledger if r['logical_bucket']=='WS33D' and r['scenario_group_id']=='ws33-g2-template-061' and r['current_status']=='UNKNOWN')
