@@ -691,139 +691,6 @@
     },
     {
       "effective_path_ids": [
-        "forge-behavior-v2:01655eb4cda1ef1a652a0c085ee7241a5ae241a7",
-        "forge-behavior-v2:0286482832ae472585af9b3abf04b58357f9f0b6",
-        "forge-behavior-v2:0308d9c4dd907f11d43794a78ae3d750f94721db",
-        "forge-behavior-v2:0527782891cebfb6bb44ba57596d26d2e9c41e66",
-        "forge-behavior-v2:067bdc7754cc85e926900f11e4f1969088cf6da1",
-        "forge-behavior-v2:09094286f77af4af8bafe7e1e1101a00c1ad0571",
-        "forge-behavior-v2:0b34a03cf5d6174eb0eda60cd4f97abde7581ad7",
-        "forge-behavior-v2:0b44c1b9b417c73e914539c790ccce29813656f6",
-        "forge-behavior-v2:0fd90bff96b403f7de9bc94f18af5138bd8e9cb3",
-        "forge-behavior-v2:10b7acb953434956eb35d5f5560b8726f6b89b57",
-        "forge-behavior-v2:11dd247b928074ba858ba4d44aec905d2a69fb6a",
-        "forge-behavior-v2:12c6c4325fb92fcd0f5d2bbe07c2679152c89f9c",
-        "forge-behavior-v2:14b1aebad34c0c03bd65959bfeaa06d76f9baaa8",
-        "forge-behavior-v2:15e5780ec152482665832e983fd8e9e4d56d765b",
-        "forge-behavior-v2:163f9e7208c2a12a4df834578c5dcbe8b2309827",
-        "forge-behavior-v2:16ac36d0e2b4715a787864d587400f91e314e801",
-        "forge-behavior-v2:17cc4e86a10b616de47b085ae7a108735328ad28",
-        "forge-behavior-v2:2085b827a5d49d535a3d2b5ca17d4cc9c66c25c0",
-        "forge-behavior-v2:236471fd27480662959ef51e07f1fb84c21f4795",
-        "forge-behavior-v2:27cf9487a495125599341a3c8b3d6a0f6aaa29ce",
-        "forge-behavior-v2:2b80164852af757b80ab983832864ae6cdcaf6f6",
-        "forge-behavior-v2:2ba9959c8496c0d7f2f56f8ffad5df827be85535",
-        "forge-behavior-v2:2bf2f0d5c2d61940587e2c2fa31ee9f60cdec6ca",
-        "forge-behavior-v2:2ca17b89a711193637304973e79ad87bf43420f9",
-        "forge-behavior-v2:2f3d57f249c9fa37e8dc3f64df7d54d72324c03c",
-        "forge-behavior-v2:315d6b9ec71c42854f97cf459af32690efa5429e",
-        "forge-behavior-v2:3364d10da5cba40b6d3dce90e453e1e4abf91368",
-        "forge-behavior-v2:33bec60cd64b459357a83efe50329280e9e44450",
-        "forge-behavior-v2:349f680d838d8ba374c8b7b5e8bc4316cd764bce",
-        "forge-behavior-v2:373ca7a7eec7d46a5a04f8bcc1a1eb703e31fe04",
-        "forge-behavior-v2:3ec1c07b33381264cd9ac95671890d7350facf1f",
-        "forge-behavior-v2:40f4d162f9e66e05fabf329f2d2eafb8c458f298",
-        "forge-behavior-v2:4170b515a20da1c93eeb9c41ec5ba861c93f4adb",
-        "forge-behavior-v2:435bc7ab98d86c77ead8e7302ee9e035899b7cb4",
-        "forge-behavior-v2:4a2633aaa9053346a7cc99621ffc78d4d77620a2",
-        "forge-behavior-v2:5225edfd2b37e5f4688306e0c2cc201f04b067f9",
-        "forge-behavior-v2:54396943b719a41f8729b41070706cedae209e7f",
-        "forge-behavior-v2:58177e102cf4a53d29b49a093cb72b00b24121df",
-        "forge-behavior-v2:599ed07764325cef05ad8afe0b297b2218b7ae4f",
-        "forge-behavior-v2:6211aea19549f3388eb7e8743ece9c62dceb8e35",
-        "forge-behavior-v2:64f651da6ba90b88c4408eadfb51eac45d949680",
-        "forge-behavior-v2:6545a4db4cadc3c7708b78ff188180621282b049",
-        "forge-behavior-v2:6cf5a2ec86c802041d2158f518a1bd8e7fb3a08e",
-        "forge-behavior-v2:6e3be0bc19abc25aba65d0c98c4de497fb168f28",
-        "forge-behavior-v2:6ecd7309a83eace2e9e4e81cba757e7f995d9d83",
-        "forge-behavior-v2:6eda5f0b72c18db7b2e866cfe01017d33c2a8e65",
-        "forge-behavior-v2:6f5a01cb280db3b6d7913fbc04c94c1b6f7e53f9",
-        "forge-behavior-v2:7001e1587ff0b2e51d7acf532179db92a0af1eaa",
-        "forge-behavior-v2:7146fef42656cf14d3366ef25b0e6b6c4562236e",
-        "forge-behavior-v2:723030b60fa29f3fc8706cb5d21dbe0a388aa13d",
-        "forge-behavior-v2:768292059332b0871186711dcfd29d2ef051e503",
-        "forge-behavior-v2:7f030d9dbf77eabcc87ac264940d3d6d3749dae7",
-        "forge-behavior-v2:80dc21814766e8833e0e4fdb33b91abe8d80e22c",
-        "forge-behavior-v2:8401fb911fef6e151a96671f10b36349c9d6172d",
-        "forge-behavior-v2:8409d6d0c2ba81b46736f0a9f88c9ac363d04a9b",
-        "forge-behavior-v2:85b24095321acfc41f3ab5d4818e875e0ceb1edd",
-        "forge-behavior-v2:86911d0dac4f88b90185ffda797b153565e6265d",
-        "forge-behavior-v2:885f2a914953a700a0e4d361b20b513160b56d0e",
-        "forge-behavior-v2:89fcc0a699378a4ccef412769cd15753450fa502",
-        "forge-behavior-v2:8ae055513faded063ed6eb6c8694af41ea6b057a",
-        "forge-behavior-v2:8b15cea0e55d01a6e1599543af88c05e55d4fdda",
-        "forge-behavior-v2:8c26e65384ba1053fad91aedf7be90615393221a",
-        "forge-behavior-v2:8cdcae168f8da845f9ad3c31d8602b36b851fe15",
-        "forge-behavior-v2:8d04a2a89dd8bbc1ac9b400a37260afa226df76b",
-        "forge-behavior-v2:91686fedde023b13e7111fc16b27c18524572e60",
-        "forge-behavior-v2:92ff2baa1552be88e6f76fc348c95f7e73b59e51",
-        "forge-behavior-v2:949abbc2caccf4107d09adfc4faeb8313afa1b00",
-        "forge-behavior-v2:96ce3731ec8ea92d9a0dd64055083abc83862f0b",
-        "forge-behavior-v2:98cde3426290e0704ba374b5a80cfa281ce419fc",
-        "forge-behavior-v2:99b122413b19a3714084ae25a5b922a2ed617610",
-        "forge-behavior-v2:9faa7a5eb232181b95680daa0ee562e821e9e5bd",
-        "forge-behavior-v2:a1c58d1f15ba27e8d5aa0358003df58778c90dc5",
-        "forge-behavior-v2:a296c13d98ddd2f5b851ee8a1a3c7fcdf56b4b92",
-        "forge-behavior-v2:a3ea42385e45dc3844cc77943191da36b037fbfa",
-        "forge-behavior-v2:a4c5bb0e2c7c35fd689728f38c2197acba07e818",
-        "forge-behavior-v2:a5190da8fb0902b90e3d2efb4362c9a76abd496f",
-        "forge-behavior-v2:a7c010a470703ba737c4f06076a17c58f58ad3ad",
-        "forge-behavior-v2:a98798d0a3d6b9ef55e684641ffa43b8d8f0f6f0",
-        "forge-behavior-v2:aacdfea1a184425cd33f42664ef6b86f2e058c11",
-        "forge-behavior-v2:ab8af3f589d3a50f3c6ecfaac9ac54718cf86375",
-        "forge-behavior-v2:acbeaf6f63df78b5bae37b910a71e60763b7b43e",
-        "forge-behavior-v2:af19cbe083d987ef8290b5bed8daecdabdcfba06",
-        "forge-behavior-v2:b06cf156f42096f36cb986890a6ecab3be8ecea1",
-        "forge-behavior-v2:b076209b6b5a761b1cf2bd549ec92b239c26f23f",
-        "forge-behavior-v2:b279c9541f747fc9b0acdb7b8bc0d1f311c9b099",
-        "forge-behavior-v2:b2cf227b9edcf226034c589da0204ed8f744923f",
-        "forge-behavior-v2:b37cc2f16d7f1fb3b47e9ae6adbddfa7b3b103a3",
-        "forge-behavior-v2:b6f2e29f3f8210db505c1008fa574ecb343fa120",
-        "forge-behavior-v2:b78f56ae05601e7f588b495ed2c54fc99d5ab030",
-        "forge-behavior-v2:b840aa5e4ee58c5d4f94294a5b7df1e97483134f",
-        "forge-behavior-v2:b8ade9e870cedea69f6d6e29b78c8e437cc5322c",
-        "forge-behavior-v2:b8d5e5206beec64756734bf590a2f6b4d979427d",
-        "forge-behavior-v2:bba725dd237d8b2e948c820e5f9e1dba86e3b8b2",
-        "forge-behavior-v2:bdb0e813783227c1d25a00ab7389b1f0d9cf03c1",
-        "forge-behavior-v2:be7dc96d45a6e199280f359422b1a649b5329f94",
-        "forge-behavior-v2:c03e4fcca787870139089ee48c6be35575e3e733",
-        "forge-behavior-v2:c0d36d580e51153dba0521435192f901c6aa6a26",
-        "forge-behavior-v2:c2e80563815825b785ff538b4d1dda0b6b54ac45",
-        "forge-behavior-v2:c8a1ca2d378ec6bf33828e1cd25dd92760c7d418",
-        "forge-behavior-v2:cb0f96ab7e9e234e0307c645959ecadca2f19cf3",
-        "forge-behavior-v2:cec53718843bef27ae98eedd43cc7b7a332cbe17",
-        "forge-behavior-v2:d14ad5093ca05d924ee2ce37ac0ad129e313bba0",
-        "forge-behavior-v2:d228429a2e74938f4feb8f1d35b2375114055450",
-        "forge-behavior-v2:d99c5b216045b005f10e607707c486136a4938e3",
-        "forge-behavior-v2:dd627d223084461fe8441a35d22825edd748d691",
-        "forge-behavior-v2:de59ffad0e5f87a7367c197dc106aad1f682c671",
-        "forge-behavior-v2:debbf8771c58c631fa3f33df1677f59c768a7383",
-        "forge-behavior-v2:df75947de44cc568375d69a23e76919b6c2c2f48",
-        "forge-behavior-v2:e15297d5dc55f08b1f3be788c3daf7d3dcb11538",
-        "forge-behavior-v2:e152a91a3fe077818f43962dcee5a36d3ef3fa89",
-        "forge-behavior-v2:e1ee0c74d67c935c07a25a031a79709858d209d0",
-        "forge-behavior-v2:e5b081723c5251bc6495fa9fea4ab8f60bbcc220",
-        "forge-behavior-v2:e71018066bee6b94fe9ab503193fb0f41b1f3877",
-        "forge-behavior-v2:e72a0b63fd0fb2e13ee063b7bfad595d47b1e23b",
-        "forge-behavior-v2:e754e8299c2353e82ed944408fbe6c77905c7487",
-        "forge-behavior-v2:e7863945d1392577ce2292e93b849f330f095e43",
-        "forge-behavior-v2:e7f5000107e861fd14c382fe05c2dcf0afc3d1e4",
-        "forge-behavior-v2:eadfb25bda4e9f94b425f4cf97a3292c140af46b",
-        "forge-behavior-v2:f0587cc42090301ce582362d4e0a2962fe6591d6",
-        "forge-behavior-v2:f074b9c21f6bfa43e92f44ca161f2249899f8b31",
-        "forge-behavior-v2:f4c56c74dd541a05fb75c2728f476ce936306483",
-        "forge-behavior-v2:fc4f779d94b041f5f4040597dff874dce4741e22"
-      ],
-      "evidence_profile": "DECISION+REPLAY",
-      "logical_bucket": "WS33A",
-      "owner_family": "ACTION_COST_DECISION",
-      "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
-      "runtime_subsystem": "forge.game.spellability.TargetRestrictions",
-      "scenario_group_id": "ws33-g2-template-123",
-      "unresolved_path_count": 122
-    },
-    {
-      "effective_path_ids": [
         "forge-behavior-v2:00ddb7aaa4a4feaf71562467ad401452f875c33f",
         "forge-behavior-v2:02762fc07adc5141351a9b6fa2af91081ad9681b",
         "forge-behavior-v2:05a5f2890d4f939eccd9ee03c07882ff9d11905b",
@@ -2460,55 +2327,6 @@
     },
     {
       "effective_path_ids": [
-        "forge-behavior-v2:12825b1c31ca7d7d8a01cad16bc5531930cb5a7e",
-        "forge-behavior-v2:172ab06795f99590ca9d96f85995f6cf9e083ee8",
-        "forge-behavior-v2:1b6ac7024c9a66f59567a68206eac59e77da11d2",
-        "forge-behavior-v2:1d94bfd1ff6b0605a685b73e1f5547020edd08c3",
-        "forge-behavior-v2:2519ac7e9366fb5eea8493851240990c846924ae",
-        "forge-behavior-v2:27ae14de2b50b233e3e48142afa98edda9132c43",
-        "forge-behavior-v2:2dee5951c08c0b1b4d2692ffcbb777d608d0b3f4",
-        "forge-behavior-v2:351b9a0b60fe7dd801aabde44fa137c2aeac2b0d",
-        "forge-behavior-v2:3756f45ca4cfd08ad816e740b0c6ed21192edddc",
-        "forge-behavior-v2:37c1c639e276828f111fd716f77e38765923d476",
-        "forge-behavior-v2:41b8bd42c6700681ccf37b53f273935e612da1e5",
-        "forge-behavior-v2:484df442707604ccbb0a8399292c5fc4283f51bc",
-        "forge-behavior-v2:50f3f1489f9d58cb0de01bfc539b87a675eba19d",
-        "forge-behavior-v2:529d886326a79bdcfd263f2125506132e7a320f6",
-        "forge-behavior-v2:57d9674efd9f90f259a4826525b22a7fff6d9d02",
-        "forge-behavior-v2:61523789684aff35d18f78f7d2e9dd50dfcdcd59",
-        "forge-behavior-v2:7315e058488a2567b57dac1199b6f1d7764ea06c",
-        "forge-behavior-v2:7ba3879ce621c87153fcc8d3292a88872b0d074e",
-        "forge-behavior-v2:811ed9db3a909ebfd620db71c81429af6fa30c5a",
-        "forge-behavior-v2:861989bee8d4ef71e1a85ca3bf9dbde2cb9685bf",
-        "forge-behavior-v2:8fe103fc528c26e3e62b24b584c434ac1e475ce7",
-        "forge-behavior-v2:92a6a00992f4b4d4384e5fde485ac912d18c5a9d",
-        "forge-behavior-v2:940b3fa409fea8f51b004ad3684955eea6878171",
-        "forge-behavior-v2:95726bbbfdb31ba1e8fe7146f4a7971d93f97bc5",
-        "forge-behavior-v2:98189a69531174eeae2c6d9d05453c75afebbddb",
-        "forge-behavior-v2:9bb71af4c7d8a8e12eb3b53bf07c8832ba137c13",
-        "forge-behavior-v2:9bc6d5a96b0e80e44d796a27aaf05732ca3ece70",
-        "forge-behavior-v2:a1fe7a20bc3ddb26ed8642a7a8b5025697bd0d83",
-        "forge-behavior-v2:a625213de9dd0c54415b3b108e6f7c622c223dc7",
-        "forge-behavior-v2:a9a13a79f7808b0f54ce542fa0c5c8f8713936af",
-        "forge-behavior-v2:ab1906072ee5e6dd901cfb5e53a706e39278166e",
-        "forge-behavior-v2:ac98bdd6d8caeeeaf91ff13d66b160ca85c6399b",
-        "forge-behavior-v2:b409acd3dfbfefafaa8fb9d142fb4b512ab443f5",
-        "forge-behavior-v2:d373ce7ef3158fc5182e721bdec1f268ab01f982",
-        "forge-behavior-v2:dc2d47508860e88a74dcc138bfbc6a9230a158ec",
-        "forge-behavior-v2:eba29aec6e745b6f1d6199a24eacad2530e384f9",
-        "forge-behavior-v2:ec509c78097412be383c7282106eef49a9f14a34",
-        "forge-behavior-v2:fba7c75266400c25c7deea7c3ea8390c536ee055"
-      ],
-      "evidence_profile": "DECISION+RNG+HIDDEN+REPLAY",
-      "logical_bucket": "WS33G",
-      "owner_family": "HIDDEN_RNG_REPLAY",
-      "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
-      "runtime_subsystem": "forge.game.ability.effects.DigEffect",
-      "scenario_group_id": "ws33-g2-template-173",
-      "unresolved_path_count": 38
-    },
-    {
-      "effective_path_ids": [
         "forge-behavior-v2:0f17d024fe0463cc13bd334bb02a8cf4de01272f",
         "forge-behavior-v2:18432979c211a0a86c7bec5ebeaea127d2001766",
         "forge-behavior-v2:1bacb8e340e708b09d68eb39104e8da879b13b35",
@@ -3617,44 +3435,6 @@
     },
     {
       "effective_path_ids": [
-        "forge-behavior-v2:1b1d899f942620f8251e98ad58577e873d18c540",
-        "forge-behavior-v2:24a5352cfaa6ae913df6549ceed0c447d526e89d",
-        "forge-behavior-v2:30d28c843e394b4fb4fad818e3debbc931fd3211",
-        "forge-behavior-v2:b028d2d29f150fd3ff7bcbc30706f5d4e2282907",
-        "forge-behavior-v2:cd96db9587a128622bf87f0b7a943e0a1602ca61",
-        "forge-behavior-v2:f3586a316f9f99fcce1ac168e4b8a00822198070",
-        "forge-behavior-v2:f76955a7c98a05b8946aea6b2e2175c515364f2d",
-        "forge-behavior-v2:fe2892ee03a190fd1d4ab36316922b4d8f616a73"
-      ],
-      "evidence_profile": "DECISION+RNG+HIDDEN+REPLAY",
-      "logical_bucket": "WS33G",
-      "owner_family": "HIDDEN_RNG_REPLAY",
-      "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
-      "runtime_subsystem": "forge.game.ability.effects.DigUntilEffect",
-      "scenario_group_id": "ws33-g2-template-174",
-      "unresolved_path_count": 8
-    },
-    {
-      "effective_path_ids": [
-        "forge-behavior-v2:0d9ac3065e85ca394b873a574a26776ec8bdcb6f",
-        "forge-behavior-v2:6d32843af489fc9371e5d69ce3d9132da0336f99",
-        "forge-behavior-v2:72987c86323b9edc264ac3eceaed00508cd23eb4",
-        "forge-behavior-v2:77fc7e883489b98ecd687fbbb097a70e68950fff",
-        "forge-behavior-v2:8c808afc91824f19039747bff3e1e5ee45640667",
-        "forge-behavior-v2:a817142bdd146d535481895c85387094a2c7ad62",
-        "forge-behavior-v2:ae82d4423a23aaf18b7da0e9215165e8d55ba5f2",
-        "forge-behavior-v2:f614e8861efa1f77d46e504be933771e4794ea9f"
-      ],
-      "evidence_profile": "DECISION+REPLAY",
-      "logical_bucket": "WS33G",
-      "owner_family": "HIDDEN_RNG_REPLAY",
-      "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
-      "runtime_subsystem": "forge.game.ability.effects.ScryEffect",
-      "scenario_group_id": "ws33-g2-template-182",
-      "unresolved_path_count": 8
-    },
-    {
-      "effective_path_ids": [
         "forge-behavior-v2:2406a8f5fa1e3c1e535535122f9d6ff7e8e40195",
         "forge-behavior-v2:3abb19b37cbe6d8ab654213b182759a77aa2aa69",
         "forge-behavior-v2:488dd8aecf72b6913bda8891b77b704eaca33646",
@@ -3705,24 +3485,6 @@
       "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
       "runtime_subsystem": "forge.game.ability.effects.CopySpellAbilityEffect",
       "scenario_group_id": "ws33-g2-template-154",
-      "unresolved_path_count": 7
-    },
-    {
-      "effective_path_ids": [
-        "forge-behavior-v2:185943582063fce8db2cbe85a28a068c9658c26d",
-        "forge-behavior-v2:1e26d641fbb923995b2cfadf1023aa936c4159f8",
-        "forge-behavior-v2:242680ed5d889cd7f00fc41e2e70ec8945aaf9c1",
-        "forge-behavior-v2:4279735906cfda38f1bb0709c19fd9973e9396b2",
-        "forge-behavior-v2:602d0fd35154ed5305e04aea903af863db58e906",
-        "forge-behavior-v2:7a5674dd67b99b231002adbf2150c4a6b456fe68",
-        "forge-behavior-v2:da6d57cc4b8b7bcde7baa9519f6d13ce63fb775b"
-      ],
-      "evidence_profile": "DECISION+HIDDEN+REPLAY",
-      "logical_bucket": "WS33G",
-      "owner_family": "HIDDEN_RNG_REPLAY",
-      "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
-      "runtime_subsystem": "forge.game.ability.effects.PeekAndRevealEffect",
-      "scenario_group_id": "ws33-g2-template-178",
       "unresolved_path_count": 7
     },
     {
@@ -4153,21 +3915,6 @@
     },
     {
       "effective_path_ids": [
-        "forge-behavior-v2:59d153ba732332952e6de72f63af39c7da867a44",
-        "forge-behavior-v2:d1ff23da6a019ec1db367e2b80aed95088553bda",
-        "forge-behavior-v2:dc484d9d0750c36858479fcfa778252fedaeb62d",
-        "forge-behavior-v2:ee17650cc69e7d571ba8a6d602227eb4c8ba6154"
-      ],
-      "evidence_profile": "DECISION+REPLAY",
-      "logical_bucket": "WS33G",
-      "owner_family": "HIDDEN_RNG_REPLAY",
-      "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
-      "runtime_subsystem": "forge.game.ability.effects.SurveilEffect",
-      "scenario_group_id": "ws33-g2-template-184",
-      "unresolved_path_count": 4
-    },
-    {
-      "effective_path_ids": [
         "forge-behavior-v2:8671678f79ce684700bee73e1fedcbdd2cc4fa94",
         "forge-behavior-v2:f4c7f4744d2aafd7867c487427756616567b0177",
         "forge-behavior-v2:fdfdd242632a5ba2208e4acace7b4500bb347efe"
@@ -4388,34 +4135,6 @@
       "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
       "runtime_subsystem": "forge.game.ability.effects.SetStateEffect",
       "scenario_group_id": "ws33-g2-template-160",
-      "unresolved_path_count": 3
-    },
-    {
-      "effective_path_ids": [
-        "forge-behavior-v2:08ee2427720ab6c410c83277e8dfd44f7bc5b327",
-        "forge-behavior-v2:d0019b4f2704ed1998190fc9cda6ab39ce3a4e78",
-        "forge-behavior-v2:fcee6d7a218aefb965cc2606199f4470ba6ab2e7"
-      ],
-      "evidence_profile": "DECISION+RNG+REPLAY",
-      "logical_bucket": "WS33G",
-      "owner_family": "HIDDEN_RNG_REPLAY",
-      "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
-      "runtime_subsystem": "forge.game.ability.effects.FlipCoinEffect",
-      "scenario_group_id": "ws33-g2-template-176",
-      "unresolved_path_count": 3
-    },
-    {
-      "effective_path_ids": [
-        "forge-behavior-v2:243aad77fbd6fd16a2d1ddb8ee2a671a38fe9f6c",
-        "forge-behavior-v2:5d6492c7e7719e02eb5ebff9e9e8102ed1e0698c",
-        "forge-behavior-v2:84835a166ab53d88015d5bf2864ec483e1b5a33f"
-      ],
-      "evidence_profile": "DECISION+RNG+REPLAY",
-      "logical_bucket": "WS33G",
-      "owner_family": "HIDDEN_RNG_REPLAY",
-      "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
-      "runtime_subsystem": "forge.game.ability.effects.ShuffleEffect",
-      "scenario_group_id": "ws33-g2-template-183",
       "unresolved_path_count": 3
     },
     {
@@ -4741,45 +4460,6 @@
       "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
       "runtime_subsystem": "forge.game.staticability.StaticAbilityMode#Panharmonicon",
       "scenario_group_id": "ws33-g2-template-169",
-      "unresolved_path_count": 2
-    },
-    {
-      "effective_path_ids": [
-        "forge-behavior-v2:55219d24ede12ad1bb4595f7cf97bae98c90072e",
-        "forge-behavior-v2:c27478a04d0da0cca433e9c9d06be9d04b540c66"
-      ],
-      "evidence_profile": "DECISION+RNG+HIDDEN+REPLAY",
-      "logical_bucket": "WS33G",
-      "owner_family": "HIDDEN_RNG_REPLAY",
-      "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
-      "runtime_subsystem": "forge.game.ability.effects.DiscoverEffect",
-      "scenario_group_id": "ws33-g2-template-175",
-      "unresolved_path_count": 2
-    },
-    {
-      "effective_path_ids": [
-        "forge-behavior-v2:47e7c38e8a2842670b6877f12667bf6f2a4958ed",
-        "forge-behavior-v2:d96e507d47eeb52b406a2e40cf953a9767fb34a5"
-      ],
-      "evidence_profile": "DECISION+RNG+HIDDEN+REPLAY",
-      "logical_bucket": "WS33G",
-      "owner_family": "HIDDEN_RNG_REPLAY",
-      "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
-      "runtime_subsystem": "forge.game.ability.effects.RevealEffect",
-      "scenario_group_id": "ws33-g2-template-180",
-      "unresolved_path_count": 2
-    },
-    {
-      "effective_path_ids": [
-        "forge-behavior-v2:17f8532940a8967b06c70c70431c410d86c56c19",
-        "forge-behavior-v2:efe2eeacc2950f7a80e8381d0d419960c1b25c30"
-      ],
-      "evidence_profile": "DECISION+HIDDEN+REPLAY",
-      "logical_bucket": "WS33G",
-      "owner_family": "HIDDEN_RNG_REPLAY",
-      "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
-      "runtime_subsystem": "forge.game.ability.effects.RevealHandEffect",
-      "scenario_group_id": "ws33-g2-template-181",
       "unresolved_path_count": 2
     },
     {
@@ -5765,57 +5445,9 @@
       "runtime_subsystem": "forge.game.staticability.StaticAbilityMode#WitherDamage",
       "scenario_group_id": "ws33-g2-template-171",
       "unresolved_path_count": 1
-    },
-    {
-      "effective_path_ids": [
-        "forge-behavior-v2:6595b0b5c13506262192403279e6dbac47b7fba1"
-      ],
-      "evidence_profile": "DECISION+HIDDEN+REPLAY",
-      "logical_bucket": "WS33G",
-      "owner_family": "HIDDEN_RNG_REPLAY",
-      "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
-      "runtime_subsystem": "forge.game.ability.effects.ClashEffect",
-      "scenario_group_id": "ws33-g2-template-172",
-      "unresolved_path_count": 1
-    },
-    {
-      "effective_path_ids": [
-        "forge-behavior-v2:47f0f37a5823140c6fe301fc21730cff8d227057"
-      ],
-      "evidence_profile": "STATE_ONLY",
-      "logical_bucket": "WS33G",
-      "owner_family": "HIDDEN_RNG_REPLAY",
-      "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
-      "runtime_subsystem": "forge.game.ability.effects.ManifestEffect",
-      "scenario_group_id": "ws33-g2-template-177",
-      "unresolved_path_count": 1
-    },
-    {
-      "effective_path_ids": [
-        "forge-behavior-v2:1ecf14ac9a8cbbf713da5646b207d0294d4d5c21"
-      ],
-      "evidence_profile": "DECISION+RNG+HIDDEN+REPLAY",
-      "logical_bucket": "WS33G",
-      "owner_family": "HIDDEN_RNG_REPLAY",
-      "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
-      "runtime_subsystem": "forge.game.ability.effects.RearrangeTopOfLibraryEffect",
-      "scenario_group_id": "ws33-g2-template-179",
-      "unresolved_path_count": 1
-    },
-    {
-      "effective_path_ids": [
-        "forge-behavior-v2:d58d7dddbfad6032abe1387304fd0f1f38747d99"
-      ],
-      "evidence_profile": "DECISION+REPLAY",
-      "logical_bucket": "WS33G",
-      "owner_family": "HIDDEN_RNG_REPLAY",
-      "priority_basis": "DESCENDING_UNRESOLVED_PATH_COUNT_THEN_STABLE_KEYS",
-      "runtime_subsystem": "forge.game.ability.effects.TwoPilesEffect",
-      "scenario_group_id": "ws33-g2-template-185",
-      "unresolved_path_count": 1
     }
   ],
   "schema": "commander-simulator-next.ws33-integrated-work-queue.v1",
-  "unresolved_path_count": 3239,
-  "work_item_count": 234
+  "unresolved_path_count": 3036,
+  "work_item_count": 219
 }
