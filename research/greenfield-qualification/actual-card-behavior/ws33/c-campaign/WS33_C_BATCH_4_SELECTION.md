@@ -5,7 +5,7 @@ SOURCE_TREE = (frozen at commit; see PENDING)
 FORGE_PIN = 8c7e9afb8e6caee88644b94e25da5852e36f8928
 PARTITION = 11 EVIDENCED / 689 UNKNOWN
 INVENTORY = WS33_C_EFFECT_STATIC_INVENTORY.json sha256 65aebfd9766722516c5aaaca5bdf8bd675e6e99f6d68784f14b3c4890870483a (23 rows)
-BATCH_DIGEST = TBD (filled after preparer run, before commit)
+BATCH_DIGEST = b9aa07cec3b284ea75bada8b75f1a33b98c286daa7fc9717f64d0e76f39cacd0 (R7: kappa-static expected 1->2)
 
 ## Chosen assertion primitive
 
@@ -25,7 +25,8 @@ lifetime ends this turn).
    Provenance: forge-gui/res/cardsfolder/k/kappa_cannoneer.txt:8.
    Fixture ETB_OTHER_ENTER (Sol Ring enters; Kappa pre-placed via move,
    setup drain). Assertions: kappa P1P1==2 + effect_static_present
-   (CantBlockBy/linked/1, after_eot_absent).
+   (CantBlockBy/linked/2, after_eot_absent; R7: setup via-move firing +
+   fixture firing = 2 effects, artifact-proven).
 2. forge-behavior-v2:998516b92a13efe9c0e1c324a8123069ab954815
    Terminal Unblockable root, shared x5 (Kappa:9, gateway:6, ...).
    Fixture A (kappa-etb): Kappa ETB_SELF (self-entry fires own trigger;

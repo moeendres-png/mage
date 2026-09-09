@@ -182,6 +182,25 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     }
                 }
             }
+            // Setup verification (generic, all executions): every placed
+            // card must have reached its declared zone before the fixture
+            // window, so a silent placement failure can never masquerade as
+            // a trigger/effect silence below.
+            for (final String placement : first.setup.split(";", -1)) {
+                if (placement.isBlank()) continue;
+                final String[] vparts = placement.split("\\|", -1);
+                final Player vowner = who.get(vparts[2]);
+                final int vwanted = Integer.parseInt(vparts[3]);
+                final int vfound = countCardsWithName(
+                        game, unb64(vparts[0]), ZoneType.valueOf(vparts[1]), vowner);
+                if (vfound < vwanted) {
+                    throw new IllegalStateException(
+                            "setup placement missing before fixture: card=" + unb64(vparts[0])
+                                    + " zone=" + vparts[1] + " want=" + vwanted
+                                    + " found=" + vfound
+                                    + " roster=" + rosterSnapshot(game));
+                }
+            }
         }
 
         final int lifeActorBefore = actor.getLife();
@@ -427,8 +446,13 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             }
         }
         // Lifecycle second phase: assertions flagged after_eot_absent travel
-        // to end of turn, then re-evaluate as count==0 (rollback proof where
-        // the lifetime ends this turn).
+        // to cleanup, then re-evaluate as count==0 (rollback proof where
+        // the lifetime ends this turn). CLEANUP (not END_OF_TURN) is the
+        // source-verified expiry point at the pin: default-duration Effect
+        // exile registers via game.getEndOfTurn().addUntil (player-
+        // independent until list), which PhaseHandler fires only in CLEANUP
+        // onPhaseBegin; playUntilPhase stops on phase entry, so an END_OF_
+        // TURN stop precedes expiry and cannot prove rollback.
         boolean needsEotTravel = false;
         for (final CaseRow row : rows) {
             for (final AssertionDef def : row.assertions) {
@@ -439,7 +463,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             }
         }
         if (needsEotTravel) {
-            playUntilPhase(game, PhaseType.END_OF_TURN);
+            playUntilPhase(game, PhaseType.CLEANUP);
             drivePostTravelStack(game, "AFTER_EOT_ABSENCE");
             for (final CaseRow row : rows) {
                 for (final AssertionDef def : row.assertions) {
@@ -500,6 +524,16 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 first = false;
                 out.append(card.getName());
                 if (card.isTransformed()) out.append("(T)");
+            }
+            // Graveyard side of the roster: distinguishes SBA-destroyed
+            // (graveyard) from exiled/LKI/missing in silence diagnostics.
+            // Diagnostics-only; never gating.
+            out.append('|');
+            boolean gfirst = true;
+            for (final Card card : player.getCardsIn(ZoneType.Graveyard)) {
+                if (!gfirst) out.append(',');
+                gfirst = false;
+                out.append(card.getName());
             }
         }
         return out.append(']').toString();
