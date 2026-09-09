@@ -86,9 +86,11 @@ One harness cannot execute them. Repartition (per-PATH):
   human_torch; full list in §5).
 - D4f unclear → needs-review, never blocks siblings (1: furygale_flocking
   RepeatEach tokenverse + MustAttack attachment).
-- 8 + 3 + 19 + 2 + 15 + 1 = 48 dispositions over 48 cards / 49 paths
-  (gideon counted twice: L6→D4c, L11→D4a). Deferred buckets stay
-  UNKNOWN; no sibling inference.
+- 8 + 3 + 21 + 2 + 14 + 1 = 49 paths (48 cards; gideon counted
+  twice: L6→D4c, L11→D4a). Machine-validated against the frozen queue
+  set (§5: 49 rows, prefixes unique, card+line match, zero
+  omission/duplication). Deferred buckets stay UNKNOWN; no sibling
+  inference.
 
 ## 4. D4a frozen attempt set (8 path ids, fail-closed)
 
