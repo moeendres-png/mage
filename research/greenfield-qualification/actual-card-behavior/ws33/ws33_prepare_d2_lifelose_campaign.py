@@ -103,6 +103,7 @@ def main() -> int:
     for pid in qids:
         assert status.get(pid) == "UNKNOWN", f"D2 member not UNKNOWN: {pid}"
 
+    intent_map = {"urborg_syphon_mage.txt": "ENTITY:Runeclaw Bear:actor:Hand"}
     cases, deferred = [], []
     for pid in qids:
         prov = led[pid]["source_provenance"][0]
@@ -114,24 +115,26 @@ def main() -> int:
         names = [l[5:] for l in txt.splitlines() if l.startswith("Name:")]
         assert len(names) == 1 and names[0].strip(), f"no exact Name at pin for {card_file}"
         if disp == P:
+            intent = intent_map.get(card_file, "NONE")
             cases.append((pid, prov["oracle_identity"], names[0].strip(), prov["source_token"],
-                          recipe, params, pool, fixture, dA, dO,
+                          recipe, params, pool, fixture, dA, dO, intent,
                           f"{prov['forge_source_path']}#{prov.get('source_line')}"))
         else:
             deferred.append({"effective_path_id": pid, "card": card_file,
                              "reason": disp, "note": note})
     assert len(cases) == 8 and len(deferred) == 10, "D2 split must be 8 + 10"
     cids = sorted(c[0] for c in cases)
+    intents = {c[0]: c[10] for c in cases}
     digest = hashlib.sha256(("\n".join(cids) + "\n").encode()).hexdigest()
 
     a.out_tsv.parent.mkdir(parents=True, exist_ok=True)
     with open(a.out_tsv, "w") as f:
         f.write("#path_id\toracle_id\tcard_b64\tsvar_token_b64\tsvar_expr_b64\trecipe\t"
-                "params_b64\tpool_b64\tfixture_b64\tactor_delta\topp_delta\tprovenance_b64\n")
-        for (pid, oracle, name, stok, recipe, params, pool, fixture, dA, dO, provenance) in cases:
+                "params_b64\tpool_b64\tfixture_b64\tactor_delta\topp_delta\tprovenance_b64\tintent_b64\n")
+        for (pid, oracle, name, stok, recipe, params, pool, fixture, dA, dO, intent, provenance) in cases:
             f.write("\t".join([pid, oracle, b64(name), b64(stok), b64("LoseLife"), recipe,
                                 b64(params), b64(pool), b64(fixture), str(dA), str(dO),
-                                b64(provenance)]) + "\n")
+                                b64(provenance), b64(intent)]) + "\n")
     a.out_deferred.write_text(json.dumps(deferred, indent=1, sort_keys=True) + "\n")
     a.out_plan.write_text(json.dumps({
         "schema": "commander-simulator-next.ws33d-d2-plan.v1",
@@ -139,6 +142,7 @@ def main() -> int:
         "queue_count": 18, "provable_count": 8, "deferred_count": 10,
         "target_digest": digest, "forge_pin": FORGE_PIN,
         "provable_ids": cids,
+        "intents": intents,
     }, indent=1, sort_keys=True) + "\n")
     print(f"WS33_ABC_D2_MATERIALIZATION=PASS cases=8 deferred=10 digest={digest}")
     return 0
