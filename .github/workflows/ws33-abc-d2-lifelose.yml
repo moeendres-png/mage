@@ -160,7 +160,7 @@ jobs:
           set -euo pipefail
           (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am -Dtest=forge.gamesimulationtests.Ws33D2LifeloseCampaignTest -Dsurefire.failIfNoSpecifiedTests=false -Dws33.d2Mode=replay -Dws33.d2Cases="$GITHUB_WORKSPACE/generated/campaign/d2/d2-cases.tsv" -Dws33.d2Out="$GITHUB_WORKSPACE/generated/campaign/d2" test) 2>&1 | tee generated/runtime/d2-replay-runtime.log
           test ! -s generated/campaign/d2/lifelose-replay-diagnostics.jsonl
-          test "$(jq '.records|length' generated/campaign/d2/campaign-index.json)" = 10
+          test "$(jq '.records|length' generated/campaign/d2/campaign-index.json)" = 8
           echo WS33_ABC_D2_REPLAY=PASS paths=8
 
       - name: Certify exact per-path evidence
