@@ -37,8 +37,9 @@ def fail(msg: str):
     raise SystemExit(f"WS33_C_BATCH_CHECK=FAIL {msg}")
 
 
-def parse_svars(text: str) -> dict[str, dict]:
-    out: dict[str, dict] = {}
+def parse_svars(text: str) -> dict[str, list[dict]]:
+    # SVar identity is (name, line): double-faced cards repeat names.
+    out: dict[str, list[dict]] = {}
     for n, line in enumerate(text.splitlines(), 1):
         s = line.strip()
         if not s.startswith("SVar:"):
@@ -54,8 +55,9 @@ def parse_svars(text: str) -> dict[str, dict]:
                 k, v = part.split("$", 1)
                 flds[k.strip()] = v.strip()
         head = DB_HEAD_RE.match(val)
-        out[name] = {"fields": flds, "line": n,
-                     "db_type": head.group(1) if head else None, "raw": val}
+        out.setdefault(name, []).append(
+            {"fields": flds, "line": n,
+             "db_type": head.group(1) if head else None, "raw": val})
     return out
 
 
@@ -84,7 +86,21 @@ def main() -> None:
     if typ != "commit":
         fail(f"Forge pin object missing {FORGE_PIN}")
     cache: dict[str, str] = {}
+    api_names: set[str] = set()
 
+    def api_allowlist() -> set[str]:
+        nonlocal api_names
+        if not api_names:
+            r = subprocess.run(
+                ["git", "-C", str(args.forge_git), "show",
+                 f"{FORGE_PIN}:forge-game/src/main/java/forge/game/ability/ApiType.java"],
+                capture_output=True, text=True)
+            if r.returncode != 0:
+                fail("ApiType.java missing at pin")
+            api_names = set(re.findall(r"^    (\w+) \(", r.stdout, re.M))
+            if not api_names:
+                fail("ApiType allowlist empty")
+        return api_names
     def script(rel: str) -> str:
         if rel not in cache:
             r = subprocess.run(
@@ -96,9 +112,10 @@ def main() -> None:
         return cache[rel]
 
     seen_paths: set[str] = set()
+    apis = api_allowlist()
     for ex in defs["executions"]:
         for s in ex.get("setup", []):
-            if s.get("zone") not in ("Battlefield", "Hand"):
+            if s.get("zone") not in ("Battlefield", "Hand", "Library"):
                 fail(f"bad setup zone {ex['execution_id']}")
             if s.get("who") not in ("actor", "opponent"):
                 fail(f"bad setup owner {ex['execution_id']}")
@@ -143,21 +160,33 @@ def main() -> None:
                     and q["oracle_identity"] == ex["oracle_identity"]]
             if not prov:
                 fail(f"provenance mismatch {pid} {ex['source_path']}")
-            if row["semantic_selector_profile"]["selectors"].get("SubAbility") != link["child_sub"]:
+            if row["semantic_selector_profile"]["selectors"].get("SubAbility") != link["child_sub"] \
+                    and not (link.get("terminal", False) and "SubAbility" not in
+                             row["semantic_selector_profile"]["selectors"]):
                 fail(f"selector/child_sub mismatch {pid}")
-            parent = svars.get(link["parent_svar"])
+            if link["parent_api"] not in apis or link["child_api"] not in apis:
+                fail(f"api not in pin ApiType allowlist {pid}")
+            parent = next(
+                (d for d in svars.get(link["parent_svar"], [])
+                 if d["line"] == link["parent_line"]), None)
             if parent is None:
-                fail(f"parent SVar missing {ex['execution_id']}.{link['parent_svar']}")
-            if parent["line"] != link["parent_line"]:
-                fail(f"parent line mismatch {link['parent_svar']}")
+                fail(f"parent SVar missing {ex['execution_id']}.{link['parent_svar']}"
+                     f"@{link['parent_line']}")
             if parent["db_type"] != link["parent_api"]:
-                # DB$ head token maps 1:1 to ApiType names on the executed set
                 fail(f"parent api mismatch {link['parent_svar']}: "
                      f"script={parent['db_type']} decl={link['parent_api']}")
+            if link.get("terminal", False):
+                if link["child_sub"] != "TERMINAL" or link["child_api"] != link["parent_api"]:
+                    fail(f"terminal link shape mismatch {pid}")
+                if parent["fields"].get("SubAbility") is not None:
+                    fail(f"terminal parent has SubAbility pointer {pid}")
+                continue
             if parent["fields"].get("SubAbility") != link["child_sub"]:
                 fail(f"SubAbility pointer mismatch {link['parent_svar']}")
-            child = svars.get(link["child_sub"])
-            if child is None or child["db_type"] != link["child_api"]:
+            child = next(
+                (d for d in svars.get(link["child_sub"], [])
+                 if d["db_type"] == link["child_api"]), None)
+            if child is None:
                 fail(f"child SVar/api mismatch {link['child_sub']}")
     digest = hashlib.sha256(canon(defs)).hexdigest()
     print(json.dumps({"WS33_C_BATCH_CHECK": "PASS",

@@ -52,7 +52,7 @@ def main() -> None:
     digest = hashlib.sha256(canon(defs)).hexdigest()
     header = ("#execution_id\tcard_b64\toracle\tsource_b64\tfixture_kind\tentering_b64\t"
               "setup\tlink_path\tparent_svar\tparent_api\tchild_sub\tchild_api\t"
-              "parent_line\tassertions\tconsultations\n")
+              "parent_line\tassertions\tconsultations\tterminal\n")
     lines = [header]
     plan_execs = []
     for ex in defs["executions"]:
@@ -81,6 +81,7 @@ def main() -> None:
                 "parent_api": link["parent_api"],
                 "child_sub": link["child_sub"],
                 "child_api": link["child_api"],
+                "terminal": bool(link.get("terminal", False)),
             } for link in ex["links"]],
             "assertions": [{
                 "assertion_id": a["id"],
@@ -97,7 +98,8 @@ def main() -> None:
                 b64(ex["source_path"]), fx["kind"], b64(fx.get("entering_card", "")),
                 setup, link["path_id"], link["parent_svar"], link["parent_api"],
                 link["child_sub"], link["child_api"], str(link["parent_line"]),
-                ";".join(asserts), consultations]) + "\n")
+                ";".join(asserts), consultations,
+                "terminal" if link.get("terminal", False) else ""]) + "\n")
     args.out_tsv.parent.mkdir(parents=True, exist_ok=True)
     args.out_tsv.write_text("".join(lines), encoding="utf-8")
     plan = {"schema": "commander-simulator-next.ws33-c-batch-plan.v1",

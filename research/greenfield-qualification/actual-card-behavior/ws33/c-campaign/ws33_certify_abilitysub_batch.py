@@ -102,19 +102,37 @@ def check_execution(trace: dict, record: dict, expect: dict, owned: dict) -> str
             return f"missing parent/child observation: {pid}"
         if not isinstance(m.get("parent_seq"), int) or not isinstance(m.get("child_seq"), int):
             return f"ordering not integer-sequenced: {pid}"
-        if not (m["parent_seq"] < m["child_seq"]):
-            return f"child-before-parent observation: {pid}"
-        if c.get("parent_id") != p["id"]:
-            return f"missing parent provenance: child not linked to parent: {pid}"
+        if link.get("terminal", False):
+            # Terminal root: same object at resolve-entry (child) and
+            # post-effect (parent); entry must precede return.
+            if not m.get("terminal") is True:
+                return f"terminal flag missing: {pid}"
+            if p["id"] != c["id"]:
+                return f"terminal pair not same object: {pid}"
+            if c.get("parent_id") != -1:
+                return f"terminal child not root: {pid}"
+            if not (m["child_seq"] < m["parent_seq"]):
+                return f"terminal ordering violated: {pid}"
+            if m.get("relation_runtime_derived") != "TERMINAL" \
+                    or m.get("relation_declared") != "TERMINAL":
+                return f"terminal relation mismatch: {pid}"
+        else:
+            if m.get("terminal") is True:
+                return f"unexpected terminal flag: {pid}"
+            if not (m["parent_seq"] < m["child_seq"]):
+                return f"child-before-parent observation: {pid}"
+            if c.get("parent_id") != p["id"]:
+                return f"missing parent provenance: child not linked to parent: {pid}"
+            if m.get("relation_runtime_derived") != link["child_sub"]:
+                return f"runtime relation mismatch: {pid}"
+            if m.get("relation_declared") != link["child_sub"]:
+                return f"declared relation mismatch: {pid}"
+        if m.get("relation_match") is not True:
+            return f"relation match not certified: {pid}"
         if p.get("api") != link["parent_api"] or c.get("api") != link["child_api"]:
             return f"wrong child match: {pid}"
         if p.get("host") != expect["card_name"] or c.get("host") != expect["card_name"]:
             return f"host identity mismatch: {pid}"
-        if m.get("relation_runtime_derived") != link["child_sub"]:
-            return f"runtime relation mismatch: {pid}"
-        if m.get("relation_declared") != link["child_sub"] \
-                or m.get("relation_match") is not True:
-            return f"declared relation mismatch: {pid}"
         own = owned.get(pid, {})
         if m.get("modeled_class") != own.get("implementation_target"):
             return f"modeled class mismatch: {pid}"
@@ -290,6 +308,58 @@ def selftest() -> int:
     r["state_assertions"][0]["actual"] = 3
     cases.append(("wrong-semantic-value", copy.deepcopy(base_trace), r,
                   "semantic expectation mismatch"))
+    # Terminal root pair: same object at entry and exit, entry first.
+    t_term = {
+        "schema": TRACE_SCHEMA_V2, "forge_pin": FORGE_PIN,
+        "execution_id": "e1", "direct_effect_resolution": False,
+        "production_entrypoint": "forge.game.ability.AbilityUtils.resolve",
+        "parent_resolution_events": [
+            {"seq": 7, "id": 44, "api": "DamageAll", "host": "Thunder Dragon",
+             "sub_param": None}],
+        "child_observations": [
+            {"seq": 6, "id": 44, "api": "DamageAll", "host": "Thunder Dragon",
+             "parent_id": -1, "root_id": 44}],
+        "matched_links": [{
+            "path_id": "PT", "parent_id": 44, "child_id": 44,
+            "parent_seq": 7, "child_seq": 6, "terminal": True,
+            "relation_runtime_derived": "TERMINAL", "relation_declared": "TERMINAL",
+            "relation_match": True, "modeled_class": "M", "actual_runtime_class": "M",
+            "attribution_relation": "IDENTICAL"}],
+        "decision_tripwire": {"methods": list(TRIPWIRE_METHODS), "hits": []},
+        "runtime_profile": {"static_screen": "PASS", "unexpected_decision": False,
+                            "unexpected_hidden": False, "unexpected_rng": False,
+                            "replay_required": False},
+    }
+    expect_term = {"execution_id": "e1", "card_name": "Thunder Dragon",
+                   "oracle_identity": "O", "paths": ["PT"],
+                   "links": [{"path_id": "PT", "parent_api": "DamageAll",
+                              "child_api": "DamageAll", "child_sub": "TERMINAL",
+                              "terminal": True}],
+                   "assertions": [{"assertion_id": "life-delta-actor", "expected": 2}],
+                   "expected_consultations": []}
+    r_term = copy.deepcopy(base_record)
+    r_term["v2_path_ids"] = ["PT"]
+    r_term["state_assertions"] = [
+        {"assertion_id": "life-delta-actor", "expected": 2, "actual": 2,
+         "result": "PASS"},
+        {"assertion_id": "production-child-reached-PT", "expected": True,
+         "actual": True, "result": "PASS"}]
+    owned_term = {"PT": {"implementation_target": "M",
+                           "actual_runtime_class": "M"}}
+    cases.append(("terminal-accept", t_term, r_term, None,
+                  owned_term, expect_term))
+    # Terminal with inverted order: reject.
+    t = copy.deepcopy(t_term)
+    t["matched_links"][0]["parent_seq"] = 5
+    t["matched_links"][0]["child_seq"] = 7
+    cases.append(("terminal-order-inverted", t, copy.deepcopy(r_term),
+                  "terminal ordering violated", owned_term, expect_term))
+    # Terminal pair across different objects: reject.
+    t = copy.deepcopy(t_term)
+    t["matched_links"][0]["child_id"] = 45
+    t["child_observations"][0]["id"] = 45
+    cases.append(("terminal-split-object", t, copy.deepcopy(r_term),
+                  "terminal pair not same object", owned_term, expect_term))
     failures = []
     for entry in cases:
         name, t, r, want = entry[0], entry[1], entry[2], entry[3]
@@ -311,9 +381,9 @@ def selftest() -> int:
         for f in failures:
             print("  " + f)
         return 1
-    print("WS33_C_BATCH_ADJUDICATION_SELFTEST=PASS cases=15 "
+    print("WS33_C_BATCH_ADJUDICATION_SELFTEST=PASS cases=18 "
           "(positive + incidental-only + declared-consultation + "
-          "typed-expected-string + 11 fail-closed negatives)")
+          "typed-expected-string + terminal-accept + 13 fail-closed negatives)")
     return 0
 
 

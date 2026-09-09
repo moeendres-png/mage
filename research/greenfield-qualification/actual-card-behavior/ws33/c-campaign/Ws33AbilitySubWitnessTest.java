@@ -257,23 +257,24 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 source = addCardToZone(first.cardName, actor, ZoneType.Hand);
                 handActorBefore = actor.getCardsIn(ZoneType.Hand).size();
                 game.getAction().moveTo(ZoneType.Battlefield, source, null, null);
-                game.getTriggerHandler().runWaitingTriggers();
-                if (!game.getStack().isEmpty()) {
-                    game.getStack().addAllTriggeredAbilitiesToStack();
-                    playUntilStackClear(game);
-                }
                 playUntilPhase(game, PhaseType.END_OF_TURN);
-                if (!game.getStack().isEmpty()) {
-                    playUntilStackClear(game);
+                drivePostTravelStack(game, "PHASE_EOT_OUR_TURN");
+            } else if ("PHASE_UPKEEP_OPP_TURN".equals(first.fixtureKind)) {
+                source = findCardWithName(game, first.cardName);
+                if (source == null) {
+                    throw new IllegalStateException(
+                            "fixture source not on battlefield: " + first.cardName);
                 }
-                // The EOT trigger may already have resolved during phase
-                // travel (observers were armed throughout). If it is still
-                // waiting, stack it now; link matching below remains the
-                // real gate either way.
-                if (game.getTriggerHandler().runWaitingTriggers()) {
-                    driveWaitingTrigger(game, "PHASE_EOT_OUR_TURN", source);
-                    playUntilStackClear(game);
+                playUntilPhase(game, PhaseType.UPKEEP);
+                drivePostTravelStack(game, "PHASE_UPKEEP_OPP_TURN");
+            } else if ("PHASE_UPKEEP_OWN_TURN".equals(first.fixtureKind)) {
+                source = findCardWithName(game, first.cardName);
+                if (source == null) {
+                    throw new IllegalStateException(
+                            "fixture source not on battlefield: " + first.cardName);
                 }
+                travelToOwnUpkeep(game, actor);
+                drivePostTravelStack(game, "PHASE_UPKEEP_OWN_TURN");
             } else {
                 throw new IllegalArgumentException("unsupported fixture " + first.fixtureKind);
             }
@@ -322,6 +323,11 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         final int rootId = parents.get(0).id;
         final List<MatchedLink> matched = new ArrayList<>();
         for (final CaseRow row : rows) {
+            if (row.terminal) {
+                matched.add(matchTerminal(row, parents, children, game, actor,
+                        opponent, lifeActorBefore, lifeOpponentBefore, handActorBefore));
+                continue;
+            }
             // Pair matching by exact object relation: the certified pair is
             // the unique (parent, child) with child.parentId == parent.id,
             // parent.seq < child.seq, runtime-derived relation agreement, and
@@ -391,6 +397,38 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 parents, children, matched, tripwireHits, unique);
     }
 
+    private void drivePostTravelStack(final Game game, final String context) {
+        // After phase travel, a fired trigger may sit simultaneous-pending
+        // (moved to stack only by addAllTriggeredAbilitiesToStack), may sit
+        // on the stack, or may have auto-resolved during travel. Cover all
+        // three; link matching below remains the real gate.
+        game.getStack().addAllTriggeredAbilitiesToStack();
+        if (!game.getStack().isEmpty()) {
+            playUntilStackClear(game);
+        }
+        if (game.getTriggerHandler().runWaitingTriggers()) {
+            driveWaitingTrigger(game, context + ":post-travel-waiting", null);
+            playUntilStackClear(game);
+        }
+    }
+
+    private void travelToOwnUpkeep(final Game game, final Player actor) {
+        // Advance to OUR next upkeep (turn-aware): the first UPKEEP reached
+        // belongs to the opponent. Opponent turns must be side-effect free
+        // for the case (no opponent board/hand actions possible by fixture).
+        for (int i = 0; i < 8; i++) {
+            playUntilPhase(game, PhaseType.UPKEEP);
+            if (game.isGameOver()) {
+                throw new IllegalStateException("game over during phase travel");
+            }
+            if (game.getPhaseHandler().is(PhaseType.UPKEEP)
+                    && game.getPhaseHandler().getPlayerTurn().equals(actor)) {
+                return;
+            }
+        }
+        throw new IllegalStateException("own upkeep never reached during phase travel");
+    }
+
     private void driveWaitingTrigger(final Game game, final String context, final Card card) {
         final boolean waited = game.getTriggerHandler().runWaitingTriggers();
         if (!waited) {
@@ -420,6 +458,58 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 + (actor.getCardsIn(ZoneType.Hand).size() - handActorBefore) + ")";
     }
 
+    private MatchedLink matchTerminal(final CaseRow row, final List<ParentEvent> parents,
+            final List<ChildObs> children, final Game game, final Player actor,
+            final Player opponent, final int lifeActorBefore, final int lifeOpponentBefore,
+            final int handActorBefore) {
+        // Terminal root matching: the executing ability is itself a root
+        // AbilitySub (parentless) resolving with no SubAbility pointer. The
+        // certified pair is the unique same-id (child at resolve-entry,
+        // parent post-effect) observation. Ordering is child.seq < parent.seq
+        // (entry before return), proving the effect ran bracketed by
+        // observations. Wrapper/envelope frames (same api, no matching
+        // child) stay unattributed, exactly as for sub-links.
+        MatchedLink match = null;
+        for (final ChildObs child : children) {
+            if (!row.childApi.equals(child.api) || !row.cardName.equals(child.host)
+                    || child.parentId != -1 || child.rootId != child.id) {
+                continue;
+            }
+            for (final ParentEvent parent : parents) {
+                if (parent.id != child.id) {
+                    continue;
+                }
+                if (parent.subParam != null) {
+                    continue;
+                }
+                if (!row.parentApi.equals(parent.api)
+                        || !row.cardName.equals(parent.host)) {
+                    continue;
+                }
+                if (!(child.seq < parent.seq)) {
+                    continue;
+                }
+                if (match != null) {
+                    throw new IllegalStateException(
+                            "terminal pair attribution ambiguous for " + row.linkPath
+                                    + " all_parents=" + parents
+                                    + " all_children=" + children);
+                }
+                match = new MatchedLink(row, parent, child, child.id);
+            }
+        }
+        if (match == null) {
+            throw new IllegalStateException(
+                    "terminal root resolution not observed for " + row.linkPath
+                            + " observations=" + children
+                            + " parents=" + parents
+                            + " sem=" + semanticSnapshot(
+                                    game, actor, opponent, lifeActorBefore,
+                                    lifeOpponentBefore, handActorBefore));
+        }
+        return match;
+    }
+
     private AssertionResult checkAssertion(final AssertionDef def, final Game game,
             final Player actor, final Player opponent, final Card source,
             final int lifeActorBefore, final int lifeOpponentBefore,
@@ -437,6 +527,10 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             case "battlefield_count":
                 actual = countCardsWithName(
                         game, unb64(def.name), ZoneType.Battlefield, player);
+                break;
+            case "graveyard_count":
+                actual = countCardsWithName(
+                        game, unb64(def.name), ZoneType.Graveyard, player);
                 break;
             case "token_count":
                 actual = countTokens(player) - tokensActorBefore;
@@ -546,7 +640,9 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     .append(",\"child_id\":").append(link.child.id)
                     .append(",\"parent_seq\":").append(link.parent.seq)
                     .append(",\"child_seq\":").append(link.child.seq)
-                    .append(",\"relation_runtime_derived\":").append(q(link.parent.subParam))
+                    .append(",\"terminal\":").append(link.row.terminal)
+                    .append(",\"relation_runtime_derived\":")
+                    .append(q(link.row.terminal ? "TERMINAL" : link.parent.subParam))
                     .append(",\"relation_declared\":").append(q(link.row.childSub))
                     .append(",\"relation_match\":true")
                     .append(",\"modeled_class\":")
@@ -714,12 +810,12 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         for (final String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
             if (line.isBlank() || line.startsWith("#")) continue;
             final String[] f = line.split("\t", -1);
-            if (f.length != 14 && f.length != 15) {
+            if (f.length != 15 && f.length != 16) {
                 throw new IllegalArgumentException("malformed WS33 AbilitySub witness case line");
             }
             result.add(new CaseRow(f[0], unb64(f[1]), f[2], unb64(f[3]), f[4], unb64(f[5]),
                     f[6], f[7], f[8], f[9], f[10], f[11], Integer.parseInt(f[12]), f[13],
-                    f.length > 14 ? f[14] : ""));
+                    f.length > 14 ? f[14] : "", f.length > 15 && "terminal".equals(f[15])));
         }
         if (result.isEmpty()) {
             throw new IllegalArgumentException("WS33 AbilitySub witness case set is empty");
@@ -764,13 +860,15 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         final String childSub;
         final String childApi;
         final int parentLine;
+        final boolean terminal;
         final List<AssertionDef> assertions = new ArrayList<>();
         final List<Consultation> consultations = new ArrayList<>();
 
         CaseRow(String executionId, String cardName, String oracle, String sourcePath,
                 String fixtureKind, String enteringCard, String setup, String linkPath,
                 String parentSvar, String parentApi, String childSub, String childApi,
-                int parentLine, String assertionText, String consultationText) {
+                int parentLine, String assertionText, String consultationText,
+                boolean terminal) {
             this.executionId = executionId;
             this.cardName = cardName;
             this.oracle = oracle;
@@ -784,6 +882,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             this.childSub = childSub;
             this.childApi = childApi;
             this.parentLine = parentLine;
+            this.terminal = terminal;
             if (!assertionText.isBlank()) {
                 for (final String cell : assertionText.split(";", -1)) {
                     if (cell.isBlank()) continue;

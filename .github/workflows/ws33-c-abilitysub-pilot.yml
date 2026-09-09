@@ -22,8 +22,8 @@ env:
   WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
   C_MANIFEST_SHA256: b47510017fbfd5cae478917c37f83c1a41e73095eb49a2fa9ecb43360c809ca4
   C_QUEUE_SHA256: a88842375e5e91894acb238c6306a60760dc77d0f098e5dbbd2069e2dbca1482
-  BATCH_ID: WS33_C_BATCH_1
-  BATCH_DIGEST: 2adfe66ef6bbfb99d9bdb21580587a9e878f3cb78ac7c60d4eeba31c091c462d
+  BATCH_ID: WS33_C_BATCH_2
+  BATCH_DIGEST: 0b79430545e2928f35684500ef5ceedd5b253b30d0479bf633fcd8ab43aa14e7
   REWITNESS_PATH: forge-behavior-v2:b42b594f2523a243cf1b4877de9612a831bb71f6
 
 jobs:
@@ -106,12 +106,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python "$CCAMPAIGN/ws33_prepare_abilitysub_batch.py" --definitions "$CCAMPAIGN/ws33_c_batch_1_definitions.json" --manifest "$CCAMPAIGN/WS33_C_UNKNOWN_MANIFEST.json" --coverage "$ROOT/WS33_PATH_COVERAGE.json" --partition "$CCAMPAIGN/WS33_C_EVIDENCE_PARTITION.json" --forge-git forge --allow-rewitness "$REWITNESS_PATH" --out-tsv generated/campaign/batch/abilitysub-cases.tsv --out-plan generated/campaign/batch/WS33_C_BATCH_PLAN.json
+          python "$CCAMPAIGN/ws33_prepare_abilitysub_batch.py" --definitions "$CCAMPAIGN/ws33_c_batch_2_definitions.json" --manifest "$CCAMPAIGN/WS33_C_UNKNOWN_MANIFEST.json" --coverage "$ROOT/WS33_PATH_COVERAGE.json" --partition "$CCAMPAIGN/WS33_C_EVIDENCE_PARTITION.json" --forge-git forge --allow-rewitness "$REWITNESS_PATH" --out-tsv generated/campaign/batch/abilitysub-cases.tsv --out-plan generated/campaign/batch/WS33_C_BATCH_PLAN.json
           test "$(jq -r .batch_digest generated/campaign/batch/WS33_C_BATCH_PLAN.json)" = "$BATCH_DIGEST"
-          test "$(jq -r .case_rows generated/campaign/batch/WS33_C_BATCH_PLAN.json)" = 10
-          test "$(jq -r .path_slots generated/campaign/batch/WS33_C_BATCH_PLAN.json)" = 10
-          test "$(grep -vc '^#' generated/campaign/batch/abilitysub-cases.tsv)" = 10
-          echo WS33_C_BATCH_MATERIALIZATION=PASS executions=7 path_slots=10
+          test "$(jq -r .case_rows generated/campaign/batch/WS33_C_BATCH_PLAN.json)" = 5
+          test "$(jq -r .path_slots generated/campaign/batch/WS33_C_BATCH_PLAN.json)" = 5
+          test "$(grep -vc '^#' generated/campaign/batch/abilitysub-cases.tsv)" = 5
+          echo WS33_C_BATCH_MATERIALIZATION=PASS executions=5 path_slots=5
 
       - name: Install current qualification test
         shell: bash
@@ -125,8 +125,8 @@ jobs:
           set -euo pipefail
           (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am -Dtest=forge.gamesimulationtests.Ws33AbilitySubWitnessTest -Dsurefire.failIfNoSpecifiedTests=false -Dws33.subCases="$GITHUB_WORKSPACE/generated/campaign/batch/abilitysub-cases.tsv" -Dws33.subOut="$GITHUB_WORKSPACE/generated/campaign/batch" -Dws33.subBatch="$BATCH_ID" test) 2>&1 | tee generated/overlay-logs/batch-record-runtime.log
           test ! -s generated/campaign/batch/abilitysub-record-diagnostics.jsonl
-          test "$(find generated/campaign/batch/records -name record-success.marker -type f | wc -l)" = 7
-          echo WS33_C_BATCH_RECORD=PASS executions=7
+          test "$(find generated/campaign/batch/records -name record-success.marker -type f | wc -l)" = 5
+          echo WS33_C_BATCH_RECORD=PASS executions=5
 
       - name: Certify batch evidence and seal
         shell: bash

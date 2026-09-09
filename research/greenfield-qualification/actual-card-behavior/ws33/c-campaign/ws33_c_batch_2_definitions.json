@@ -1,0 +1,277 @@
+{
+  "schema": "commander-simulator-next.ws33-c-batch-definitions.v1",
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "batch_id": "WS33_C_BATCH_2",
+  "executions": [
+    {
+      "execution_id": "gnarlbark-eot",
+      "card_name": "Sinister Gnarlbark",
+      "oracle_identity": "fcd2142e-ba84-4693-9b29-ecc43feba2b8",
+      "source_path": "forge-gui/res/cardsfolder/s/sinister_gnarlbark.txt",
+      "fixture": {
+        "kind": "PHASE_EOT_OUR_TURN"
+      },
+      "setup": [],
+      "links": [
+        {
+          "path_id": "forge-behavior-v2:2c49adc7c2a39011fc279674c98869b66e0ec335",
+          "parent_svar": "TrigDraw",
+          "parent_api": "Draw",
+          "parent_line": 6,
+          "child_sub": "DBBlight",
+          "child_api": "Blight"
+        }
+      ],
+      "assertions": [
+        {
+          "id": "hand-net-actor",
+          "type": "hand",
+          "who": "actor",
+          "expected": 0
+        },
+        {
+          "id": "gnarlbark-blight",
+          "type": "counters",
+          "card": "source",
+          "counter": "M1M1",
+          "expected": 1
+        }
+      ],
+      "expected_consultations": [],
+      "note": "Restored from deferred with post-travel addAll (R5 silence hypothesis: simultaneous-pending never moved to stack)."
+    },
+    {
+      "execution_id": "thunder-etb",
+      "card_name": "Thunder Dragon",
+      "oracle_identity": "70d9579f-c8a6-4406-afe1-9291fe5ee736",
+      "source_path": "forge-gui/res/cardsfolder/t/thunder_dragon.txt",
+      "fixture": {
+        "kind": "ETB_SELF_MOVE"
+      },
+      "setup": [
+        {
+          "card_name": "Runeclaw Bear",
+          "zone": "Battlefield",
+          "who": "actor",
+          "count": 1
+        }
+      ],
+      "links": [
+        {
+          "path_id": "forge-behavior-v2:7574de05843d84f1de4a53ee81894776bfc7092b",
+          "parent_svar": "TrigDamageAllNonFlyers",
+          "parent_api": "DamageAll",
+          "parent_line": 7,
+          "child_sub": "TERMINAL",
+          "child_api": "DamageAll",
+          "terminal": true
+        }
+      ],
+      "assertions": [
+        {
+          "id": "bear-gone",
+          "type": "battlefield_count",
+          "name": "Runeclaw Bear",
+          "who": "actor",
+          "expected": 0
+        },
+        {
+          "id": "bear-graveyard",
+          "type": "graveyard_count",
+          "name": "Runeclaw Bear",
+          "who": "actor",
+          "expected": 1
+        },
+        {
+          "id": "thunder-present",
+          "type": "battlefield_count",
+          "name": "Thunder Dragon",
+          "who": "actor",
+          "expected": 1
+        },
+        {
+          "id": "hand-net-actor",
+          "type": "hand",
+          "who": "actor",
+          "expected": -1
+        }
+      ],
+      "expected_consultations": [],
+      "note": "Terminal root matching premiere: same-id child(parent=-1)+parent(subParam=null) pair. Bear 2/2 takes 3 -> destroyed."
+    },
+    {
+      "execution_id": "ironsmith-upkeep",
+      "card_name": "Village Ironsmith",
+      "oracle_identity": "c7b1aaff-e2c3-427c-8478-1fd053f7ffb2",
+      "source_path": "forge-gui/res/cardsfolder/v/village_ironsmith_ironfang.txt",
+      "fixture": {
+        "kind": "PHASE_UPKEEP_OPP_TURN"
+      },
+      "setup": [
+        {
+          "card_name": "Village Ironsmith",
+          "zone": "Battlefield",
+          "who": "actor",
+          "count": 1,
+          "via": "move"
+        }
+      ],
+      "links": [
+        {
+          "path_id": "forge-behavior-v2:a4f6a646ff3b02251ef1390950d1c6a80ce552a3",
+          "parent_svar": "TrigTransform",
+          "parent_api": "SetState",
+          "parent_line": 7,
+          "child_sub": "TERMINAL",
+          "child_api": "SetState",
+          "terminal": true
+        }
+      ],
+      "assertions": [
+        {
+          "id": "ironfang-present",
+          "type": "battlefield_count",
+          "name": "Ironfang",
+          "who": "actor",
+          "expected": 1
+        },
+        {
+          "id": "ironsmith-gone",
+          "type": "battlefield_count",
+          "name": "Village Ironsmith",
+          "who": "actor",
+          "expected": 0
+        },
+        {
+          "id": "hand-net-actor",
+          "type": "hand",
+          "who": "actor",
+          "expected": 0
+        }
+      ],
+      "expected_consultations": [],
+      "note": "No-spells-last-turn condition satisfied (nothing cast). Fires at first upkeep (opponent's); no ValidPlayer gate."
+    },
+    {
+      "execution_id": "banshee-upkeep-own",
+      "card_name": "Midnight Banshee",
+      "oracle_identity": "dd8b6067-a97f-402f-bba1-70ebc6ee1599",
+      "source_path": "forge-gui/res/cardsfolder/m/midnight_banshee.txt",
+      "fixture": {
+        "kind": "PHASE_UPKEEP_OWN_TURN"
+      },
+      "setup": [
+        {
+          "card_name": "Midnight Banshee",
+          "zone": "Battlefield",
+          "who": "actor",
+          "count": 1,
+          "via": "move"
+        },
+        {
+          "card_name": "Runeclaw Bear",
+          "zone": "Battlefield",
+          "who": "actor",
+          "count": 1
+        },
+        {
+          "card_name": "Runeclaw Bear",
+          "zone": "Library",
+          "who": "opponent",
+          "count": 10
+        }
+      ],
+      "links": [
+        {
+          "path_id": "forge-behavior-v2:7574de05843d84f1de4a53ee81894776bfc7092b",
+          "parent_svar": "TrigPutCounterAll",
+          "parent_api": "PutCounterAll",
+          "parent_line": 7,
+          "child_sub": "TERMINAL",
+          "child_api": "PutCounterAll",
+          "terminal": true
+        }
+      ],
+      "assertions": [
+        {
+          "id": "bear-blight",
+          "type": "counters",
+          "card": "Runeclaw Bear",
+          "who": "actor",
+          "counter": "M1M1",
+          "expected": 1
+        },
+        {
+          "id": "banshee-clean",
+          "type": "counters",
+          "card": "source",
+          "counter": "M1M1",
+          "expected": 0
+        },
+        {
+          "id": "hand-net-actor",
+          "type": "hand",
+          "who": "actor",
+          "expected": 0
+        }
+      ],
+      "expected_consultations": [],
+      "note": "Shared path with thunder (diversity, no new count if thunder passes; independent adjudication either way). Bear green nonblack 2/2 survives as 1/1; black Banshee exempt (filter correctness asserted via 0). Full-round travel; opponent library filled for draw survival. [Shared-path diversity witness for 7574de05; no new count.]",
+      "allow_shared_paths": true
+    },
+    {
+      "execution_id": "snuffers-etb",
+      "card_name": "Soul Snuffers",
+      "oracle_identity": "cdd227fc-0809-45d6-bed0-e85c0c0b6c94",
+      "source_path": "forge-gui/res/cardsfolder/s/soul_snuffers.txt",
+      "fixture": {
+        "kind": "ETB_SELF_MOVE"
+      },
+      "setup": [
+        {
+          "card_name": "Runeclaw Bear",
+          "zone": "Battlefield",
+          "who": "actor",
+          "count": 1
+        }
+      ],
+      "links": [
+        {
+          "path_id": "forge-behavior-v2:7574de05843d84f1de4a53ee81894776bfc7092b",
+          "parent_svar": "TrigPutCounterAll",
+          "parent_api": "PutCounterAll",
+          "parent_line": 6,
+          "child_sub": "TERMINAL",
+          "child_api": "PutCounterAll",
+          "terminal": true
+        }
+      ],
+      "assertions": [
+        {
+          "id": "bear-blight",
+          "type": "counters",
+          "card": "Runeclaw Bear",
+          "who": "actor",
+          "counter": "M1M1",
+          "expected": 1
+        },
+        {
+          "id": "snuffers-blight",
+          "type": "counters",
+          "card": "source",
+          "counter": "M1M1",
+          "expected": 1
+        },
+        {
+          "id": "hand-net-actor",
+          "type": "hand",
+          "who": "actor",
+          "expected": -1
+        }
+      ],
+      "expected_consultations": [],
+      "note": "Shared path third parent (Bear 2/2->1/1 and Snuffers 3/3->2/2 both survive). Proven ETB fixture; exercises terminal matching on a second api. [Shared-path diversity witness for 7574de05; no new count.]",
+      "allow_shared_paths": true
+    }
+  ]
+}
