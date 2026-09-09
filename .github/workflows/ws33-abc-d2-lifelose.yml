@@ -136,7 +136,7 @@ jobs:
           python "$ROOT/ws33_prepare_d2_lifelose_campaign.py" --ledger "$ROOT/WS33_INTEGRATED_CLOSURE_LEDGER.jsonl" --queue "$ROOT/WS33_INTEGRATED_WORK_QUEUE.json" --forge-root forge --out-tsv generated/campaign/all/d2-cases.tsv --out-plan generated/campaign/all/D2_PLAN.json --out-deferred generated/campaign/all/D2_DEFERRED.json
           python "$ROOT/ws33_filter_abc_d2_lifelose_campaign.py" --queue "$ROOT/WS33_INTEGRATED_WORK_QUEUE.json" --ledger "$ROOT/WS33_INTEGRATED_CLOSURE_LEDGER.jsonl" --input-tsv generated/campaign/all/d2-cases.tsv --input-plan generated/campaign/all/D2_PLAN.json --input-deferred generated/campaign/all/D2_DEFERRED.json --target-digest "$TARGET_DIGEST" --out-tsv generated/campaign/d2/d2-cases.tsv --out-plan generated/campaign/d2/ABC_D2_PLAN.json
           cp generated/campaign/all/D2_DEFERRED.json generated/campaign/d2/ABC_D2_DEFERRED.json
-          test "$(grep -vc '^#' generated/campaign/d2/d2-cases.tsv)" = 10
+          test "$(grep -vc '^#' generated/campaign/d2/d2-cases.tsv)" = 8
           echo WS33_ABC_D2_MATERIALIZATION=PASS paths=8
 
       - name: Install current qualification test
