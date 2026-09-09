@@ -71,19 +71,19 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
         for (final Case c : cases) {
             try {
                 if ("record".equals(mode)) {
-                    final Result result = executeCase(c, null, null);
+                    final Result result = executeCase(c, out, null, null);
                     writeRecord(out, c, result);
                     success++;
                 } else {
                     final Path dir = caseDir(out, c.pathId);
                     if (!Files.isRegularFile(dir.resolve("record-success.marker"))) {
-                        executeCase(c, null, null);
+                        executeCase(c, out, null, null);
                         throw new IllegalStateException(
                                 "record-rejected case unexpectedly succeeded during replay alignment");
                     }
                     final List<ReplayDecision> replay = loadReplayDecisions(dir.resolve("decision-replay.tsv"));
                     final List<Integer> replayRng = loadReplayRng(dir.resolve("rng-replay.tsv"));
-                    final Result result = executeCase(c, replay, replayRng);
+                    final Result result = executeCase(c, out, replay, replayRng);
                     final String expected = Files.readString(dir.resolve("final-state.txt"), StandardCharsets.UTF_8);
                     if (!expected.equals(result.canonicalFinalState)) {
                         throw new IllegalStateException("semantic replay state mismatch expected="
@@ -113,7 +113,8 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
         System.out.println("WS33_D1_CAMPAIGN_DIAGNOSTIC_FAILURES=" + diagnostics.size());
     }
 
-    private Result executeCase(final Case c, final List<ReplayDecision> replay, final List<Integer> replayRng) {
+    private Result executeCase(final Case c, final Path outRoot, final List<ReplayDecision> replay,
+            final List<Integer> replayRng) {
         if (c.recipe.startsWith("UNSUPPORTED_") || c.recipe.startsWith("DEFERRED_")) {
             throw new IllegalStateException("fail-closed unsupported D1 recipe " + c.recipe);
         }
@@ -122,6 +123,7 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
         final Player opponent = game.getPlayers().get(1);
         game.getPhaseHandler().devModeSet(PhaseType.MAIN1, actor);
         final String gameId = "ws33-d1-" + shortId(c.pathId);
+        final Path requestLog = caseDir(outRoot, c.pathId).resolve("decision-requests.jsonl");
 
         final List<MyRandom.RngEvent> rngEvents = new ArrayList<>();
         final MyRandom.ReplayProvider rngProvider = replayRng == null ? null : new QueueReplayProvider(replayRng);
@@ -133,7 +135,7 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
 
             final PlayerControllerHuman controller = new PlayerControllerHuman(
                     game, actor, new LobbyPlayerHuman("ws33-d1-principal"));
-            final Provider decisions = new Provider(replay);
+            final Provider decisions = new Provider(replay, requestLog);
             controller.setExternalDecisionProvider(decisions::decide);
 
             buildFixture(c, game, actor, opponent);
@@ -396,8 +398,11 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
             if (countCardsWithName(game, c.cardName, ZoneType.Battlefield) != 1) {
                 throw new IllegalStateException("ETB host not on battlefield");
             }
-            if (actor.getCardsIn(ZoneType.Hand).size() != 1) {
-                throw new IllegalStateException("expected exactly one drawn card in hand");
+            if (actor.getCardsIn(ZoneType.Hand).size() != 2) {
+                throw new IllegalStateException("expected exactly two drawn cards in hand");
+            }
+            if (actor.getCardsIn(ZoneType.Library).size() != 3) {
+                throw new IllegalStateException("expected library 5 -> 3 after drawing two");
             }
         }
         if ("ACTIVATED_SAC_DRAW".equals(c.recipe)) {
@@ -451,14 +456,17 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
 
     private static final class Provider {
         private final List<ReplayDecision> replay;
+        private final Path requestLog;
         private int replayIndex;
         private final List<CapturedDecision> captured = new ArrayList<>();
 
-        Provider(final List<ReplayDecision> replay) {
+        Provider(final List<ReplayDecision> replay, final Path requestLog) {
             this.replay = replay;
+            this.requestLog = requestLog;
         }
 
         ExternalDecisionResponse decide(final ExternalDecisionRequest request) {
+            logRequest(request);
             final ExternalDecisionRequest.Option chosen;
             if (replay != null) {
                 if (replayIndex >= replay.size()) {
@@ -476,8 +484,15 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
                                 "recorded fixture response absent from authoritative replay options"));
             } else {
                 if (request.getOptions().size() != 1) {
+                    final StringBuilder ids = new StringBuilder();
+                    for (final ExternalDecisionRequest.Option o : request.getOptions()) {
+                        if (ids.length() != 0) ids.append(',');
+                        ids.append(o.getOptionId()).append('=').append(o.getSemanticValue());
+                    }
                     throw new IllegalStateException("fail-closed multi-option decision kind="
-                            + request.getDecisionKind() + " options=" + request.getOptions().size());
+                            + request.getDecisionKind() + " options=" + request.getOptions().size()
+                            + " min=" + request.getMinimumSelection() + " max=" + request.getMaximumSelection()
+                            + " ids=[" + ids + "] (see decision-requests.jsonl)");
                 }
                 chosen = request.getOptions().get(0);
             }
@@ -492,6 +507,43 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
             if (replay != null && replayIndex != replay.size()) {
                 throw new IllegalStateException("replay left " + (replay.size() - replayIndex)
                         + " decisions unconsumed");
+            }
+        }
+
+        private void logRequest(final ExternalDecisionRequest request) {
+            try {
+                Files.createDirectories(requestLog.getParent());
+                final StringBuilder json = new StringBuilder();
+                json.append("{\"decision_kind\":").append(q(request.getDecisionKind()))
+                        .append(",\"option_count\":").append(request.getOptions().size())
+                        .append(",\"min\":").append(request.getMinimumSelection())
+                        .append(",\"max\":").append(request.getMaximumSelection())
+                        .append(",\"cancel_allowed\":").append(request.isCancelAllowed())
+                        .append(",\"response_schema\":").append(q(request.getResponseSchema()))
+                        .append(",\"options\":[");
+                for (int i = 0; i < request.getOptions().size(); i++) {
+                    if (i != 0) json.append(',');
+                    final ExternalDecisionRequest.Option option = request.getOptions().get(i);
+                    json.append("{\"option_id\":").append(q(option.getOptionId()))
+                            .append(",\"entity_kind\":").append(q(option.getEntityKind()))
+                            .append(",\"entity_id\":").append(option.getEntityId())
+                            .append(",\"entity_backed\":").append(option.isEntityBacked())
+                            .append(",\"semantic_value\":").append(q(option.getSemanticValue()))
+                            .append('}');
+                }
+                json.append("],\"semantic_context\":{");
+                boolean first = true;
+                for (final Map.Entry<String, String> e : request.getSemanticContext().entrySet()) {
+                    if (!first) json.append(',');
+                    first = false;
+                    json.append(q(e.getKey())).append(':').append(q(e.getValue()));
+                }
+                json.append("}}\n");
+                Files.write(requestLog, json.toString().getBytes(StandardCharsets.UTF_8),
+                        java.nio.file.StandardOpenOption.CREATE,
+                        java.nio.file.StandardOpenOption.APPEND);
+            } catch (IOException e) {
+                throw new IllegalStateException("request log write failed", e);
             }
         }
     }
