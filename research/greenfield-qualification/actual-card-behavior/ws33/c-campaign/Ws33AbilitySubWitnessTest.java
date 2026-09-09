@@ -150,6 +150,11 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         fillLibrary(actor, 10);
 
         final Map<String, Player> who = Map.of("actor", actor, "opponent", opponent);
+        // Stable production object identity: the fixture source Card object
+        // reference. Attribution gates on reference equality with this
+        // object, never on mutable card names (double-faced/transform).
+        // Declared before setup placements, which may already assign it.
+        final Card[] sourceRef = new Card[1];
         if (!first.setup.isBlank()) {
             for (final String placement : first.setup.split(";", -1)) {
                 if (placement.isBlank()) continue;
@@ -186,10 +191,6 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         final List<ChildObs> children = new ArrayList<>();
         final List<TripwireHit> tripwireHits = new ArrayList<>();
         final int[] seq = {0};
-        // Stable production object identity: the fixture source Card object
-        // reference. Attribution gates on reference equality with this
-        // object, never on mutable card names (double-faced/transform).
-        final Card[] sourceRef = new Card[1];
         AbilityUtils.setWs33ParentResolutionObserver(sa -> {
             final Player activator = sa.getActivatingPlayer();
             final Card hostCard = sa.getHostCard();
