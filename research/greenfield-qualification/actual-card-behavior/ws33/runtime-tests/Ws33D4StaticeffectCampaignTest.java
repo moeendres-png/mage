@@ -426,7 +426,18 @@ public final class Ws33D4StaticeffectCampaignTest extends AITest {
                 return;
             }
             case "ANIMATE_PREVENTION": {
-                placeCard(c.cardName, actor, ZoneType.Battlefield);
+                // Production entry: planeswalkers must be CAST (the moveTo
+                // pipeline places loyalty counters; direct BF placement
+                // leaves loyalty at 0 and SBA sends the host to GY).
+                final Card gideonCard = placeCard(c.cardName, actor, ZoneType.Hand);
+                final SpellAbility gideonSpell = gideonCard.getSpells().get(0);
+                if (!PlaySpellAbility.playSpellAbility(controller, actor, gideonSpell)) {
+                    throw new IllegalStateException("production planeswalker cast returned false");
+                }
+                if (game.getStack().isEmpty()) {
+                    throw new IllegalStateException("production planeswalker cast left an empty stack");
+                }
+                playUntilAllSettled(game);
                 final Card card = requireHostOnBattlefield(game, c.cardName);
                 final SpellAbility ability = findActivatedAbility(card, ApiType.Animate);
                 if (!PlaySpellAbility.playSpellAbility(controller, actor, ability)) {
@@ -471,19 +482,14 @@ public final class Ws33D4StaticeffectCampaignTest extends AITest {
     }
 
     private Card findHandCard(final Player player, final String name) {
-        Card found = null;
+        // First match: identical copies (e.g. the two probe Rituals) are
+        // interchangeable and hand order is deterministic across record/replay.
         for (final Card card : player.getCardsIn(ZoneType.Hand)) {
             if (name.equals(card.getName())) {
-                if (found != null) {
-                    throw new IllegalStateException("hand card not unique: " + name);
-                }
-                found = card;
+                return card;
             }
         }
-        if (found == null) {
-            throw new IllegalStateException("hand card absent: " + name);
-        }
-        return found;
+        throw new IllegalStateException("hand card absent: " + name);
     }
 
     private Card placeCard(final String name, final Player player, final ZoneType zone) {
