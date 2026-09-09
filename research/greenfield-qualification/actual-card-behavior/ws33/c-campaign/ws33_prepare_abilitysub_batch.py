@@ -65,7 +65,10 @@ def main() -> None:
             asserts.append("|".join([
                 a["id"], a["type"], a.get("who", ""), b64(a.get("name", "")),
                 b64(a.get("card", "")), a.get("counter", ""), a.get("keyword", ""),
-                str(a["expected"])]))
+                str(a["expected"]),
+                ",".join(a.get("static_mode_contains", [])),
+                ",".join(a.get("static_has_param", [])),
+                "eot_absent" if a.get("after_eot_absent") else ""]))
         consultations = ";".join(
             f"{c['site']}|{c['options']}|{b64(c.get('selected_card', ''))}"
             for c in ex.get("expected_consultations", []))
@@ -87,6 +90,11 @@ def main() -> None:
             "assertions": [{
                 "assertion_id": a["id"],
                 "expected": a["expected"],
+                "type": a.get("type", ""),
+                "type": a.get("type", ""),
+                "static_mode_contains": list(a.get("static_mode_contains", [])),
+                "static_has_param": list(a.get("static_has_param", [])),
+                "after_eot_absent": bool(a.get("after_eot_absent", False)),
                 # Card names this assertion observes (source resolves to
                 # the execution card). Used to bind forced-choice selected
                 # identities to passing outcome assertions.
@@ -94,7 +102,18 @@ def main() -> None:
                     ({ex["card_name"]} if a.get("card") == "source" else set())
                     | ({a["card"]} if a.get("card") not in ("", "source", None) else set())
                     | ({a["name"]} if a.get("name") else set())),
-            } for a in ex["assertions"]],
+                "static_mode_contains": list(a.get("static_mode_contains", [])),
+                "static_has_param": list(a.get("static_has_param", [])),
+                "after_eot_absent": bool(a.get("after_eot_absent", False)),
+            } for a in ex["assertions"]]
+            + [{
+                "assertion_id": a["id"] + "-after-eot",
+                "expected": 0,
+                "covers": [],
+                "static_mode_contains": [],
+                "static_has_param": [],
+                "after_eot_absent": False,
+            } for a in ex["assertions"] if a.get("after_eot_absent")],
             "expected_consultations": [{
                 "site": c["site"],
                 "options": c["options"],

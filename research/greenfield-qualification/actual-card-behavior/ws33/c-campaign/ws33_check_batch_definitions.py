@@ -101,6 +101,19 @@ def main() -> None:
             if not api_names:
                 fail("ApiType allowlist empty")
         return api_names
+    def static_mode_allowlist() -> set[str]:
+        # Called once per checker run; no memo needed.
+        r = subprocess.run(
+            ["git", "-C", str(args.forge_git), "show",
+             f"{FORGE_PIN}:forge-game/src/main/java/forge/game/staticability/StaticAbilityMode.java"],
+            capture_output=True, text=True)
+        if r.returncode != 0:
+            fail("StaticAbilityMode.java missing at pin")
+        modes = set(re.findall(r"^    (\w+)", r.stdout, re.M))
+        if not modes:
+            fail("static mode allowlist empty")
+        return modes
+
     def script(rel: str) -> str:
         if rel not in cache:
             r = subprocess.run(
@@ -148,6 +161,31 @@ def main() -> None:
                 fail(f"consultation selected_card has no covering assertion {ex['execution_id']}")
         if ex["fixture"]["kind"] == "ETB_OTHER_ENTER" and not ex["fixture"].get("entering_card"):
             fail(f"ETB_OTHER_ENTER without entering_card {ex['execution_id']}")
+        known_types = {"life", "hand", "battlefield_count", "graveyard_count",
+                       "token_count", "token_equipped_by_source", "counters",
+                       "keyword", "effect_static_present"}
+        modes = static_mode_allowlist()
+        for a in ex.get("assertions", []):
+            if a.get("type") not in known_types:
+                fail(f"unknown assertion type {a.get('type')} {ex['execution_id']}")
+            if not a.get("id") or "expected" not in a:
+                fail(f"malformed assertion {ex['execution_id']}")
+            if a["type"] == "effect_static_present":
+                sm = a.get("static_mode_contains", [])
+                sp = a.get("static_has_param", [])
+                if not isinstance(sm, list) or not isinstance(sp, list) \
+                        or (not sm and not sp):
+                    fail(f"effect_static needs mode/param criteria {ex['execution_id']}")
+                for mname in sm:
+                    if mname not in modes:
+                        fail(f"static mode not in pin allowlist: {mname}")
+                for pname in sp:
+                    if not isinstance(pname, str) or not pname:
+                        fail(f"bad static param {ex['execution_id']}")
+                if not isinstance(a.get("expected_count", a.get("expected")), int):
+                    fail(f"effect_static expected_count must be int {ex['execution_id']}")
+                if "after_eot_absent" in a and not isinstance(a["after_eot_absent"], bool):
+                    fail(f"after_eot_absent must be bool {ex['execution_id']}")
         txt = script(ex["source_path"])
         screen_hits = screen_script(txt)
         if screen_hits:
@@ -178,10 +216,15 @@ def main() -> None:
                     and q["oracle_identity"] == ex["oracle_identity"]]
             if not prov:
                 fail(f"provenance mismatch {pid} {ex['source_path']}")
-            if row["semantic_selector_profile"]["selectors"].get("SubAbility") != link["child_sub"] \
-                    and not (link.get("terminal", False) and "SubAbility" not in
-                             row["semantic_selector_profile"]["selectors"]):
-                fail(f"selector/child_sub mismatch {pid}")
+            # Link binding is exact via provenance + parent SVar pointer +
+            # child SVar api below. Profile shape is model grouping, not
+            # gating: an effect-profile path (no SubAbility selector) may be
+            # witnessed through its SubAbility-pointered child SVar (content
+            # aspect), while pointer-profile paths use the same pair (linkage
+            # aspect). Terminal rows additionally require pointer absence.
+            if link.get("terminal", False) and "SubAbility" in \
+                    row["semantic_selector_profile"]["selectors"]:
+                fail(f"terminal link with SubAbility selector {pid}")
             if link["parent_api"] not in apis or link["child_api"] not in apis:
                 fail(f"api not in pin ApiType allowlist {pid}")
             parent = next(

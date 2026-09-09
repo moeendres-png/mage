@@ -150,6 +150,11 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         fillLibrary(actor, 10);
 
         final Map<String, Player> who = Map.of("actor", actor, "opponent", opponent);
+        // settleSetup drains setup-phase trigger resolutions (e.g. a
+        // via-move placed card's own entry trigger) so snapshots baseline
+        // settled state and the fixture window contains exactly one firing
+        // per trigger. Unobserved; postcondition absolutes prove exactness.
+        settleSetup(game);
         // Stable production object identity: the fixture source Card object
         // reference. Attribution gates on reference equality with this
         // object, never on mutable card names (double-faced/transform).
@@ -393,10 +398,16 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             matched.add(match);
         }
 
+        final Card witness = sourceRef[0];
+        if (witness == null) {
+            throw new IllegalStateException("witness source unresolved before assertions");
+        }
+        final List<EffectStaticObs> effectStatics = new ArrayList<>();
         final List<AssertionResult> assertions = new ArrayList<>();
         for (final CaseRow row : rows) {
             for (final AssertionDef def : row.assertions) {
                 assertions.add(checkAssertion(def, game, actor, opponent, source,
+                        witness, effectStatics, null,
                         lifeActorBefore, lifeOpponentBefore, handActorBefore,
                         tokensActorBefore));
             }
@@ -415,10 +426,53 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 throw new IllegalStateException("semantic postcondition failed: " + result);
             }
         }
+        // Lifecycle second phase: assertions flagged after_eot_absent travel
+        // to end of turn, then re-evaluate as count==0 (rollback proof where
+        // the lifetime ends this turn).
+        boolean needsEotTravel = false;
+        for (final CaseRow row : rows) {
+            for (final AssertionDef def : row.assertions) {
+                if (def.afterEotAbsent) {
+                    needsEotTravel = true;
+                    break;
+                }
+            }
+        }
+        if (needsEotTravel) {
+            playUntilPhase(game, PhaseType.END_OF_TURN);
+            drivePostTravelStack(game, "AFTER_EOT_ABSENCE");
+            for (final CaseRow row : rows) {
+                for (final AssertionDef def : row.assertions) {
+                    if (!def.afterEotAbsent) continue;
+                    final AssertionResult again = checkAssertion(def, game, actor,
+                            opponent, source, witness, effectStatics,
+                            def.id + "-after-eot",
+                            lifeActorBefore, lifeOpponentBefore, handActorBefore,
+                            tokensActorBefore);
+                    final boolean gone = again.actual instanceof Number
+                            && ((Number) again.actual).intValue() == 0;
+                    final AssertionResult absence = new AssertionResult(
+                            def.id + "-after-eot", "0", again.actual, gone);
+                    unique.add(absence);
+                    if (!absence.pass) {
+                        throw new IllegalStateException(
+                                "lifecycle rollback failed: " + absence);
+                    }
+                }
+            }
+        }
         return new Result(lifeActorBefore, lifeOpponentBefore, handActorBefore,
                 actor.getLife(), opponent.getLife(),
                 actor.getCardsIn(ZoneType.Hand).size(), actor.getName(), opponent.getName(),
-                parents, children, matched, tripwireHits, unique);
+                parents, children, matched, tripwireHits, unique, effectStatics);
+    }
+
+    private void settleSetup(final Game game) {
+        game.getTriggerHandler().runWaitingTriggers();
+        game.getStack().addAllTriggeredAbilitiesToStack();
+        if (!game.getStack().isEmpty()) {
+            clearStackAndSettle(game);
+        }
     }
 
     private void clearStackAndSettle(final Game game) {
@@ -567,6 +621,8 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
 
     private AssertionResult checkAssertion(final AssertionDef def, final Game game,
             final Player actor, final Player opponent, final Card source,
+            final Card witness, final List<EffectStaticObs> effectSink,
+            final String obsIdOverride,
             final int lifeActorBefore, final int lifeOpponentBefore,
             final int handActorBefore, final int tokensActorBefore) {
         final Player player = "opponent".equals(def.who) ? opponent : actor;
@@ -621,6 +677,77 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 actual = card.hasKeyword(Keyword.valueOf(def.keyword));
                 break;
             }
+            case "effect_static_present": {
+                if (witness == null) {
+                    throw new IllegalStateException(
+                            "witness unresolved for: " + def.id);
+                }
+                final List<String> cardJson = new ArrayList<>();
+                int count = 0;
+                for (final Card eff : game.getCardsIn(ZoneType.Command)) {
+                    boolean modeOk = def.staticModeContains.isEmpty();
+                    final List<String> modes = new ArrayList<>();
+                    for (final forge.game.staticability.StaticAbility st
+                            : eff.getStaticAbilities()) {
+                        for (final Object mode : st.getMode()) {
+                            modes.add(mode.toString());
+                        }
+                        if (!modeOk) {
+                            for (final String want : def.staticModeContains) {
+                                if (modes.contains(want)) {
+                                    modeOk = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    boolean paramsOk = true;
+                    final List<String> paramKeys = new ArrayList<>();
+                    for (final forge.game.staticability.StaticAbility st
+                            : eff.getStaticAbilities()) {
+                        for (final String key : st.getMapParams().keySet()) {
+                            if (!paramKeys.contains(key)) paramKeys.add(key);
+                        }
+                    }
+                    for (final String wantParam : def.staticHasParam) {
+                        if (!paramKeys.contains(wantParam)) {
+                            paramsOk = false;
+                            break;
+                        }
+                    }
+                    boolean linked = false;
+                    for (final Object remembered : eff.getRemembered()) {
+                        if (remembered == witness) {
+                            linked = true;
+                            break;
+                        }
+                    }
+                    if (modeOk && paramsOk && linked) {
+                        count++;
+                        final StringBuilder entry = new StringBuilder("{");
+                        entry.append("\"name\":").append(q(eff.getName()));
+                        entry.append(",\"controller_is_actor\":")
+                                .append(eff.getController() == actor);
+                        entry.append(",\"static_modes\":[");
+                        for (int i = 0; i < modes.size(); i++) {
+                            if (i != 0) entry.append(',');
+                            entry.append(q(modes.get(i)));
+                        }
+                        entry.append("],\"remembered_is_source\":true");
+                        entry.append(",\"static_params\":[");
+                        for (int i = 0; i < paramKeys.size(); i++) {
+                            if (i != 0) entry.append(',');
+                            entry.append(q(paramKeys.get(i)));
+                        }
+                        entry.append("]}");
+                        cardJson.add(entry.toString());
+                    }
+                }
+                effectSink.add(new EffectStaticObs(
+                        obsIdOverride != null ? obsIdOverride : def.id, count, cardJson));
+                actual = count;
+                break;
+            }
             default:
                 throw new IllegalArgumentException("unsupported assertion type " + def.type);
         }
@@ -654,6 +781,18 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             return Boolean.parseBoolean(expected) == (Boolean) actual;
         }
         return Integer.parseInt(expected) == ((Number) actual).intValue();
+    }
+
+    private static String effectStaticJson(final Result result) {
+        final StringBuilder out = new StringBuilder("[");
+        for (int i = 0; i < result.effectStatics.size(); i++) {
+            if (i != 0) out.append(',');
+            final EffectStaticObs obs = result.effectStatics.get(i);
+            out.append("{\"assertion_id\":").append(q(obs.assertionId))
+                    .append(",\"count\":").append(obs.count)
+                    .append(",\"cards\":[" + String.join(",", obs.cardJson) + "]}");
+        }
+        return out.append(']').toString();
     }
 
     private static void writeRecord(final Path root, final List<CaseRow> rows,
@@ -798,6 +937,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 + "\"parent_resolution_events\":" + parentJson + ","
                 + "\"child_observations\":" + childJson + ","
                 + "\"matched_links\":" + linksJson + ","
+                + "\"effect_static_observations\":" + effectStaticJson(result) + ","
                 + "\"decision_tripwire\":{\"methods\":" + tripJson
                 + ",\"hits\":" + hitsJson
                 + ",\"declared_consultations\":" + consultationsJson
@@ -924,6 +1064,16 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         return result;
     }
 
+    private static List<String> csvList(final String[] parts, final int index) {
+        final List<String> out = new ArrayList<>();
+        if (parts.length > index && !parts[index].isBlank()) {
+            for (final String cell : parts[index].split(",", -1)) {
+                if (!cell.isBlank()) out.add(cell.trim());
+            }
+        }
+        return out;
+    }
+
     private static Path requiredPath(final String property) {
         final String value = System.getProperty(property);
         if (value == null || value.isBlank()) {
@@ -989,8 +1139,11 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     if (cell.isBlank()) continue;
                     final String[] parts = cell.split("\\|", -1);
                     // id|type|who|name_b64|card_b64|counter|keyword|expected
+                    //   [|modecsv|paramcsv|afterflag]
                     this.assertions.add(new AssertionDef(parts[0], parts[1], parts[2],
-                            parts[3], parts[4], parts[5], parts[6], parts[7]));
+                            parts[3], parts[4], parts[5], parts[6], parts[7],
+                            csvList(parts, 8), csvList(parts, 9),
+                            parts.length > 10 && "eot_absent".equals(parts[10])));
                 }
             }
             if (consultationText != null && !consultationText.isBlank()) {
@@ -1015,9 +1168,14 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         final String counter;
         final String keyword;
         final String expected;
+        final List<String> staticModeContains;
+        final List<String> staticHasParam;
+        final boolean afterEotAbsent;
 
         AssertionDef(String id, String type, String who, String name, String card,
-                String counter, String keyword, String expected) {
+                String counter, String keyword, String expected,
+                List<String> staticModeContains, List<String> staticHasParam,
+                boolean afterEotAbsent) {
             this.id = id;
             this.type = type;
             this.who = who;
@@ -1026,6 +1184,21 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             this.counter = counter;
             this.keyword = keyword;
             this.expected = expected;
+            this.staticModeContains = staticModeContains;
+            this.staticHasParam = staticHasParam;
+            this.afterEotAbsent = afterEotAbsent;
+        }
+    }
+
+    private static final class EffectStaticObs {
+        final String assertionId;
+        final int count;
+        final List<String> cardJson;
+
+        EffectStaticObs(String assertionId, int count, List<String> cardJson) {
+            this.assertionId = assertionId;
+            this.count = count;
+            this.cardJson = cardJson;
         }
     }
 
@@ -1170,13 +1343,14 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         final List<MatchedLink> matched;
         final List<TripwireHit> tripwireHits;
         final List<AssertionResult> assertions;
+        final List<EffectStaticObs> effectStatics;
 
         Result(int lifeActorBefore, int lifeOpponentBefore, int handActorBefore,
                 int lifeActorAfter, int lifeOpponentAfter, int handActorAfter,
                 String actorName, String opponentName,
                 List<ParentEvent> parents, List<ChildObs> children,
                 List<MatchedLink> matched, List<TripwireHit> tripwireHits,
-                List<AssertionResult> assertions) {
+                List<AssertionResult> assertions, List<EffectStaticObs> effectStatics) {
             this.lifeActorBefore = lifeActorBefore;
             this.lifeOpponentBefore = lifeOpponentBefore;
             this.handActorBefore = handActorBefore;
@@ -1190,6 +1364,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             this.matched = new ArrayList<>(matched);
             this.tripwireHits = new ArrayList<>(tripwireHits);
             this.assertions = new ArrayList<>(assertions);
+            this.effectStatics = new ArrayList<>(effectStatics);
         }
     }
 }

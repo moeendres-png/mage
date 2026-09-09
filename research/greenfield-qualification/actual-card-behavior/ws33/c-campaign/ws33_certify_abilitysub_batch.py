@@ -217,6 +217,36 @@ def check_execution(trace: dict, record: dict, expect: dict, owned: dict) -> str
             return f"semantic assertion not PASS: {a['assertion_id']}"
         if norm_json_scalar(got.get("expected")) != norm_json_scalar(a["expected"]):
             return f"semantic expectation mismatch: {a['assertion_id']}"
+    # Effect-static observations: independently verify recorded static
+    # content (modes/params/linkage) against plan criteria + count.
+    obs_by_id: dict[str, list[dict]] = {}
+    for obs in trace.get("effect_static_observations", []):
+        obs_by_id.setdefault(obs.get("assertion_id", ""), []).append(obs)
+    for a in expect["assertions"]:
+        if a.get("type") != "effect_static_present":
+            continue
+        obs_list = obs_by_id.get(a["assertion_id"], [])
+        if len(obs_list) != 1:
+            return f"effect-static observation not unique: {a['assertion_id']}"
+        obs = obs_list[0]
+        if obs.get("count") != a["expected"]:
+            return f"effect-static count mismatch: {a['assertion_id']}"
+        cards = obs.get("cards", [])
+        if len(cards) != a["expected"]:
+            return f"effect-static card list mismatch: {a['assertion_id']}"
+        for card in cards:
+            for want_mode in a.get("static_mode_contains", []):
+                if want_mode not in card.get("static_modes", []):
+                    return f"effect-static mode missing: {a['assertion_id']}"
+            for want_param in a.get("static_has_param", []):
+                if want_param not in card.get("static_params", []):
+                    return f"effect-static param missing: {a['assertion_id']}"
+            if not card.get("remembered_is_source"):
+                return f"effect-static linkage missing: {a['assertion_id']}"
+            if not card.get("controller_is_actor"):
+                return f"effect-static owner mismatch: {a['assertion_id']}"
+            if not card.get("controller_is_actor"):
+                return f"effect-static owner mismatch: {a['assertion_id']}"
     for link in expect["links"]:
         short = link["path_id"].removeprefix("forge-behavior-v2:")
         got = by_id.get(f"production-child-reached-{short}")
@@ -479,6 +509,55 @@ def selftest() -> int:
     t["child_observations"][0]["id"] = 45
     cases.append(("terminal-split-object", t, copy.deepcopy(r_term),
                   "terminal pair not same object", owned_term, expect_term))
+    # Effect-static content verified against recorded observations: accept.
+    t = copy.deepcopy(base_trace)
+    t["effect_static_observations"] = [{
+        "assertion_id": "kappa-static", "count": 1,
+        "cards": [{"name": "Kappa Cannoneer's Effect", "controller_is_actor": True,
+                   "static_modes": ["CantBlockBy"], "static_params": ["ValidAttacker"],
+                   "remembered_is_source": True}]}]
+    r = copy.deepcopy(base_record)
+    r["state_assertions"].append(
+        {"assertion_id": "kappa-static", "expected": 1, "actual": 1, "result": "PASS"})
+    expect_fx = copy.deepcopy(expect)
+    expect_fx["assertions"] = expect["assertions"] + [
+        {"assertion_id": "kappa-static", "expected": 1, "type": "effect_static_present",
+         "static_mode_contains": ["CantBlockBy"], "static_has_param": [],
+         "after_eot_absent": False}]
+    cases.append(("effect-static-accept", t, r, None, None, expect_fx))
+    # Effect-static count mismatch: reject.
+    t = copy.deepcopy(base_trace)
+    t["effect_static_observations"] = [{
+        "assertion_id": "kappa-static", "count": 0, "cards": []}]
+    r = copy.deepcopy(base_record)
+    r["state_assertions"].append(
+        {"assertion_id": "kappa-static", "expected": 1, "actual": 0, "result": "PASS"})
+    cases.append(("effect-static-count-mismatch", t, r,
+                  "effect-static count mismatch", None, expect_fx))
+    # Effect-static mode missing: reject.
+    t = copy.deepcopy(base_trace)
+    t["effect_static_observations"] = [{
+        "assertion_id": "kappa-static", "count": 1,
+        "cards": [{"name": "X", "controller_is_actor": True,
+                   "static_modes": ["Continuous"], "static_params": [],
+                   "remembered_is_source": True}]}]
+    r = copy.deepcopy(base_record)
+    r["state_assertions"].append(
+        {"assertion_id": "kappa-static", "expected": 1, "actual": 1, "result": "PASS"})
+    cases.append(("effect-static-mode-missing", t, r,
+                  "effect-static mode missing", None, expect_fx))
+    # Effect-static linkage missing: reject.
+    t = copy.deepcopy(base_trace)
+    t["effect_static_observations"] = [{
+        "assertion_id": "kappa-static", "count": 1,
+        "cards": [{"name": "X", "controller_is_actor": True,
+                   "static_modes": ["CantBlockBy"], "static_params": [],
+                   "remembered_is_source": False}]}]
+    r = copy.deepcopy(base_record)
+    r["state_assertions"].append(
+        {"assertion_id": "kappa-static", "expected": 1, "actual": 1, "result": "PASS"})
+    cases.append(("effect-static-linkage-missing", t, r,
+                  "effect-static linkage missing", None, expect_fx))
     failures = []
     for entry in cases:
         name, t, r, want = entry[0], entry[1], entry[2], entry[3]
@@ -500,9 +579,10 @@ def selftest() -> int:
         for f in failures:
             print("  " + f)
         return 1
-    print("WS33_C_BATCH_ADJUDICATION_SELFTEST=PASS cases=22 "
+    print("WS33_C_BATCH_ADJUDICATION_SELFTEST=PASS cases=26 "
           "(positive + incidental-only + declared-consultation + "
-          "typed-expected-string + terminal-accept + 17 fail-closed negatives)")
+          "typed-expected-string + terminal-accept + effect-static-accept"
+          " + 20 fail-closed negatives)")
     return 0
 
 

@@ -1,0 +1,180 @@
+{
+  "schema": "commander-simulator-next.ws33-c-batch-definitions.v1",
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "batch_id": "WS33_C_BATCH_4",
+  "executions": [
+    {
+      "execution_id": "kappa-etb-other",
+      "card_name": "Kappa Cannoneer",
+      "oracle_identity": "7fffbe7f-ad78-4bb6-a611-c37e495c6ee0",
+      "source_path": "forge-gui/res/cardsfolder/k/kappa_cannoneer.txt",
+      "fixture": {
+        "kind": "ETB_OTHER_ENTER",
+        "entering_card": "Sol Ring"
+      },
+      "setup": [
+        {
+          "card_name": "Kappa Cannoneer",
+          "zone": "Battlefield",
+          "who": "actor",
+          "count": 1,
+          "via": "move"
+        }
+      ],
+      "links": [
+        {
+          "path_id": "forge-behavior-v2:634a4b2d09d12a138afd0544c87c7d2bdb57a05a",
+          "parent_svar": "TrigPutCounter",
+          "parent_api": "PutCounter",
+          "parent_line": 8,
+          "child_sub": "DBUnblockable",
+          "child_api": "Effect"
+        },
+        {
+          "path_id": "forge-behavior-v2:998516b92a13efe9c0e1c324a8123069ab954815",
+          "parent_svar": "TrigPutCounter",
+          "parent_api": "PutCounter",
+          "parent_line": 8,
+          "child_sub": "DBUnblockable",
+          "child_api": "Effect"
+        }
+      ],
+      "assertions": [
+        {
+          "id": "kappa-counters",
+          "type": "counters",
+          "card": "source",
+          "counter": "P1P1",
+          "expected": 2
+        },
+        {
+          "id": "kappa-static",
+          "type": "effect_static_present",
+          "static_mode_contains": [
+            "CantBlockBy"
+          ],
+          "static_has_param": [],
+          "expected": 1,
+          "after_eot_absent": true
+        },
+        {
+          "id": "hand-net-actor",
+          "type": "hand",
+          "who": "actor",
+          "expected": -1
+        }
+      ],
+      "expected_consultations": [],
+      "note": "Setup via-move fires Kappa's own entry trigger once (drained pre-snapshot by settleSetup); fixture Sol Ring entry fires again (observed pair). Absolute finals 2/2 prove exactly-once each. Ward/Improvise dormant."
+    },
+    {
+      "execution_id": "gateway-etb-other",
+      "card_name": "Gateway Sneak",
+      "oracle_identity": "66c227f2-0e74-43e2-ab24-3866d15c5eef",
+      "source_path": "forge-gui/res/cardsfolder/g/gateway_sneak.txt",
+      "fixture": {
+        "kind": "ETB_OTHER_ENTER",
+        "entering_card": "Gruul Guildgate"
+      },
+      "setup": [
+        {
+          "card_name": "Gateway Sneak",
+          "zone": "Battlefield",
+          "who": "actor",
+          "count": 1,
+          "via": "move"
+        }
+      ],
+      "links": [
+        {
+          "path_id": "forge-behavior-v2:998516b92a13efe9c0e1c324a8123069ab954815",
+          "parent_svar": "TrigUnblockable",
+          "parent_api": "Effect",
+          "parent_line": 6,
+          "child_sub": "TERMINAL",
+          "child_api": "Effect",
+          "terminal": true
+        }
+      ],
+      "assertions": [
+        {
+          "id": "gateway-static",
+          "type": "effect_static_present",
+          "static_mode_contains": [
+            "CantBlockBy"
+          ],
+          "static_has_param": [],
+          "expected": 1,
+          "after_eot_absent": true
+        },
+        {
+          "id": "hand-net-actor",
+          "type": "hand",
+          "who": "actor",
+          "expected": -1
+        }
+      ],
+      "expected_consultations": [],
+      "allow_shared_paths": true,
+      "note": "Diversity re-witness of the shared terminal path under a second production parent (declared shared, no new count). DamageDone trigger dormant (no combat). Gate has replacement ETB-tapped + dormant mana ability only."
+    },
+    {
+      "execution_id": "hildibrand-dies",
+      "card_name": "Hildibrand Manderville",
+      "oracle_identity": "6df03db9-e4b3-4931-94e3-c582d2b04110",
+      "source_path": "forge-gui/res/cardsfolder/h/hildibrand_manderville.txt",
+      "fixture": {
+        "kind": "ETB_OTHER_ENTER",
+        "entering_card": "Thunder Dragon"
+      },
+      "setup": [
+        {
+          "card_name": "Hildibrand Manderville",
+          "zone": "Battlefield",
+          "who": "actor",
+          "count": 1,
+          "via": "move"
+        }
+      ],
+      "links": [
+        {
+          "path_id": "forge-behavior-v2:2dd428f906c3201282d1e251a9daf937f3413b94",
+          "parent_svar": "TrigEffect",
+          "parent_api": "Effect",
+          "parent_line": 7,
+          "child_sub": "TERMINAL",
+          "child_api": "Effect",
+          "terminal": true
+        }
+      ],
+      "assertions": [
+        {
+          "id": "hildibrand-graveyard",
+          "type": "graveyard_count",
+          "name": "Hildibrand Manderville",
+          "who": "actor",
+          "expected": 1
+        },
+        {
+          "id": "hildibrand-mayplay",
+          "type": "effect_static_present",
+          "static_mode_contains": [
+            "Continuous"
+          ],
+          "static_has_param": [
+            "MayPlay"
+          ],
+          "expected": 1
+        },
+        {
+          "id": "hand-net-actor",
+          "type": "hand",
+          "who": "actor",
+          "expected": -1
+        }
+      ],
+      "expected_consultations": [],
+      "note": "Thunder ETB DamageAll kills 2/2 Hildibrand (thunder's own path already evidenced, not claimed; its events stay unattributed). Token-boost static dormant (no tokens). MayPlay lifetime exceeds window: no after-phase (rollback is generic card-independent machinery, proven on kappa/gateway)."
+    }
+  ]
+}
