@@ -276,7 +276,7 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
             case "SPELL_BASE":
             case "SPELL_CONDITIONAL_LIFE":
             case "SPELL_DESTROY_ALL": {
-                final Card card = addCardToZone(c.cardName, actor, ZoneType.Hand);
+                final Card card = placeCard(c.cardName, actor, ZoneType.Hand);
                 final SpellAbility spell = card.getSpells().get(0);
                 if (!PlaySpellAbility.playSpellAbility(controller, actor, spell)) {
                     throw new IllegalStateException("production spell cast returned false");
@@ -291,6 +291,7 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
             case "ACTIVATED_SAC_CREATURE":
             case "ACTIVATED_SAC_SELF":
             case "ACTIVATED_SAC_DRAW": {
+                placeCard(c.cardName, actor, ZoneType.Battlefield);
                 final Card card = findCardWithName(game, c.cardName);
                 if (card == null) {
                     throw new IllegalStateException("activated host not on battlefield");
@@ -305,7 +306,7 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
                 return;
             }
             case "ETB_TRIGGER": {
-                final Card card = addCardToZone(c.cardName, actor, ZoneType.Hand);
+                final Card card = placeCard(c.cardName, actor, ZoneType.Hand);
                 game.getAction().moveTo(ZoneType.Battlefield, card, null, null);
                 if (!game.getTriggerHandler().runWaitingTriggers()) {
                     throw new IllegalStateException("actual trigger fixture produced no triggers");
@@ -317,6 +318,14 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
             }
             default:
                 throw new IllegalStateException("fail-closed unsupported D1 recipe " + c.recipe);
+        }
+    }
+
+    private Card placeCard(final String name, final Player player, final ZoneType zone) {
+        try {
+            return addCardToZone(name, player, zone);
+        } catch (NullPointerException e) {
+            throw new IllegalStateException("card script not resolvable for exact name: " + name, e);
         }
     }
 

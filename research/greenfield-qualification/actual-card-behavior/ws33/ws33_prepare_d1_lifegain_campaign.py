@@ -24,8 +24,8 @@ P = "PROVABLE"
 CARD_TABLE = {
     "zuran_orb.txt": (P, "AB", "ACTIVATED_SAC_LAND", "", "", "bf=Plains:1", 2, 0,
         "sac-a-land gain 2; exactly one land forces cost"),
-    "trading_post.txt": (P, "AB", "ACTIVATED_DISCARD", "", "C1", "bf=Trading Post:1;hand=Runeclaw Bear:1", 4, 0,
-        "mode-1 gain 4; single-card hand forces discard"),
+    "trading_post.txt": (P, "AB", "ACTIVATED_DISCARD", "", "C1", "hand=Runeclaw Bear:1", 4, 0,
+        "mode-1 gain 4; single-card hand forces discard; driver places host"),
     "ayli_eternal_pilgrim.txt": (P, "AB", "ACTIVATED_SAC_CREATURE", "", "C1", "bf=Runeclaw Bear:1", 2, 0,
         "gain=toughness of the single other sacrificed creature"),
     "dimension_x_pizzasaur.txt": (P, "AB", "ACTIVATED_SAC_SELF", "", "C2", "", 3, -3,
@@ -111,9 +111,12 @@ def main() -> int:
         disp, kind, recipe, params, pool, fixture, dA, dO, note = CARD_TABLE[card_file]
         txt = (a.forge_root / prov["forge_source_path"]).read_text()
         assert "GainLife" in txt, f"no GainLife line at pin for {card_file}"
+        names = [l[5:] for l in txt.splitlines() if l.startswith("Name:")]
+        assert len(names) == 1 and names[0].strip(), f"no exact Name at pin for {card_file}"
+        exact_name = names[0].strip()
         oracle = prov["oracle_identity"]
         if disp == P:
-            cases.append((pid, oracle, card_file, prov["source_token"], recipe,
+            cases.append((pid, oracle, exact_name, prov["source_token"], recipe,
                           params, pool, fixture, dA, dO,
                           f"{prov['forge_source_path']}#{prov.get('source_line')}"))
         else:
@@ -127,8 +130,7 @@ def main() -> int:
     with open(a.out_tsv, "w") as f:
         f.write("#path_id\toracle_id\tcard_b64\tsvar_token_b64\tsvar_expr_b64\trecipe\t"
                 "params_b64\tpool_b64\tfixture_b64\tactor_delta\topp_delta\tprovenance_b64\n")
-        for (pid, oracle, card, stok, recipe, params, pool, fixture, dA, dO, provenance) in cases:
-            card_name = Path(card).stem.replace("_", " ")
+        for (pid, oracle, card_name, stok, recipe, params, pool, fixture, dA, dO, provenance) in cases:
             f.write("\t".join([pid, oracle, b64(card_name), b64(stok), b64("GainLife"), recipe,
                                 b64(params), b64(pool), b64(fixture), str(dA), str(dO),
                                 b64(provenance)]) + "\n")
