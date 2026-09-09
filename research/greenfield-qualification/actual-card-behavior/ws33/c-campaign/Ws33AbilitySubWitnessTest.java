@@ -166,7 +166,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
 
         final List<ParentEvent> parents = new ArrayList<>();
         final List<ChildObs> children = new ArrayList<>();
-        final List<String> tripwireHits = new ArrayList<>();
+        final List<TripwireHit> tripwireHits = new ArrayList<>();
         final int[] seq = {0};
         AbilityUtils.setWs33ParentResolutionObserver(sa -> {
             parents.add(new ParentEvent(seq[0]++,
@@ -184,18 +184,40 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     parent == null ? -1 : parent.getId(),
                     sa.getRootAbility().getId()));
         });
-        PlayerControllerAi.setWs33DecisionTripwire(tripwireHits::add);
+        PlayerControllerAi.setWs33DecisionTripwire(site -> {
+            // Capture the Forge caller frames test-side: the probe fires
+            // synchronously on the AI thread, so the current stack reveals
+            // which engine path invoked the discretionary decision method.
+            final StackTraceElement[] stack = Thread.currentThread().getStackTrace();
+            final StringBuilder caller = new StringBuilder();
+            boolean pastProbe = false;
+            int kept = 0;
+            for (final StackTraceElement frame : stack) {
+                final String cls = frame.getClassName();
+                if (!pastProbe) {
+                    if (cls.contains("PlayerControllerAi")
+                            && frame.getMethodName().equals(site)) {
+                        pastProbe = true;
+                    }
+                    continue;
+                }
+                if (cls.startsWith("java.") || cls.startsWith("jdk.")
+                        || cls.contains("Ws33AbilitySubWitnessTest")) {
+                    continue;
+                }
+                if (caller.length() != 0) caller.append('<');
+                caller.append(cls.substring(cls.lastIndexOf('.') + 1))
+                        .append('.').append(frame.getMethodName());
+                if (++kept == 3) break;
+            }
+            tripwireHits.add(new TripwireHit(site, caller.toString()));
+        });
         Card source;
         try {
             if ("ETB_SELF_MOVE".equals(first.fixtureKind)) {
                 source = addCardToZone(first.cardName, actor, ZoneType.Hand);
                 game.getAction().moveTo(ZoneType.Battlefield, source, null, null);
-                if (!game.getTriggerHandler().runWaitingTriggers()
-                        || !game.getStack().addAllTriggeredAbilitiesToStack()
-                        || game.getStack().isEmpty()) {
-                    throw new IllegalStateException(
-                            "actual trigger fixture did not reach the stack");
-                }
+                driveWaitingTrigger(game, "ETB_SELF_MOVE", source);
                 playUntilStackClear(game);
             } else if ("ETB_OTHER_ENTER".equals(first.fixtureKind)) {
                 source = findCardWithName(game, first.cardName);
@@ -205,12 +227,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 }
                 final Card entering = addCardToZone(first.enteringCard, actor, ZoneType.Hand);
                 game.getAction().moveTo(ZoneType.Battlefield, entering, null, null);
-                if (!game.getTriggerHandler().runWaitingTriggers()
-                        || !game.getStack().addAllTriggeredAbilitiesToStack()
-                        || game.getStack().isEmpty()) {
-                    throw new IllegalStateException(
-                            "actual trigger fixture did not reach the stack");
-                }
+                driveWaitingTrigger(game, "ETB_OTHER_ENTER:" + first.enteringCard, entering);
                 playUntilStackClear(game);
             } else if ("PHASE_EOT_OUR_TURN".equals(first.fixtureKind)) {
                 source = addCardToZone(first.cardName, actor, ZoneType.Hand);
@@ -221,13 +238,17 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     playUntilStackClear(game);
                 }
                 playUntilPhase(game, PhaseType.END_OF_TURN);
-                if (!game.getTriggerHandler().runWaitingTriggers()
-                        || !game.getStack().addAllTriggeredAbilitiesToStack()
-                        || game.getStack().isEmpty()) {
-                    throw new IllegalStateException(
-                            "actual end-of-turn trigger did not reach the stack");
+                if (!game.getStack().isEmpty()) {
+                    playUntilStackClear(game);
                 }
-                playUntilStackClear(game);
+                // The EOT trigger may already have resolved during phase
+                // travel (observers were armed throughout). If it is still
+                // waiting, stack it now; link matching below remains the
+                // real gate either way.
+                if (game.getTriggerHandler().runWaitingTriggers()) {
+                    driveWaitingTrigger(game, "PHASE_EOT_OUR_TURN", source);
+                    playUntilStackClear(game);
+                }
             } else {
                 throw new IllegalArgumentException("unsupported fixture " + first.fixtureKind);
             }
@@ -312,6 +333,24 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 actor.getLife(), opponent.getLife(),
                 actor.getCardsIn(ZoneType.Hand).size(),
                 parents, children, matched, tripwireHits, unique);
+    }
+
+    private void driveWaitingTrigger(final Game game, final String context, final Card card) {
+        final boolean waited = game.getTriggerHandler().runWaitingTriggers();
+        if (!waited) {
+            throw new IllegalStateException(
+                    "no waiting trigger after " + context
+                            + " card=" + (card == null ? null : card.getName())
+                            + " zone=" + (card == null ? null : card.getZone())
+                            + " stack_empty=" + game.getStack().isEmpty());
+        }
+        final boolean stacked = game.getStack().addAllTriggeredAbilitiesToStack();
+        if (!stacked || game.getStack().isEmpty()) {
+            throw new IllegalStateException(
+                    "waiting trigger never reached the stack after " + context
+                            + " stacked=" + stacked
+                            + " stack_empty=" + game.getStack().isEmpty());
+        }
     }
 
     private AssertionResult checkAssertion(final AssertionDef def, final Game game,
@@ -669,6 +708,21 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         }
     }
 
+    private static final class TripwireHit {
+        final String site;
+        final String caller;
+
+        TripwireHit(String site, String caller) {
+            this.site = site;
+            this.caller = caller;
+        }
+
+        @Override
+        public String toString() {
+            return site + "@" + caller;
+        }
+    }
+
     private static final class ParentEvent {
         final int seq;
         final int id;
@@ -758,13 +812,13 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         final List<ParentEvent> parents;
         final List<ChildObs> children;
         final List<MatchedLink> matched;
-        final List<String> tripwireHits;
+        final List<TripwireHit> tripwireHits;
         final List<AssertionResult> assertions;
 
         Result(int lifeActorBefore, int lifeOpponentBefore, int handActorBefore,
                 int lifeActorAfter, int lifeOpponentAfter, int handActorAfter,
                 List<ParentEvent> parents, List<ChildObs> children,
-                List<MatchedLink> matched, List<String> tripwireHits,
+                List<MatchedLink> matched, List<TripwireHit> tripwireHits,
                 List<AssertionResult> assertions) {
             this.lifeActorBefore = lifeActorBefore;
             this.lifeOpponentBefore = lifeOpponentBefore;
