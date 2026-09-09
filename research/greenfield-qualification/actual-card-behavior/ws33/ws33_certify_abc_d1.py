@@ -66,6 +66,13 @@ def main() -> int:
         trace = json.loads((d / "trace.json").read_text())
         assert trace["forge_pin"] == a.forge_pin and trace["path_id"] == pid
         tape = json.loads((d / "decision-tape.json").read_text())
+        resolutions = trace.get("intent_resolutions", [])
+        assert len(resolutions) == len(tape["events"]), "resolution/tape count mismatch"
+        for res in resolutions:
+            assert res["selected_option_id"] == res["expected_option_id"], "unmatched intent resolution"
+        intent = plan.get("intents", {}).get(pid, "NONE")
+        if intent == "NONE":
+            assert len(tape["events"]) == 0, "unexpected decision events on NONE-intent path"
         for ev in tape["events"]:
             assert ev["validation_result"] == "ACCEPTED" and ev["fallback_used"] is False
             assert len(ev["response_option_ids"]) == 1

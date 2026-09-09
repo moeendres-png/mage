@@ -23,25 +23,35 @@ FORGE_PIN = "8c7e9afb8e6caee88644b94e25da5852e36f8928"
 P = "PROVABLE"
 CARD_TABLE = {
     "zuran_orb.txt": (P, "AB", "ACTIVATED_SAC_LAND", "", "", "bf=Plains:1", 2, 0,
-        "sac-a-land gain 2; exactly one land forces cost"),
+        "sac-a-land gain 2; exactly one land forces cost",
+        "ENTITY:Plains:actor:Battlefield"),
     "trading_post.txt": (P, "AB", "ACTIVATED_DISCARD", "", "C1", "hand=Runeclaw Bear:1", 4, 0,
-        "mode-1 gain 4; single-card hand forces discard; driver places host"),
+        "mode-1 gain 4; single-card hand forces discard; driver places host",
+        "ENTITY:Runeclaw Bear:actor:Hand"),
     "ayli_eternal_pilgrim.txt": (P, "AB", "ACTIVATED_SAC_CREATURE", "", "C1", "bf=Runeclaw Bear:1", 2, 0,
-        "gain=toughness of the single other sacrificed creature"),
+        "gain=toughness of the single other sacrificed creature",
+        "ENTITY:Runeclaw Bear:actor:Battlefield"),
     "dimension_x_pizzasaur.txt": (P, "AB", "ACTIVATED_SAC_SELF", "", "C2", "", 3, -3,
-        "AB line only: gain 3 + opponent loses 3"),
+        "AB line only: gain 3 + opponent loses 3",
+        "CONFIRM_TRUE"),
     "tainted_sigil.txt": (P, "AB", "ACTIVATED_SAC_SELF", "", "", "", 0, 0,
-        "no life lost this turn so X=0; exact zero-delta line"),
+        "no life lost this turn so X=0; exact zero-delta line",
+        "CONFIRM_TRUE"),
     "angels_mercy.txt": (P, "SP", "SPELL_BASE", "", "W4", "", 7, 0,
-        "instant gain 7; exact pool pays 2WW"),
+        "instant gain 7; exact pool pays 2WW",
+        "NONE"),
     "timely_reinforcements.txt": (P, "SP", "SPELL_CONDITIONAL_LIFE", "", "W3", "actor_life=15;opp_life=20", 6, 0,
-        "life condition true (+6), token condition false (no tokens)"),
+        "life condition true (+6), token condition false (no tokens)",
+        "NONE"),
     "avenge.txt": (P, "SP", "SPELL_DESTROY_ALL", "", "W2C4", "actor_bf=Runeclaw Bear:2;opp_bf=Runeclaw Bear:1", 3, 0,
-        "destroy all 3, gain 3; no cost reduction without prior attack"),
+        "destroy all 3, gain 3; no cost reduction without prior attack",
+        "NONE"),
     "cloudblazer.txt": (P, "DB", "ETB_TRIGGER", "", "", "library_fill=5", 2, 0,
-        "ETB gain 2 + draw 2 from fixed-order filled library, no shuffle"),
+        "ETB gain 2 + draw 2 from fixed-order filled library, no shuffle",
+        "NONE"),
     "vampiric_rites.txt": (P, "AB", "ACTIVATED_SAC_DRAW", "", "B1C1", "bf=Runeclaw Bear:1;library_fill=5", 1, 0,
-        "gain 1 + draw 1 from fixed-order filled library, no shuffle"),
+        "gain 1 + draw 1 from fixed-order filled library, no shuffle",
+        "ENTITY:Runeclaw Bear:actor:Battlefield"),
     "perimeter_captain.txt": ("DEFERRED:OPTIONAL_DECISION_D6", "DB", "-", "", "", "", 0, 0,
         "Blocks trigger has OptionalDecider You (may); needs tape"),
     "kimoyo_beads.txt": ("DEFERRED:MODAL_DECISION_D6", "DB", "-", "", "", "", 0, 0,
@@ -108,7 +118,8 @@ def main() -> int:
         prov = led[pid]["source_provenance"][0]
         card_file = Path(prov["forge_source_path"]).name
         assert card_file in CARD_TABLE, f"card outside frozen table: {card_file}"
-        disp, kind, recipe, params, pool, fixture, dA, dO, note = CARD_TABLE[card_file]
+        disp, kind, recipe, params, pool, fixture, dA, dO, note = CARD_TABLE[card_file][:9]
+        intent = CARD_TABLE[card_file][9] if len(CARD_TABLE[card_file]) > 9 else "NONE"
         txt = (a.forge_root / prov["forge_source_path"]).read_text()
         assert "GainLife" in txt, f"no GainLife line at pin for {card_file}"
         names = [l[5:] for l in txt.splitlines() if l.startswith("Name:")]
@@ -117,23 +128,24 @@ def main() -> int:
         oracle = prov["oracle_identity"]
         if disp == P:
             cases.append((pid, oracle, exact_name, prov["source_token"], recipe,
-                          params, pool, fixture, dA, dO,
+                          params, pool, fixture, dA, dO, intent,
                           f"{prov['forge_source_path']}#{prov.get('source_line')}"))
         else:
             deferred.append({"effective_path_id": pid, "card": card_file,
                              "reason": disp, "note": note})
     assert len(cases) == 10 and len(deferred) == 12, "D1 split must be 10 + 12"
     cids = sorted(c[0] for c in cases)
+    intents = {c[0]: c[10] for c in cases}
     digest = hashlib.sha256(("\n".join(cids) + "\n").encode()).hexdigest()
 
     a.out_tsv.parent.mkdir(parents=True, exist_ok=True)
     with open(a.out_tsv, "w") as f:
         f.write("#path_id\toracle_id\tcard_b64\tsvar_token_b64\tsvar_expr_b64\trecipe\t"
-                "params_b64\tpool_b64\tfixture_b64\tactor_delta\topp_delta\tprovenance_b64\n")
-        for (pid, oracle, card_name, stok, recipe, params, pool, fixture, dA, dO, provenance) in cases:
+                "params_b64\tpool_b64\tfixture_b64\tactor_delta\topp_delta\tprovenance_b64\tintent_b64\n")
+        for (pid, oracle, card_name, stok, recipe, params, pool, fixture, dA, dO, intent, provenance) in cases:
             f.write("\t".join([pid, oracle, b64(card_name), b64(stok), b64("GainLife"), recipe,
                                 b64(params), b64(pool), b64(fixture), str(dA), str(dO),
-                                b64(provenance)]) + "\n")
+                                b64(provenance), b64(intent)]) + "\n")
     a.out_deferred.write_text(json.dumps(deferred, indent=1, sort_keys=True) + "\n")
     a.out_plan.write_text(json.dumps({
         "schema": "commander-simulator-next.ws33d-d1-plan.v1",
@@ -141,6 +153,7 @@ def main() -> int:
         "queue_count": 22, "provable_count": 10, "deferred_count": 12,
         "target_digest": digest, "forge_pin": FORGE_PIN,
         "provable_ids": cids,
+        "intents": intents,
     }, indent=1, sort_keys=True) + "\n")
     print(f"WS33_ABC_D1_MATERIALIZATION=PASS cases=10 deferred=12 digest={digest}")
     return 0

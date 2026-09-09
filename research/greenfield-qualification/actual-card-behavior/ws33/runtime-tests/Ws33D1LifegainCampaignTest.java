@@ -135,10 +135,12 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
 
             final PlayerControllerHuman controller = new PlayerControllerHuman(
                     game, actor, new LobbyPlayerHuman("ws33-d1-principal"));
-            final Provider decisions = new Provider(replay, requestLog);
+            final Provider decisions = new Provider(replay, requestLog, intentKindOf(c), designated);
             controller.setExternalDecisionProvider(decisions::decide);
 
             buildFixture(c, game, actor, opponent);
+
+            final Card designated = resolveDesignation(c, game, actor, opponent);
 
             final int lifeBefore = actor.getLife();
             final int oppLifeBefore = opponent.getLife();
@@ -197,7 +199,8 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
 
             final String canonical = canonicalFinalState(game, actor, opponent);
             return new Result(actorDelta, oppDelta, canonical,
-                    decisions.captured, tape, new ArrayList<>(rngEvents), leakDelta, crossDelta);
+                    decisions.captured, tape, new ArrayList<>(rngEvents), leakDelta, crossDelta,
+                    decisions.resolutions);
         } finally {
             MyRandom.endGameScope();
         }
@@ -454,20 +457,73 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
         return out;
     }
 
+    private static String intentKindOf(final Case c) {
+        if ("NONE".equals(c.intent)) {
+            return "NONE";
+        }
+        if ("CONFIRM_TRUE".equals(c.intent)) {
+            return "CONFIRM_TRUE";
+        }
+        if (c.intent.startsWith("ENTITY:")) {
+            return "ENTITY";
+        }
+        throw new IllegalStateException("malformed case intent " + c.intent);
+    }
+
+    private Card resolveDesignation(final Case c, final Game game, final Player actor, final Player opponent) {
+        if (!"ENTITY".equals(intentKindOf(c))) {
+            return null;
+        }
+        final String[] parts = c.intent.split(":", -1);
+        if (parts.length != 4) {
+            throw new IllegalStateException("malformed ENTITY intent " + c.intent);
+        }
+        final Player owner = "actor".equals(parts[2]) ? actor
+                : "opponent".equals(parts[2]) ? opponent : null;
+        if (owner == null) {
+            throw new IllegalStateException("malformed ENTITY intent owner " + c.intent);
+        }
+        final ZoneType zone = "Battlefield".equals(parts[3]) ? ZoneType.Battlefield
+                : "Hand".equals(parts[3]) ? ZoneType.Hand : null;
+        if (zone == null) {
+            throw new IllegalStateException("malformed ENTITY intent zone " + c.intent);
+        }
+        Card found = null;
+        for (final Card card : owner.getCardsIn(zone)) {
+            if (parts[1].equals(card.getName())) {
+                if (found != null) {
+                    throw new IllegalStateException("designated entity not unique " + c.intent);
+                }
+                found = card;
+            }
+        }
+        if (found == null) {
+            throw new IllegalStateException("designated entity absent " + c.intent);
+        }
+        return found;
+    }
+
     private static final class Provider {
         private final List<ReplayDecision> replay;
         private final Path requestLog;
+        private final String intentKind;
+        private final Card designated;
         private int replayIndex;
         private final List<CapturedDecision> captured = new ArrayList<>();
+        private final List<String> resolutions = new ArrayList<>();
 
-        Provider(final List<ReplayDecision> replay, final Path requestLog) {
+        Provider(final List<ReplayDecision> replay, final Path requestLog,
+                final String intentKind, final Card designated) {
             this.replay = replay;
             this.requestLog = requestLog;
+            this.intentKind = intentKind;
+            this.designated = designated;
         }
 
         ExternalDecisionResponse decide(final ExternalDecisionRequest request) {
             logRequest(request);
             final ExternalDecisionRequest.Option chosen;
+            final String expectedId;
             if (replay != null) {
                 if (replayIndex >= replay.size()) {
                     throw new IllegalStateException("replay decision tape exhausted");
@@ -482,21 +538,72 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
                         .findFirst()
                         .orElseThrow(() -> new IllegalStateException(
                                 "recorded fixture response absent from authoritative replay options"));
-            } else {
-                if (request.getOptions().size() != 1) {
-                    final StringBuilder ids = new StringBuilder();
-                    for (final ExternalDecisionRequest.Option o : request.getOptions()) {
-                        if (ids.length() != 0) ids.append(',');
-                        ids.append(o.getOptionId()).append('=').append(o.getSemanticValue());
-                    }
-                    throw new IllegalStateException("fail-closed multi-option decision kind="
-                            + request.getDecisionKind() + " options=" + request.getOptions().size()
-                            + " min=" + request.getMinimumSelection() + " max=" + request.getMaximumSelection()
-                            + " ids=[" + ids + "] (see decision-requests.jsonl)");
+                expectedId = expected.optionId;
+            } else if ("ENTITY_LIST_SELECTION".equals(request.getDecisionKind())) {
+                if (!"ENTITY".equals(intentKind) || designated == null) {
+                    throw new IllegalStateException("fail-closed entity selection without ENTITY intent kind="
+                            + request.getDecisionKind());
                 }
-                chosen = request.getOptions().get(0);
+                expectedId = ExternalDecisionRequest.optionIdFor(designated);
+                final List<ExternalDecisionRequest.Option> entityOptions = new ArrayList<>();
+                for (final ExternalDecisionRequest.Option option : request.getOptions()) {
+                    if (option.isEntityBacked()) {
+                        entityOptions.add(option);
+                    } else if (!"CANCEL".equals(option.getSemanticValue()) || request.isCancelAllowed()
+                            || request.getMinimumSelection() < 1) {
+                        throw new IllegalStateException("fail-closed non-forced companion option kind="
+                                + request.getDecisionKind() + " option=" + option.getOptionId()
+                                + " semantic=" + option.getSemanticValue());
+                    }
+                }
+                if (entityOptions.size() != 1
+                        || !expectedId.equals(entityOptions.get(0).getOptionId())) {
+                    throw new IllegalStateException("fail-closed designated entity not the sole option kind="
+                            + request.getDecisionKind() + " expected=" + expectedId);
+                }
+                chosen = entityOptions.get(0);
+            } else if ("CONFIRM_PAYMENT".equals(request.getDecisionKind())) {
+                if (!"CONFIRM_TRUE".equals(intentKind)) {
+                    throw new IllegalStateException("fail-closed payment confirm without CONFIRM intent kind="
+                            + request.getDecisionKind());
+                }
+                if (request.isCancelAllowed() || request.getMinimumSelection() != 1
+                        || request.getMaximumSelection() != 1 || request.getOptions().size() != 2) {
+                    throw new IllegalStateException("fail-closed malformed payment confirm");
+                }
+                ExternalDecisionRequest.Option affirm = null;
+                boolean hasDeny = false;
+                for (final ExternalDecisionRequest.Option option : request.getOptions()) {
+                    if ("true".equals(option.getSemanticValue())) {
+                        affirm = option;
+                    } else if ("false".equals(option.getSemanticValue())) {
+                        hasDeny = true;
+                    } else {
+                        throw new IllegalStateException("fail-closed unknown confirm option "
+                                + option.getSemanticValue());
+                    }
+                }
+                if (affirm == null || !hasDeny) {
+                    throw new IllegalStateException("fail-closed payment confirm options malformed");
+                }
+                expectedId = affirm.getOptionId();
+                chosen = affirm;
+            } else {
+                final StringBuilder ids = new StringBuilder();
+                for (final ExternalDecisionRequest.Option o : request.getOptions()) {
+                    if (ids.length() != 0) ids.append(',');
+                    ids.append(o.getOptionId()).append('=').append(o.getSemanticValue());
+                }
+                throw new IllegalStateException("fail-closed unexpected decision kind="
+                        + request.getDecisionKind() + " options=" + request.getOptions().size()
+                        + " ids=[" + ids + "] (see decision-requests.jsonl)");
             }
             captured.add(new CapturedDecision(request, chosen.getOptionId(), chosen.getSemanticValue()));
+            resolutions.add("{\"kind\":" + q(request.getDecisionKind())
+                    + ",\"expected_option_id\":" + q(expectedId)
+                    + ",\"selected_option_id\":" + q(chosen.getOptionId())
+                    + ",\"match\":" + expectedId.equals(chosen.getOptionId())
+                    + "}");
             return new ExternalDecisionResponse(
                     request.getDecisionId(), request.getToken(), request.getActorId(),
                     request.getPrincipalId(), request.getResponseSchema(),
@@ -659,6 +766,7 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
                 + "\"expected_opp_delta\":" + c.expectOppDelta + ","
                 + "\"decision_event_count\":" + result.captured.size() + ","
                 + "\"rng_event_count\":" + result.rngEvents.size() + ","
+                + "\"intent_resolutions\":[" + String.join(",", result.resolutions) + "],"
                 + "\"hidden_leak_delta\":" + result.leakDelta + ","
                 + "\"cross_principal_leak_delta\":" + result.crossDelta
                 + "}\n";
@@ -805,13 +913,14 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
         for (final String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
             if (line.isBlank() || line.startsWith("#")) continue;
             final String[] fields = line.split("\\t", -1);
-            if (fields.length != 12) {
+            if (fields.length != 13) {
                 throw new IllegalArgumentException("malformed WS33 D1 case line");
             }
             result.add(new Case(
                     fields[0], fields[1], unb64(fields[2]), unb64(fields[3]), unb64(fields[4]),
                     fields[5], unb64(fields[6]), unb64(fields[7]), unb64(fields[8]),
-                    Integer.parseInt(fields[9]), Integer.parseInt(fields[10]), unb64(fields[11])));
+                    Integer.parseInt(fields[9]), Integer.parseInt(fields[10]), unb64(fields[11]),
+                    unb64(fields[12])));
         }
         if (result.isEmpty()) {
             throw new IllegalArgumentException("WS33 D1 campaign case set is empty");
@@ -888,10 +997,12 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
         final int expectActorDelta;
         final int expectOppDelta;
         final String provenance;
+        final String intent;
 
         Case(String pathId, String oracleId, String cardName, String svarToken,
                 String svarExpression, String recipe, String recipeParams, String poolSpec,
-                String fixtureKv, int expectActorDelta, int expectOppDelta, String provenance) {
+                String fixtureKv, int expectActorDelta, int expectOppDelta, String provenance,
+                String intent) {
             this.pathId = pathId;
             this.oracleId = oracleId;
             this.cardName = cardName;
@@ -904,6 +1015,7 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
             this.expectActorDelta = expectActorDelta;
             this.expectOppDelta = expectOppDelta;
             this.provenance = provenance;
+            this.intent = intent;
         }
     }
 
@@ -940,10 +1052,12 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
         final List<MyRandom.RngEvent> rngEvents;
         final long leakDelta;
         final long crossDelta;
+        final List<String> resolutions;
 
         Result(int actorDelta, int oppDelta, String canonicalFinalState,
                 List<CapturedDecision> captured, List<ExternalDecisionTape.Event> tape,
-                List<MyRandom.RngEvent> rngEvents, long leakDelta, long crossDelta) {
+                List<MyRandom.RngEvent> rngEvents, long leakDelta, long crossDelta,
+                List<String> resolutions) {
             this.actorDelta = actorDelta;
             this.oppDelta = oppDelta;
             this.canonicalFinalState = canonicalFinalState;
@@ -952,6 +1066,7 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
             this.rngEvents = new ArrayList<>(rngEvents);
             this.leakDelta = leakDelta;
             this.crossDelta = crossDelta;
+            this.resolutions = new ArrayList<>(resolutions);
         }
     }
 }
