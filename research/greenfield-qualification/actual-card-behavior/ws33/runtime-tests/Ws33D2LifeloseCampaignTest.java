@@ -323,7 +323,15 @@ public final class Ws33D2LifeloseCampaignTest extends AITest {
                 return;
             }
             case "PLANESWALKER_DRAW_LOSE": {
-                placeCard(c.cardName, actor, ZoneType.Battlefield);
+                final Card walker = placeCard(c.cardName, actor, ZoneType.Hand);
+                final SpellAbility cast = walker.getSpells().get(0);
+                if (!PlaySpellAbility.playSpellAbility(controller, actor, cast)) {
+                    throw new IllegalStateException("production planeswalker cast returned false");
+                }
+                if (game.getStack().isEmpty()) {
+                    throw new IllegalStateException("production cast left an empty stack");
+                }
+                playUntilStackClear(game);
                 final Card card = requireHostOnBattlefield(game, c.cardName);
                 final SpellAbility ability = findActivatedAbility(card, ApiType.Draw);
                 if (!PlaySpellAbility.playSpellAbility(controller, actor, ability)) {
