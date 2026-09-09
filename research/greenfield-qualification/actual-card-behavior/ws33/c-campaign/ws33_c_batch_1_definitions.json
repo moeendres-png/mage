@@ -1,0 +1,146 @@
+{
+  "schema": "commander-simulator-next.ws33-c-batch-definitions.v1",
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "batch_id": "WS33_C_BATCH_1",
+  "executions": [
+    {
+      "execution_id": "cloudblazer-etb-rewitness",
+      "card_name": "Cloudblazer",
+      "oracle_identity": "f84d1291-1f82-4b67-a26e-b79624b4ce1d",
+      "source_path": "forge-gui/res/cardsfolder/c/cloudblazer.txt",
+      "fixture": {"kind": "ETB_SELF_MOVE"},
+      "setup": [],
+      "links": [
+        {"path_id": "forge-behavior-v2:b42b594f2523a243cf1b4877de9612a831bb71f6",
+         "parent_svar": "TrigGainLife", "parent_api": "GainLife", "parent_line": 7,
+         "child_sub": "DBDraw", "child_api": "Draw"}
+      ],
+      "assertions": [
+        {"id": "life-delta-actor", "type": "life", "who": "actor", "expected": 2},
+        {"id": "hand-net-actor", "type": "hand", "who": "actor", "expected": 1}
+      ],
+      "note": "INTENDED RE-WITNESS of the already-evidenced pilot path under the upgraded contract (parent hook + exact chain + tripwire). Upgrades pilot order evidence from CODE_DERIVED to observed."
+    },
+    {
+      "execution_id": "rager-etb",
+      "card_name": "Phyrexian Rager",
+      "oracle_identity": "e409c9be-0c9a-43c3-adb4-8c47afc1d551",
+      "source_path": "forge-gui/res/cardsfolder/p/phyrexian_rager.txt",
+      "fixture": {"kind": "ETB_SELF_MOVE"},
+      "setup": [],
+      "links": [
+        {"path_id": "forge-behavior-v2:ed6d9d36b701bda06c68f54bc3e9e9ca9da415fd",
+         "parent_svar": "TrigDraw", "parent_api": "Draw", "parent_line": 6,
+         "child_sub": "DBLoseLife", "child_api": "LoseLife"}
+      ],
+      "assertions": [
+        {"id": "life-delta-actor", "type": "life", "who": "actor", "expected": -1},
+        {"id": "hand-net-actor", "type": "hand", "who": "actor", "expected": 0}
+      ]
+    },
+    {
+      "execution_id": "shimmercreep-etb",
+      "card_name": "Shimmercreep",
+      "oracle_identity": "52244c23-7680-4bed-8ef8-8d10e289d3f7",
+      "source_path": "forge-gui/res/cardsfolder/s/shimmercreep.txt",
+      "fixture": {"kind": "ETB_SELF_MOVE"},
+      "setup": [],
+      "links": [
+        {"path_id": "forge-behavior-v2:067886a931297865625a754150d2f6e1eb165e47",
+         "parent_svar": "TrigDrain", "parent_api": "LoseLife", "parent_line": 7,
+         "child_sub": "DBGainLife", "child_api": "GainLife"}
+      ],
+      "assertions": [
+        {"id": "life-delta-actor", "type": "life", "who": "actor", "expected": 1},
+        {"id": "life-delta-opponent", "type": "life", "who": "opponent", "expected": -1},
+        {"id": "hand-net-actor", "type": "hand", "who": "actor", "expected": -1}
+      ],
+      "note": "X=colors among permanents you control; fixture board holds only Shimmercreep (black), so X=1 deterministically."
+    },
+    {
+      "execution_id": "bane-etb",
+      "card_name": "Bane of Progress",
+      "oracle_identity": "51f9a6cc-8eb2-44ed-a2d9-913ac514ad67",
+      "source_path": "forge-gui/res/cardsfolder/b/bane_of_progress.txt",
+      "fixture": {"kind": "ETB_SELF_MOVE"},
+      "setup": [
+        {"card_name": "Sol Ring", "zone": "Battlefield", "who": "actor", "count": 2}
+      ],
+      "links": [
+        {"path_id": "forge-behavior-v2:2f542f51c93564b65ab532943e69c93ff083c6aa",
+         "parent_svar": "TrigDestroy", "parent_api": "DestroyAll", "parent_line": 6,
+         "child_sub": "DBPutCounter", "child_api": "PutCounter"},
+        {"path_id": "forge-behavior-v2:c01749f7580452b107b45571bb18ddc072be0310",
+         "parent_svar": "DBPutCounter", "parent_api": "PutCounter", "parent_line": 7,
+         "child_sub": "DBCleanup", "child_api": "Cleanup"}
+      ],
+      "assertions": [
+        {"id": "solring-actor-gone", "type": "battlefield_count", "name": "Sol Ring", "who": "actor", "expected": 0},
+        {"id": "bane-counters", "type": "counters", "card": "source", "counter": "P1P1", "expected": 2},
+        {"id": "hand-net-actor", "type": "hand", "who": "actor", "expected": -1}
+      ]
+    },
+    {
+      "execution_id": "chopper-etb",
+      "card_name": "Foot Chopper",
+      "oracle_identity": "1eed017a-342a-47a8-9395-890ef0bd1eb2",
+      "source_path": "forge-gui/res/cardsfolder/f/foot_chopper.txt",
+      "fixture": {"kind": "ETB_SELF_MOVE"},
+      "setup": [],
+      "links": [
+        {"path_id": "forge-behavior-v2:8d18d77c6cc46f1c9baafc032e5c179aa9651d98",
+         "parent_svar": "TrigToken", "parent_api": "Token", "parent_line": 6,
+         "child_sub": "DBAttach", "child_api": "Attach"},
+        {"path_id": "forge-behavior-v2:746c658d3f4fbbf75f59b19593399c8a49530a5a",
+         "parent_svar": "DBAttach", "parent_api": "Attach", "parent_line": 7,
+         "child_sub": "DBCleanup", "child_api": "Cleanup"}
+      ],
+      "assertions": [
+        {"id": "token-count-actor", "type": "token_count", "who": "actor", "expected": 1},
+        {"id": "token-equipped", "type": "token_equipped_by_source", "who": "actor", "expected": true},
+        {"id": "hand-net-actor", "type": "hand", "who": "actor", "expected": -1}
+      ]
+    },
+    {
+      "execution_id": "cap-hero-etb",
+      "card_name": "Captain America, Team Leader",
+      "oracle_identity": "916cf34a-fd2c-47fe-bebb-f7b52b3dabed",
+      "source_path": "forge-gui/res/cardsfolder/c/captain_america_team_leader.txt",
+      "fixture": {"kind": "ETB_OTHER_ENTER", "entering_card": "Shang-Chi and the Ten Rings"},
+      "setup": [
+        {"card_name": "Captain America, Team Leader", "zone": "Battlefield", "who": "actor", "count": 1}
+      ],
+      "links": [
+        {"path_id": "forge-behavior-v2:494de427e8ef204590a0acbd1ad3904089ac81c8",
+         "parent_svar": "TrigPump", "parent_api": "Pump", "parent_line": 6,
+         "child_sub": "DBPutCounter", "child_api": "PutCounter"}
+      ],
+      "assertions": [
+        {"id": "shang-counters", "type": "counters", "card": "Shang-Chi and the Ten Rings", "who": "actor", "counter": "P1P1", "expected": 1},
+        {"id": "cap-counters", "type": "counters", "card": "source", "counter": "P1P1", "expected": 1},
+        {"id": "shang-vigilance", "type": "keyword", "card": "Shang-Chi and the Ten Rings", "who": "actor", "keyword": "VIGILANCE", "expected": true},
+        {"id": "shang-haste", "type": "keyword", "card": "Shang-Chi and the Ten Rings", "who": "actor", "keyword": "HASTE", "expected": true},
+        {"id": "hand-net-actor", "type": "hand", "who": "actor", "expected": -1}
+      ],
+      "note": "Shang-Chi (Human Warrior Hero) has no ETB trigger and its Drawn/CounterAdded triggers cannot fire in-window (no draws; 1 counter != 10)."
+    },
+    {
+      "execution_id": "gnarlbark-eot",
+      "card_name": "Sinister Gnarlbark",
+      "oracle_identity": "fcd2142e-ba84-4693-9b29-ecc43feba2b8",
+      "source_path": "forge-gui/res/cardsfolder/s/sinister_gnarlbark.txt",
+      "fixture": {"kind": "PHASE_EOT_OUR_TURN"},
+      "setup": [],
+      "links": [
+        {"path_id": "forge-behavior-v2:2c49adc7c2a39011fc279674c98869b66e0ec335",
+         "parent_svar": "TrigDraw", "parent_api": "Draw", "parent_line": 6,
+         "child_sub": "DBBlight", "child_api": "Blight"}
+      ],
+      "assertions": [
+        {"id": "hand-net-actor", "type": "hand", "who": "actor", "expected": 0},
+        {"id": "gnarlbark-blight", "type": "counters", "card": "source", "counter": "M1M1", "expected": 1}
+      ],
+      "note": "Blight Defined You with Gnarlbark as the only own creature: deterministic. EOT reached by real phase progression on our turn; AI opponent idle."
+    }
+  ]
+}

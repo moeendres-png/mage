@@ -1,4 +1,4 @@
-name: WS33-C AbilitySub pilot (production-parent witness)
+name: WS33-C AbilitySub batch witness (production-parent)
 
 on:
   push:
@@ -22,6 +22,9 @@ env:
   WS32_HEAD: 6ca2a7bbacd074cc84fa4a6019c4d26e5e3717a9
   C_MANIFEST_SHA256: b47510017fbfd5cae478917c37f83c1a41e73095eb49a2fa9ecb43360c809ca4
   C_QUEUE_SHA256: a88842375e5e91894acb238c6306a60760dc77d0f098e5dbbd2069e2dbca1482
+  BATCH_ID: WS33_C_BATCH_1
+  BATCH_DIGEST: 9d85efc6082449d4526ed4e7388e91c0326b3ca127c6cc69f771559e2cc0f855
+  REWITNESS_PATH: forge-behavior-v2:b42b594f2523a243cf1b4877de9612a831bb71f6
 
 jobs:
   c-abilitysub-pilot:
@@ -38,8 +41,9 @@ jobs:
           set -euo pipefail
           test "$(sha256sum "$CCAMPAIGN/WS33_C_UNKNOWN_MANIFEST.json" | cut -d' ' -f1)" = "$C_MANIFEST_SHA256"
           test "$(sha256sum "$CCAMPAIGN/WS33_C_CLUSTER_QUEUE.json" | cut -d' ' -f1)" = "$C_QUEUE_SHA256"
-          python -m py_compile "$CCAMPAIGN/ws33_derive_c_manifest.py" "$CCAMPAIGN/ws33_prepare_abilitysub_campaign.py" "$CCAMPAIGN/ws33_certify_abilitysub_pilot.py"
+          python -m py_compile "$CCAMPAIGN/ws33_derive_c_manifest.py" "$CCAMPAIGN/ws33_prepare_abilitysub_campaign.py" "$CCAMPAIGN/ws33_certify_abilitysub_pilot.py" "$CCAMPAIGN/ws33_prepare_abilitysub_batch.py" "$CCAMPAIGN/ws33_certify_abilitysub_batch.py" "$CCAMPAIGN/ws33_check_batch_definitions.py" "$CCAMPAIGN/ws33_survey_t113_fixtures.py" "$CCAMPAIGN/ws33_partition_c_evidence.py" "$CCAMPAIGN/ws33_emit_attribution_defect.py"
           python "$CCAMPAIGN/ws33_certify_abilitysub_pilot.py" --self-test
+          python "$CCAMPAIGN/ws33_certify_abilitysub_batch.py" --self-test
           python - <<'PY'
           import json
           m=json.load(open('research/greenfield-qualification/actual-card-behavior/ws33/c-campaign/WS33_C_UNKNOWN_MANIFEST.json'))
@@ -69,7 +73,7 @@ jobs:
           test "$(git -C ws01 rev-parse HEAD)" = "$WS01_HEAD"
           test "$(git -C ws12 rev-parse HEAD)" = "$WS12_HEAD"
           test "$(git -C ws32 rev-parse HEAD)" = "$WS32_HEAD"
-          echo WS33_C_PILOT_RUNTIME_PINS=PASS
+          echo WS33_C_BATCH_RUNTIME_PINS=PASS
 
       - name: Set up Java 21
         uses: actions/setup-java@v5
@@ -79,11 +83,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p generated/overlay-logs generated/campaign/pilot generated/evidence
+          mkdir -p generated/overlay-logs generated/campaign/batch generated/evidence
           bash ws01/research/greenfield-qualification/forge-patches/apply-strict-decision-boundary.sh forge ws01/research/greenfield-qualification/forge-patches/strict-decision-boundary.patch | tee generated/overlay-logs/ws01.log
           python direct-source/research/greenfield-qualification/forge-patches/apply-ws05-hidden-info-overlay.py forge | tee generated/overlay-logs/ws05.log
           cp direct-source/research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
-          python direct-source/research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/campaign/pilot/RNG_INVENTORY.json | tee generated/overlay-logs/ws06.log
+          python direct-source/research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/campaign/batch/RNG_INVENTORY.json | tee generated/overlay-logs/ws06.log
           python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge | tee generated/overlay-logs/ws33-input-confirm.log
           python "$ROOT/runtime-overlays/apply-ws33-observation-fanout.py" --forge-root forge | tee generated/overlay-logs/ws33-observation-fanout.log
           python "$ROOT/runtime-overlays/apply-ws33-external-card-decision-lifetime.py" --forge-root forge | tee generated/overlay-logs/ws33-card-decision-lifetime.log
@@ -91,52 +95,58 @@ jobs:
           python "$ROOT/runtime-overlays/apply-ws33-target-selection.py" --forge-root forge | tee generated/overlay-logs/ws33-target-selection.log
           python "$ROOT/runtime-overlays/apply-ws33-svar-reachability.py" --forge-root forge | tee generated/overlay-logs/ws33-svar-reachability.log
           grep -F 'setWs33ResolutionObserver' forge/forge-game/src/main/java/forge/game/spellability/AbilitySub.java
+          python "$ROOT/runtime-overlays/apply-ws33-parent-resolution.py" --forge-root forge | tee generated/overlay-logs/ws33-parent-resolution.log
+          test "$(grep -c -F 'ws33NoteParentResolved(sa);' forge/forge-game/src/main/java/forge/game/ability/AbilityUtils.java)" = 1
+          python "$ROOT/runtime-overlays/apply-ws33-decision-tripwire.py" --forge-root forge | tee generated/overlay-logs/ws33-decision-tripwire.log
+          test "$(grep -c -F 'ws33NoteDecision(' forge/forge-ai/src/main/java/forge/ai/PlayerControllerAi.java)" = 10
           python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py --forge-root forge | tee generated/overlay-logs/ws12.log
           python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py --forge-root forge | tee generated/overlay-logs/ws32.log
 
-      - name: Materialize exact pilot case set
+      - name: Materialize exact batch case set
         shell: bash
         run: |
           set -euo pipefail
-          python "$CCAMPAIGN/ws33_prepare_abilitysub_campaign.py" --manifest "$CCAMPAIGN/WS33_C_UNKNOWN_MANIFEST.json" --out-tsv generated/campaign/pilot/abilitysub-cases.tsv --out-plan generated/campaign/pilot/ABILITYSUB_PILOT_PLAN.json
-          test "$(grep -vc '^#' generated/campaign/pilot/abilitysub-cases.tsv)" = 1
-          jq -e '.path_count==1 and (.paths|length)==1' generated/campaign/pilot/ABILITYSUB_PILOT_PLAN.json
-          echo WS33_C_PILOT_MATERIALIZATION=PASS paths=1
+          python "$CCAMPAIGN/ws33_prepare_abilitysub_batch.py" --definitions "$CCAMPAIGN/ws33_c_batch_1_definitions.json" --manifest "$CCAMPAIGN/WS33_C_UNKNOWN_MANIFEST.json" --coverage "$ROOT/WS33_PATH_COVERAGE.json" --partition "$CCAMPAIGN/WS33_C_EVIDENCE_PARTITION.json" --forge-git forge --allow-rewitness "$REWITNESS_PATH" --out-tsv generated/campaign/batch/abilitysub-cases.tsv --out-plan generated/campaign/batch/WS33_C_BATCH_PLAN.json
+          test "$(jq -r .batch_digest generated/campaign/batch/WS33_C_BATCH_PLAN.json)" = "$BATCH_DIGEST"
+          test "$(jq -r .case_rows generated/campaign/batch/WS33_C_BATCH_PLAN.json)" = 9
+          test "$(jq -r .path_slots generated/campaign/batch/WS33_C_BATCH_PLAN.json)" = 9
+          test "$(grep -vc '^#' generated/campaign/batch/abilitysub-cases.tsv)" = 9
+          echo WS33_C_BATCH_MATERIALIZATION=PASS executions=7 path_slots=9
 
       - name: Install current qualification test
         shell: bash
         run: |
           set -euo pipefail
-          cp "$CCAMPAIGN/Ws33AbilitySubCampaignTest.java" forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
+          cp "$CCAMPAIGN/Ws33AbilitySubWitnessTest.java" forge/forge-gui-desktop/src/test/java/forge/gamesimulationtests/
 
-      - name: Execute pilot Record (production-parent witness)
+      - name: Execute batch Record (production-parent witnesses)
         shell: bash
         run: |
           set -euo pipefail
-          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am -Dtest=forge.gamesimulationtests.Ws33AbilitySubCampaignTest -Dsurefire.failIfNoSpecifiedTests=false -Dws33.subCases="$GITHUB_WORKSPACE/generated/campaign/pilot/abilitysub-cases.tsv" -Dws33.subOut="$GITHUB_WORKSPACE/generated/campaign/pilot" test) 2>&1 | tee generated/overlay-logs/pilot-record-runtime.log
-          test ! -s generated/campaign/pilot/abilitysub-record-diagnostics.jsonl
-          test "$(find generated/campaign/pilot/records -name record-success.marker -type f | wc -l)" = 1
-          echo WS33_C_PILOT_RECORD=PASS paths=1
+          (cd forge && xvfb-run -a mvn -B -pl forge-gui-desktop -am -Dtest=forge.gamesimulationtests.Ws33AbilitySubWitnessTest -Dsurefire.failIfNoSpecifiedTests=false -Dws33.subCases="$GITHUB_WORKSPACE/generated/campaign/batch/abilitysub-cases.tsv" -Dws33.subOut="$GITHUB_WORKSPACE/generated/campaign/batch" -Dws33.subBatch="$BATCH_ID" test) 2>&1 | tee generated/overlay-logs/batch-record-runtime.log
+          test ! -s generated/campaign/batch/abilitysub-record-diagnostics.jsonl
+          test "$(find generated/campaign/batch/records -name record-success.marker -type f | wc -l)" = 7
+          echo WS33_C_BATCH_RECORD=PASS executions=7
 
-      - name: Certify pilot evidence and seal
+      - name: Certify batch evidence and seal
         shell: bash
         run: |
           set -euo pipefail
-          python "$CCAMPAIGN/ws33_certify_abilitysub_pilot.py" --campaign-root generated/campaign/pilot --manifest "$CCAMPAIGN/WS33_C_UNKNOWN_MANIFEST.json" --plan generated/campaign/pilot/ABILITYSUB_PILOT_PLAN.json --out generated/evidence/WS33_C_PILOT_GATE.json --source-head "$GITHUB_SHA" --source-tree "$(git rev-parse 'HEAD^{tree}')"
-          cp generated/campaign/pilot/ABILITYSUB_PILOT_PLAN.json generated/campaign/pilot/abilitysub-cases.tsv generated/campaign/pilot/abilitysub-record-diagnostics.jsonl generated/evidence/
-          cp -R generated/campaign/pilot/records generated/evidence/
-          cp generated/overlay-logs/pilot-record-runtime.log generated/evidence/
+          python "$CCAMPAIGN/ws33_certify_abilitysub_batch.py" --campaign-root generated/campaign/batch --manifest "$CCAMPAIGN/WS33_C_UNKNOWN_MANIFEST.json" --plan generated/campaign/batch/WS33_C_BATCH_PLAN.json --out generated/evidence/WS33_C_BATCH_GATE.json --source-head "$GITHUB_SHA" --source-tree "$(git rev-parse 'HEAD^{tree}')" --expect-source-head "$GITHUB_SHA"
+          cp generated/campaign/batch/WS33_C_BATCH_PLAN.json generated/campaign/batch/abilitysub-cases.tsv generated/campaign/batch/abilitysub-record-diagnostics.jsonl generated/evidence/
+          cp -R generated/campaign/batch/records generated/evidence/
+          cp generated/overlay-logs/batch-record-runtime.log generated/evidence/
           printf '%s\n' "$GITHUB_SHA" > generated/evidence/workflow-source-head.txt
           git rev-parse 'HEAD^{tree}' > generated/evidence/workflow-source-tree.txt
           cd generated/evidence
-          find . -type f ! -name WS33_C_PILOT_HASHES.sha256 -print0 | sort -z | xargs -0 sha256sum > WS33_C_PILOT_HASHES.sha256
-          sha256sum -c WS33_C_PILOT_HASHES.sha256
+          find . -type f ! -name WS33_C_BATCH_HASHES.sha256 -print0 | sort -z | xargs -0 sha256sum > WS33_C_BATCH_HASHES.sha256
+          sha256sum -c WS33_C_BATCH_HASHES.sha256
 
-      - name: Upload immutable pilot evidence
+      - name: Upload immutable batch evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ws33-c-abilitysub-pilot-${{ github.run_id }}
+          name: ws33-c-abilitysub-batch-${{ github.run_id }}
           path: generated
           if-no-files-found: error
           retention-days: 90
