@@ -504,11 +504,13 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         // observe settled state (e.g. lethal-marked creatures destroyed).
         // Bounded: at most one extra clear pass; matching decides validity.
         // Then drain triggers the engine queued during resolution or the
-        // SBA flush (e.g. a dies trigger from an SBA kill): waiting
-        // triggers never reach the stack on their own, so without this
-        // drain they would read as silence. Bounded 8 waves, fail-closed
-        // on excess. Resolves only what the engine already queued; link
-        // matching below remains the real gate.
+        // SBA flush (e.g. a dies trigger from an SBA kill). Two queues:
+        // immediately-run triggers sit SIMULTANEOUS-pending (reach the
+        // stack only via addAllTriggeredAbilitiesToStack) while held/
+        // frozen triggers sit on the WAITING list (runWaitingTriggers);
+        // an unresolved trigger in either queue would read as silence.
+        // Bounded 8 waves, fail-closed on excess. Resolves only what the
+        // engine already queued; link matching below remains the real gate.
         playUntilStackClear(game);
         game.getAction().checkStateEffects(true);
         if (!game.getStack().isEmpty()) {
@@ -516,6 +518,12 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             game.getAction().checkStateEffects(true);
         }
         for (int wave = 0; wave < 8; wave++) {
+            game.getStack().addAllTriggeredAbilitiesToStack();
+            if (!game.getStack().isEmpty()) {
+                playUntilStackClear(game);
+                game.getAction().checkStateEffects(true);
+                continue;
+            }
             if (!game.getTriggerHandler().runWaitingTriggers()) {
                 return;
             }
@@ -524,7 +532,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             game.getAction().checkStateEffects(true);
         }
         throw new IllegalStateException(
-                "waiting-trigger drain exceeded bound: possible retrigger loop"
+                "trigger drain exceeded bound: possible retrigger loop"
                         + " roster=" + rosterSnapshot(game));
     }
 
