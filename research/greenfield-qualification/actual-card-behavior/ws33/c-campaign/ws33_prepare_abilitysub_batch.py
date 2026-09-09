@@ -52,13 +52,13 @@ def main() -> None:
     digest = hashlib.sha256(canon(defs)).hexdigest()
     header = ("#execution_id\tcard_b64\toracle\tsource_b64\tfixture_kind\tentering_b64\t"
               "setup\tlink_path\tparent_svar\tparent_api\tchild_sub\tchild_api\t"
-              "parent_line\tassertions\n")
+              "parent_line\tassertions\tconsultations\n")
     lines = [header]
     plan_execs = []
     for ex in defs["executions"]:
         fx = ex["fixture"]
         setup = ";".join(
-            f"{b64(s['card_name'])}|{s['zone']}|{s['who']}|{s['count']}"
+            f"{b64(s['card_name'])}|{s['zone']}|{s['who']}|{s['count']}|{s.get('via', 'place')}"
             for s in ex.get("setup", []))
         asserts = []
         for a in ex["assertions"]:
@@ -66,6 +66,8 @@ def main() -> None:
                 a["id"], a["type"], a.get("who", ""), b64(a.get("name", "")),
                 b64(a.get("card", "")), a.get("counter", ""), a.get("keyword", ""),
                 str(a["expected"])]))
+        consultations = ";".join(
+            f"{c['site']}|{c['options']}" for c in ex.get("expected_consultations", []))
         plan_execs.append({
             "execution_id": ex["execution_id"],
             "card_name": ex["card_name"],
@@ -84,6 +86,10 @@ def main() -> None:
                 "assertion_id": a["id"],
                 "expected": a["expected"],
             } for a in ex["assertions"]],
+            "expected_consultations": [{
+                "site": c["site"],
+                "options": c["options"],
+            } for c in ex.get("expected_consultations", [])],
         })
         for link in ex["links"]:
             lines.append("\t".join([
@@ -91,7 +97,7 @@ def main() -> None:
                 b64(ex["source_path"]), fx["kind"], b64(fx.get("entering_card", "")),
                 setup, link["path_id"], link["parent_svar"], link["parent_api"],
                 link["child_sub"], link["child_api"], str(link["parent_line"]),
-                ";".join(asserts)]) + "\n")
+                ";".join(asserts), consultations]) + "\n")
     args.out_tsv.parent.mkdir(parents=True, exist_ok=True)
     args.out_tsv.write_text("".join(lines), encoding="utf-8")
     plan = {"schema": "commander-simulator-next.ws33-c-batch-plan.v1",

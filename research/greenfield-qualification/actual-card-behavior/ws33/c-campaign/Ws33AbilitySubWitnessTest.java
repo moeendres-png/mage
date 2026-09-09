@@ -153,8 +153,18 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 if (placement.isBlank()) continue;
                 final String[] parts = placement.split("\\|", -1);
                 final Player owner = who.get(parts[2]);
+                final boolean viaMove = parts.length > 4 && "move".equals(parts[4]);
                 for (int i = 0; i < Integer.parseInt(parts[3]); i++) {
-                    addCardToZone(unb64(parts[0]), owner, ZoneType.valueOf(parts[1]));
+                    // Direct placement never fires entry triggers (the engine
+                    // registers triggers on entry via moveTo). Cards whose own
+                    // triggers must be active use via=move: hand then production
+                    // moveTo, exactly as the engine would enter them.
+                    final Card placed = addCardToZone(
+                            unb64(parts[0]), owner,
+                            viaMove ? ZoneType.Hand : ZoneType.valueOf(parts[1]));
+                    if (viaMove) {
+                        game.getAction().moveTo(ZoneType.valueOf(parts[1]), placed, null, null);
+                    }
                 }
             }
         }
@@ -184,7 +194,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     parent == null ? -1 : parent.getId(),
                     sa.getRootAbility().getId()));
         });
-        PlayerControllerAi.setWs33DecisionTripwire(site -> {
+        PlayerControllerAi.setWs33DecisionTripwire((site, options) -> {
             // Capture the Forge caller frames test-side: the probe fires
             // synchronously on the AI thread, so the current stack reveals
             // which engine path invoked the discretionary decision method.
@@ -210,7 +220,13 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                         .append('.').append(frame.getMethodName());
                 if (++kept == 3) break;
             }
-            tripwireHits.add(new TripwireHit(site, caller.toString()));
+            // Incidental flow queries (AI play-consideration during priority
+            // passing, provably outcome-neutral here: empty hands, no mana,
+            // no payable actions) are recorded, never fatal. Anything else
+            // must match a declared singleton consultation or fail closed.
+            final boolean incidental =
+                    caller.toString().startsWith("PhaseHandler.mainLoopStep");
+            tripwireHits.add(new TripwireHit(site, caller.toString(), options, incidental));
         });
         Card source;
         try {
@@ -261,8 +277,29 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         if (!game.getStack().isEmpty()) {
             throw new IllegalStateException("stack did not clear after production resolution");
         }
-        if (!tripwireHits.isEmpty()) {
-            throw new IllegalStateException("UNEXPECTED_DECISION_REQUIREMENT sites=" + tripwireHits);
+        final List<TripwireHit> unexpected = new ArrayList<>();
+        for (final TripwireHit hit : tripwireHits) {
+            if (hit.incidental) {
+                continue;
+            }
+            boolean declared = false;
+            for (final CaseRow row : rows) {
+                for (final Consultation consultation : row.consultations) {
+                    if (consultation.site.equals(hit.site)
+                            && consultation.options == hit.options) {
+                        declared = true;
+                        break;
+                    }
+                }
+            }
+            if (!declared) {
+                unexpected.add(hit);
+            }
+        }
+        if (!unexpected.isEmpty()) {
+            throw new IllegalStateException(
+                    "UNEXPECTED_DECISION_REQUIREMENT unexpected=" + unexpected
+                            + " all=" + tripwireHits);
         }
         if (parents.isEmpty()) {
             throw new IllegalStateException(
@@ -495,6 +532,31 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             tripJson.append(q(TRIPWIRE_METHODS[i]));
         }
         tripJson.append(']');
+        final StringBuilder hitsJson = new StringBuilder("[");
+        for (int i = 0; i < result.tripwireHits.size(); i++) {
+            if (i != 0) hitsJson.append(',');
+            final TripwireHit hit = result.tripwireHits.get(i);
+            hitsJson.append("{\"site\":").append(q(hit.site))
+                    .append(",\"options\":").append(hit.options)
+                    .append(",\"caller\":").append(q(hit.caller))
+                    .append(",\"incidental\":").append(hit.incidental).append('}');
+        }
+        hitsJson.append(']');
+        final StringBuilder consultationsJson = new StringBuilder("[");
+        boolean firstConsultation = true;
+        final List<String> seenConsultations = new ArrayList<>();
+        for (final CaseRow row : rows) {
+            for (final Consultation consultation : row.consultations) {
+                final String key = consultation.site + "|" + consultation.options;
+                if (seenConsultations.contains(key)) continue;
+                seenConsultations.add(key);
+                if (!firstConsultation) consultationsJson.append(',');
+                firstConsultation = false;
+                consultationsJson.append("{\"site\":").append(q(consultation.site))
+                        .append(",\"options\":").append(consultation.options).append('}');
+            }
+        }
+        consultationsJson.append(']');
 
         final String trace = "{"
                 + "\"schema\":\"commander-simulator-next.ws33-abilitysub-trace.v2\","
@@ -511,7 +573,11 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 + "\"parent_resolution_events\":" + parentJson + ","
                 + "\"child_observations\":" + childJson + ","
                 + "\"matched_links\":" + linksJson + ","
-                + "\"decision_tripwire\":{\"methods\":" + tripJson + ",\"hits\":[]},"
+                + "\"decision_tripwire\":{\"methods\":" + tripJson
+                + ",\"hits\":" + hitsJson
+                + ",\"declared_consultations\":" + consultationsJson
+                + ",\"incidental_flow_rule\":"
+                + "\"PhaseHandler.mainLoopStep-originated play-consideration queries\"},"
                 + "\"runtime_profile\":{\"static_screen\":\"PASS\","
                 + "\"unexpected_decision\":false,"
                 + "\"unexpected_hidden\":false,"
@@ -605,11 +671,12 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         for (final String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
             if (line.isBlank() || line.startsWith("#")) continue;
             final String[] f = line.split("\t", -1);
-            if (f.length != 14) {
+            if (f.length != 14 && f.length != 15) {
                 throw new IllegalArgumentException("malformed WS33 AbilitySub witness case line");
             }
             result.add(new CaseRow(f[0], unb64(f[1]), f[2], unb64(f[3]), f[4], unb64(f[5]),
-                    f[6], f[7], f[8], f[9], f[10], f[11], Integer.parseInt(f[12]), f[13]));
+                    f[6], f[7], f[8], f[9], f[10], f[11], Integer.parseInt(f[12]), f[13],
+                    f.length > 14 ? f[14] : ""));
         }
         if (result.isEmpty()) {
             throw new IllegalArgumentException("WS33 AbilitySub witness case set is empty");
@@ -655,11 +722,12 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         final String childApi;
         final int parentLine;
         final List<AssertionDef> assertions = new ArrayList<>();
+        final List<Consultation> consultations = new ArrayList<>();
 
         CaseRow(String executionId, String cardName, String oracle, String sourcePath,
                 String fixtureKind, String enteringCard, String setup, String linkPath,
                 String parentSvar, String parentApi, String childSub, String childApi,
-                int parentLine, String assertionText) {
+                int parentLine, String assertionText, String consultationText) {
             this.executionId = executionId;
             this.cardName = cardName;
             this.oracle = oracle;
@@ -680,6 +748,15 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     // id|type|who|name_b64|card_b64|counter|keyword|expected
                     this.assertions.add(new AssertionDef(parts[0], parts[1], parts[2],
                             parts[3], parts[4], parts[5], parts[6], parts[7]));
+                }
+            }
+            if (consultationText != null && !consultationText.isBlank()) {
+                for (final String cell : consultationText.split(";", -1)) {
+                    if (cell.isBlank()) continue;
+                    final String[] parts = cell.split("\\|", -1);
+                    // site|options
+                    this.consultations.add(new Consultation(
+                            parts[0], Integer.parseInt(parts[1])));
                 }
             }
         }
@@ -711,15 +788,30 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
     private static final class TripwireHit {
         final String site;
         final String caller;
+        final int options;
+        final boolean incidental;
 
-        TripwireHit(String site, String caller) {
+        TripwireHit(String site, String caller, int options, boolean incidental) {
             this.site = site;
             this.caller = caller;
+            this.options = options;
+            this.incidental = incidental;
         }
 
         @Override
         public String toString() {
-            return site + "@" + caller;
+            return site + "(options=" + options + ")@" + caller
+                    + (incidental ? "[incidental]" : "[EFFECT]");
+        }
+    }
+
+    private static final class Consultation {
+        final String site;
+        final int options;
+
+        Consultation(String site, int options) {
+            this.site = site;
+            this.options = options;
         }
     }
 

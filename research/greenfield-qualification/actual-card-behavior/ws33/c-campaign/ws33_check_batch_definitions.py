@@ -97,6 +97,22 @@ def main() -> None:
 
     seen_paths: set[str] = set()
     for ex in defs["executions"]:
+        for s in ex.get("setup", []):
+            if s.get("zone") not in ("Battlefield", "Hand"):
+                fail(f"bad setup zone {ex['execution_id']}")
+            if s.get("who") not in ("actor", "opponent"):
+                fail(f"bad setup owner {ex['execution_id']}")
+            if not isinstance(s.get("count"), int) or s["count"] < 1:
+                fail(f"bad setup count {ex['execution_id']}")
+            if s.get("via", "place") not in ("place", "move"):
+                fail(f"bad setup via {ex['execution_id']}")
+            if s.get("via") == "move" and s.get("zone") != "Battlefield":
+                fail(f"via=move requires Battlefield zone {ex['execution_id']}")
+        for c in ex.get("expected_consultations", []):
+            if not c.get("site") or not isinstance(c.get("options"), int):
+                fail(f"bad consultation declaration {ex['execution_id']}")
+        if ex["fixture"]["kind"] == "ETB_OTHER_ENTER" and not ex["fixture"].get("entering_card"):
+            fail(f"ETB_OTHER_ENTER without entering_card {ex['execution_id']}")
         txt = script(ex["source_path"])
         svars = parse_svars(txt)
         hits = screen_script(txt)

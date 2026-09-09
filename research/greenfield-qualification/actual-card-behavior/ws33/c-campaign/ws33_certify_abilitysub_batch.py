@@ -109,8 +109,18 @@ def check_execution(trace: dict, record: dict, expect: dict, owned: dict) -> str
     trip = trace.get("decision_tripwire", {})
     if sorted(trip.get("methods", [])) != sorted(TRIPWIRE_METHODS):
         return "tripwire method set mismatch"
-    if trip.get("hits"):
-        return f"unexpected decision requirement: {trip.get('hits')}"
+    declared = {(c.get("site"), c.get("options"))
+                for c in expect.get("expected_consultations", [])}
+    for hit in trip.get("hits", []):
+        if hit.get("incidental") is True:
+            continue
+        if (hit.get("site"), hit.get("options")) not in declared:
+            return (f"unexpected decision requirement: {hit.get('site')} "
+                    f"options={hit.get('options')} caller={hit.get('caller')}")
+    for site, options in sorted(declared):
+        if not any(h.get("site") == site and h.get("options") == options
+                   and h.get("incidental") is not True for h in trip.get("hits", [])):
+            return f"declared consultation not observed: {site} options={options}"
     prof = trace.get("runtime_profile", {})
     if prof.get("static_screen") != "PASS":
         return "static screen not passed"
@@ -183,7 +193,8 @@ def selftest() -> int:
               "oracle_identity": "O", "paths": ["P"],
               "links": [{"path_id": "P", "parent_api": "GainLife",
                          "child_api": "Draw", "child_sub": "DBDraw"}],
-              "assertions": [{"assertion_id": "life-delta-actor", "expected": 2}]}
+              "assertions": [{"assertion_id": "life-delta-actor", "expected": 2}],
+              "expected_consultations": []}
     owned = {"P": {"implementation_target": "M", "actual_runtime_class": "M"}}
 
     import copy
@@ -212,7 +223,9 @@ def selftest() -> int:
     cases.append(("attribution-mismatch-without-relation", t, copy.deepcopy(base_record),
                   "attribution mismatch without explicit relation", owned_diverged))
     t = copy.deepcopy(base_trace)
-    t["decision_tripwire"]["hits"] = ["chooseTargetsFor"]
+    t["decision_tripwire"]["hits"] = [
+        {"site": "chooseTargetsFor", "options": 2,
+         "caller": "AttachEffect.resolve", "incidental": False}]
     cases.append(("unexpected-decision", t, copy.deepcopy(base_record),
                   "unexpected decision requirement"))
     t = copy.deepcopy(base_trace)
@@ -227,11 +240,35 @@ def selftest() -> int:
     r["v2_path_ids"] = ["Q"]
     cases.append(("record-identity-mismatch", copy.deepcopy(base_trace), r,
                   "record identity mismatch"))
+    # Declared singleton consultation observed exactly: accept.
+    t = copy.deepcopy(base_trace)
+    t["decision_tripwire"]["hits"] = [
+        {"site": "chooseSingleEntityForEffect", "options": 1,
+         "caller": "AttachEffect.resolve", "incidental": False}]
+    expect_declared = copy.deepcopy(expect)
+    expect_declared["expected_consultations"] = [
+        {"site": "chooseSingleEntityForEffect", "options": 1}]
+    cases.append(("declared-consultation-observed", t, copy.deepcopy(base_record),
+                  None, None, expect_declared))
+    # Declared consultation with different option count: reject.
+    t = copy.deepcopy(base_trace)
+    t["decision_tripwire"]["hits"] = [
+        {"site": "chooseSingleEntityForEffect", "options": 3,
+         "caller": "AttachEffect.resolve", "incidental": False}]
+    cases.append(("consultation-options-mismatch", t, copy.deepcopy(base_record),
+                  "unexpected decision requirement", None, expect_declared))
+    # Incidental-only flow queries: accept.
+    t = copy.deepcopy(base_trace)
+    t["decision_tripwire"]["hits"] = [
+        {"site": "chooseSpellAbilityToPlay", "options": -1,
+         "caller": "PhaseHandler.mainLoopStep", "incidental": True}]
+    cases.append(("incidental-only", t, copy.deepcopy(base_record), None))
     failures = []
     for entry in cases:
         name, t, r, want = entry[0], entry[1], entry[2], entry[3]
-        use_owned = entry[4] if len(entry) > 4 else owned
-        got = check_execution(t, r, expect, use_owned)
+        use_owned = entry[4] if len(entry) > 4 and entry[4] is not None else owned
+        use_expect = entry[5] if len(entry) > 5 else expect
+        got = check_execution(t, r, use_expect, use_owned)
         if want is None and got is not None:
             failures.append(f"{name}: wrongly rejected ({got})")
         elif want is not None and (got is None or want not in got):
@@ -247,8 +284,8 @@ def selftest() -> int:
         for f in failures:
             print("  " + f)
         return 1
-    print("WS33_C_BATCH_ADJUDICATION_SELFTEST=PASS cases=10 "
-          "(positive + 9 fail-closed negatives)")
+    print("WS33_C_BATCH_ADJUDICATION_SELFTEST=PASS cases=13 "
+          "(positive + incidental-only + declared-consultation + 10 fail-closed negatives)")
     return 0
 
 

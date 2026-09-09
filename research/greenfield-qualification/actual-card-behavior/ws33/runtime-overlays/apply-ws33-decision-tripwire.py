@@ -3,18 +3,20 @@
 
 The tripwire is inert unless a qualification test registers an observer.
 It records (not blocks) invocations of the discretionary decision methods
-reachable during spell/ability resolution on the AI test controller. A
-STATE_ONLY witness must observe zero hits; any hit fails the record
-closed with an explicit unexpected-decision root cause.
+reachable during spell/ability resolution on the AI test controller, along
+with the caller-supplied option count (-1 where no option set is visible
+at the probe). A STATE_ONLY witness must show zero undeclared,
+non-incidental hits; declared singleton consultations (e.g. Attach target
+reaffirmation over a one-member defined set) are recorded with their
+option count and adjudicated against the case declaration.
 
-Covered sites (all in PlayerControllerAi.java, each one insertion):
+Covered sites (all in PlayerControllerAi.java):
 chooseTargetsFor, chooseCardsForEffect, chooseCardsForEffectMultiple,
 chooseSingleEntityForEffect, confirmAction, chooseNumber (3 overloads),
 chooseSpellAbilityToPlay.
 
 Scope note: methods outside this set are not observed. Batch selection
-combines this runtime surface with a structural script screen (no
-decision/target/RNG/hidden fields on the executed chain) and exact
+combines this runtime surface with a structural script screen and exact
 semantic postconditions. Coverage is recorded per record; residual risk
 outside the covered set stays CODE_DERIVED, never PASS-inherited.
 """
@@ -31,6 +33,30 @@ SITES = [
     "confirmAction",
     "chooseNumber",
     "chooseSpellAbilityToPlay",
+]
+
+# (method anchor substring, probe options expression). Anchors are matched
+# against exact pin content; each anchor must occur exactly once except
+# chooseNumber which occurs once per overload (3).
+PROBES = [
+    ("    public boolean chooseTargetsFor(SpellAbility currentAbility) {",
+     "-1"),
+    ("    public CardCollectionView chooseCardsForEffect(CardCollectionView sourceList, SpellAbility sa, String title, int min, int max, boolean isOptional, Map<String, Object> params) {",
+     "sourceList == null ? -1 : sourceList.size()"),
+    ("    public CardCollection chooseCardsForEffectMultiple(Map<String, CardCollection> validMap, SpellAbility sa, String title, boolean isOptional) {",
+     "validMap == null ? -1 : validMap.size()"),
+    ("    public <T extends GameEntity> T chooseSingleEntityForEffect(FCollectionView<T> optionList, DelayedReveal delayedReveal, SpellAbility sa, String title, boolean isOptional, Player targetedPlayer, Map<String, Object> params) {",
+     "optionList == null ? -1 : optionList.size()"),
+    ("    public boolean confirmAction(SpellAbility sa, PlayerActionConfirmMode mode, String message, List<String> options, Card cardToShow, Map<String, Object> params) {",
+     "options == null ? -1 : options.size()"),
+    ("    public List<SpellAbility> chooseSpellAbilityToPlay() {",
+     "-1"),
+    ("    public int chooseNumber(SpellAbility sa, String title, int min, int max) {",
+     "(max >= min ? (max - min + 1) : 0)"),
+    ("    public int chooseNumber(SpellAbility sa, String string, int min, int max, Map<String, Object> params) {",
+     "(max >= min ? (max - min + 1) : 0)"),
+    ("    public int chooseNumber(SpellAbility sa, String title, List<Integer> options, Player relatedPlayer) {",
+     "options == null ? -1 : options.size()"),
 ]
 
 
@@ -51,40 +77,24 @@ def main() -> None:
         raise SystemExit("WS33_DECISION_TRIPWIRE_OVERLAY=FAIL overlay already present")
     s = replace_once(
         s,
+        "import java.util.function.Consumer;",
+        "import java.util.function.BiConsumer;\nimport java.util.function.Consumer;",
+        "BiConsumer import",
+    )
+    s = replace_once(
+        s,
         "public class PlayerControllerAi extends PlayerController {\n    private final AiController brains;",
-        "public class PlayerControllerAi extends PlayerController {\n    private static volatile Consumer<String> ws33DecisionTripwire;\n\n    public static void setWs33DecisionTripwire(final Consumer<String> tripwire) {\n        ws33DecisionTripwire = tripwire;\n    }\n\n    private static void ws33NoteDecision(final String site) {\n        final Consumer<String> tripwire = ws33DecisionTripwire;\n        if (tripwire != null) {\n            tripwire.accept(site);\n        }\n    }\n\n    private final AiController brains;",
+        "public class PlayerControllerAi extends PlayerController {\n    private static volatile BiConsumer<String, Integer> ws33DecisionTripwire;\n\n    public static void setWs33DecisionTripwire(final BiConsumer<String, Integer> tripwire) {\n        ws33DecisionTripwire = tripwire;\n    }\n\n    private static void ws33NoteDecision(final String site, final int options) {\n        final BiConsumer<String, Integer> tripwire = ws33DecisionTripwire;\n        if (tripwire != null) {\n            tripwire.accept(site, options);\n        }\n    }\n\n    private final AiController brains;",
         "tripwire slot",
     )
-    import re
-    # Insert a probe as the first statement of every covered method by
-    # matching the method signature line followed by its opening brace.
-    # Signatures below are exact pin content (verified); each must match once
-    # except chooseNumber which has three overloads.
-    signatures = [
-        "    public boolean chooseTargetsFor(SpellAbility currentAbility) {",
-        "    public CardCollectionView chooseCardsForEffect(CardCollectionView sourceList, SpellAbility sa, String title, int min, int max, boolean isOptional, Map<String, Object> params) {",
-        "    public CardCollection chooseCardsForEffectMultiple(Map<String, CardCollection> validMap, SpellAbility sa, String title, boolean isOptional) {",
-        "    public <T extends GameEntity> T chooseSingleEntityForEffect(FCollectionView<T> optionList, DelayedReveal delayedReveal, SpellAbility sa, String title, boolean isOptional, Player targetedPlayer, Map<String, Object> params) {",
-        "    public boolean confirmAction(SpellAbility sa, PlayerActionConfirmMode mode, String message, List<String> options, Card cardToShow, Map<String, Object> params) {",
-        "    public List<SpellAbility> chooseSpellAbilityToPlay() {",
-        "    public int chooseNumber(SpellAbility sa, String title, int min, int max) {",
-        "    public int chooseNumber(SpellAbility sa, String string, int min, int max, Map<String, Object> params) {",
-        "    public int chooseNumber(SpellAbility sa, String title, List<Integer> options, Player relatedPlayer) {",
-    ]
-    probed = 0
-    for sig in signatures:
-        method = re.search(r"\b(\w+)\(", sig).group(1)
+    for sig, expr in PROBES:
+        method = sig.split("(")[0].rsplit(" ", 1)[-1]
         old = sig + "\n"
-        new = sig + '\n        ws33NoteDecision("' + method + '");\n'
-        n = s.count(old)
-        if n != 1:
-            raise SystemExit(
-                f"WS33_DECISION_TRIPWIRE_OVERLAY=FAIL site {method}: expected one match, got {n}")
-        s = s.replace(old, new, 1)
-        probed += 1
+        new = sig + '\n        ws33NoteDecision("' + method + '", ' + expr + ');\n'
+        s = replace_once(s, old, new, f"site {method}")
     path.write_text(s, encoding="utf-8")
-    print(f"WS33_DECISION_TRIPWIRE_OVERLAY=PASS sites={probed} observation_only=TRUE "
-          f"methods={','.join(SITES)}")
+    print("WS33_DECISION_TRIPWIRE_OVERLAY=PASS sites=9 observation_only=TRUE "
+          f"methods={','.join(SITES)} options_counted=TRUE")
 
 
 if __name__ == "__main__":

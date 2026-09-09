@@ -1,6 +1,6 @@
 # WS33-C Batch 1 selection (8 new paths + 1 intended re-witness)
 
-Batch digest: `9d85efc6082449d4526ed4e7388e91c0326b3ca127c6cc69f771559e2cc0f855`
+Batch digest: `5723f7c4536fa9a2318b1afc672ed974570734df6732c8992a8cc5800214073c` (R3: Cap via-move fixture, Attach singleton consultation declared, incidental-flow rule)
 Scope: template-113 / AbilitySub only (cap honored; 105/119 excluded).
 All 8 new paths verified UNKNOWN, STATE_ONLY, provenance-bound; pilot path
 declared re-witness (upgrades its order evidence under the v2 contract).
