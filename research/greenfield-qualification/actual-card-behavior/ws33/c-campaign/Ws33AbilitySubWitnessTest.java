@@ -148,12 +148,14 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         fillLibrary(actor, 10);
 
         final Map<String, Player> who = Map.of("actor", actor, "opponent", opponent);
-        for (final String placement : first.setup) {
-            if (placement.isBlank()) continue;
-            final String[] parts = placement.split("\\|", -1);
-            final Player owner = who.get(parts[2]);
-            for (int i = 0; i < Integer.parseInt(parts[3]); i++) {
-                addCardToZone(unb64(parts[0]), owner, ZoneType.valueOf(parts[1]));
+        if (!first.setup.isBlank()) {
+            for (final String placement : first.setup.split(";", -1)) {
+                if (placement.isBlank()) continue;
+                final String[] parts = placement.split("\\|", -1);
+                final Player owner = who.get(parts[2]);
+                for (int i = 0; i < Integer.parseInt(parts[3]); i++) {
+                    addCardToZone(unb64(parts[0]), owner, ZoneType.valueOf(parts[1]));
+                }
             }
         }
 
