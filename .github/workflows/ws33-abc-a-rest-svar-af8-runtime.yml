@@ -13,6 +13,7 @@ on:
       - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-stack-resolution-reachability.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-a-rest-play-stage-observer.py'
       - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-mana-cancel-boundary.py'
+      - 'research/greenfield-qualification/actual-card-behavior/ws33/runtime-overlays/apply-ws33-bounded-number.py'
   workflow_dispatch:
 
 permissions:
@@ -48,7 +49,8 @@ jobs:
           python -m py_compile \
             "$ROOT/ws33_decision_path_evidence.py" \
             "$ROOT/ws33_harden_a_rest_svar_af8_runtime.py" \
-            "$ROOT/ws33_adjudicate_a_rest_svar_af8.py"
+            "$ROOT/ws33_adjudicate_a_rest_svar_af8.py" \
+            "$ROOT/runtime-overlays/apply-ws33-bounded-number.py"
           (cd "$ROOT" && python -m unittest -v test_ws33_decision_path_evidence.py test_ws33_adjudicate_a_rest_svar_af8.py)
 
       - name: Consume immutable production-root routes
@@ -112,6 +114,7 @@ jobs:
           cp direct-source/research/greenfield-qualification/hidden-info/Ws05HiddenInfoProbe.java forge/forge-gui-desktop/src/test/java/forge/net/Ws05HiddenInfoProbe.java
           python direct-source/research/greenfield-qualification/forge-patches/apply-ws06-rng-replay-overlay.py forge --inventory generated/record/RNG_INVENTORY.json | tee generated/overlay-logs/ws06.log
           python "$ROOT/runtime-overlays/apply-ws33-input-confirm.py" --forge-root forge | tee generated/overlay-logs/ws33-input-confirm.log
+          python "$ROOT/runtime-overlays/apply-ws33-bounded-number.py" --forge-root forge | tee generated/overlay-logs/ws33-bounded-number.log
           python "$ROOT/runtime-overlays/apply-ws33-observation-fanout.py" --forge-root forge | tee generated/overlay-logs/ws33-observation-fanout.log
           python "$ROOT/runtime-overlays/apply-ws33-external-card-decision-lifetime.py" --forge-root forge | tee generated/overlay-logs/ws33-card-decision-lifetime.log
           python "$ROOT/runtime-overlays/apply-ws33-stack-target.py" --forge-root forge | tee generated/overlay-logs/ws33-stack-target.log
@@ -122,6 +125,7 @@ jobs:
           python "$ROOT/runtime-overlays/apply-ws33-mana-cancel-boundary.py" --forge-root forge | tee generated/overlay-logs/ws33-mana-cancel-boundary.log
           python ws12/research/greenfield-qualification/failure-semantics/apply-ws12-forge-overlay.py --forge-root forge | tee generated/overlay-logs/ws12.log
           python ws32/research/greenfield-qualification/actual-card-behavior/ws32/apply_ws32_card_behavior_production_binding.py --forge-root forge | tee generated/overlay-logs/ws32.log
+          grep -Fx 'WS33_BOUNDED_NUMBER_EXTERNALIZED=PASS finite_range=true x_mana_feasibility=true gui_fallback_external_mode=0 rules_mutation=0' generated/overlay-logs/ws33-bounded-number.log
           grep -Fx 'WS33_STACK_RESOLUTION_REACHABILITY=PASS boundary=TRIGGER_PLAY_PREREQUISITES_ADD_TARGET_REJECT_FROZEN_PUSH_FIZZLE_POST_FIZZLE_PRE_API_RESOLVE semantics_mutated=FALSE' generated/overlay-logs/ws33-stack-resolution.log
           grep -Fx 'WS33_A_REST_PLAY_STAGE_OBSERVER=PASS semantics_mutated=FALSE booleans_mutated=FALSE' generated/overlay-logs/ws33-a-rest-play-stage.log
           grep -F 'WS33_MANA_CANCEL_BOUNDARY=PASS cancel_encoding=REQUEST_LEVEL ordinary_cancel_option=FALSE rail=TRACED' generated/overlay-logs/ws33-mana-cancel-boundary.log
@@ -154,7 +158,7 @@ jobs:
           grep -Fx 'WS33_A_SVAR_AF8_EFFECT_EVIDENCE=TARGET_CARD_POSTCONDITION_FROM_TARGET_SCRIPT' generated/diagnostic/a-af8-hardener.log
           grep -Fx 'WS33_A_SVAR_AF8_IDENTITY_EVIDENCE=SOURCE_ROOT_CHILD_ACTOR_TARGET_BEFORE_AFTER' generated/diagnostic/a-af8-hardener.log
           grep -Fx 'WS33_A_SVAR_AF8_SELECTION_WITNESS=POLICY_BRANCHES_X_MODE_GENERIC_FORCED_CLASSIFIED' generated/diagnostic/a-af8-hardener.log
-          grep -Fx 'WS33_A_SVAR_AF8_POSITIVE_X_KIND=GUI_GET_INTEGER' generated/diagnostic/a-af8-hardener.log
+          grep -Fx 'WS33_A_SVAR_AF8_POSITIVE_X_KIND=GUI_GET_INTEGER_NUMBER_NUMBER_ENUM' generated/diagnostic/a-af8-hardener.log
           grep -Fx 'WS33_A_SVAR_AF8_CLIENT_EVIDENCE=WS05_REAL_REMOTE_PHASE_SAMPLES' generated/diagnostic/a-af8-hardener.log
           grep -Fx 'WS33_A_SVAR_AF8_RULES_MUTATION=0 card_name_branch=0 path_id_branch=0' generated/diagnostic/a-af8-hardener.log
           ! grep -F 'sa.resolve()' "$dst"

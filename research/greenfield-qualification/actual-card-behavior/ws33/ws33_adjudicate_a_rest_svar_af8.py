@@ -283,14 +283,18 @@ def selection_gate(label: str, rows: dict[str, list[list[str]]], cases: dict[str
             if r[11] not in {"true", "false"} or (forced_selection(n, mn, mx) != (r[11] == "true")):
                 failures.append(f"{pid}:{label}:forced_misclassified")
                 continue
-            if kind == "GUI_GET_INTEGER" and basis == "POSITIVE_X_ANNOUNCEMENT":
+            # The shared bounded-number overlay externalizes unbounded mana-X as NUMBER_ENUM
+            # (Forge payability enumeration) and finite ranges as NUMBER; GUI_GET_INTEGER
+            # remains accepted for any non-rerouted integer prompt. All three carry the
+            # same 1/1 positive-selection shape under POSITIVE_X_ANNOUNCEMENT.
+            if kind in ("GUI_GET_INTEGER", "NUMBER", "NUMBER_ENUM") and basis == "POSITIVE_X_ANNOUNCEMENT":
                 if mn != 1 or mx != 1 or sel != 1 or len(decoded) != 1:
                     failures.append(f"{pid}:{label}:x_selection_shape")
                     continue
                 if not decoded[0].isdigit() or int(decoded[0]) < 1:
                     failures.append(f"{pid}:{label}:x_not_positive")
         if require_presence and "Announce$ X" in script:
-            xrows = [r for r in rs if len(r) == 12 and r[1] == "GUI_GET_INTEGER" and r[10] == "POSITIVE_X_ANNOUNCEMENT"]
+            xrows = [r for r in rs if len(r) == 12 and r[1] in ("GUI_GET_INTEGER", "NUMBER", "NUMBER_ENUM") and r[10] == "POSITIVE_X_ANNOUNCEMENT"]
             if not xrows:
                 failures.append(f"{pid}:{label}:x_announcement_selection_missing")
         if require_presence and cases[pid][4] == "Charm":

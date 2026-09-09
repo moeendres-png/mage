@@ -258,14 +258,32 @@ class AdjudicatorTest(unittest.TestCase):
         self.assert_fail("unknown_target_path")
 
     def test_x_wrong_kind(self):
+        # Only the shared-stack numeric option kinds may carry a positive-X
+        # announcement: GUI_GET_INTEGER (non-rerouted prompt), NUMBER (finite
+        # chooseNumber range) and NUMBER_ENUM (payability-enumerated mana-X).
         rows = []
         for p in PATHS:
             for r in selection_rows(p):
                 if p == X_PATH and r.split("\t")[1] == "GUI_GET_INTEGER":
-                    r = r.replace("GUI_GET_INTEGER", "NUMBER", 1)
+                    r = r.replace("GUI_GET_INTEGER", "CONFIRM_ACTION", 1)
                 rows.append(r)
         self.fx.rewrite("record", "AF8_SELECTION_WITNESS.tsv", rows)
         self.assert_fail("x_announcement_selection_missing")
+
+    def test_x_shared_stack_number_kinds_accepted(self):
+        for kind in ("NUMBER", "NUMBER_ENUM"):
+            with self.subTest(kind=kind):
+                rows = []
+                for p in PATHS:
+                    for r in selection_rows(p):
+                        if p == X_PATH and r.split("\t")[1] == "GUI_GET_INTEGER":
+                            r = r.replace("GUI_GET_INTEGER", kind, 1)
+                        rows.append(r)
+                self.fx.rewrite("record", "AF8_SELECTION_WITNESS.tsv", rows)
+                self.fx.rewrite("replay", "AF8_SELECTION_WITNESS.tsv", rows)
+                code, gate = self.fx.run()
+                self.assertEqual(code, 0, gate.get("failures"))
+                self.assertEqual(gate["status"], "PASS")
 
     def test_x_not_positive(self):
         rows = []

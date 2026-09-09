@@ -72,15 +72,18 @@ def main() -> None:
     )
 
     # Source-proven X needs a positive discretionary value so TargetMax$ X actually has
-    # a targetable cardinality. Selection remains strictly inside Forge's opaque options.
-    # The authoritative X-announcement request for a normally-cast production is exactly
-    # PlayerControllerHuman.announceRequirements -> getGui().getInteger -> external kind
-    # GUI_GET_INTEGER (Forge pin: Cost.isMandatory is false for ordinary casts; only
-    # PlayEffect/Discover free casts set mandatory and reach chooseNumber/NUMBER).
-    # Other getInteger dialogs on other sources never match the Announce$ X script marker.
+    # a targetable cardinality. Selection remains strictly inside Forge's opaque options:
+    # the pilot never enumerates legality, it picks the smallest positive value among the
+    # exact options the shared stack already externalized. The shared bounded-number
+    # overlay (same mechanism as the qualified AF8 line) routes announceRequirements so
+    # unbounded mana-X arrives as kind NUMBER_ENUM (Forge payability enumeration via
+    # ComputerUtilMana.canPayManaCost over actual pool+production, fail-closed otherwise)
+    # and finite ranges arrive as kind NUMBER via chooseNumber; GUI_GET_INTEGER remains
+    # accepted for any non-rerouted integer prompt. Other numeric dialogs on other
+    # sources never match the Announce$ X script marker.
     policy_anchor = 'CaseSpec pathSpec=ws33CaseSpecs.get(path);'
     policy = policy_anchor + (
-        'if(pathSpec!=null&&"GUI_GET_INTEGER".equals(req.getDecisionKind())&&pathSpec.script.contains("Announce$ X")&&req.getMinimumSelection()==1&&req.getMaximumSelection()==1){'
+        'if(pathSpec!=null&&("GUI_GET_INTEGER".equals(req.getDecisionKind())||"NUMBER".equals(req.getDecisionKind())||"NUMBER_ENUM".equals(req.getDecisionKind()))&&pathSpec.script.contains("Announce$ X")&&req.getMinimumSelection()==1&&req.getMaximumSelection()==1){'
         'ExternalDecisionRequest.Option best=null;int bestValue=Integer.MAX_VALUE;for(ExternalDecisionRequest.Option o:options){if(o.isEntityBacked())continue;try{int v=Integer.parseInt(o.getSemanticValue());if(v>0&&v<bestValue){best=o;bestValue=v;}}catch(NumberFormatException ignored){}}'
         'if(best!=null){selected.add(best.getOptionId());recordAf8Selection(path,req,selected,"POSITIVE_X_ANNOUNCEMENT");return;}}'
     )
@@ -186,7 +189,7 @@ def main() -> None:
         'refreshPayableResources(actor)',
         'c.isLand()&&c.isTapped())c.untap()',
         'sourceRootExecutions',
-        '"GUI_GET_INTEGER".equals(req.getDecisionKind())&&pathSpec.script.contains("Announce$ X")',
+        '"NUMBER_ENUM".equals(req.getDecisionKind()))&&pathSpec.script.contains("Announce$ X")',
     )
     for token in required:
         require(token in t, "missing hardened invariant " + token)
@@ -203,7 +206,7 @@ def main() -> None:
     print("WS33_A_SVAR_AF8_EFFECT_EVIDENCE=TARGET_CARD_POSTCONDITION_FROM_TARGET_SCRIPT")
     print("WS33_A_SVAR_AF8_IDENTITY_EVIDENCE=SOURCE_ROOT_CHILD_ACTOR_TARGET_BEFORE_AFTER")
     print("WS33_A_SVAR_AF8_SELECTION_WITNESS=POLICY_BRANCHES_X_MODE_GENERIC_FORCED_CLASSIFIED")
-    print("WS33_A_SVAR_AF8_POSITIVE_X_KIND=GUI_GET_INTEGER")
+    print("WS33_A_SVAR_AF8_POSITIVE_X_KIND=GUI_GET_INTEGER_NUMBER_NUMBER_ENUM")
     print("WS33_A_SVAR_AF8_CLIENT_EVIDENCE=WS05_REAL_REMOTE_PHASE_SAMPLES")
     print("WS33_A_SVAR_AF8_RULES_MUTATION=0 card_name_branch=0 path_id_branch=0")
 
