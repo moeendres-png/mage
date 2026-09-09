@@ -302,14 +302,12 @@ public final class Ws33D2LifeloseCampaignTest extends AITest {
                 if (game.getStack().isEmpty()) {
                     throw new IllegalStateException("production destroyer cast left an empty stack");
                 }
+                playUntilAllSettled(game);
                 return;
             }
             case "ACTIVATED_DISCARD_TAP": {
                 placeCard(c.cardName, actor, ZoneType.Battlefield);
-                final Card card = findCardWithName(game, c.cardName);
-                if (card == null) {
-                    throw new IllegalStateException("activated host not on battlefield");
-                }
+                final Card card = requireHostOnBattlefield(game, c.cardName);
                 final SpellAbility ability = findActivatedAbility(card, ApiType.LoseLife);
                 if (!PlaySpellAbility.playSpellAbility(controller, actor, ability)) {
                     throw new IllegalStateException("production ability activation returned false");
@@ -321,10 +319,7 @@ public final class Ws33D2LifeloseCampaignTest extends AITest {
             }
             case "PLANESWALKER_DRAW_LOSE": {
                 placeCard(c.cardName, actor, ZoneType.Battlefield);
-                final Card card = findCardWithName(game, c.cardName);
-                if (card == null) {
-                    throw new IllegalStateException("planeswalker host not on battlefield");
-                }
+                final Card card = requireHostOnBattlefield(game, c.cardName);
                 final SpellAbility ability = findActivatedAbility(card, ApiType.Draw);
                 if (!PlaySpellAbility.playSpellAbility(controller, actor, ability)) {
                     throw new IllegalStateException("production loyalty activation returned false");
@@ -356,6 +351,40 @@ public final class Ws33D2LifeloseCampaignTest extends AITest {
         } catch (NullPointerException e) {
             throw new IllegalStateException("card script not resolvable for exact name: " + name, e);
         }
+    }
+
+    private Card requireHostOnBattlefield(final Game game, final String name) {
+        final Card card = findCardWithName(game, name);
+        if (card == null) {
+            final StringBuilder present = new StringBuilder();
+            for (final Card c : game.getCardsIn(ZoneType.Battlefield)) {
+                if (present.length() != 0) {
+                    present.append(',');
+                }
+                present.append(c.getName());
+            }
+            throw new IllegalStateException("host not on battlefield expected=" + name
+                    + " present=[" + present + "]");
+        }
+        return card;
+    }
+
+    private void playUntilAllSettled(final Game game) {
+        for (int round = 0; round < 25; round++) {
+            playUntilStackClear(game);
+            if (game.isGameOver()) {
+                return;
+            }
+            final boolean waiting = game.getTriggerHandler().runWaitingTriggers();
+            final boolean stacked = game.getStack().addAllTriggeredAbilitiesToStack();
+            if (game.getStack().isEmpty()) {
+                return;
+            }
+            if (!waiting && !stacked) {
+                throw new IllegalStateException("stack non-empty with no trigger progress");
+            }
+        }
+        throw new IllegalStateException("stack did not settle within round cap");
     }
 
     private SpellAbility findActivatedAbility(final Card card, final ApiType api) {
@@ -399,7 +428,7 @@ public final class Ws33D2LifeloseCampaignTest extends AITest {
                 break;
         }
         if ("SPELL_DRAW_LOSE_TOKEN".equals(c.recipe)
-                && countCardsWithName(game, "Wizard", ZoneType.Battlefield) != 1) {
+                && countCardsWithName(game, "Wizard Token", ZoneType.Battlefield) != 1) {
             throw new IllegalStateException("expected exactly one Wizard token on battlefield");
         }
         if ("SPELL_DRAW_LOSE".equals(c.recipe)) {
