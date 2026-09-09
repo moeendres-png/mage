@@ -179,11 +179,14 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         final List<TripwireHit> tripwireHits = new ArrayList<>();
         final int[] seq = {0};
         AbilityUtils.setWs33ParentResolutionObserver(sa -> {
+            final Player activator = sa.getActivatingPlayer();
             parents.add(new ParentEvent(seq[0]++,
                     sa.getId(),
                     sa.getApi() == null ? null : sa.getApi().name(),
                     sa.getHostCard() == null ? null : sa.getHostCard().getName(),
-                    sa.hasParam("SubAbility") ? sa.getParam("SubAbility") : null));
+                    sa.hasParam("SubAbility") ? sa.getParam("SubAbility") : null,
+                    activator == null ? "null"
+                            : activator.getName() + (activator.isInGame() ? "" : ":OUT")));
         });
         AbilitySub.setWs33ResolutionObserver(sa -> {
             final SpellAbility parent = sa.getParent();
@@ -325,7 +328,10 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                                 + " candidates=" + candidates.size()
                                 + " candidates_detail=" + candidates
                                 + " all_parents=" + parents
-                                + " all_children=" + children);
+                                + " all_children=" + children
+                                + " sem=" + semanticSnapshot(
+                                        game, actor, opponent, lifeActorBefore,
+                                        lifeOpponentBefore, handActorBefore));
             }
             final ParentEvent parent = candidates.get(0);
             if (parent.subParam == null || !row.childSub.equals(parent.subParam)) {
@@ -348,7 +354,10 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                 throw new IllegalStateException(
                         "production-linked child not reached for " + row.linkPath
                                 + " observations=" + children
-                                + " parents=" + parents);
+                                + " parents=" + parents
+                                + " sem=" + semanticSnapshot(
+                                        game, actor, opponent, lifeActorBefore,
+                                        lifeOpponentBefore, handActorBefore));
             }
             matched.add(new MatchedLink(row, parent, match, rootId));
         }
@@ -397,6 +406,17 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                             + " stacked=" + stacked
                             + " stack_empty=" + game.getStack().isEmpty());
         }
+    }
+
+    private String semanticSnapshot(final Game game, final Player actor,
+            final Player opponent, final int lifeActorBefore,
+            final int lifeOpponentBefore, final int handActorBefore) {
+        return "life_actor=" + actor.getLife() + "(d"
+                + (actor.getLife() - lifeActorBefore) + ")"
+                + " life_opp=" + opponent.getLife() + "(d"
+                + (opponent.getLife() - lifeOpponentBefore) + ")"
+                + " hand_actor=" + actor.getCardsIn(ZoneType.Hand).size() + "(d"
+                + (actor.getCardsIn(ZoneType.Hand).size() - handActorBefore) + ")";
     }
 
     private AssertionResult checkAssertion(final AssertionDef def, final Game game,
@@ -500,6 +520,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     .append(",\"id\":").append(event.id)
                     .append(",\"api\":").append(q(event.api))
                     .append(",\"host\":").append(q(event.host))
+                    .append(",\"activator\":").append(q(event.activator))
                     .append(",\"sub_param\":").append(q(event.subParam)).append('}');
         }
         parentJson.append(']');
@@ -830,19 +851,27 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         final String api;
         final String host;
         final String subParam;
+        final String activator;
 
         ParentEvent(int seq, int id, String api, String host, String subParam) {
+            this(seq, id, api, host, subParam, "?");
+        }
+
+        ParentEvent(int seq, int id, String api, String host, String subParam,
+                String activator) {
             this.seq = seq;
             this.id = id;
             this.api = api;
             this.host = host;
             this.subParam = subParam;
+            this.activator = activator;
         }
 
         @Override
         public String toString() {
             return "Parent{seq=" + seq + " id=" + id + " api=" + api
-                    + " host=" + host + " sub=" + subParam + "}";
+                    + " host=" + host + " sub=" + subParam
+                    + " by=" + activator + "}";
         }
     }
 
