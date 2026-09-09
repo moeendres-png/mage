@@ -133,14 +133,14 @@ public final class Ws33D1LifegainCampaignTest extends AITest {
             forge.net.Ws05HiddenInfoProbe.registerSecret("Black Lotus");
             addCardToZone("Black Lotus", opponent, ZoneType.Hand);
 
+            buildFixture(c, game, actor, opponent);
+
+            final Card designated = resolveDesignation(c, game, actor, opponent);
+
             final PlayerControllerHuman controller = new PlayerControllerHuman(
                     game, actor, new LobbyPlayerHuman("ws33-d1-principal"));
             final Provider decisions = new Provider(replay, requestLog, intentKindOf(c), designated);
             controller.setExternalDecisionProvider(decisions::decide);
-
-            buildFixture(c, game, actor, opponent);
-
-            final Card designated = resolveDesignation(c, game, actor, opponent);
 
             final int lifeBefore = actor.getLife();
             final int oppLifeBefore = opponent.getLife();
