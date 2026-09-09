@@ -141,6 +141,21 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         return parent.seq < child.seq;
     }
 
+    static boolean isSamePiece(final Card observed, final Card witness) {
+        // Engine-stable game-piece identity: reference equality, or the
+        // same engine Card ID. Zone changes off the battlefield copy the
+        // card (GameAction.changeZone via CardCopyService with assignNewId
+        // false preserves the ID, pin-verified), so a trigger resolving
+        // from the graveyard hosts a copy carrying the placed card's ID.
+        // IDs are per-game unique and construction-set (Game.nextCardId,
+        // GameEntity.getId); same-object implies same-ID, so every
+        // previously passing attribution is unaffected. Mutable card names
+        // are never consulted.
+        return observed == witness
+                || (observed != null && witness != null
+                        && observed.getId() == witness.getId());
+    }
+
     private Result execute(final List<CaseRow> rows, final String batch) {
         final CaseRow first = rows.get(0);
         final Game game = initAndCreateGame();
@@ -225,7 +240,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     sa.hasParam("SubAbility") ? sa.getParam("SubAbility") : null,
                     activator == null ? "null"
                             : activator.getName() + (activator.isInGame() ? "" : ":OUT"),
-                    hostCard != null && hostCard == sourceRef[0]));
+                    isSamePiece(hostCard, sourceRef[0])));
         });
         AbilitySub.setWs33ResolutionObserver(sa -> {
             final SpellAbility parent = sa.getParent();
@@ -236,7 +251,7 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     hostCard == null ? null : hostCard.getName(),
                     parent == null ? -1 : parent.getId(),
                     sa.getRootAbility().getId(),
-                    hostCard != null && hostCard == sourceRef[0]));
+                    isSamePiece(hostCard, sourceRef[0])));
         });
         PlayerControllerAi.setWs33DecisionTripwire((site, options, actorName) -> {
             // Capture the Forge caller frames test-side: the probe fires
@@ -776,7 +791,9 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
                     }
                     boolean linked = false;
                     for (final Object remembered : eff.getRemembered()) {
-                        if (remembered == witness) {
+                        if (remembered == witness
+                                || (remembered instanceof Card
+                                        && isSamePiece((Card) remembered, witness))) {
                             linked = true;
                             break;
                         }
