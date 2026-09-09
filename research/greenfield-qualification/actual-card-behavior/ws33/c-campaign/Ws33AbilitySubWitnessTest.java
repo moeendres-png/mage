@@ -303,7 +303,12 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
         }
         if (parents.isEmpty()) {
             throw new IllegalStateException(
-                    "no parent-effect resolution observed; ordering cannot be certified");
+                    "no parent-effect resolution observed; ordering cannot be certified"
+                            + " phase=" + game.getPhaseHandler().getPhase()
+                            + " turn=" + game.getPhaseHandler().getPlayerTurn().getName()
+                            + " game_over=" + game.isGameOver()
+                            + " stack_empty=" + game.getStack().isEmpty()
+                            + " children=" + children.size());
         }
         final int rootId = parents.get(0).id;
         final List<MatchedLink> matched = new ArrayList<>();
@@ -317,7 +322,10 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             if (candidates.size() != 1) {
                 throw new IllegalStateException(
                         "parent attribution ambiguous for " + row.linkPath
-                                + " candidates=" + candidates.size());
+                                + " candidates=" + candidates.size()
+                                + " candidates_detail=" + candidates
+                                + " all_parents=" + parents
+                                + " all_children=" + children);
             }
             final ParentEvent parent = candidates.get(0);
             if (parent.subParam == null || !row.childSub.equals(parent.subParam)) {
@@ -339,7 +347,8 @@ public final class Ws33AbilitySubWitnessTest extends AITest {
             if (match == null) {
                 throw new IllegalStateException(
                         "production-linked child not reached for " + row.linkPath
-                                + " observations=" + children);
+                                + " observations=" + children
+                                + " parents=" + parents);
             }
             matched.add(new MatchedLink(row, parent, match, rootId));
         }
