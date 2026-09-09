@@ -607,7 +607,7 @@ public final class Ws33D4StaticeffectCampaignTest extends AITest {
     }
 
     private AssertionAcc assertRecipePostconditionsInto(final Case c, final Game game,
-            final Player actor, final Player opponent, final AssertionAcc assertions) {
+            final Player actor, final Player opponent, final AssertionAcc acc) {
         switch (c.recipe) {
             case "SPELL_STATIC_PROBE": {
                 checkCount(game, acc, "probe-baseline-graveyard", "Dark Ritual", ZoneType.Graveyard, 1);
