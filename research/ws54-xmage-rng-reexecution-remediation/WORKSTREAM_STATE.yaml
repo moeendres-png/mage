@@ -1,7 +1,7 @@
 audit_base_sha: 0c1f455ea8c8fa48ab9d638ad5068ec242800428
 audit_base_tree: fdb8bf56a8bd8199a4ef372e468d93d6550b0649
 branch: qualification/ws54-xmage-rng-reexecution-remediation-20260910
-exact_next_action: XHIGH adjudication of RNG authority design (GameRandom topology, default-seed policy, copy semantics, Match scope, candidate canonicalization), then implement per-game RNG core.
+exact_next_action: Coordinator decision: authorize (or decline) pinning the terminal WS54 commit as an experimental successor pin and requalifying WS52 M1-M5 against it. Implementer work is COMPLETE; no code action remains in this workstream.
 in_scope:
 - Mage core game-scoped Rules RNG (Game/Library/Player/Cards/Target/Choice-audit/Modes/effects/Mulligan)
 - Deck.getMaindeckCards + Library.addAll setup-order determinism
@@ -14,7 +14,7 @@ out_of_scope:
 - Decision adapter modes, CPL envelope, hidden-info provider redesign
 - GUI modernization, broad card repairs, Forge, Argentum, perf optimization
 - Booster/draft/tournament/collation/cosmetic/server-session/UI randomness determinism
-- Arbitrary mid-decision snapshot/restore replay (NOT_QUALIFIED disposition expected)
+- Arbitrary mid-decision snapshot/restore replay (NOT_QUALIFIED disposition recorded)
 - XMage selection as production provider; architecture freeze; behavior credit
 objective: Establish whether XMage can support controlled Rules randomness and deterministic
   start-to-finish semantic reexecution via bounded systemic engine remediation; implement
@@ -22,20 +22,59 @@ objective: Establish whether XMage can support controlled Rules randomness and d
   gates without creating a second Rules engine.
 ownership: WS54-XMAGE-RNG-REEXECUTION-REMEDIATION
 repository: moeendres-png/mage
-worktree: /home/moeen/code/ws54-xmage-rng-reexecution-remediation-engine
 schema_version: '2.0'
-state_written_against_head: 0c1f455ea8c8fa48ab9d638ad5068ec242800428
-status: ACTIVE
+state_written_against_head: cbd8e4df0631e88b4033f52fb9ffe0e8f20731da
+status: COMPLETE
 validated_head: null
+adjudication:
+  authority: foundry-adjudicator at XHIGH (read-only)
+  ruling: D1-D10 CONFIRMED or CONFIRMED_WITH_MODIFICATION (all deltas incorporated);
+    items a-d ruled; AUTHORITY_GATE MTG_RULES: NONE
 milestones:
   A_source_lock_and_pre_repair_repro:
     status: COMPLETE
     evidence:
     - research/ws54-xmage-rng-reexecution-remediation/WS54_SOURCE_LOCK.md
     - research/ws54-xmage-rng-reexecution-remediation/WS54_PRE_REPAIR_M5_REPRO.json
-    - Mage/src/test/java/mage/WS54PreRepairM5ReproTest.java (5/5 PASS x3 fresh JVM runs)
+    - Mage/src/test/java/mage/WS54PreRepairM5ReproTest.java (5/5 PASS x3 fresh JVM runs;
+      source removed post-repair after R1/R3 inverted to fixed behavior; preserved in git history)
   B_inventory_and_architecture_decision:
-    status: IN_PROGRESS
+    status: COMPLETE
     evidence:
     - research/ws54-xmage-rng-reexecution-remediation/WS54_RANDOMNESS_INVENTORY.json
     - research/ws54-xmage-rng-reexecution-remediation/WS54_RANDOMNESS_INVENTORY.md
+    - research/ws54-xmage-rng-reexecution-remediation/WS54_RNG_ARCHITECTURE.md
+    - research/ws54-xmage-rng-reexecution-remediation/WS54_SETUP_ORDER_ANALYSIS.md
+  C_per_game_rng_core:
+    status: COMPLETE
+    evidence:
+    - Mage/src/main/java/mage/util/GameRandom.java (new)
+    - Game/GameImpl ownership + copy duplication + fail-closed init
+    - Library.shuffle(Random) + deprecated no-arg fallback
+    - Mage module suite 112/112 green (incl. 13 WS54RulesRngTest)
+  D_setup_shuffle_remediation:
+    status: COMPLETE
+    evidence:
+    - Deck.getMaindeckCards LinkedHashSet; CardsImpl/seekCard/possibleTargets/watcher fixes
+    - testP1_SetupMaterializationDeterministic (25 fresh constructions, exact)
+  E_production_callsite_closure:
+    status: COMPLETE
+    evidence:
+    - research/ws54-xmage-rng-reexecution-remediation/WS54_RULES_RNG_CALLSITE_CLOSURE.json
+    - 51 Mage.Sets card files + core effects + Plane/Momir/Dungeon + MCTS:282 migrated
+    - UNKNOWN in scope: 0
+  F_isolation_reexecution_gates:
+    status: COMPLETE
+    evidence:
+    - Mage/src/test/java/mage/WS54RulesRngTest.java (13/13)
+    - Mage.Tests/.../serverside/ws54/WS54SeededReexecutionTest.java (7/7)
+    - WS54_GAME_ISOLATION.json / WS54_NONRULES_PERTURBATION.json
+    - WS54_FRESH_PROCESS_REEXECUTION.json (unit + game digests byte-identical across JVMs)
+    - WS54_NEGATIVE_CONTROLS.json (7/7 detectors demonstrated)
+  G_impact_and_final_report:
+    status: COMPLETE
+    evidence:
+    - research/ws54-xmage-rng-reexecution-remediation/WS54_HISTORICAL_IMPACT_LEDGER.json
+    - research/ws54-xmage-rng-reexecution-remediation/WS54_SNAPSHOT_REPLAY_DISPOSITION.md
+    - research/ws54-xmage-rng-reexecution-remediation/WS54_FINAL_REPORT.md
+terminal_verdict: XMAGE_RNG_REEXECUTION_REMEDIATION_PASS
