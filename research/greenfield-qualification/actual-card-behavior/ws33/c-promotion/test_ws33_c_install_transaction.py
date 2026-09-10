@@ -135,6 +135,16 @@ class InstallTransactionTests(unittest.TestCase):
             self.assertEqual(hit[0]["promotion_evidence"], rel)
             self.assertEqual(hit[0]["status"], "PASS")
             self.assertEqual(hit[0]["evidence_classification"], "TECHNICALLY_CONFORMANT")
+            # Exactly one authorized UNKNOWN->PASS transition in each book.
+            promoted_a = [p for p in cov["paths"] if p.get("promotion_evidence") == rel]
+            self.assertEqual(len(promoted_a), 1)
+            self.assertEqual(promoted_a[0]["effective_v2_path_id"], H.TARGET)
+            promoted_b = [r for r in rows if r.get("promotion_evidence") == rel]
+            self.assertEqual(len(promoted_b), 1)
+            self.assertEqual(promoted_b[0]["effective_path_id"], H.TARGET)
+            self.assertEqual(promoted_b[0]["current_status"], "PASS")
+            self.assertEqual(promoted_b[0]["evidence_classification"],
+                             "TECHNICALLY_CONFORMANT")
             # Second installation attempt fails closed as duplicate.
             proc2 = run_cmd(fx.installer_argv(receipt_id="T-INSTALL-002"))
             self.assertEqual(proc2.returncode, 2)
@@ -189,6 +199,86 @@ class InstallTransactionTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 2)
             self.assertIn("STAGED_TAMPERED", proc.stdout)
             fx.assert_target_untouched()
+
+    def test_real_oserror_mid_copy_rolls_back(self):
+        # Genuine OSError (not InstallError) after 2 successful target writes:
+        # installer fails, rolls back, all 11 target hashes equal prestate,
+        # no installed receipt survives, original cause stays identifiable.
+        with tempfile.TemporaryDirectory() as td:
+            fx = InstallFixture(Path(td))
+            proc = run_cmd(fx.installer_argv(receipt_id="OSERROR"),
+                           env_extra={"WS33_C_INSTALL_FAULT": "oserror-mid-copy-2"})
+            self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+            self.assertIn("INSTALL_ROLLED_BACK", proc.stdout)
+            self.assertIn("UNEXPECTED_OSERROR", proc.stdout)
+            self.assertIn("OSError", proc.stdout)
+            self.assertIn("injected real copy failure", proc.stdout)
+            fx.assert_target_untouched()
+            self.assertFalse((fx.target / "c-promotion").exists())
+
+    def test_unexpected_audit_failure_rolls_back(self):
+        # Non-InstallError during post-install audit after copying: rollback
+        # occurs and the original cause remains identifiable.
+        with tempfile.TemporaryDirectory() as td:
+            fx = InstallFixture(Path(td))
+            proc = run_cmd(fx.installer_argv(receipt_id="UNEXPAUDIT"),
+                           env_extra={"WS33_C_INSTALL_FAULT": "unexpected-audit"})
+            self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+            self.assertIn("INSTALL_ROLLED_BACK", proc.stdout)
+            self.assertIn("UNEXPECTED_RUNTIMEERROR", proc.stdout)
+            self.assertIn("injected unexpected audit failure", proc.stdout)
+            fx.assert_target_untouched()
+            self.assertFalse((fx.target / "c-promotion").exists())
+
+    def test_unexpected_failure_after_receipt_rolls_back(self):
+        # Non-InstallError after receipt creation but before final success:
+        # books restored and the installed receipt removed.
+        with tempfile.TemporaryDirectory() as td:
+            fx = InstallFixture(Path(td))
+            proc = run_cmd(fx.installer_argv(receipt_id="AFTERRECEIPT"),
+                           env_extra={"WS33_C_INSTALL_FAULT": "unexpected-after-receipt"})
+            self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+            self.assertIn("INSTALL_ROLLED_BACK", proc.stdout)
+            self.assertIn("UNEXPECTED_RUNTIMEERROR", proc.stdout)
+            self.assertIn("injected unexpected failure after receipt creation",
+                          proc.stdout)
+            fx.assert_target_untouched()
+            self.assertFalse((fx.target / "c-promotion" / "receipts"
+                              / "AFTERRECEIPT.json").exists())
+
+    def test_companion_stale_prestate_refused_before_mutation(self):
+        # Mutate ONLY a companion file (case ledger) while coverage and the
+        # integrated ledger stay untouched: full prestate binding must refuse
+        # before the first target write.
+        with tempfile.TemporaryDirectory() as td:
+            fx = InstallFixture(Path(td))
+            case = fx.target / "WS33_CASE_LEDGER.jsonl"
+            lines = case.read_text(encoding="utf-8").splitlines()
+            row = json.loads(lines[0])
+            row["scenario_status"] = "STALE-COMPANION-DRIFT"
+            lines[0] = json.dumps(row, sort_keys=True)
+            case.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            self.assertNotEqual(sha(case), fx.prestate["WS33_CASE_LEDGER.jsonl"])
+            self.assertEqual(sha(fx.target / "WS33_PATH_COVERAGE.json"),
+                             fx.prestate["WS33_PATH_COVERAGE.json"])
+            self.assertEqual(sha(fx.target / "WS33_INTEGRATED_CLOSURE_LEDGER.jsonl"),
+                             fx.prestate["WS33_INTEGRATED_CLOSURE_LEDGER.jsonl"])
+            proc = run_cmd(fx.installer_argv(receipt_id="COMPANION"))
+            self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+            self.assertIn("INSTALL_REFUSED_PRESTATE", proc.stdout)
+            self.assertIn("WS33_CASE_LEDGER.jsonl", proc.stdout)
+            # Installer wrote nothing: the 2 watched files are untouched, no
+            # receipt exists, and the other 10 files still match prestate
+            # except for our own setup mutation.
+            self.assertEqual(sha(fx.target / "WS33_PATH_COVERAGE.json"),
+                             fx.prestate["WS33_PATH_COVERAGE.json"])
+            self.assertEqual(sha(fx.target / "WS33_INTEGRATED_CLOSURE_LEDGER.jsonl"),
+                             fx.prestate["WS33_INTEGRATED_CLOSURE_LEDGER.jsonl"])
+            for name in BOOK_FILES:
+                if name == "WS33_CASE_LEDGER.jsonl":
+                    continue
+                self.assertEqual(sha(fx.target / name), fx.prestate[name], name)
+            self.assertFalse((fx.target / "c-promotion").exists())
 
     def test_mid_copy_failure_rolls_back(self):
         with tempfile.TemporaryDirectory() as td:

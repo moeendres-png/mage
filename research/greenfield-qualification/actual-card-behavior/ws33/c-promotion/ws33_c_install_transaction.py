@@ -3,10 +3,16 @@
 
 Hardens the install phase (P1 partial-install + P1 false-receipt defects):
 
-  1. Install starts only from a fully audited staged result: the exact staging
-     is reproduced (restage + byte-compare) before anything is touched.
-  2. The install target's pre-state is hash-verified against the dry-run
-     receipt before mutation (stale target -> refused, nothing written).
+   1. Install starts only from a fully audited staged result: the exact staging
+      is reproduced (restage + byte-compare) before anything is touched.
+   2. The install target's pre-state is hash-verified against the authorized
+      prestate before mutation (stale target -> refused, nothing written):
+      EVERY one of the 11 replaced Book-A/Book-B files must match, not just
+      WS33_PATH_COVERAGE.json / WS33_INTEGRATED_CLOSURE_LEDGER.jsonl.
+      The authorized hash per file is the reviewed dry-run receipt's
+      prestate_hashes entry when present, else the live base-root hash (which
+      the restage byte-compare independently binds to the reviewed staging).
+      Any companion drift -> INSTALL_REFUSED_PRESTATE before the first write.
   3. All replacement files are prepared (incl. install-receipt reference
      rewrite) before any canonical destination is touched.
   4. Mutation runs inside a backup/restore transaction: any failure after the
@@ -25,7 +31,35 @@ additionally require WS33_C_ALLOW_CANONICAL_INSTALL=1. No authorization (or a
 wrong value) -> INSTALL_REFUSED before any mutation.
 
 Test-only deterministic fault hooks (no effect unless the env var is set):
-  WS33_C_INSTALL_FAULT=fail-mid-copy-N | corrupt-after-copy | receipt-unwritable
+  WS33_C_INSTALL_FAULT=fail-mid-copy-N | oserror-mid-copy-N | corrupt-after-copy |
+    receipt-unwritable | unexpected-audit | unexpected-after-receipt
+  fail-mid-copy-N raises a synthetic InstallError after N target writes.
+  oserror-mid-copy-N raises a REAL OSError (not InstallError) after N successful
+  target writes, exercising the genuine-exception rollback path.
+  unexpected-audit raises RuntimeError after all copies verify but before the
+  post-install audit; unexpected-after-receipt raises RuntimeError after the
+  post-install receipt is written but before final success.
+
+Transaction exception contract (post first-mutation):
+  any ordinary Exception from copy/replace, post-copy verification,
+  post-install audit, receipt creation/write, or evidence-ref verification
+  triggers rollback while rollback is still possible. The original causal
+  error is preserved (INSTALL_ROLLED_BACK:<original-code> with the original
+  type/message, chained via __cause__). Rollback failure itself is reported
+  separately as ROLLBACK_FAILED, retaining the original code/message.
+  BaseException (KeyboardInterrupt/SystemExit/process kill) is deliberately
+  NOT caught and is not claimed to be recoverable.
+
+Residual crash/power-loss boundary (honest, not transactionally covered):
+  SIGKILL, power loss, or OS crash between the first target write and
+  successful completion can leave a partially replaced target with no
+  rollback: Python cannot run handlers after such events. Detection is
+  explicit, never silent: a re-run fails closed (INSTALL_REFUSED_PRESTATE on
+  hash drift, DUPLICATE_ALREADY_PROMOTED on partial PASS, or a missing
+  installed receipt with promotion_evidence refs unresolved). Recovery is
+  manual restore of the 11 book files from version control (or from the
+  work-dir backup copy when it survives), followed by a fresh scratch
+  install. No fsync/dir-fsync two-phase commit is claimed.
 
 Exit 0 with WS33_C_INSTALL=COMMITTED on success; exit 2 with
 WS33_C_INSTALL=FAIL code=<...> otherwise. Rollbacks report
@@ -117,6 +151,14 @@ def main() -> int:
     except InstallError as exc:
         print(f"WS33_C_INSTALL=FAIL code={exc.code} message={exc}")
         return 2
+    except Exception as exc:  # noqa: BLE001 - pre-transaction unexpected failure
+        # Post-mutation ordinary exceptions are converted (with rollback) inside
+        # run(); anything reaching here escaped the transaction wrapper, so no
+        # partial-transaction claim is made. Fail closed with the cause visible.
+        print(f"WS33_C_INSTALL=FAIL code=UNEXPECTED_{type(exc).__name__.upper()} "
+              f"message=unexpected {type(exc).__name__} outside the install "
+              f"transaction: {exc}")
+        return 2
 
 
 def run(args) -> int:
@@ -187,6 +229,32 @@ def run(args) -> int:
     if sha_file(target / "WS33_INTEGRATED_CLOSURE_LEDGER.jsonl") != \
             r0["book_b"]["ledger_prestate_sha256"]:
         fail("INSTALL_REFUSED_PRESTATE", "target ledger hash != receipt pre-state hash")
+    # Complete prestate binding: EVERY replaced file must match the authorized
+    # prestate before the first target write. The authorized hash per file is
+    # the reviewed receipt's prestate_hashes entry when present (new-format
+    # receipts); otherwise the live base-root hash, which step 2 (restage +
+    # byte-compare) independently binds to the reviewed staging. The same check
+    # runs for target == base (trivially true file-by-file) so no path
+    # special-cases away evidence.
+    authorized = r0.get("prestate_hashes") or {}
+    if not isinstance(authorized, dict):
+        fail("INSTALL_REFUSED", "dry-run receipt prestate_hashes malformed")
+    for name in book_files:
+        t_hash = sha_file(target / name)
+        b_hash = sha_file(base / name)
+        if name in authorized:
+            if b_hash != authorized[name]:
+                fail("INSTALL_REFUSED_PRESTATE",
+                     f"base {name} drifted from reviewed prestate; staging is stale")
+            if t_hash != authorized[name]:
+                fail("INSTALL_REFUSED_PRESTATE",
+                     f"target {name} != authorized prestate "
+                     f"{str(authorized[name])[:12]}...; independent changes "
+                     f"must not be overwritten")
+        elif t_hash != b_hash:
+            fail("INSTALL_REFUSED_PRESTATE",
+                 f"target {name} != base prestate; independent canonical/"
+                 f"integration changes must not be overwritten")
 
     # --- 2. Staged integrity: reproduce staging exactly, byte-compare ---
     restage = work / "restage"
@@ -225,16 +293,25 @@ def run(args) -> int:
         fail("INSTALL_REFUSED", f"install receipt path already exists: {install_rel}")
 
     def rollback(reason: InstallError):
-        for name in book_files:
-            shutil.copy2(backup / name, target / name)
-            if sha_file(target / name) != backup_hashes[name]:
-                raise InstallError("ROLLBACK_FAILED",
-                                   f"rollback verification failed for {name}")
-        if receipt_target.is_file() and not receipt_pre_existed:
-            receipt_target.unlink()
-            if receipt_target.exists():
-                raise InstallError("ROLLBACK_FAILED", "installed receipt could not be removed")
-        raise InstallError(f"INSTALL_ROLLED_BACK:{reason.code}", str(reason))
+        try:
+            for name in book_files:
+                shutil.copy2(backup / name, target / name)
+                if sha_file(target / name) != backup_hashes[name]:
+                    raise InstallError("ROLLBACK_FAILED",
+                                       f"rollback verification failed for {name}")
+            if receipt_target.is_file() and not receipt_pre_existed:
+                receipt_target.unlink()
+                if receipt_target.exists():
+                    raise InstallError("ROLLBACK_FAILED", "installed receipt could not be removed")
+        except InstallError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - rollback I/O must stay visible
+            raise InstallError(
+                "ROLLBACK_FAILED",
+                f"rollback failed while handling {reason.code}: "
+                f"{type(exc).__name__}: {exc}; original failure was "
+                f"{reason.code}: {reason}") from exc
+        raise InstallError(f"INSTALL_ROLLED_BACK:{reason.code}", str(reason)) from reason
 
     # --- 4. Prepare replacements (no canonical destination touched) ---
     prepared = work / "prepared"
@@ -266,6 +343,13 @@ def run(args) -> int:
                 if copied == want:
                     raise InstallError("FAULT_INJECTED_MID_COPY",
                                        f"injected failure after {copied} file(s)")
+            if fault.startswith("oserror-mid-copy-"):
+                try:
+                    want = int(fault.rsplit("-", 1)[1])
+                except ValueError:
+                    want = -1
+                if copied == want:
+                    raise OSError(f"injected real copy failure after {copied} file(s)")
         if fault == "corrupt-after-copy":
             with open(target / "WS33_PATH_COVERAGE.json", "r+b") as fh:
                 fh.seek(64)
@@ -278,6 +362,8 @@ def run(args) -> int:
                                    f"installed {name} != prepared version")
 
         # --- 6. Post-install invariant audit against the installed target ---
+        if fault == "unexpected-audit":
+            raise RuntimeError("injected unexpected audit failure after copy")
         invariant = post_install_audit(
             promoter, args, target, backup, set(promoted), install_rel, work)
 
@@ -315,11 +401,26 @@ def run(args) -> int:
                                f"installed receipt could not be written: {exc}")
 
         # --- 8. Every promotion_evidence ref must resolve to the installed receipt ---
+        if fault == "unexpected-after-receipt":
+            raise RuntimeError("injected unexpected failure after receipt creation")
         resolve_evidence_refs(target, book_files, install_rel)
     except InstallError as exc:
         if exc.code.startswith("INSTALL_ROLLED_BACK") or exc.code == "ROLLBACK_FAILED":
             raise
         rollback(exc)
+    except Exception as exc:  # noqa: BLE001 - genuine-exception rollback path
+        # Ordinary unexpected failure after mutation began (copy/replace,
+        # post-copy verification, post-install audit, receipt creation/write,
+        # evidence-ref verification): restore the verified pre-state and fail
+        # closed. The original cause is preserved in the rolled-back code and
+        # message and chained via __cause__. BaseException (process kill and
+        # friends) is deliberately NOT caught: see the residual crash/
+        # power-loss boundary in the module docstring.
+        wrapped = InstallError(
+            f"UNEXPECTED_{type(exc).__name__.upper()}",
+            f"unexpected {type(exc).__name__} during install transaction: {exc}")
+        wrapped.__cause__ = exc
+        rollback(wrapped)
 
     print(f"WS33_C_INSTALL=COMMITTED receipt={args.install_receipt_id} "
           f"files={len(book_files)} promoted={len(promoted)}")

@@ -367,6 +367,12 @@ def run(args) -> int:
         "previous_pass_preserved": True,
         "unrelated_path_changes": 0,
         "coverage_promotion_installed": False,
+        # Complete authorized prestate binding: deterministic sha256 of every
+        # base book file the installer will replace. The install transaction
+        # verifies each install-target file against these hashes before the
+        # first target write (companion drift -> INSTALL_REFUSED_PRESTATE).
+        "prestate_hashes": {name: sha_file(base / name)
+                            for name in BOOK_A_FILES + BOOK_B_FILES},
     }
     cmeta = proposal.get("c_evidence", {})
     croot = args.c_campaign_root.resolve()
