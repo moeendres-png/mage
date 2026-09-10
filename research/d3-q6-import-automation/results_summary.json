@@ -1,0 +1,309 @@
+{
+ "provenance": {
+  "forge_remote": "https://github.com/Card-Forge/forge.git",
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+  "forge_pin_date": "2026-08-27T11:56:16Z",
+  "parser_version": "d3q6-cleanroom-0.1.0",
+  "seed": 20260910,
+  "population": 33666,
+  "ref": "FETCH_HEAD"
+ },
+ "population_txt": 33666,
+ "candidates_fetched": 3500,
+ "fetch_errors": 0,
+ "sample": 1000,
+ "metrics": {
+  "parsed": 974,
+  "parsed_rate": 0.974,
+  "structured": 933,
+  "structured_rate": 0.933,
+  "scenario_skeleton_generatable": 974,
+  "skeleton_rate": 0.974,
+  "manual_review_required": 528,
+  "manual_rate": 0.528,
+  "unsupported_files": 186,
+  "unsupported_rate": 0.186,
+  "ambiguous_files": 26,
+  "ambiguity_rate": 0.026,
+  "total_params": 13810,
+  "typed_params": 7409,
+  "semantic_extraction_rate": 0.5364952932657494,
+  "false_positive_probes": 36,
+  "false_positive_rate": 0.036
+ },
+ "unsupported_directives_top": [
+  [
+   "topkey:AI",
+   180
+  ],
+  [
+   "topkey:HandLifeModifier",
+   6
+  ],
+  [
+   "topkey:MeldPair",
+   1
+  ],
+  [
+   "topkey:Draft",
+   1
+  ]
+ ],
+ "adversarial_tag_counts": {
+  "choices_modes": 438,
+  "copy_control": 170,
+  "hidden_info": 106,
+  "mana_cost": 939,
+  "nested_svar": 164,
+  "randomness": 228,
+  "triggers": 183,
+  "targets": 225,
+  "multiplayer": 47,
+  "replacements": 89
+ },
+ "family_counts": {
+  "ACTION_COST_DECISION": 997,
+  "CONTINUOUS_COPY_CONTROL": 170,
+  "HIDDEN_RNG_REPLAY": 287,
+  "TRIGGER_REPLACEMENT_ZONE_SBA": 379
+ },
+ "stratum_counts": {
+  "trigger": 183,
+  "svar_heavy": 120,
+  "static": 116,
+  "targets": 151,
+  "choices": 84,
+  "keyword_vanilla": 82,
+  "replacement": 80,
+  "ability": 184
+ },
+ "bounded_trace_subset": {
+  "n": 20,
+  "matches": 20,
+  "rows": [
+   {
+    "path": "forge-gui/res/cardsfolder/a/air_response_unit.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/a/alert_shu_infantry.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/a/angel_of_light.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/a/archangel.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/a/aven_reedstalker.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/b/barony_vampire.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/b/bloodied_ghost.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/b/boggart_ram_gang.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/b/brambleweft_behemoth.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/c/carnage_wurm.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/c/cobblebrute.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/c/crested_craghorn.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/d/devoted_hero.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/d/duskrider_falcon.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/e/elvish_bard.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/f/feral_maaka.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/f/flamecore_elemental.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/f/frog_squirrels.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/f/frogmite.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/f/funeral_longboat.txt",
+    "independent_abilities": 0,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   }
+  ]
+ },
+ "elapsed_s": 23.5,
+ "disclaimer": "PARSE/IMPORT != BEHAVIOR PASS. All behavior rows remain UNKNOWN/SYNTHETIC. No coverage promotion."
+}

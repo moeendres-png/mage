@@ -1,0 +1,2557 @@
+{
+ "provenance": {
+  "forge_remote": "https://github.com/Card-Forge/forge.git",
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+  "forge_pin_date": "2026-08-27T11:56:16Z",
+  "parser_version": "d3q6-cleanroom-0.1.0",
+  "seed": 20260910,
+  "population": 33666,
+  "ref": "FETCH_HEAD"
+ },
+ "sample": [
+  {
+   "path": "forge-gui/res/cardsfolder/s/sovereigns_of_lost_alara.txt",
+   "parsed": true,
+   "diagnostics": 1,
+   "unsupported": [
+    "topkey:AI"
+   ],
+   "total_params": 21,
+   "typed_params": 11,
+   "features": {
+    "has_trigger": true,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": false,
+    "has_svar": true,
+    "has_keyword": true,
+    "svar_names": [
+     "TrigSearch",
+     "DBMoveAura",
+     "DBCleanup"
+    ],
+    "svar_edge_count": 3,
+    "max_svar_depth": 3,
+    "has_targets": false,
+    "has_choices": true,
+    "has_mana_cost": true,
+    "has_hidden": true,
+    "has_random": true,
+    "has_copy_control": true,
+    "has_multiplayer": false,
+    "has_modes": true,
+    "ability_kinds": [],
+    "trigger_modes": [
+     "Attacks"
+    ],
+    "unsupported_count": 1,
+    "diagnostic_count": 1,
+    "nested_svar": true
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION",
+     "CONTINUOUS_COPY_CONTROL",
+     "HIDDEN_RNG_REPLAY",
+     "TRIGGER_REPLACEMENT_ZONE_SBA"
+    ],
+    "adversarial_tags": [
+     "choices_modes",
+     "copy_control",
+     "hidden_info",
+     "mana_cost",
+     "nested_svar",
+     "randomness",
+     "triggers"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": true,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/s/sovereigns_of_lost_alara.txt",
+    "card_name": "Sovereigns of Lost Alara",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "9cca61e0cdffac33fd78d5d32507be44789fa56beaa0f862190fa253de9c2409",
+    "features": {
+     "has_trigger": true,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": false,
+     "has_svar": true,
+     "has_keyword": true,
+     "svar_names": [
+      "TrigSearch",
+      "DBMoveAura",
+      "DBCleanup"
+     ],
+     "svar_edge_count": 3,
+     "max_svar_depth": 3,
+     "has_targets": false,
+     "has_choices": true,
+     "has_mana_cost": true,
+     "has_hidden": true,
+     "has_random": true,
+     "has_copy_control": true,
+     "has_multiplayer": false,
+     "has_modes": true,
+     "ability_kinds": [],
+     "trigger_modes": [
+      "Attacks"
+     ],
+     "unsupported_count": 1,
+     "diagnostic_count": 1,
+     "nested_svar": true
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION",
+      "CONTINUOUS_COPY_CONTROL",
+      "HIDDEN_RNG_REPLAY",
+      "TRIGGER_REPLACEMENT_ZONE_SBA"
+     ],
+     "adversarial_tags": [
+      "choices_modes",
+      "copy_control",
+      "hidden_info",
+      "mana_cost",
+      "nested_svar",
+      "randomness",
+      "triggers"
+     ]
+    },
+    "diagnostics": [
+     {
+      "code": "unknown_topkey",
+      "line": 10,
+      "msg": "unrecognized top-level key 'AI'"
+     }
+    ],
+    "unsupported": [
+     "topkey:AI"
+    ],
+    "skeleton_generatable": true,
+    "manual_review_required": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Battlefield"
+     ],
+     "needs_targets": false,
+     "needs_choices": true,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/a/arni_slays_the_troll.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 26,
+   "typed_params": 17,
+   "features": {
+    "has_trigger": false,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": false,
+    "has_svar": true,
+    "has_keyword": true,
+    "svar_names": [
+     "DBPump",
+     "DBFight",
+     "DBMana",
+     "DBPutCounter",
+     "DBGainLife",
+     "X"
+    ],
+    "svar_edge_count": 2,
+    "max_svar_depth": 1,
+    "has_targets": false,
+    "has_choices": false,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": true,
+    "has_copy_control": false,
+    "has_multiplayer": false,
+    "has_modes": false,
+    "ability_kinds": [],
+    "trigger_modes": [],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": true
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION",
+     "HIDDEN_RNG_REPLAY"
+    ],
+    "adversarial_tags": [
+     "mana_cost",
+     "nested_svar",
+     "randomness"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": true,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/a/arni_slays_the_troll.txt",
+    "card_name": "Arni Slays the Troll",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "21becbf2d27bbbf0700bb4f97f6f220e9303872a17323884440542c7120a50d3",
+    "features": {
+     "has_trigger": false,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": false,
+     "has_svar": true,
+     "has_keyword": true,
+     "svar_names": [
+      "DBPump",
+      "DBFight",
+      "DBMana",
+      "DBPutCounter",
+      "DBGainLife",
+      "X"
+     ],
+     "svar_edge_count": 2,
+     "max_svar_depth": 1,
+     "has_targets": false,
+     "has_choices": false,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": true,
+     "has_copy_control": false,
+     "has_multiplayer": false,
+     "has_modes": false,
+     "ability_kinds": [],
+     "trigger_modes": [],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": true
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION",
+      "HIDDEN_RNG_REPLAY"
+     ],
+     "adversarial_tags": [
+      "mana_cost",
+      "nested_svar",
+      "randomness"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Hand"
+     ],
+     "needs_targets": false,
+     "needs_choices": false,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/f/flaming_gambit.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 28,
+   "typed_params": 12,
+   "features": {
+    "has_trigger": false,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": true,
+    "has_svar": true,
+    "has_keyword": true,
+    "svar_names": [
+     "DBChooseCard",
+     "DBDamagePlayer",
+     "DBDamageCreature",
+     "X"
+    ],
+    "svar_edge_count": 2,
+    "max_svar_depth": 2,
+    "has_targets": true,
+    "has_choices": false,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": true,
+    "has_copy_control": true,
+    "has_multiplayer": false,
+    "has_modes": false,
+    "ability_kinds": [
+     "Pump"
+    ],
+    "trigger_modes": [],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": true
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION",
+     "CONTINUOUS_COPY_CONTROL",
+     "HIDDEN_RNG_REPLAY"
+    ],
+    "adversarial_tags": [
+     "copy_control",
+     "mana_cost",
+     "nested_svar",
+     "randomness",
+     "targets"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": true,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/f/flaming_gambit.txt",
+    "card_name": "Flaming Gambit",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "c9c45ab587dfdb46277502f6114f82dc70965a116970b4467a4bbcd3d19731c3",
+    "features": {
+     "has_trigger": false,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": true,
+     "has_svar": true,
+     "has_keyword": true,
+     "svar_names": [
+      "DBChooseCard",
+      "DBDamagePlayer",
+      "DBDamageCreature",
+      "X"
+     ],
+     "svar_edge_count": 2,
+     "max_svar_depth": 2,
+     "has_targets": true,
+     "has_choices": false,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": true,
+     "has_copy_control": true,
+     "has_multiplayer": false,
+     "has_modes": false,
+     "ability_kinds": [
+      "Pump"
+     ],
+     "trigger_modes": [],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": true
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION",
+      "CONTINUOUS_COPY_CONTROL",
+      "HIDDEN_RNG_REPLAY"
+     ],
+     "adversarial_tags": [
+      "copy_control",
+      "mana_cost",
+      "nested_svar",
+      "randomness",
+      "targets"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Hand"
+     ],
+     "needs_targets": true,
+     "needs_choices": false,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/g/grim_javelineer.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 21,
+   "typed_params": 14,
+   "features": {
+    "has_trigger": true,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": false,
+    "has_svar": true,
+    "has_keyword": false,
+    "svar_names": [
+     "TrigPump",
+     "DBDelayedTrigger",
+     "DBSurveil",
+     "PlayMain1"
+    ],
+    "svar_edge_count": 2,
+    "max_svar_depth": 2,
+    "has_targets": false,
+    "has_choices": true,
+    "has_mana_cost": true,
+    "has_hidden": true,
+    "has_random": false,
+    "has_copy_control": false,
+    "has_multiplayer": false,
+    "has_modes": true,
+    "ability_kinds": [],
+    "trigger_modes": [
+     "AttackersDeclared"
+    ],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": true
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION",
+     "HIDDEN_RNG_REPLAY",
+     "TRIGGER_REPLACEMENT_ZONE_SBA"
+    ],
+    "adversarial_tags": [
+     "choices_modes",
+     "hidden_info",
+     "mana_cost",
+     "nested_svar",
+     "triggers"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": true,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/g/grim_javelineer.txt",
+    "card_name": "Grim Javelineer",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "53fa12107a95263d38bb62dd43af46e2818517680f3c390ba74cc92a0400a40f",
+    "features": {
+     "has_trigger": true,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": false,
+     "has_svar": true,
+     "has_keyword": false,
+     "svar_names": [
+      "TrigPump",
+      "DBDelayedTrigger",
+      "DBSurveil",
+      "PlayMain1"
+     ],
+     "svar_edge_count": 2,
+     "max_svar_depth": 2,
+     "has_targets": false,
+     "has_choices": true,
+     "has_mana_cost": true,
+     "has_hidden": true,
+     "has_random": false,
+     "has_copy_control": false,
+     "has_multiplayer": false,
+     "has_modes": true,
+     "ability_kinds": [],
+     "trigger_modes": [
+      "AttackersDeclared"
+     ],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": true
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION",
+      "HIDDEN_RNG_REPLAY",
+      "TRIGGER_REPLACEMENT_ZONE_SBA"
+     ],
+     "adversarial_tags": [
+      "choices_modes",
+      "hidden_info",
+      "mana_cost",
+      "nested_svar",
+      "triggers"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Battlefield"
+     ],
+     "needs_targets": false,
+     "needs_choices": true,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/r/rydia_summoner_of_mist.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 30,
+   "typed_params": 18,
+   "features": {
+    "has_trigger": true,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": true,
+    "has_svar": true,
+    "has_keyword": false,
+    "svar_names": [
+     "TrigDraw",
+     "DBPump",
+     "DBCleanup",
+     "X"
+    ],
+    "svar_edge_count": 2,
+    "max_svar_depth": 2,
+    "has_targets": true,
+    "has_choices": true,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": false,
+    "has_copy_control": false,
+    "has_multiplayer": false,
+    "has_modes": true,
+    "ability_kinds": [
+     "ChangeZone"
+    ],
+    "trigger_modes": [
+     "ChangesZone"
+    ],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": true
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION",
+     "TRIGGER_REPLACEMENT_ZONE_SBA"
+    ],
+    "adversarial_tags": [
+     "choices_modes",
+     "mana_cost",
+     "nested_svar",
+     "targets",
+     "triggers"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": true,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/r/rydia_summoner_of_mist.txt",
+    "card_name": "Rydia, Summoner of Mist",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "f92d4d70751912739b16a6d5c33501cf41c9cbe7443f5236f1b5397eef9b9e22",
+    "features": {
+     "has_trigger": true,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": true,
+     "has_svar": true,
+     "has_keyword": false,
+     "svar_names": [
+      "TrigDraw",
+      "DBPump",
+      "DBCleanup",
+      "X"
+     ],
+     "svar_edge_count": 2,
+     "max_svar_depth": 2,
+     "has_targets": true,
+     "has_choices": true,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": false,
+     "has_copy_control": false,
+     "has_multiplayer": false,
+     "has_modes": true,
+     "ability_kinds": [
+      "ChangeZone"
+     ],
+     "trigger_modes": [
+      "ChangesZone"
+     ],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": true
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION",
+      "TRIGGER_REPLACEMENT_ZONE_SBA"
+     ],
+     "adversarial_tags": [
+      "choices_modes",
+      "mana_cost",
+      "nested_svar",
+      "targets",
+      "triggers"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Battlefield"
+     ],
+     "needs_targets": true,
+     "needs_choices": true,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/b/breeches_the_blastmaker.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 24,
+   "typed_params": 14,
+   "features": {
+    "has_trigger": true,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": false,
+    "has_svar": true,
+    "has_keyword": true,
+    "svar_names": [
+     "TrigFlip",
+     "DBImmediateTrigDamageCopy",
+     "TrigCopy",
+     "DBImmediateTrigDamage",
+     "TrigDamage",
+     "X"
+    ],
+    "svar_edge_count": 4,
+    "max_svar_depth": 2,
+    "has_targets": false,
+    "has_choices": true,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": true,
+    "has_copy_control": true,
+    "has_multiplayer": false,
+    "has_modes": true,
+    "ability_kinds": [],
+    "trigger_modes": [
+     "SpellCast"
+    ],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": true
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION",
+     "CONTINUOUS_COPY_CONTROL",
+     "HIDDEN_RNG_REPLAY",
+     "TRIGGER_REPLACEMENT_ZONE_SBA"
+    ],
+    "adversarial_tags": [
+     "choices_modes",
+     "copy_control",
+     "mana_cost",
+     "nested_svar",
+     "randomness",
+     "triggers"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": true,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/b/breeches_the_blastmaker.txt",
+    "card_name": "Breeches, the Blastmaker",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "4f2725a83a310cbdc17c299c82fa6fd5d44ad74d7d10ea82ae6bb518c3fe4b42",
+    "features": {
+     "has_trigger": true,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": false,
+     "has_svar": true,
+     "has_keyword": true,
+     "svar_names": [
+      "TrigFlip",
+      "DBImmediateTrigDamageCopy",
+      "TrigCopy",
+      "DBImmediateTrigDamage",
+      "TrigDamage",
+      "X"
+     ],
+     "svar_edge_count": 4,
+     "max_svar_depth": 2,
+     "has_targets": false,
+     "has_choices": true,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": true,
+     "has_copy_control": true,
+     "has_multiplayer": false,
+     "has_modes": true,
+     "ability_kinds": [],
+     "trigger_modes": [
+      "SpellCast"
+     ],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": true
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION",
+      "CONTINUOUS_COPY_CONTROL",
+      "HIDDEN_RNG_REPLAY",
+      "TRIGGER_REPLACEMENT_ZONE_SBA"
+     ],
+     "adversarial_tags": [
+      "choices_modes",
+      "copy_control",
+      "mana_cost",
+      "nested_svar",
+      "randomness",
+      "triggers"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Battlefield"
+     ],
+     "needs_targets": false,
+     "needs_choices": true,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/s/skull_storm.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 23,
+   "typed_params": 11,
+   "features": {
+    "has_trigger": true,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": true,
+    "has_svar": true,
+    "has_keyword": false,
+    "svar_names": [
+     "TrigCopy",
+     "X",
+     "DBRepeatEach",
+     "DBLoseLife",
+     "DBCleanup"
+    ],
+    "svar_edge_count": 4,
+    "max_svar_depth": 2,
+    "has_targets": false,
+    "has_choices": true,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": true,
+    "has_copy_control": true,
+    "has_multiplayer": true,
+    "has_modes": true,
+    "ability_kinds": [
+     "Sacrifice"
+    ],
+    "trigger_modes": [
+     "SpellCast"
+    ],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": true
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION",
+     "CONTINUOUS_COPY_CONTROL",
+     "HIDDEN_RNG_REPLAY",
+     "TRIGGER_REPLACEMENT_ZONE_SBA"
+    ],
+    "adversarial_tags": [
+     "choices_modes",
+     "copy_control",
+     "mana_cost",
+     "multiplayer",
+     "nested_svar",
+     "randomness",
+     "triggers"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": true,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/s/skull_storm.txt",
+    "card_name": "Skull Storm",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "7c6eef0f2a29f572dbc6a1cf9b7f1c463a8aaf8ac1b62cf23eda3d2b3a318ce3",
+    "features": {
+     "has_trigger": true,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": true,
+     "has_svar": true,
+     "has_keyword": false,
+     "svar_names": [
+      "TrigCopy",
+      "X",
+      "DBRepeatEach",
+      "DBLoseLife",
+      "DBCleanup"
+     ],
+     "svar_edge_count": 4,
+     "max_svar_depth": 2,
+     "has_targets": false,
+     "has_choices": true,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": true,
+     "has_copy_control": true,
+     "has_multiplayer": true,
+     "has_modes": true,
+     "ability_kinds": [
+      "Sacrifice"
+     ],
+     "trigger_modes": [
+      "SpellCast"
+     ],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": true
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION",
+      "CONTINUOUS_COPY_CONTROL",
+      "HIDDEN_RNG_REPLAY",
+      "TRIGGER_REPLACEMENT_ZONE_SBA"
+     ],
+     "adversarial_tags": [
+      "choices_modes",
+      "copy_control",
+      "mana_cost",
+      "multiplayer",
+      "nested_svar",
+      "randomness",
+      "triggers"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Battlefield"
+     ],
+     "needs_targets": false,
+     "needs_choices": true,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/b/brainstealer_dragon.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 38,
+   "typed_params": 21,
+   "features": {
+    "has_trigger": true,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": false,
+    "has_svar": true,
+    "has_keyword": true,
+    "svar_names": [
+     "TrigExile",
+     "DBEffect",
+     "DBCleanup",
+     "STPlay",
+     "TrigLoseLife",
+     "X"
+    ],
+    "svar_edge_count": 3,
+    "max_svar_depth": 3,
+    "has_targets": false,
+    "has_choices": true,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": false,
+    "has_copy_control": false,
+    "has_multiplayer": false,
+    "has_modes": true,
+    "ability_kinds": [],
+    "trigger_modes": [
+     "Phase",
+     "ChangesZone"
+    ],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": true
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION",
+     "TRIGGER_REPLACEMENT_ZONE_SBA"
+    ],
+    "adversarial_tags": [
+     "choices_modes",
+     "mana_cost",
+     "nested_svar",
+     "triggers"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": true,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/b/brainstealer_dragon.txt",
+    "card_name": "Brainstealer Dragon",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "8496ebed8f1737778675db3deba4a261534fec62d75898df3e410a72b031f12e",
+    "features": {
+     "has_trigger": true,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": false,
+     "has_svar": true,
+     "has_keyword": true,
+     "svar_names": [
+      "TrigExile",
+      "DBEffect",
+      "DBCleanup",
+      "STPlay",
+      "TrigLoseLife",
+      "X"
+     ],
+     "svar_edge_count": 3,
+     "max_svar_depth": 3,
+     "has_targets": false,
+     "has_choices": true,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": false,
+     "has_copy_control": false,
+     "has_multiplayer": false,
+     "has_modes": true,
+     "ability_kinds": [],
+     "trigger_modes": [
+      "Phase",
+      "ChangesZone"
+     ],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": true
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION",
+      "TRIGGER_REPLACEMENT_ZONE_SBA"
+     ],
+     "adversarial_tags": [
+      "choices_modes",
+      "mana_cost",
+      "nested_svar",
+      "triggers"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Battlefield"
+     ],
+     "needs_targets": false,
+     "needs_choices": true,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/m/machine_over_matter.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 13,
+   "typed_params": 8,
+   "features": {
+    "has_trigger": false,
+    "has_replacement": false,
+    "has_static": true,
+    "has_ability": true,
+    "has_svar": false,
+    "has_keyword": false,
+    "svar_names": [],
+    "svar_edge_count": 0,
+    "max_svar_depth": 0,
+    "has_targets": true,
+    "has_choices": true,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": false,
+    "has_copy_control": false,
+    "has_multiplayer": false,
+    "has_modes": true,
+    "ability_kinds": [
+     "ChangeZone"
+    ],
+    "trigger_modes": [
+     "ReduceCost"
+    ],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": false
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION",
+     "TRIGGER_REPLACEMENT_ZONE_SBA"
+    ],
+    "adversarial_tags": [
+     "choices_modes",
+     "mana_cost",
+     "targets"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": false,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/m/machine_over_matter.txt",
+    "card_name": "Machine Over Matter",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "af2655830124e322c907cfe5fc8e509f6fd49925bdacde0058a25951bcfb8d65",
+    "features": {
+     "has_trigger": false,
+     "has_replacement": false,
+     "has_static": true,
+     "has_ability": true,
+     "has_svar": false,
+     "has_keyword": false,
+     "svar_names": [],
+     "svar_edge_count": 0,
+     "max_svar_depth": 0,
+     "has_targets": true,
+     "has_choices": true,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": false,
+     "has_copy_control": false,
+     "has_multiplayer": false,
+     "has_modes": true,
+     "ability_kinds": [
+      "ChangeZone"
+     ],
+     "trigger_modes": [
+      "ReduceCost"
+     ],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": false
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION",
+      "TRIGGER_REPLACEMENT_ZONE_SBA"
+     ],
+     "adversarial_tags": [
+      "choices_modes",
+      "mana_cost",
+      "targets"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": false,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Battlefield"
+     ],
+     "needs_targets": true,
+     "needs_choices": true,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/e/enshrouding_mist.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 11,
+   "typed_params": 6,
+   "features": {
+    "has_trigger": false,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": true,
+    "has_svar": true,
+    "has_keyword": false,
+    "svar_names": [
+     "DBUntap"
+    ],
+    "svar_edge_count": 0,
+    "max_svar_depth": 0,
+    "has_targets": true,
+    "has_choices": false,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": false,
+    "has_copy_control": false,
+    "has_multiplayer": false,
+    "has_modes": false,
+    "ability_kinds": [
+     "Pump"
+    ],
+    "trigger_modes": [],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": false
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION"
+    ],
+    "adversarial_tags": [
+     "mana_cost",
+     "targets"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": false,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/e/enshrouding_mist.txt",
+    "card_name": "Enshrouding Mist",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "cd829386cc8ccca64c000bfc1f27975c1cf88ad963a83e417fc9ab98d33a2292",
+    "features": {
+     "has_trigger": false,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": true,
+     "has_svar": true,
+     "has_keyword": false,
+     "svar_names": [
+      "DBUntap"
+     ],
+     "svar_edge_count": 0,
+     "max_svar_depth": 0,
+     "has_targets": true,
+     "has_choices": false,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": false,
+     "has_copy_control": false,
+     "has_multiplayer": false,
+     "has_modes": false,
+     "ability_kinds": [
+      "Pump"
+     ],
+     "trigger_modes": [],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": false
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION"
+     ],
+     "adversarial_tags": [
+      "mana_cost",
+      "targets"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": false,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Hand"
+     ],
+     "needs_targets": true,
+     "needs_choices": false,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/w/wrap_in_flames.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 10,
+   "typed_params": 7,
+   "features": {
+    "has_trigger": false,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": true,
+    "has_svar": true,
+    "has_keyword": false,
+    "svar_names": [
+     "DBPump"
+    ],
+    "svar_edge_count": 0,
+    "max_svar_depth": 0,
+    "has_targets": true,
+    "has_choices": false,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": false,
+    "has_copy_control": false,
+    "has_multiplayer": false,
+    "has_modes": false,
+    "ability_kinds": [
+     "DealDamage"
+    ],
+    "trigger_modes": [],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": false
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION"
+    ],
+    "adversarial_tags": [
+     "mana_cost",
+     "targets"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": false,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/w/wrap_in_flames.txt",
+    "card_name": "Wrap in Flames",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "85102ac9fda6722311a014aad870c47774ad559b7f784532b4ff691c8b41506f",
+    "features": {
+     "has_trigger": false,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": true,
+     "has_svar": true,
+     "has_keyword": false,
+     "svar_names": [
+      "DBPump"
+     ],
+     "svar_edge_count": 0,
+     "max_svar_depth": 0,
+     "has_targets": true,
+     "has_choices": false,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": false,
+     "has_copy_control": false,
+     "has_multiplayer": false,
+     "has_modes": false,
+     "ability_kinds": [
+      "DealDamage"
+     ],
+     "trigger_modes": [],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": false
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION"
+     ],
+     "adversarial_tags": [
+      "mana_cost",
+      "targets"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": false,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Hand"
+     ],
+     "needs_targets": true,
+     "needs_choices": false,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/a/argivian_welcome.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 23,
+   "typed_params": 13,
+   "features": {
+    "has_trigger": false,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": true,
+    "has_svar": true,
+    "has_keyword": false,
+    "svar_names": [
+     "DBChoose",
+     "DBPump"
+    ],
+    "svar_edge_count": 1,
+    "max_svar_depth": 1,
+    "has_targets": true,
+    "has_choices": false,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": false,
+    "has_copy_control": false,
+    "has_multiplayer": false,
+    "has_modes": false,
+    "ability_kinds": [
+     "Destroy"
+    ],
+    "trigger_modes": [],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": false
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION"
+    ],
+    "adversarial_tags": [
+     "mana_cost",
+     "targets"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": false,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/a/argivian_welcome.txt",
+    "card_name": "Argivian Welcome",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "00dc00ef82c3eeba638057a2cba1aaa1c4e31f35837864222d2a525d8ed16c97",
+    "features": {
+     "has_trigger": false,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": true,
+     "has_svar": true,
+     "has_keyword": false,
+     "svar_names": [
+      "DBChoose",
+      "DBPump"
+     ],
+     "svar_edge_count": 1,
+     "max_svar_depth": 1,
+     "has_targets": true,
+     "has_choices": false,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": false,
+     "has_copy_control": false,
+     "has_multiplayer": false,
+     "has_modes": false,
+     "ability_kinds": [
+      "Destroy"
+     ],
+     "trigger_modes": [],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": false
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION"
+     ],
+     "adversarial_tags": [
+      "mana_cost",
+      "targets"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": false,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Hand"
+     ],
+     "needs_targets": true,
+     "needs_choices": false,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/t/treetop_snarespinner.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 8,
+   "typed_params": 4,
+   "features": {
+    "has_trigger": false,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": true,
+    "has_svar": false,
+    "has_keyword": true,
+    "svar_names": [],
+    "svar_edge_count": 0,
+    "max_svar_depth": 0,
+    "has_targets": true,
+    "has_choices": false,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": false,
+    "has_copy_control": false,
+    "has_multiplayer": false,
+    "has_modes": false,
+    "ability_kinds": [
+     "PutCounter"
+    ],
+    "trigger_modes": [],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": false
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION"
+    ],
+    "adversarial_tags": [
+     "mana_cost",
+     "targets"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": false,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/t/treetop_snarespinner.txt",
+    "card_name": "Treetop Snarespinner",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "1faebd62dd2b2b5a8b512272a6d389207d4da94121fae6945e2be9156084d8a3",
+    "features": {
+     "has_trigger": false,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": true,
+     "has_svar": false,
+     "has_keyword": true,
+     "svar_names": [],
+     "svar_edge_count": 0,
+     "max_svar_depth": 0,
+     "has_targets": true,
+     "has_choices": false,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": false,
+     "has_copy_control": false,
+     "has_multiplayer": false,
+     "has_modes": false,
+     "ability_kinds": [
+      "PutCounter"
+     ],
+     "trigger_modes": [],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": false
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION"
+     ],
+     "adversarial_tags": [
+      "mana_cost",
+      "targets"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": false,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Hand"
+     ],
+     "needs_targets": true,
+     "needs_choices": false,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/r/rag_dealer.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 10,
+   "typed_params": 7,
+   "features": {
+    "has_trigger": false,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": true,
+    "has_svar": false,
+    "has_keyword": false,
+    "svar_names": [],
+    "svar_edge_count": 0,
+    "max_svar_depth": 0,
+    "has_targets": true,
+    "has_choices": false,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": true,
+    "has_copy_control": true,
+    "has_multiplayer": false,
+    "has_modes": false,
+    "ability_kinds": [
+     "ChangeZone"
+    ],
+    "trigger_modes": [],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": false
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION",
+     "CONTINUOUS_COPY_CONTROL",
+     "HIDDEN_RNG_REPLAY"
+    ],
+    "adversarial_tags": [
+     "copy_control",
+     "mana_cost",
+     "randomness",
+     "targets"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": true,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/r/rag_dealer.txt",
+    "card_name": "Rag Dealer",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "63858e8192ba070bcb4f3d871ed2c917555fa3b7029d73591d6eb63d4c5cf502",
+    "features": {
+     "has_trigger": false,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": true,
+     "has_svar": false,
+     "has_keyword": false,
+     "svar_names": [],
+     "svar_edge_count": 0,
+     "max_svar_depth": 0,
+     "has_targets": true,
+     "has_choices": false,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": true,
+     "has_copy_control": true,
+     "has_multiplayer": false,
+     "has_modes": false,
+     "ability_kinds": [
+      "ChangeZone"
+     ],
+     "trigger_modes": [],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": false
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION",
+      "CONTINUOUS_COPY_CONTROL",
+      "HIDDEN_RNG_REPLAY"
+     ],
+     "adversarial_tags": [
+      "copy_control",
+      "mana_cost",
+      "randomness",
+      "targets"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Hand"
+     ],
+     "needs_targets": true,
+     "needs_choices": false,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/p/patron_wizard.txt",
+   "parsed": true,
+   "diagnostics": 1,
+   "unsupported": [
+    "topkey:AI"
+   ],
+   "total_params": 7,
+   "typed_params": 4,
+   "features": {
+    "has_trigger": false,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": true,
+    "has_svar": false,
+    "has_keyword": false,
+    "svar_names": [],
+    "svar_edge_count": 0,
+    "max_svar_depth": 0,
+    "has_targets": true,
+    "has_choices": false,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": true,
+    "has_copy_control": false,
+    "has_multiplayer": false,
+    "has_modes": false,
+    "ability_kinds": [
+     "Counter"
+    ],
+    "trigger_modes": [],
+    "unsupported_count": 1,
+    "diagnostic_count": 1,
+    "nested_svar": false
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION",
+     "HIDDEN_RNG_REPLAY"
+    ],
+    "adversarial_tags": [
+     "mana_cost",
+     "randomness",
+     "targets"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": true,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/p/patron_wizard.txt",
+    "card_name": "Patron Wizard",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "56421b776cb44912d706e045d33c1b022540840d147510c57e7080648d1fd8d9",
+    "features": {
+     "has_trigger": false,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": true,
+     "has_svar": false,
+     "has_keyword": false,
+     "svar_names": [],
+     "svar_edge_count": 0,
+     "max_svar_depth": 0,
+     "has_targets": true,
+     "has_choices": false,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": true,
+     "has_copy_control": false,
+     "has_multiplayer": false,
+     "has_modes": false,
+     "ability_kinds": [
+      "Counter"
+     ],
+     "trigger_modes": [],
+     "unsupported_count": 1,
+     "diagnostic_count": 1,
+     "nested_svar": false
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION",
+      "HIDDEN_RNG_REPLAY"
+     ],
+     "adversarial_tags": [
+      "mana_cost",
+      "randomness",
+      "targets"
+     ]
+    },
+    "diagnostics": [
+     {
+      "code": "unknown_topkey",
+      "line": 6,
+      "msg": "unrecognized top-level key 'AI'"
+     }
+    ],
+    "unsupported": [
+     "topkey:AI"
+    ],
+    "skeleton_generatable": true,
+    "manual_review_required": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Hand"
+     ],
+     "needs_targets": true,
+     "needs_choices": false,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/q/qarsi_revenant.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 9,
+   "typed_params": 5,
+   "features": {
+    "has_trigger": false,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": true,
+    "has_svar": false,
+    "has_keyword": true,
+    "svar_names": [],
+    "svar_edge_count": 0,
+    "max_svar_depth": 0,
+    "has_targets": true,
+    "has_choices": false,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": false,
+    "has_copy_control": false,
+    "has_multiplayer": false,
+    "has_modes": false,
+    "ability_kinds": [
+     "PutCounter"
+    ],
+    "trigger_modes": [],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": false
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION"
+    ],
+    "adversarial_tags": [
+     "mana_cost",
+     "targets"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": false,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/q/qarsi_revenant.txt",
+    "card_name": "Qarsi Revenant",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "eb1bbd01b565d307cc74ebcf7ca78290f3a7bec6a14c7b535a5ac5fb6d5b8449",
+    "features": {
+     "has_trigger": false,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": true,
+     "has_svar": false,
+     "has_keyword": true,
+     "svar_names": [],
+     "svar_edge_count": 0,
+     "max_svar_depth": 0,
+     "has_targets": true,
+     "has_choices": false,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": false,
+     "has_copy_control": false,
+     "has_multiplayer": false,
+     "has_modes": false,
+     "ability_kinds": [
+      "PutCounter"
+     ],
+     "trigger_modes": [],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": false
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION"
+     ],
+     "adversarial_tags": [
+      "mana_cost",
+      "targets"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": false,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Hand"
+     ],
+     "needs_targets": true,
+     "needs_choices": false,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/d/drunau_corpse_trawler.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 15,
+   "typed_params": 9,
+   "features": {
+    "has_trigger": true,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": true,
+    "has_svar": true,
+    "has_keyword": false,
+    "svar_names": [
+     "TrigToken"
+    ],
+    "svar_edge_count": 0,
+    "max_svar_depth": 0,
+    "has_targets": true,
+    "has_choices": true,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": false,
+    "has_copy_control": false,
+    "has_multiplayer": false,
+    "has_modes": true,
+    "ability_kinds": [
+     "Pump"
+    ],
+    "trigger_modes": [
+     "ChangesZone"
+    ],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": false
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION",
+     "TRIGGER_REPLACEMENT_ZONE_SBA"
+    ],
+    "adversarial_tags": [
+     "choices_modes",
+     "mana_cost",
+     "targets",
+     "triggers"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": false,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/d/drunau_corpse_trawler.txt",
+    "card_name": "Drunau Corpse Trawler",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "b2ddb9b459fe7bbe3f6c580e544cde40ec9048656e6900c4eaa9a9eb3f07b154",
+    "features": {
+     "has_trigger": true,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": true,
+     "has_svar": true,
+     "has_keyword": false,
+     "svar_names": [
+      "TrigToken"
+     ],
+     "svar_edge_count": 0,
+     "max_svar_depth": 0,
+     "has_targets": true,
+     "has_choices": true,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": false,
+     "has_copy_control": false,
+     "has_multiplayer": false,
+     "has_modes": true,
+     "ability_kinds": [
+      "Pump"
+     ],
+     "trigger_modes": [
+      "ChangesZone"
+     ],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": false
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION",
+      "TRIGGER_REPLACEMENT_ZONE_SBA"
+     ],
+     "adversarial_tags": [
+      "choices_modes",
+      "mana_cost",
+      "targets",
+      "triggers"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": false,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Battlefield"
+     ],
+     "needs_targets": true,
+     "needs_choices": true,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/e/epic_confrontation.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 12,
+   "typed_params": 7,
+   "features": {
+    "has_trigger": false,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": true,
+    "has_svar": true,
+    "has_keyword": false,
+    "svar_names": [
+     "DBFight"
+    ],
+    "svar_edge_count": 0,
+    "max_svar_depth": 0,
+    "has_targets": true,
+    "has_choices": false,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": false,
+    "has_copy_control": false,
+    "has_multiplayer": false,
+    "has_modes": false,
+    "ability_kinds": [
+     "Pump"
+    ],
+    "trigger_modes": [],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": false
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION"
+    ],
+    "adversarial_tags": [
+     "mana_cost",
+     "targets"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": false,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/e/epic_confrontation.txt",
+    "card_name": "Epic Confrontation",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "423b5cebd9ed6502aee7a73f311f12a7d066aecb7646a80a0f6884ef74973df4",
+    "features": {
+     "has_trigger": false,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": true,
+     "has_svar": true,
+     "has_keyword": false,
+     "svar_names": [
+      "DBFight"
+     ],
+     "svar_edge_count": 0,
+     "max_svar_depth": 0,
+     "has_targets": true,
+     "has_choices": false,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": false,
+     "has_copy_control": false,
+     "has_multiplayer": false,
+     "has_modes": false,
+     "ability_kinds": [
+      "Pump"
+     ],
+     "trigger_modes": [],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": false
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION"
+     ],
+     "adversarial_tags": [
+      "mana_cost",
+      "targets"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": false,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Hand"
+     ],
+     "needs_targets": true,
+     "needs_choices": false,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/t/tajuru_beastmaster.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 10,
+   "typed_params": 9,
+   "features": {
+    "has_trigger": true,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": false,
+    "has_svar": true,
+    "has_keyword": false,
+    "svar_names": [
+     "TrigPumpAll",
+     "PlayMain1",
+     "BuffedBy"
+    ],
+    "svar_edge_count": 0,
+    "max_svar_depth": 0,
+    "has_targets": false,
+    "has_choices": true,
+    "has_mana_cost": true,
+    "has_hidden": false,
+    "has_random": false,
+    "has_copy_control": false,
+    "has_multiplayer": false,
+    "has_modes": true,
+    "ability_kinds": [],
+    "trigger_modes": [
+     "ChangesZone"
+    ],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": false
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION",
+     "TRIGGER_REPLACEMENT_ZONE_SBA"
+    ],
+    "adversarial_tags": [
+     "choices_modes",
+     "mana_cost",
+     "triggers"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": false,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/t/tajuru_beastmaster.txt",
+    "card_name": "Tajuru Beastmaster",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "110eeb30369c2a503aa2e9db8c1d45f682a31116746f70ce5aaea811cc3d2f2b",
+    "features": {
+     "has_trigger": true,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": false,
+     "has_svar": true,
+     "has_keyword": false,
+     "svar_names": [
+      "TrigPumpAll",
+      "PlayMain1",
+      "BuffedBy"
+     ],
+     "svar_edge_count": 0,
+     "max_svar_depth": 0,
+     "has_targets": false,
+     "has_choices": true,
+     "has_mana_cost": true,
+     "has_hidden": false,
+     "has_random": false,
+     "has_copy_control": false,
+     "has_multiplayer": false,
+     "has_modes": true,
+     "ability_kinds": [],
+     "trigger_modes": [
+      "ChangesZone"
+     ],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": false
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION",
+      "TRIGGER_REPLACEMENT_ZONE_SBA"
+     ],
+     "adversarial_tags": [
+      "choices_modes",
+      "mana_cost",
+      "triggers"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": false,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Battlefield"
+     ],
+     "needs_targets": false,
+     "needs_choices": true,
+     "needs_mana": true
+    }
+   }
+  },
+  {
+   "path": "forge-gui/res/cardsfolder/r/rumble_arena.txt",
+   "parsed": true,
+   "diagnostics": 0,
+   "unsupported": [],
+   "total_params": 16,
+   "typed_params": 13,
+   "features": {
+    "has_trigger": true,
+    "has_replacement": false,
+    "has_static": false,
+    "has_ability": true,
+    "has_svar": true,
+    "has_keyword": true,
+    "svar_names": [
+     "TrigScry"
+    ],
+    "svar_edge_count": 0,
+    "max_svar_depth": 0,
+    "has_targets": false,
+    "has_choices": true,
+    "has_mana_cost": false,
+    "has_hidden": true,
+    "has_random": false,
+    "has_copy_control": false,
+    "has_multiplayer": false,
+    "has_modes": true,
+    "ability_kinds": [
+     "Mana",
+     "Mana"
+    ],
+    "trigger_modes": [
+     "ChangesZone"
+    ],
+    "unsupported_count": 0,
+    "diagnostic_count": 0,
+    "nested_svar": false
+   },
+   "taxonomy": {
+    "families": [
+     "ACTION_COST_DECISION",
+     "HIDDEN_RNG_REPLAY",
+     "TRIGGER_REPLACEMENT_ZONE_SBA"
+    ],
+    "adversarial_tags": [
+     "choices_modes",
+     "hidden_info",
+     "triggers"
+    ]
+   },
+   "skeleton_generatable": true,
+   "manual_review_required": true,
+   "ambiguous": false,
+   "false_positive_probe": false,
+   "skeleton": {
+    "schema": "d3-q6.scenario-skeleton.v1",
+    "parser_version": "d3q6-cleanroom-0.1.0",
+    "card_path": "forge-gui/res/cardsfolder/r/rumble_arena.txt",
+    "card_name": "Rumble Arena",
+    "provenance": {
+     "forge_remote": "https://github.com/Card-Forge/forge.git",
+     "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+     "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+     "forge_pin_date": "2026-08-27T11:56:16Z",
+     "parser_version": "d3q6-cleanroom-0.1.0",
+     "seed": 20260910,
+     "population": 33666,
+     "ref": "FETCH_HEAD"
+    },
+    "content_sha256": "c3c4b9350de5a11750b74468e69feaa900be2fb9aab1dc6b47219b7c20263efb",
+    "features": {
+     "has_trigger": true,
+     "has_replacement": false,
+     "has_static": false,
+     "has_ability": true,
+     "has_svar": true,
+     "has_keyword": true,
+     "svar_names": [
+      "TrigScry"
+     ],
+     "svar_edge_count": 0,
+     "max_svar_depth": 0,
+     "has_targets": false,
+     "has_choices": true,
+     "has_mana_cost": false,
+     "has_hidden": true,
+     "has_random": false,
+     "has_copy_control": false,
+     "has_multiplayer": false,
+     "has_modes": true,
+     "ability_kinds": [
+      "Mana",
+      "Mana"
+     ],
+     "trigger_modes": [
+      "ChangesZone"
+     ],
+     "unsupported_count": 0,
+     "diagnostic_count": 0,
+     "nested_svar": false
+    },
+    "taxonomy": {
+     "families": [
+      "ACTION_COST_DECISION",
+      "HIDDEN_RNG_REPLAY",
+      "TRIGGER_REPLACEMENT_ZONE_SBA"
+     ],
+     "adversarial_tags": [
+      "choices_modes",
+      "hidden_info",
+      "triggers"
+     ]
+    },
+    "diagnostics": [],
+    "unsupported": [],
+    "skeleton_generatable": true,
+    "manual_review_required": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC",
+    "suggested_setup": {
+     "zones": [
+      "Battlefield"
+     ],
+     "needs_targets": false,
+     "needs_choices": true,
+     "needs_mana": false
+    }
+   }
+  }
+ ],
+ "fetch_errors": []
+}

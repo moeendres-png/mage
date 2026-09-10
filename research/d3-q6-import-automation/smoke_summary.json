@@ -1,0 +1,174 @@
+{
+ "provenance": {
+  "forge_remote": "https://github.com/Card-Forge/forge.git",
+  "forge_pin": "8c7e9afb8e6caee88644b94e25da5852e36f8928",
+  "forge_pin_subject": "Fix Nori, Teller of Tales (#11713)",
+  "forge_pin_date": "2026-08-27T11:56:16Z",
+  "parser_version": "d3q6-cleanroom-0.1.0",
+  "seed": 20260910,
+  "population": 33666,
+  "ref": "FETCH_HEAD"
+ },
+ "population_txt": 33666,
+ "candidates_fetched": 60,
+ "fetch_errors": 0,
+ "sample": 20,
+ "metrics": {
+  "parsed": 20,
+  "parsed_rate": 1.0,
+  "structured": 20,
+  "structured_rate": 1.0,
+  "scenario_skeleton_generatable": 20,
+  "skeleton_rate": 1.0,
+  "manual_review_required": 11,
+  "manual_rate": 0.55,
+  "unsupported_files": 2,
+  "unsupported_rate": 0.1,
+  "ambiguous_files": 0,
+  "ambiguity_rate": 0.0,
+  "total_params": 355,
+  "typed_params": 210,
+  "semantic_extraction_rate": 0.5915492957746479,
+  "false_positive_probes": 0,
+  "false_positive_rate": 0.0
+ },
+ "unsupported_directives_top": [
+  [
+   "topkey:AI",
+   2
+  ]
+ ],
+ "adversarial_tag_counts": {
+  "choices_modes": 10,
+  "copy_control": 5,
+  "hidden_info": 3,
+  "mana_cost": 19,
+  "nested_svar": 8,
+  "randomness": 7,
+  "triggers": 9,
+  "targets": 12,
+  "multiplayer": 1
+ },
+ "family_counts": {
+  "ACTION_COST_DECISION": 20,
+  "CONTINUOUS_COPY_CONTROL": 5,
+  "HIDDEN_RNG_REPLAY": 9,
+  "TRIGGER_REPLACEMENT_ZONE_SBA": 10
+ },
+ "stratum_counts": {
+  "static": 1,
+  "trigger": 9,
+  "targets": 8,
+  "svar_heavy": 2
+ },
+ "bounded_trace_subset": {
+  "n": 9,
+  "matches": 9,
+  "rows": [
+   {
+    "path": "forge-gui/res/cardsfolder/t/treetop_snarespinner.txt",
+    "independent_abilities": 1,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/q/qarsi_revenant.txt",
+    "independent_abilities": 1,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/t/tajuru_beastmaster.txt",
+    "independent_abilities": 1,
+    "independent_svars": 3,
+    "prototype_families": [
+     "ACTION_COST_DECISION",
+     "TRIGGER_REPLACEMENT_ZONE_SBA"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/w/wrap_in_flames.txt",
+    "independent_abilities": 1,
+    "independent_svars": 1,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/e/enshrouding_mist.txt",
+    "independent_abilities": 1,
+    "independent_svars": 1,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/e/epic_confrontation.txt",
+    "independent_abilities": 1,
+    "independent_svars": 1,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/m/machine_over_matter.txt",
+    "independent_abilities": 2,
+    "independent_svars": 0,
+    "prototype_families": [
+     "ACTION_COST_DECISION",
+     "TRIGGER_REPLACEMENT_ZONE_SBA"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/d/drunau_corpse_trawler.txt",
+    "independent_abilities": 2,
+    "independent_svars": 1,
+    "prototype_families": [
+     "ACTION_COST_DECISION",
+     "TRIGGER_REPLACEMENT_ZONE_SBA"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   },
+   {
+    "path": "forge-gui/res/cardsfolder/a/argivian_welcome.txt",
+    "independent_abilities": 1,
+    "independent_svars": 2,
+    "prototype_families": [
+     "ACTION_COST_DECISION"
+    ],
+    "trace_match": true,
+    "behavior_pass": false,
+    "evidence_class": "SYNTHETIC"
+   }
+  ]
+ },
+ "elapsed_s": 1.3,
+ "disclaimer": "PARSE/IMPORT != BEHAVIOR PASS. All behavior rows remain UNKNOWN/SYNTHETIC. No coverage promotion."
+}
