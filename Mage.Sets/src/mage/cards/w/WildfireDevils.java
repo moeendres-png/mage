@@ -17,7 +17,6 @@ import java.util.UUID;
 import mage.ApprovingObject;
 import mage.players.PlayerList;
 import mage.target.common.TargetCardInGraveyard;
-import mage.util.RandomUtil;
 
 /**
  * @author TheElk801
@@ -77,7 +76,7 @@ class WildfireDevilsEffect extends OneShotEffect {
         if (players == null) {
             return false;
         }
-        Player randomPlayer = game.getPlayer(players.get(RandomUtil.nextInt(players.size())));
+        Player randomPlayer = game.getPlayer(players.get(game.getRulesRandom().nextInt(players.size())));
         if (randomPlayer == null) {
             return false;
         }

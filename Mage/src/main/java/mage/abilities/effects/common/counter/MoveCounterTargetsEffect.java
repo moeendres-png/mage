@@ -61,12 +61,12 @@ public class MoveCounterTargetsEffect extends OneShotEffect {
         }
         CounterType typeToRemove;
         if (counterType == null) {
-            Set<String> types = new HashSet<>(fromPermanent.getCounters(game).keySet());
+            Set<String> types = new LinkedHashSet<>(fromPermanent.getCounters(game).keySet()); // WS54: stable candidate order
             switch (types.size()) {
                 case 0:
                     return false;
                 case 1:
-                    typeToRemove = CounterType.findByName(RandomUtil.randomFromCollection(types));
+                    typeToRemove = CounterType.findByName(RandomUtil.randomFromCollection(types, game.getRulesRandom())); // WS54: game-scoped
                     break;
                 default:
                     Player player = game.getPlayer(source.getControllerId());

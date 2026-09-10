@@ -78,7 +78,7 @@ class SinSpirasPunishmentEffect extends OneShotEffect {
         boolean repeat = true;
         while (repeat) {
             // Exile a permanent card from your graveyard at random
-            Card card = RandomUtil.randomFromCollection(player.getGraveyard().getCards(StaticFilters.FILTER_CARD_PERMANENT, game));
+            Card card = RandomUtil.randomFromCollection(player.getGraveyard().getCards(StaticFilters.FILTER_CARD_PERMANENT, game), game.getRulesRandom());
             if (card == null) {
                 return true;
             }

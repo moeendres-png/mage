@@ -22,7 +22,6 @@ import mage.filter.predicate.permanent.PermanentIdPredicate;
 import mage.game.Game;
 import mage.game.permanent.Permanent;
 import mage.target.targetpointer.FixedTarget;
-import mage.util.RandomUtil;
 
 /**
  * @author Cguy7777
@@ -68,7 +67,7 @@ class TheNiptonLotteryEffect extends OneShotEffect {
         if (creatureList.isEmpty()) {
             return true;
         }
-        Permanent permanentToSteal = creatureList.get(RandomUtil.nextInt(creatureList.size()));
+        Permanent permanentToSteal = creatureList.get(game.getRulesRandom().nextInt(creatureList.size()));
 
         // You gain control of that creature until end of turn. Untap it. It gains haste until end of turn.
         ContinuousEffect controlEffect = new GainControlTargetEffect(Duration.EndOfTurn);

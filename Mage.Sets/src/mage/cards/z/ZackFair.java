@@ -106,7 +106,7 @@ class ZackFairEffect extends OneShotEffect {
             case 0:
                 return false;
             case 1:
-                equipment = RandomUtil.randomFromCollection(permanents);
+                equipment = RandomUtil.randomFromCollection(permanents, game.getRulesRandom());
                 break;
             default:
                 FilterPermanent filter = new FilterPermanent(

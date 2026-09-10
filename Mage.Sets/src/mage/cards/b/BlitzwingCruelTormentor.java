@@ -18,7 +18,6 @@ import mage.game.Game;
 import mage.game.permanent.Permanent;
 import mage.players.Player;
 import mage.target.common.TargetOpponent;
-import mage.util.RandomUtil;
 import mage.watchers.common.PlayerLostLifeWatcher;
 
 import java.util.UUID;
@@ -124,7 +123,7 @@ class BlitzwingAdaptiveAssailantEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Ability ability = RandomUtil.nextBoolean() ? FlyingAbility.getInstance() : IndestructibleAbility.getInstance();
+        Ability ability = game.getRulesRandom().nextBoolean() ? FlyingAbility.getInstance() : IndestructibleAbility.getInstance();
         game.informPlayers(ability.getRule() + " has been chosen");
         game.addEffect(new GainAbilitySourceEffect(ability, Duration.EndOfTurn), source);
         return true;

@@ -279,7 +279,10 @@ public final class SimulatedPlayerMCTS extends MCTSPlayer {
         if (cards.isEmpty()) {
             return !target.isRequired(source);
         }
-        Card card = cards.getRandom(game);
+        // WS54: AI discretionary sampling on the NON-RULES stream (was cards.getRandom(game),
+        // which consumes the credited Rules stream). Same candidate semantics as
+        // CardsImpl.getRandom: Card instances resolved through the game, flow-ordered.
+        Card card = RandomUtil.randomFromCollection(cards.getCards(game), RandomUtil.getRandom());
         if (card != null) {
             target.addTarget(card.getId(), source, game); // todo: addtryaddtarget or return type (see computerPlayer)
             return true;

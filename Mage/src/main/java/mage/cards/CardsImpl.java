@@ -83,13 +83,16 @@ public class CardsImpl extends LinkedHashSet<UUID> implements Cards, Serializabl
         }
 
         // necessary if permanent tokens are in the collection
+        // WS54: LinkedHashSet preserves this collection's flow (insertion) order as the
+        // canonical candidate order (was HashSet: order depended on fresh per-run UUIDs),
+        // and the pick consumes the owning game's Rules RNG (was the shared global stream).
         Set<MageObject> cardsForRandomPick = this
                 .stream().map(game::getObject)
                 .filter(Objects::nonNull)
                 .filter(Card.class::isInstance)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
-        return (Card) RandomUtil.randomFromCollection(cardsForRandomPick);
+        return (Card) RandomUtil.randomFromCollection(cardsForRandomPick, game.getRulesRandom());
     }
 
     @Override
@@ -178,7 +181,9 @@ public class CardsImpl extends LinkedHashSet<UUID> implements Cards, Serializabl
 
     @Override
     public Collection<Card> getUniqueCards(Game game) {
-        Map<String, Card> cards = new HashMap<>(this.size());
+        // WS54: LinkedHashMap keeps flow order (was HashMap: iteration order depended
+        // on fresh per-run card UUIDs).
+        Map<String, Card> cards = new LinkedHashMap<>(this.size());
 
         for (UUID cardId : this) {
             Card card = game.getCard(cardId);

@@ -32,18 +32,31 @@ public class Library implements Serializable {
     }
 
     /**
-     * Don't use this directly. Use <player.shuffleLibrary(game)> instead.
+     * WS54: authoritative Rules shuffle. Every production library shuffle must go
+     * through the owning game's Rules RNG (via {@code player.shuffleLibrary(game)}).
+     * Real unbiased Fisher-Yates; only the RNG source changed (control, not semantics).
      */
-    public void shuffle() {
+    public void shuffle(java.util.Random rng) {
         UUID[] shuffled = library.toArray(new UUID[0]);
         for (int n = shuffled.length - 1; n > 0; n--) {
-            int r = RandomUtil.nextInt(n + 1);
+            int r = rng.nextInt(n + 1);
             UUID temp = shuffled[n];
             shuffled[n] = shuffled[r];
             shuffled[r] = temp;
         }
         library.clear();
         library.addAll(Arrays.asList(shuffled));
+    }
+
+    /**
+     * Don't use this directly. Use <player.shuffleLibrary(game)> instead.
+     *
+     * @deprecated WS54: non-authoritative legacy path on the shared non-Rules stream.
+     * Kept only for AI hidden-info sampling and tests; never use in a Rules path.
+     */
+    @Deprecated
+    public void shuffle() {
+        shuffle(RandomUtil.getRandom());
     }
 
     /**
@@ -170,7 +183,9 @@ public class Library implements Serializable {
     public Collection<Card> getUniqueCards(Game game) {
         // TODO: on no performance issues - remove unique code after few releases, 2025-05-13
         if (true) return getCards(game);
-        Map<String, Card> cards = new HashMap<>();
+        // WS54: LinkedHashMap keeps top-to-bottom flow order (was HashMap: iteration
+        // order depended on fresh per-run card UUIDs).
+        Map<String, Card> cards = new LinkedHashMap<>();
         for (UUID cardId : library) {
             Card card = game.getCard(cardId);
             if (card != null) {

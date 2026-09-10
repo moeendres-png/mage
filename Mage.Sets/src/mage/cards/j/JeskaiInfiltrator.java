@@ -91,7 +91,7 @@ class JeskaiInfiltratorEffect extends OneShotEffect {
         for (Card card : cardsToManifest) {
             card.setFaceDown(true, game);
         }
-        Collections.shuffle(cardsToManifest);
+        Collections.shuffle(cardsToManifest, game.getRulesRandom()); // WS54: game-scoped (exile flow order)
         game.informPlayers(controller.getLogName() + " shuffles the face-down pile");
         game.processAction();
         ManifestEffect.doManifestCards(game, source, controller, new LinkedHashSet<>(cardsToManifest));

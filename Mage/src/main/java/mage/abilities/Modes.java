@@ -18,7 +18,6 @@ import mage.players.Player;
 import mage.target.common.TargetOpponent;
 import mage.util.CardUtil;
 import mage.util.Copyable;
-import mage.util.RandomUtil;
 
 /**
  * @author BetaSteward_at_googlemail.com
@@ -399,7 +398,7 @@ public class Modes extends LinkedHashMap<UUID, Mode> implements Copyable<Modes> 
             // choose random
             if (this.isRandom) {
                 // TODO: research rules of Cult of Skaro after WHO release (is it random from all modes or from available/valid)
-                this.addSelectedMode(availableModes.get(RandomUtil.nextInt(availableModes.size())).getId());
+                this.addSelectedMode(availableModes.get(game.getRulesRandom().nextInt(availableModes.size())).getId()); // WS54: game-scoped
                 return isSelectedValid(source, game);
             }
 

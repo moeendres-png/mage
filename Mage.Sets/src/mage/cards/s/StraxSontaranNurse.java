@@ -94,8 +94,10 @@ class StraxSontaranNurseEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
+        // WS54: game-scoped pick over turn-ordered player list
         Player player = game.getPlayer(RandomUtil.randomFromCollection(
-                game.getState().getPlayersInRange(source.getControllerId(), game, true)
+                game.getState().getPlayersInRange(source.getControllerId(), game, true),
+                game.getRulesRandom()
         ));
         if (player == null) {
             return false;

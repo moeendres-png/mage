@@ -50,7 +50,7 @@ public class DraftFromSpellbookEffect extends OneShotEffect {
         }
         Set<String> toSelect = new HashSet<>();
         while (toSelect.size() < 3) {
-            toSelect.add(RandomUtil.randomFromCollection(spellbook));
+            toSelect.add(RandomUtil.randomFromCollection(spellbook, game.getRulesRandom())); // WS54: game-scoped
         }
         Choice choice = new ChoiceImpl(true, ChoiceHintType.CARD);
         choice.setMessage("Choose a card to draft");

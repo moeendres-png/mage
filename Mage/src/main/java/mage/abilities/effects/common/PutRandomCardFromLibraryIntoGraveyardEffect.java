@@ -9,6 +9,7 @@ import mage.filter.FilterCard;
 import mage.game.Game;
 import mage.players.Player;
 import mage.util.RandomUtil;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -49,9 +50,9 @@ public class PutRandomCardFromLibraryIntoGraveyardEffect extends OneShotEffect {
                 .getCards(game)
                 .stream()
                 .filter(card -> filter.match(card, getId(), source, game))
-                .collect(Collectors.toSet());
+                .collect(Collectors.toCollection(LinkedHashSet::new)); // WS54: flow order (was HashSet)
 
-        Card card = RandomUtil.randomFromCollection(cards);
+        Card card = RandomUtil.randomFromCollection(cards, game.getRulesRandom()); // WS54: game-scoped
         if (card == null) {
             return false;
         }

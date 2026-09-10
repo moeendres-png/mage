@@ -15,8 +15,8 @@ import mage.players.Player;
 import mage.util.CardUtil;
 import mage.util.RandomUtil;
 
-import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 
@@ -85,7 +85,7 @@ class ZiatorasEnvoyEffect extends OneShotEffect {
         Cards cards = new CardsImpl(card);
         // TODO: factor this out and reuse for other cards
         if (player.canPlayLand()) {
-            Set<Card> landSet = new HashSet<>();
+            Set<Card> landSet = new LinkedHashSet<>(); // WS54: MDFC half order (was HashSet)
             if (card instanceof ModalDoubleFacedCard) {
                 ModalDoubleFacedCard mdfc = (ModalDoubleFacedCard) card;
                 if (mdfc.getLeftHalfCard().isLand(game)) {
@@ -103,7 +103,7 @@ class ZiatorasEnvoyEffect extends OneShotEffect {
             )) {
                 switch (landSet.size()) {
                     case 1:
-                        land = RandomUtil.randomFromCollection(landSet);
+                        land = RandomUtil.randomFromCollection(landSet, game.getRulesRandom());
                         break;
                     case 2:
                         Iterator<Card> iterator = landSet.iterator();

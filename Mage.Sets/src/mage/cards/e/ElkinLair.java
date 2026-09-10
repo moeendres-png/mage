@@ -23,7 +23,6 @@ import mage.game.Game;
 import mage.game.permanent.Permanent;
 import mage.players.Player;
 import mage.target.targetpointer.FixedTarget;
-import mage.util.RandomUtil;
 
 /**
  *
@@ -85,7 +84,7 @@ class ElkinLairUpkeepEffect extends OneShotEffect {
             return false;
         }
 
-        Card card = cards[RandomUtil.nextInt(cards.length)];
+        Card card = cards[game.getRulesRandom().nextInt(cards.length)];
         if (card == null) {
             return false;
         }

@@ -13,7 +13,6 @@ import mage.game.Game;
 import mage.game.events.GameEvent;
 import mage.players.Player;
 import mage.util.CardUtil;
-import mage.util.RandomUtil;
 
 /**
  *
@@ -72,7 +71,7 @@ class TheRuinousPowersEffect extends OneShotEffect {
         if (opponents.isEmpty()) {
             return false;
         }
-        Player opponent = game.getPlayer(opponents.get(RandomUtil.nextInt(opponents.size())));
+        Player opponent = game.getPlayer(opponents.get(game.getRulesRandom().nextInt(opponents.size())));
         if (opponent == null) {
             return false;
         }

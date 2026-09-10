@@ -74,9 +74,9 @@ class WondrousCrucibleEffect extends OneShotEffect {
             return false;
         }
         player.millCards(2, source, game);
-        Card card = RandomUtil.randomFromCollection(
-                player.getGraveyard().getCards(StaticFilters.FILTER_CARD_NON_LAND, game)
-        );
+        Card card = RandomUtil.randomFromCollection( // WS54: game-scoped (graveyard flow order)
+                player.getGraveyard().getCards(StaticFilters.FILTER_CARD_NON_LAND, game),
+                game.getRulesRandom());
         if (card == null) {
             return true;
         }

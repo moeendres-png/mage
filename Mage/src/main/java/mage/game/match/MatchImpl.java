@@ -13,7 +13,7 @@ import mage.game.result.ResultProtos.MatchQuitStatus;
 import mage.players.Player;
 import mage.util.CardUtil;
 import mage.util.DateFormat;
-import mage.util.RandomUtil;
+import mage.util.GameRandom;
 import mage.util.ThreadUtils;
 import org.apache.log4j.Logger;
 
@@ -44,11 +44,38 @@ public abstract class MatchImpl implements Match {
 
     protected boolean replayAvailable;
 
+    // WS54: match-scoped setup RNG for seating order (shufflePlayers). Never shared
+    // with any game's Rules stream; default is a recorded non-credited seed.
+    protected GameRandom matchRandom;
+    protected long matchSeed;
+    protected boolean matchSeedExplicit;
+
     public MatchImpl(MatchOptions options) {
         this.options = options;
         this.startTime = new Date(); // to avaoid null pointer exceptions
         replayAvailable = false;
         draws = 0;
+        UUID defaultSeedSource = UUID.randomUUID();
+        this.matchSeed = defaultSeedSource.getMostSignificantBits() ^ defaultSeedSource.getLeastSignificantBits();
+        this.matchRandom = new GameRandom(this.matchSeed);
+        this.matchSeedExplicit = false;
+    }
+
+    @Override
+    public void setMatchSeed(long seed) {
+        this.matchSeed = seed;
+        this.matchRandom = new GameRandom(seed);
+        this.matchSeedExplicit = true;
+    }
+
+    @Override
+    public long getMatchSeed() {
+        return matchSeed;
+    }
+
+    @Override
+    public boolean isMatchSeedExplicit() {
+        return matchSeedExplicit;
     }
 
     @Override
@@ -223,7 +250,7 @@ public abstract class MatchImpl implements Match {
     }
 
     protected void shufflePlayers() {
-        Collections.shuffle(this.players, RandomUtil.getRandom());
+        Collections.shuffle(this.players, matchRandom); // WS54: match-scoped (was shared global stream)
     }
 
     @Override

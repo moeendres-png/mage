@@ -1058,7 +1058,7 @@ public abstract class PlayerImpl implements Player, Serializable {
             if (!anyOrder) {
                 // random order
                 List<UUID> ids = new ArrayList<>(cards);
-                Collections.shuffle(ids);
+                Collections.shuffle(ids, game.getRulesRandom()); // WS54: game-scoped (was unseeded global shuffle)
                 for (UUID id : ids) {
                     moveObjectToLibrary(id, source, game, false);
                 }
@@ -1201,7 +1201,7 @@ public abstract class PlayerImpl implements Player, Serializable {
             if (!anyOrder) {
                 // random order
                 List<UUID> ids = new ArrayList<>(cards);
-                Collections.shuffle(ids);
+                Collections.shuffle(ids, game.getRulesRandom()); // WS54: game-scoped (was unseeded global shuffle)
                 for (UUID id : ids) {
                     moveObjectToLibrary(id, source, game, true);
                 }
@@ -1936,7 +1936,7 @@ public abstract class PlayerImpl implements Player, Serializable {
     @Override
     public void shuffleLibrary(Ability source, Game game) {
         if (!game.replaceEvent(GameEvent.getEvent(GameEvent.EventType.SHUFFLE_LIBRARY, playerId, source, playerId))) {
-            this.library.shuffle();
+            this.library.shuffle(game.getRulesRandom()); // WS54: game-scoped Rules shuffle
             if (!game.isSimulation()) {
                 game.informPlayers(getLogName() + "'s library is shuffled" + CardUtil.getSourceLogName(game, source));
             }
@@ -3043,8 +3043,8 @@ public abstract class PlayerImpl implements Player, Serializable {
                 .getCards(game)
                 .stream()
                 .filter(card -> filter.match(card, getId(), source, game))
-                .collect(Collectors.toSet());
-        Card card = RandomUtil.randomFromCollection(cards);
+                .collect(Collectors.toCollection(LinkedHashSet::new)); // WS54: flow order (was HashSet)
+        Card card = RandomUtil.randomFromCollection(cards, game.getRulesRandom()); // WS54: game-scoped
         if (card == null) {
             return false;
         }
@@ -3192,7 +3192,7 @@ public abstract class PlayerImpl implements Player, Serializable {
      */
     @Override
     public boolean flipCoinResult(Game game) {
-        return RandomUtil.nextBoolean();
+        return game.getRulesRandom().nextBoolean(); // WS54: game-scoped (was shared global stream)
     }
 
     private static final class RollDieResult {
@@ -3223,7 +3223,7 @@ public abstract class PlayerImpl implements Player, Serializable {
 
     @Override
     public int rollDieResult(int sides, Game game) {
-        return RandomUtil.nextInt(sides) + 1;
+        return game.getRulesRandom().nextInt(sides) + 1; // WS54: game-scoped (was shared global stream)
     }
 
     /**

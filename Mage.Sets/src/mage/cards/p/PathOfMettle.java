@@ -26,6 +26,7 @@ import mage.game.permanent.Permanent;
 import mage.util.RandomUtil;
 import mage.watchers.common.AttackedThisTurnWatcher;
 
+import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -112,6 +113,7 @@ class MetzaliTowerOfTriumphDestroyEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
+        // WS54: game-scoped pick over attack-declaration flow order (watcher is insertion-ordered)
         Permanent permanent = RandomUtil.randomFromCollection(
                 game.getState()
                         .getWatcher(AttackedThisTurnWatcher.class)
@@ -119,7 +121,8 @@ class MetzaliTowerOfTriumphDestroyEffect extends OneShotEffect {
                         .stream()
                         .map(mor -> mor.getPermanent(game))
                         .filter(Objects::nonNull)
-                        .collect(Collectors.toSet())
+                        .collect(Collectors.toCollection(LinkedHashSet::new)),
+                game.getRulesRandom()
         );
         return permanent != null && permanent.destroy(source, game);
     }

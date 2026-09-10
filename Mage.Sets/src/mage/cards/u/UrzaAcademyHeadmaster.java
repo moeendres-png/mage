@@ -40,7 +40,6 @@ import mage.target.Target;
 import mage.target.TargetPermanent;
 import mage.target.TargetPlayer;
 import mage.target.common.*;
-import mage.util.RandomUtil;
 
 import java.util.*;
 
@@ -123,7 +122,7 @@ class UrzaAcademyHeadmasterRandomEffect extends OneShotEffect {
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            int result = RandomUtil.nextInt(20) + 1;
+            int result = game.getRulesRandom().nextInt(20) + 1;
             List<Effect> effects = new ArrayList<>();
             Target target = null;
             StringBuilder sb = new StringBuilder("[URZA] ");
@@ -435,7 +434,7 @@ class UrzaAcademyHeadmasterRandomEffect extends OneShotEffect {
                     } else {
                         // 1/19/2018 	(...) If the ability that comes up requires a target and there are no legal targets available, click again until that’s not true.
                         game.informPlayers("[URZA] Target can't be chosen, picking next ability...");
-                        result = RandomUtil.nextInt(20) + 1;
+                        result = game.getRulesRandom().nextInt(20) + 1;
                         effects.clear();
                         target = null;
                         sb = new StringBuilder("[URZA] ");

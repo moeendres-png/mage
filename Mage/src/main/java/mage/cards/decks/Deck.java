@@ -210,10 +210,14 @@ public class Deck implements Serializable, Copyable<Deck> {
 
     // TODO: delete and replace by getCards()
     public Set<Card> getMaindeckCards() {
+        // WS54: LinkedHashSet preserves the declared deck-load order as the canonical
+        // deterministic pre-shuffle sequence (was Collectors.toSet()/HashSet, which
+        // scrambled setup order per fresh per-run card UUIDs). Multiplicity is safe:
+        // cards are distinct objects with identity semantics.
         return cards
                 .stream()
                 .filter(card -> !card.isExtraDeckCard())
-                .collect(Collectors.toSet());
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     public Card findCard(UUID cardId) {

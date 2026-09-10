@@ -79,7 +79,7 @@ class TheToymakersTrapEffect extends OneShotEffect {
             case 0:
                 return false;
             case 1:
-                number = RandomUtil.randomFromCollection(choices);
+                number = RandomUtil.randomFromCollection(choices, game.getRulesRandom());
                 break;
             default:
                 Choice choice = new ChoiceImpl(true);

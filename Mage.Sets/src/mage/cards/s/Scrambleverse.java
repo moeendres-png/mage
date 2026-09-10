@@ -16,7 +16,6 @@ import mage.game.Game;
 import mage.game.permanent.Permanent;
 import mage.players.PlayerList;
 import mage.target.targetpointer.FixedTarget;
-import mage.util.RandomUtil;
 
 /**
  *
@@ -57,7 +56,7 @@ class ScrambleverseEffect extends OneShotEffect {
         PlayerList players = game.getState().getPlayersInRange(source.getControllerId(), game);
         int count = players.size();
         for (Permanent permanent : game.getBattlefield().getActivePermanents(new FilterNonlandPermanent(), source.getControllerId(), source, game)) {
-            ContinuousEffect effect = new GainControlTargetEffect(Duration.Custom, true, players.get(RandomUtil.nextInt(count)));
+            ContinuousEffect effect = new GainControlTargetEffect(Duration.Custom, true, players.get(game.getRulesRandom().nextInt(count)));
             effect.setTargetPointer(new FixedTarget(permanent, game));
             game.addEffect(effect, source);
             permanent.untap(game);

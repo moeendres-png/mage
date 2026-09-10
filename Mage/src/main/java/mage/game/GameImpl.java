@@ -148,6 +148,13 @@ public abstract class GameImpl implements Game {
     protected UUID winnerId;
     protected boolean gameStopped = false;
 
+    // WS54: authoritative game-scoped Rules RNG. Owned by this game/session, never shared.
+    // AI / UI / test / infrastructure randomness must never consume this stream.
+    protected GameRandom rulesRandom;
+    protected long rulesSeed;
+    protected boolean rulesSeedExplicit; // true only after an explicit setRulesSeed call
+    protected boolean requireExplicitSeed; // credited harnesses enable fail-closed init
+
     protected RangeOfInfluence range;
     protected Mulligan mulligan;
 
@@ -184,6 +191,14 @@ public abstract class GameImpl implements Game {
         this.startingHandSize = startingHandSize;
         this.executingRollback = false;
         this.minimumDeckSize = minimumDeckSize;
+
+        // WS54: non-credited default seed (recorded replay identity, NOT an explicit
+        // orchestration seed). Credited reexecution must call setRulesSeed before init.
+        UUID defaultSeedSource = UUID.randomUUID();
+        this.rulesSeed = defaultSeedSource.getMostSignificantBits() ^ defaultSeedSource.getLeastSignificantBits();
+        this.rulesRandom = new GameRandom(this.rulesSeed);
+        this.rulesSeedExplicit = false;
+        this.requireExplicitSeed = false;
 
         initGameDefaultWatchers();
     }
@@ -234,6 +249,15 @@ public abstract class GameImpl implements Game {
         this.range = game.range;
         this.mulligan = game.mulligan.copy();
 
+        // WS54: duplicate (never share) the Rules RNG state, so AI simulations and
+        // playable calcs running on a game copy can never perturb the parent stream.
+        // Sibling copies start at the same position by design (documented AI-search
+        // limitation); sim RNG is never written back into the parent.
+        this.rulesSeed = game.rulesSeed;
+        this.rulesRandom = game.rulesRandom == null ? new GameRandom(this.rulesSeed) : game.rulesRandom.copy();
+        this.rulesSeedExplicit = game.rulesSeedExplicit;
+        this.requireExplicitSeed = game.requireExplicitSeed;
+
         this.attackOption = game.attackOption;
         this.gameOptions = game.gameOptions.copy();
         this.startMessage = game.startMessage;
@@ -259,6 +283,43 @@ public abstract class GameImpl implements Game {
     @Override
     public Integer getGameIndex() {
         return this.gameIndex;
+    }
+
+    // WS54: game-scoped Rules RNG authority.
+    @Override
+    public GameRandom getRulesRandom() {
+        // defensive: never return null even if a subclass bypassed the constructors
+        if (rulesRandom == null) {
+            rulesRandom = new GameRandom(rulesSeed);
+        }
+        return rulesRandom;
+    }
+
+    @Override
+    public void setRulesSeed(long seed) {
+        this.rulesSeed = seed;
+        this.rulesRandom = new GameRandom(seed);
+        this.rulesSeedExplicit = true;
+    }
+
+    @Override
+    public long getRulesSeed() {
+        return rulesSeed;
+    }
+
+    @Override
+    public boolean isRulesSeedExplicit() {
+        return rulesSeedExplicit;
+    }
+
+    @Override
+    public long getRulesRandomCalls() {
+        return rulesRandom == null ? 0L : rulesRandom.getCallsCount();
+    }
+
+    @Override
+    public void setRequireExplicitSeed(boolean requireExplicitSeed) {
+        this.requireExplicitSeed = requireExplicitSeed;
     }
 
     @Override
@@ -1248,6 +1309,12 @@ public abstract class GameImpl implements Game {
     }
 
     protected void init(UUID choosingPlayerId) {
+        // WS54: credited harnesses fail closed on a missing explicit seed instead of
+        // silently running on the recorded non-credited default seed.
+        if (requireExplicitSeed && !rulesSeedExplicit) {
+            throw new IllegalStateException(
+                    "WS54: game init requires an explicit Rules seed (setRulesSeed) in credited mode");
+        }
         for (Player player : state.getPlayers().values()) {
             player.beginTurn(this);
             // init only if match is with timer (>0) and time left was not set yet (== MAX_VALUE).
@@ -1421,7 +1488,7 @@ public abstract class GameImpl implements Game {
 
         // 20180408 - 901.5
         if (gameOptions.planeChase) {
-            Plane plane = Plane.createRandomPlane();
+            Plane plane = Plane.createRandomPlane(this); // WS54: game-scoped
             plane.setControllerId(startingPlayerId);
             addPlane(plane, startingPlayerId);
             state.setPlaneChase(this, gameOptions.planeChase);
@@ -1566,7 +1633,7 @@ public abstract class GameImpl implements Game {
         UUID[] players = getPlayers().keySet().toArray(new UUID[0]);
         UUID playerId;
         while (!hasEnded()) {
-            playerId = players[RandomUtil.nextInt(players.length)]; // test game
+            playerId = players[getRulesRandom().nextInt(players.length)]; // WS54: game-scoped (was global RandomUtil)
             Player player = getPlayer(playerId);
             if (player != null && player.canRespond()) {
                 fireInformEvent(state.getPlayer(playerId).getLogName() + " won the toss");
@@ -3492,7 +3559,7 @@ public abstract class GameImpl implements Game {
             for (Player aplayer : state.getPlayers().values()) {
                 if (!aplayer.hasLeft() && !addedAgain) {
                     addedAgain = true;
-                    Plane plane = Plane.createRandomPlane();
+                    Plane plane = Plane.createRandomPlane(this); // WS54: game-scoped
                     plane.setControllerId(aplayer.getId());
                     addPlane(plane, aplayer.getId());
                 }

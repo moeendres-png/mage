@@ -103,9 +103,9 @@ class InventiveIterationEffect extends OneShotEffect {
                 player.drawCards(1, source, game);
                 return true;
             case 1:
-                card = RandomUtil.randomFromCollection(
-                        player.getGraveyard().getCards(StaticFilters.FILTER_CARD_ARTIFACT, game)
-                );
+                card = RandomUtil.randomFromCollection( // WS54: game-scoped (graveyard flow order)
+                        player.getGraveyard().getCards(StaticFilters.FILTER_CARD_ARTIFACT, game),
+                        game.getRulesRandom());
                 break;
             default:
                 TargetCard target = new TargetCardInYourGraveyard(StaticFilters.FILTER_CARD_ARTIFACT);

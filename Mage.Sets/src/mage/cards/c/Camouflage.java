@@ -22,7 +22,6 @@ import mage.game.permanent.Permanent;
 import mage.players.Player;
 import mage.target.Target;
 import mage.target.TargetPermanent;
-import mage.util.RandomUtil;
 
 import java.util.*;
 
@@ -80,7 +79,7 @@ class CamouflageEffect extends ContinuousRuleModifyingEffectImpl {
     public boolean applies(GameEvent event, Ability source, Game game) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            Map<UUID, List<List<Permanent>>> masterMap = new HashMap<>();
+            Map<UUID, List<List<Permanent>>> masterMap = new LinkedHashMap<>(); // WS54: defender flow order (was HashMap keyed by fresh UUIDs)
             // Each defending player chooses any number of creatures they control
             // and divides them into a number of piles equal to the number of attacking creatures for whom that player is the defending player (piles can be empty)
             for (UUID defenderId : game.getCombat().getPlayerDefenders(game)) {
@@ -172,7 +171,7 @@ class CamouflageEffect extends ContinuousRuleModifyingEffectImpl {
                         if (available.isEmpty()) {
                             break;
                         }
-                        int randomAttacker = RandomUtil.nextInt(available.size());
+                        int randomAttacker = game.getRulesRandom().nextInt(available.size());
                         Permanent attacker = available.get(randomAttacker);
                         if (attacker != null) {
                             available.remove(randomAttacker);

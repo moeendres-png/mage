@@ -142,7 +142,7 @@ class MaddeningHexEffect extends OneShotEffect {
             player.removeAttachment(permanent, source, game);
         }
 
-        Player opponent = game.getPlayer(RandomUtil.randomFromCollection(opponents));
+        Player opponent = game.getPlayer(RandomUtil.randomFromCollection(opponents, game.getRulesRandom()));
         if (opponent == null) {
             return true;
         }

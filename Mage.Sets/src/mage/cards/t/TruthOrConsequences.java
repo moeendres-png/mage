@@ -66,7 +66,7 @@ class TruthOrConsequencesEffect extends OneShotEffect {
         vote.doVotes(source, game);
         player.drawCards(vote.getVoteCount(true), source, game);
         Optional.of(game.getOpponents(player.getId(), true))
-                .map(RandomUtil::randomFromCollection)
+                .map(permanent -> RandomUtil.randomFromCollection(permanent, game.getRulesRandom())) // WS54: game-scoped
                 .map(game::getPlayer)
                 .ifPresent(opponent -> {
                     game.informPlayers(opponent.getLogName() + " has been chosen at random.");

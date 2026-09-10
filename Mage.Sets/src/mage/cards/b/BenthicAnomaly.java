@@ -107,7 +107,7 @@ class BenthicAnomalyEffect extends OneShotEffect {
             case 0:
                 return false;
             case 1:
-                permanent = RandomUtil.randomFromCollection(permanents);
+                permanent = RandomUtil.randomFromCollection(permanents, game.getRulesRandom());
                 break;
             default:
                 FilterPermanent filter = new FilterPermanent("a creature to create a copy of");

@@ -102,8 +102,8 @@ class ExposeTheCulpritEffect extends OneShotEffect {
                         return card;
                     }
             ).filter(Objects::nonNull).collect(Collectors.toList());
-            if (controller.moveCards(new HashSet<>(cardsToCloak), Zone.EXILED, source, game)) {
-                Collections.shuffle(cardsToCloak);
+            if (controller.moveCards(new LinkedHashSet<>(cardsToCloak), Zone.EXILED, source, game)) { // WS54: flow order into moveCards
+                Collections.shuffle(cardsToCloak, game.getRulesRandom()); // WS54: game-scoped (selection-ordered pile)
                 game.informPlayers(controller.getLogName() + " shuffles the face-down pile");
                 game.processAction();
                 ManifestEffect.doManifestCards(game, source, controller, new LinkedHashSet<>(cardsToCloak), true);

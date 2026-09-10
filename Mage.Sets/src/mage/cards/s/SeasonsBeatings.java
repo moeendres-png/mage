@@ -15,7 +15,6 @@ import mage.game.Game;
 import mage.game.permanent.Permanent;
 import mage.players.Player;
 import mage.target.TargetPlayer;
-import mage.util.RandomUtil;
 
 /**
  *
@@ -73,9 +72,9 @@ class SeasonsBeatingsEffect extends OneShotEffect {
             for (Integer i : creatures.keySet()) {
                 Permanent creature = game.getPermanent(creatures.get(i));
 
-                int other = RandomUtil.nextInt(numCreature);
+                int other = game.getRulesRandom().nextInt(numCreature);
                 while (other == i) {
-                    other = RandomUtil.nextInt(numCreature);
+                    other = game.getRulesRandom().nextInt(numCreature);
                 }
                 Permanent creature2 = game.getPermanent(creatures.get(other));
                 if (creature != null && creature2 != null) {

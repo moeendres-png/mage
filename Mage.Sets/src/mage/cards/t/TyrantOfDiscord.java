@@ -16,7 +16,6 @@ import mage.game.Game;
 import mage.game.permanent.Permanent;
 import mage.players.Player;
 import mage.target.common.TargetOpponent;
-import mage.util.RandomUtil;
 
 /**
  * @author noxx
@@ -71,7 +70,7 @@ class TyrantOfDiscordEffect extends OneShotEffect {
             while (!stop) {
                 int count = game.getBattlefield().countAll(new FilterPermanent(), opponent.getId(), game);
                 if (count > 0) {
-                    int random = (int)(RandomUtil.nextDouble() * count);
+                    int random = (int)(game.getRulesRandom().nextDouble() * count);
                     int index = 0;
                     for (Permanent permanent : game.getBattlefield().getAllActivePermanents(opponent.getId())) {
                         if (index == random) {

@@ -140,7 +140,7 @@ class GripOfChaosEffect extends OneShotEffect {
                 possibleTargets.remove(stackObject.getId());
             }
             if (!possibleTargets.isEmpty()) {
-                UUID newTargetId = RandomUtil.randomFromCollection(possibleTargets);
+                UUID newTargetId = RandomUtil.randomFromCollection(possibleTargets, game.getRulesRandom());
                 target.remove(oldTargetId);
                 target.add(newTargetId, game);
             }

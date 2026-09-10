@@ -108,7 +108,7 @@ class JalumGrifterEffect extends OneShotEffect {
             if (shellGamePile.isEmpty()) {
                 return true;
             }
-            Collections.shuffle(shellGamePile);
+            Collections.shuffle(shellGamePile, game.getRulesRandom()); // WS54: game-scoped (selection-ordered pile)
             game.informPlayers(controller.getLogName() + " shuffles the face-down pile");
             TargetCard targetCard = new TargetCard(Zone.HAND, new FilterCard());
             CardsImpl cards = new CardsImpl();

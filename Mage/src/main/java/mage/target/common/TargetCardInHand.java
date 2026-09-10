@@ -12,6 +12,7 @@ import mage.players.Player;
 import mage.target.TargetCard;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 
@@ -60,7 +61,7 @@ public class TargetCardInHand extends TargetCard {
 
     @Override
     public Set<UUID> possibleTargets(UUID sourceControllerId, Ability source, Game game) {
-        Set<UUID> possibleTargets = new HashSet<>();
+        Set<UUID> possibleTargets = new LinkedHashSet<>(); // WS54: flow order (was HashSet)
         Player player = game.getPlayer(sourceControllerId);
         if (player != null) {
             player.getHand().getCards(filter, sourceControllerId, source, game).stream()

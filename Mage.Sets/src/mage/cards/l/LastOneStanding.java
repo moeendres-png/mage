@@ -16,7 +16,6 @@ import mage.filter.predicate.Predicates;
 import mage.filter.predicate.permanent.PermanentIdPredicate;
 import mage.game.Game;
 import mage.game.permanent.Permanent;
-import mage.util.RandomUtil;
 
 /**
  *
@@ -63,7 +62,7 @@ class LastOneStandingEffect extends OneShotEffect {
         if (creatureList.size() < 2) {
             return true;
         }
-        int toSave = RandomUtil.nextInt(creatureList.size());
+        int toSave = game.getRulesRandom().nextInt(creatureList.size());
         FilterCreaturePermanent filter = new FilterCreaturePermanent();
         filter.add(Predicates.not(new PermanentIdPredicate(creatureList.get(toSave).getId())));
         return new DestroyAllEffect(filter).apply(game, source);

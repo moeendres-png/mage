@@ -146,7 +146,7 @@ class HaphazardBombardmentEndOfTurnEffect extends OneShotEffect {
                         game.getBattlefield().getActivePermanents(filter, source.getControllerId(), source, game)
                 )
                 .filter(p -> !p.isEmpty())
-                .map(RandomUtil::randomFromCollection)
+                .map(permanent -> RandomUtil.randomFromCollection(permanent, game.getRulesRandom())) // WS54: game-scoped
                 .filter(permanent -> permanent.destroy(source, game))
                 .isPresent();
     }

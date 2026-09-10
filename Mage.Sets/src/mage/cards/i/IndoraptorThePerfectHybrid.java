@@ -22,7 +22,6 @@ import mage.game.Game;
 import mage.game.permanent.Permanent;
 import mage.players.Player;
 import mage.target.common.TargetSacrifice;
-import mage.util.RandomUtil;
 import mage.watchers.common.DamageDoneWatcher;
 
 /**
@@ -130,7 +129,7 @@ class IndoraptorThePerfectHybridDamageEffect extends OneShotEffect {
             return false;
         }
         List<UUID> opponents = new ArrayList<>(game.getOpponents(controller.getId()));
-        Player opponent = game.getPlayer(opponents.get(RandomUtil.nextInt(opponents.size())));
+        Player opponent = game.getPlayer(opponents.get(game.getRulesRandom().nextInt(opponents.size())));
         if (opponent == null){
             return false;
         }

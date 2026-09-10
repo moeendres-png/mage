@@ -8,7 +8,6 @@ import mage.constants.Outcome;
 import mage.game.Game;
 import mage.players.Player;
 import mage.target.targetpointer.FixedTarget;
-import mage.util.RandomUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,7 +36,7 @@ public class AttackIfAbleTargetRandomOpponentSourceEffect extends OneShotEffect 
             return false;
         }
         List<UUID> opponents = new ArrayList<>(game.getOpponents(controller.getId(), true));
-        Player opponent = game.getPlayer(opponents.get(RandomUtil.nextInt(opponents.size())));
+        Player opponent = game.getPlayer(opponents.get(game.getRulesRandom().nextInt(opponents.size()))); // WS54: game-scoped (opponents is turn-ordered)
         if (opponent != null) {
             game.informPlayers(opponent.getLogName() + " was chosen at random.");
             ContinuousEffect effect = new AttacksIfAbleTargetPlayerSourceEffect();

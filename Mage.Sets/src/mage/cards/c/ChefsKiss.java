@@ -16,7 +16,6 @@ import mage.game.stack.Spell;
 import mage.game.stack.StackObject;
 import mage.target.Target;
 import mage.target.TargetSpell;
-import mage.util.RandomUtil;
 import mage.util.TargetAddress;
 import mage.util.functions.StackObjectCopyApplier;
 
@@ -114,9 +113,9 @@ class ChefsKissEffect extends OneShotEffect {
             applier = null;
             predicate = null;
         } else {
-            applier = new ChefsKissApplier(possibleTargets.get(RandomUtil.nextInt(possibleTargets.size())), game);
+            applier = new ChefsKissApplier(possibleTargets.get(game.getRulesRandom().nextInt(possibleTargets.size())), game);
             predicate = new MageObjectReferencePredicate(new MageObjectReference(
-                    possibleTargets.get(RandomUtil.nextInt(possibleTargets.size())), game
+                    possibleTargets.get(game.getRulesRandom().nextInt(possibleTargets.size())), game
             ));
         }
         spell.createCopyOnStack(game, source, source.getControllerId(), false, 1, applier);

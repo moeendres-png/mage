@@ -15,7 +15,6 @@ import mage.filter.common.FilterNonlandPermanent;
 import mage.game.Game;
 import mage.game.permanent.Permanent;
 import mage.target.TargetPermanent;
-import mage.util.RandomUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -90,7 +89,7 @@ class CapriciousEfreetEffect extends OneShotEffect {
         }
 
         if (!targetPermanents.isEmpty()) {
-            permanent = targetPermanents.get(RandomUtil.nextInt(targetPermanents.size()));
+            permanent = targetPermanents.get(game.getRulesRandom().nextInt(targetPermanents.size()));
             permanent.destroy(source, game, false);
             return true;
         }

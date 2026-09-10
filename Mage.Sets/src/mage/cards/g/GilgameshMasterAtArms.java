@@ -158,7 +158,7 @@ class GilgameshMasterAtArmsAttachEffect extends OneShotEffect {
             case 0:
                 return false;
             case 1:
-                return samurai.addAttachment(RandomUtil.randomFromCollection(permanents).getId(), source, game);
+                return samurai.addAttachment(RandomUtil.randomFromCollection(permanents, game.getRulesRandom()).getId(), source, game);
             default:
                 break;
         }

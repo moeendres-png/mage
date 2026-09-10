@@ -9,6 +9,7 @@ import mage.watchers.Watcher;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -17,11 +18,11 @@ import java.util.Set;
  */
 public class AttackedThisTurnWatcher extends Watcher {
 
-    private final Set<MageObjectReference> attackedThisTurnCreatures = new HashSet<>();
+    private final Set<MageObjectReference> attackedThisTurnCreatures = new LinkedHashSet<>(); // WS54: attack-declaration flow order
     private final Map<MageObjectReference, Integer> attackedThisTurnCreaturesCounts = new HashMap<>();
     
     // issue with Robber of the Rich.  it needs to check the subtype of the LKI of the permanent on the battlefield and this fails with MageObjectReference
-    private final Set<Permanent> attackedThisTurnCreaturesPermanentLKI = new HashSet<>();
+    private final Set<Permanent> attackedThisTurnCreaturesPermanentLKI = new LinkedHashSet<>(); // WS54: attack-declaration flow order
 
     /**
      * Game default watcher

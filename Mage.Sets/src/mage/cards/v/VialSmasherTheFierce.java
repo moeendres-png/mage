@@ -130,7 +130,7 @@ class VialSmasherTheFierceEffect extends OneShotEffect {
                 if(opponents.isEmpty()){
                     return false;
                 }
-                Collections.shuffle(opponents);
+                Collections.shuffle(opponents, game.getRulesRandom()); // WS54: game-scoped (turn-ordered opponents)
                 Player opponent = opponents.get(0);
                 game.informPlayers(opponent.getLogName() + " was chosen at random.");
                 if (!game.getBattlefield().getAllActivePermanents(new FilterPlaneswalkerPermanent(), opponent.getId(), game).isEmpty()) {

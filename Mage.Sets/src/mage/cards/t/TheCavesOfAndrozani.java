@@ -131,7 +131,7 @@ class TheCavesOfAndrozaniEffect extends OneShotEffect {
                 case 0:
                     continue;
                 case 1:
-                    counterType = CounterType.findByName(RandomUtil.randomFromCollection(counterTypes));
+                    counterType = CounterType.findByName(RandomUtil.randomFromCollection(counterTypes, game.getRulesRandom()));
                     break;
                 default:
                     Choice choice = new ChoiceImpl(true);

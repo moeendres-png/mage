@@ -76,7 +76,7 @@ public class PlaneswalkEffect extends OneShotEffect {
 
         boolean foundNextPlane = false;
         while (!foundNextPlane) {
-            Plane plane = Plane.createRandomPlane();
+            Plane plane = Plane.createRandomPlane(game); // WS54: game-scoped
             try {
                 if (plane != null && !planesVisited.contains(plane.getName())) {
                     foundNextPlane = true;

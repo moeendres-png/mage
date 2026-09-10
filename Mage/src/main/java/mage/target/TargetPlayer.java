@@ -7,6 +7,7 @@ import mage.game.Game;
 import mage.players.Player;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 
@@ -58,7 +59,7 @@ public class TargetPlayer extends TargetImpl {
 
     @Override
     public Set<UUID> possibleTargets(UUID sourceControllerId, Ability source, Game game) {
-        Set<UUID> possibleTargets = new HashSet<>();
+        Set<UUID> possibleTargets = new LinkedHashSet<>(); // WS54: flow order (was HashSet)
         for (UUID playerId : game.getState().getPlayersInRange(sourceControllerId, game)) {
             Player player = game.getPlayer(playerId);
             if (player != null && filter.match(player, sourceControllerId, source, game)) {

@@ -26,7 +26,6 @@ import mage.game.events.GameEvent;
 import mage.game.permanent.Permanent;
 import mage.players.Player;
 import mage.target.targetpointer.FixedTarget;
-import mage.util.RandomUtil;
 import mage.watchers.Watcher;
 
 /**
@@ -130,7 +129,7 @@ class AttackIfAbleTargetRandoOpponentSourceEffect extends OneShotEffect {
                 }
             }
             if (!opponents.isEmpty()) {
-                Player opponent = game.getPlayer(opponents.get(RandomUtil.nextInt(opponents.size())));
+                Player opponent = game.getPlayer(opponents.get(game.getRulesRandom().nextInt(opponents.size())));
                 if (opponent != null) {
                     ContinuousEffect effect = new AttacksIfAbleTargetPlayerSourceEffect();
                     effect.setTargetPointer(new FixedTarget(opponent.getId()));

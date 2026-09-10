@@ -77,7 +77,7 @@ class StormOfMemoriesEffect extends OneShotEffect {
         if (player == null) {
             return false;
         }
-        Card card = RandomUtil.randomFromCollection(player.getGraveyard().getCards(filter, game));
+        Card card = RandomUtil.randomFromCollection(player.getGraveyard().getCards(filter, game), game.getRulesRandom());
         return card != null && CardUtil.castSpellWithAttributesForFree(
                 player, source, game, new CardsImpl(card),
                 StaticFilters.FILTER_CARD, StormOfMemoriesTracker.instance

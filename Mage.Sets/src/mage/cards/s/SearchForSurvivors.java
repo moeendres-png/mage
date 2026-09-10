@@ -14,7 +14,6 @@ import mage.constants.Outcome;
 import mage.constants.Zone;
 import mage.game.Game;
 import mage.players.Player;
-import mage.util.RandomUtil;
 
 /**
  *
@@ -74,7 +73,7 @@ class SearchForSurvivorsEffect extends OneShotEffect {
             // randomly arrange the graveyard
             UUID[] shuffled = controller.getGraveyard().toArray(new UUID[0]);
             for (int n = shuffled.length - 1; n > 0; n--) {
-                int r = RandomUtil.nextInt(n + 1);
+                int r = game.getRulesRandom().nextInt(n + 1);
                 UUID temp = shuffled[r];
                 shuffled[r] = shuffled[n];
                 shuffled[n] = temp;

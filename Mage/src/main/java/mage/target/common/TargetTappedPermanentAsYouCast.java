@@ -7,6 +7,7 @@ import mage.game.permanent.Permanent;
 import mage.target.TargetPermanent;
 
 import java.util.Set;
+import java.util.LinkedHashSet;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -33,7 +34,7 @@ public class TargetTappedPermanentAsYouCast extends TargetPermanent {
         Set<UUID> possibleTargets = game.getBattlefield().getActivePermanents(getFilter(), sourceControllerId, source, game).stream()
                 .filter(Permanent::isTapped)
                 .map(Permanent::getId)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toCollection(LinkedHashSet::new)) ; // WS54: flow order (was HashSet)
         return keepValidPossibleTargets(possibleTargets, sourceControllerId, source, game);
     }
 

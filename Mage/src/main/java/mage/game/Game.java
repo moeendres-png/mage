@@ -291,6 +291,48 @@ public interface Game extends MageItem, Serializable, Copyable<Game> {
     boolean isSimulation();
 
     /**
+     * WS54: authoritative game-scoped Rules RNG. Owned by this game/session; never
+     * a JVM-global stream. The engine (never the external pilot/provider) performs
+     * every Rules-random selection through this instance. Never null after construction.
+     *
+     * <p>AI / UI / test / infrastructure randomness must NEVER consume this stream;
+     * it uses the separate non-Rules stream ({@code mage.util.RandomUtil}).</p>
+     */
+    mage.util.GameRandom getRulesRandom();
+
+    /**
+     * WS54: explicit Rules-RNG initialization (replay identity / orchestration input).
+     * The pilot may supply the game seed; it may not pick Rules-random results.
+     * Resets the stream, the consumption counter and the explicit-seed flag.
+     */
+    void setRulesSeed(long seed);
+
+    /**
+     * WS54: the seed this game's Rules stream was (re)initialized with. A default
+     * (non-credited) seed is recorded here as well, so every run carries its replay
+     * identity; see {@link #isRulesSeedExplicit()}.
+     */
+    long getRulesSeed();
+
+    /**
+     * WS54: whether {@link #setRulesSeed(long)} was called explicitly (credited
+     * reexecution) or the game still runs on its recorded non-credited default seed.
+     */
+    boolean isRulesSeedExplicit();
+
+    /**
+     * WS54: Rules-RNG consumption counter since the last seed (diagnostics /
+     * reexecution evidence only, never authority).
+     */
+    long getRulesRandomCalls();
+
+    /**
+     * WS54: when true, {@code init} fails closed unless an explicit seed was supplied.
+     * Credited harnesses enable this; default engine construction stays permissive.
+     */
+    void setRequireExplicitSeed(boolean requireExplicitSeed);
+
+    /**
      * Prepare game for any simulations like AI or effects calc
      */
     Game createSimulationForAI();

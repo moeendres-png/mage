@@ -69,7 +69,7 @@ class PlarggAndNassariEffect extends OneShotEffect {
     private static Player getOpponent(Player controller, Ability source, Game game) {
         Set<UUID> opponents = game.getOpponents(controller.getId());
         if (opponents.size() < 2) {
-            return game.getPlayer(RandomUtil.randomFromCollection(opponents));
+            return game.getPlayer(RandomUtil.randomFromCollection(opponents, game.getRulesRandom()));
         }
         TargetOpponent target = new TargetOpponent(true);
         controller.choose(Outcome.Neutral, target, source, game);

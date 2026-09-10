@@ -5,7 +5,7 @@ import mage.cards.CardsImpl;
 import mage.cards.ModalDoubleFacedCard;
 import mage.game.Game;
 import mage.players.Player;
-import mage.util.RandomUtil;
+import mage.util.GameRandom;
 
 import java.util.*;
 
@@ -19,7 +19,7 @@ public class SmoothedLondonMulligan extends LondonMulligan {
         super(mulligan);
     }
 
-    private static double countLands(Collection<Card> cards, boolean library){
+    private static double countLands(Collection<Card> cards, boolean library, GameRandom rng){
         double land_count = 0;
         for (Card card : cards){
             if (card.isLand()) {
@@ -27,7 +27,7 @@ public class SmoothedLondonMulligan extends LondonMulligan {
             } else if (card instanceof ModalDoubleFacedCard && ((ModalDoubleFacedCard)card).getRightHalfCard().isLand()){
                 if (library) { //count MDFCs with a nonland front and a land back as:
                     land_count += 0.5;//half a land in a library
-                } else if (RandomUtil.nextBoolean()){
+                } else if (rng.nextBoolean()){ // WS54: game-scoped
                     land_count += 1; //randomly as a land or nonland in a hand
                     // This avoids the bias problem where adjusting the deck land ratio to be (integer vs X.5)/7
                     // can greatly affect the chance of drawing an MDFC
@@ -40,18 +40,18 @@ public class SmoothedLondonMulligan extends LondonMulligan {
     public void drawHand(int numCards, Player player, Game game){
         List<Card> library = player.getLibrary().getCards(game);
         if (library.size() >= numCards*2 && numCards > 1) {
-            double land_ratio = countLands(library, true) / (double) library.size();
+            double land_ratio = countLands(library, true, game.getRulesRandom()) / (double) library.size();
             Set<Card> hand1 = player.getLibrary().getTopCards(game, numCards);
             Set<Card> hand2 = player.getLibrary().getTopCards(game, numCards * 2);
             hand2.removeAll(hand1);
-            double hand1_ratio = countLands(hand1, false) / (double) numCards;
-            double hand2_ratio = countLands(hand2, false) / (double) numCards;
+            double hand1_ratio = countLands(hand1, false, game.getRulesRandom()) / (double) numCards;
+            double hand2_ratio = countLands(hand2, false, game.getRulesRandom()) / (double) numCards;
             //distance = max(0,abs(land_ratio-hand_ratio)-0.15)+random()*0.3
             //Where land_ratio is (deck lands/deck size) and hand_ratio is (hand lands/hand size)
             //Keeps whichever hand's distance is smaller. Note that a 1-land difference is 1/7 = 0.143
             //So -0.15 means that there's no change in relative probabilities if within +1/-1 of the expected amount
-            double hand1_distance = Math.max(0,Math.abs(land_ratio - hand1_ratio)-0.15)+RandomUtil.nextDouble()*0.3;
-            double hand2_distance = Math.max(0,Math.abs(land_ratio - hand2_ratio)-0.15)+RandomUtil.nextDouble()*0.3;
+            double hand1_distance = Math.max(0,Math.abs(land_ratio - hand1_ratio)-0.15)+game.getRulesRandom().nextDouble()*0.3; // WS54: game-scoped
+            double hand2_distance = Math.max(0,Math.abs(land_ratio - hand2_ratio)-0.15)+game.getRulesRandom().nextDouble()*0.3; // WS54: game-scoped
             //game.debugMessage("1: "+hand1_ratio+", 2 = "+hand2_ratio+", expected = "+land_ratio);
             //game.debugMessage("hand1: "+hand1_distance+", hand2: "+hand2_distance);
             if (hand1_distance < hand2_distance) {

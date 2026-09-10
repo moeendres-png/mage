@@ -487,7 +487,7 @@ public abstract class TargetImpl implements Target {
 
                 // add valid random target one by one
                 while (!randomPossibleTargets.isEmpty()) {
-                    UUID possibleTarget = RandomUtil.randomFromCollection(randomPossibleTargets);
+                    UUID possibleTarget = RandomUtil.randomFromCollection(randomPossibleTargets, game.getRulesRandom()); // WS54: game-scoped (randomPossibleTargets preserves possibleTargets flow order post-WS54)
                     if (this.canTarget(playerId, possibleTarget, source, game) && !this.contains(possibleTarget)) {
                         this.addTarget(possibleTarget, source, game);
                         randomPossibleTargets.remove(possibleTarget);

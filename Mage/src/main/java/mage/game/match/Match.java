@@ -45,6 +45,16 @@ public interface Match {
 
     void startMatch();
 
+    /**
+     * WS54: match-scoped setup RNG (seating order). Explicit orchestration seed;
+     * never shared with any game's Rules stream.
+     */
+    void setMatchSeed(long seed);
+
+    long getMatchSeed();
+
+    boolean isMatchSeedExplicit();
+
     void startGame() throws GameException;
 
     void sideboard();

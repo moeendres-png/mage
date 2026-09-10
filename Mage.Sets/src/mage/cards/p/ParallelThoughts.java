@@ -19,7 +19,6 @@ import mage.game.permanent.Permanent;
 import mage.players.Player;
 import mage.target.common.TargetCardInLibrary;
 import mage.util.CardUtil;
-import mage.util.RandomUtil;
 
 import java.util.Arrays;
 import java.util.Set;
@@ -86,7 +85,7 @@ class ParallelThoughtsSearchEffect extends OneShotEffect {
 
                 UUID[] shuffled = cardsInExilePile.toArray(new UUID[0]);
                 for (int n = shuffled.length - 1; n > 0; n--) {
-                    int r = RandomUtil.nextInt(n + 1);
+                    int r = game.getRulesRandom().nextInt(n + 1);
                     UUID temp = shuffled[n];
                     shuffled[n] = shuffled[r];
                     shuffled[r] = temp;

@@ -157,7 +157,7 @@ class TwilightDivinerEffect extends OneShotEffect {
             case 0:
                 return false;
             case 1:
-                permanent = RandomUtil.randomFromCollection(permanents);
+                permanent = RandomUtil.randomFromCollection(permanents, game.getRulesRandom());
                 break;
             default:
                 Player player = game.getPlayer(source.getControllerId());

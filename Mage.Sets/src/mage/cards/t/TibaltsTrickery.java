@@ -21,7 +21,6 @@ import mage.game.stack.Spell;
 import mage.players.Player;
 import mage.target.TargetSpell;
 import mage.util.CardUtil;
-import mage.util.RandomUtil;
 
 /**
  *
@@ -77,7 +76,7 @@ class TibaltsTrickeryEffect extends OneShotEffect {
             Player controller = game.getPlayer(spell.getControllerId());
             game.getStack().counter(spell.getId(), source, game);
             if (controller != null) {
-                int random = RandomUtil.nextInt(3) + 1;
+                int random = game.getRulesRandom().nextInt(3) + 1;
                 game.informPlayers(random + " was chosen at random");
                 controller.millCards(random, source, game);
                 Card cardToCast = null;

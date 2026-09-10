@@ -85,7 +85,7 @@ class VastlandsScavengerEffect extends OneShotEffect {
             case 0:
                 return true;
             case 1:
-                card = RandomUtil.randomFromCollection(cards);
+                card = RandomUtil.randomFromCollection(cards, game.getRulesRandom());
                 break;
             default:
                 TargetCard target = new TargetCard(Zone.ALL, StaticFilters.FILTER_CARD_CREATURE);

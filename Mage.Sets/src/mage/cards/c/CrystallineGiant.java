@@ -13,7 +13,6 @@ import mage.counters.CounterType;
 import mage.counters.Counters;
 import mage.game.Game;
 import mage.game.permanent.Permanent;
-import mage.util.RandomUtil;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -95,7 +94,7 @@ class CrystallineGiantEffect extends OneShotEffect {
             return true;
         }
         return permanent.addCounters(counterTypes.get(
-                RandomUtil.nextInt(counterTypes.size())
+                game.getRulesRandom().nextInt(counterTypes.size())
         ).createInstance(), source.getControllerId(), source, game);
     }
 }

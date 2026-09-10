@@ -132,7 +132,7 @@ class ContractualSafeguardSecondEffect extends OneShotEffect {
             case 0:
                 return false;
             case 1:
-                chosenType = RandomUtil.randomFromCollection(counterTypes);
+                chosenType = RandomUtil.randomFromCollection(counterTypes, game.getRulesRandom());
                 break;
             case 2:
                 Iterator<String> iterator = counterTypes.iterator();

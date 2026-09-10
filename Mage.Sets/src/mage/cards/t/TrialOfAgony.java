@@ -106,7 +106,7 @@ class TrialOfAgonyEffect extends OneShotEffect {
                 player.choose(outcome, target, source, game);
                 toDamage = game.getPermanent(target.getFirstTarget());
                 permanents.remove(toDamage);
-                cantBlock = RandomUtil.randomFromCollection(permanents);
+                cantBlock = RandomUtil.randomFromCollection(permanents, game.getRulesRandom());
         }
         if (toDamage != null) {
             toDamage.damage(5, source, game);

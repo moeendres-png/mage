@@ -231,7 +231,7 @@ public abstract class TargetAmount extends TargetImpl {
                 if (t.remainingAmount > 0) {
                     if (possibleTargets.size() > 1) {
                         // don't use that target again
-                        Set<UUID> newPossibleTargets = possibleTargets.stream().filter(newTarget -> !usedTargets.contains(newTarget)).collect(Collectors.toSet());
+                        Set<UUID> newPossibleTargets = possibleTargets.stream().filter(newTarget -> !usedTargets.contains(newTarget)).collect(Collectors.toCollection(LinkedHashSet::new)) ; // WS54: flow order (was HashSet)
                         addTargets(t, newPossibleTargets, options, source, game);
                     }
                 } else {

@@ -95,7 +95,7 @@ class InfectiousRageReattachEffect extends OneShotEffect {
             game.informPlayers("No valid creatures for " + auraCard.getLogName() + "to enchant.");
             return false;
         }
-        Permanent creature = RandomUtil.randomFromCollection(permanents);
+        Permanent creature = RandomUtil.randomFromCollection(permanents, game.getRulesRandom());
         if (creature == null) {
             return false;
         }

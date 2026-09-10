@@ -75,7 +75,7 @@ class GhastlyConscriptionEffect extends OneShotEffect {
         if (cardsToManifest.isEmpty()) {
             return true;
         }
-        Collections.shuffle(cardsToManifest);
+        Collections.shuffle(cardsToManifest, game.getRulesRandom()); // WS54: game-scoped (graveyard flow order)
         game.informPlayers(controller.getLogName() + " shuffles the face-down pile");
         game.processAction();
         ManifestEffect.doManifestCards(game, source, controller, new LinkedHashSet<>(cardsToManifest));

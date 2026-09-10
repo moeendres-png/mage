@@ -20,7 +20,7 @@ import mage.players.Player;
 import mage.target.TargetPermanent;
 import mage.util.RandomUtil;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -80,7 +80,7 @@ class ChaosDefilerEffect extends OneShotEffect {
         if (player == null) {
             return false;
         }
-        Set<Permanent> permanents = new HashSet<>();
+        Set<Permanent> permanents = new LinkedHashSet<>(); // WS54: turn flow order (was HashSet)
         for (UUID opponentId : game.getOpponents(source.getControllerId())) {
             if (!game.getBattlefield().contains(
                     StaticFilters.FILTER_CONTROLLED_PERMANENT_NON_LAND,
@@ -101,7 +101,7 @@ class ChaosDefilerEffect extends OneShotEffect {
             permanents.add(game.getPermanent(target.getFirstTarget()));
         }
         permanents.removeIf(Objects::isNull);
-        Permanent permanent = RandomUtil.randomFromCollection(permanents);
+        Permanent permanent = RandomUtil.randomFromCollection(permanents, game.getRulesRandom());
         return permanent != null && permanent.destroy(source, game);
     }
 }

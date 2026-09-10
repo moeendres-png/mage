@@ -154,7 +154,7 @@ class SotheraTheSupervoidReturnEffect extends OneShotEffect {
             case 0:
                 return false;
             case 1:
-                card = RandomUtil.randomFromCollection(exileZone.getCards(StaticFilters.FILTER_CARD_CREATURE, game));
+                card = RandomUtil.randomFromCollection(exileZone.getCards(StaticFilters.FILTER_CARD_CREATURE, game), game.getRulesRandom());
                 break;
             default:
                 TargetCard target = new TargetCardInExile(StaticFilters.FILTER_CARD_CREATURE, exileZone.getId());

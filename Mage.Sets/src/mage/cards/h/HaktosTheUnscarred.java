@@ -20,7 +20,6 @@ import mage.game.Game;
 import mage.game.permanent.Permanent;
 import mage.players.Player;
 import mage.util.CardUtil;
-import mage.util.RandomUtil;
 
 /**
  * @author TheElk801
@@ -93,7 +92,7 @@ class HaktosTheUnscarredChooseEffect extends OneShotEffect {
         if (controller == null || permanent == null) {
             return false;
         }
-        int number = 2 + RandomUtil.nextInt(3);
+        int number = 2 + game.getRulesRandom().nextInt(3);
         game.informPlayers(permanent.getLogName() + ": " + controller.getLogName() + " has chosen " + number + " at random");
         game.getState().setValue(permanent.getId() + "_" + source.getStackMomentSourceZCC() + "_haktos_number", number);
         permanent.addInfo("chosen number", CardUtil.addToolTipMarkTags("Chosen number: " + number), game);

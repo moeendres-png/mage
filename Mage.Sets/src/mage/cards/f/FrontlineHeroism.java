@@ -119,7 +119,7 @@ class FrontlineHeroismEffect extends OneShotEffect {
             case 0:
                 return false;
             case 1:
-                permanent = RandomUtil.randomFromCollection(permanents);
+                permanent = RandomUtil.randomFromCollection(permanents, game.getRulesRandom());
                 break;
             default:
                 FilterPermanent filter = new FilterPermanent("token to target with the copied spell");

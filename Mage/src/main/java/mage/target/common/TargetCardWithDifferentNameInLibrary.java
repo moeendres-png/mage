@@ -9,6 +9,7 @@ import mage.game.Game;
 import mage.util.CardUtil;
 
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -46,7 +47,8 @@ public class TargetCardWithDifferentNameInLibrary extends TargetCardInLibrary {
         return this.keepValidPossibleTargets(
             possibleTargets.stream()
                 .filter(c -> existingTargets.stream().noneMatch(t -> CardUtil.haveSameNames(game.getCard(c), game.getCard(t))))
-                .collect(Collectors.toSet()),
+                // WS54: flow order (was HashSet)
+                .collect(Collectors.toCollection(LinkedHashSet::new)),
         sourceControllerId, source, game);
     }
 }
