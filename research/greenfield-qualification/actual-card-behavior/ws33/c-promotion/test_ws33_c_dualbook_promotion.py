@@ -14,6 +14,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -360,7 +361,31 @@ class PromoterTests(unittest.TestCase):
             self.assertEqual(proc2.returncode, 2)
             self.assertIn("PROPOSAL_DIGEST_MISMATCH", proc2.stdout)
 
-    def test_install_to_scratch_allowed_canonical_refused(self):
+    def test_stage_is_byte_identical_across_runs(self):
+        # Normal staging (no --install) is fully deterministic: two runs over
+        # identical inputs produce byte-identical books and receipt bytes.
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            world = synthetic_world(tmp)
+            proc, staging = self.stage_once(tmp, world)
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            staging2 = tmp / "staging-bis"
+            proc2 = run_cmd(promoter_argv(tmp, staging2, tmp / "adapted",
+                                          tmp / "proposal.json",
+                                          world["provenance"], "R1"))
+            self.assertEqual(proc2.returncode, 0, proc2.stdout + proc2.stderr)
+            files1 = sorted(str(p.relative_to(staging)) for p in staging.rglob("*")
+                            if p.is_file())
+            files2 = sorted(str(p.relative_to(staging2)) for p in staging2.rglob("*")
+                            if p.is_file())
+            self.assertEqual(files1, files2)
+            for rel in files1:
+                self.assertEqual((staging / rel).read_bytes(),
+                                 (staging2 / rel).read_bytes(), rel)
+
+    def test_legacy_install_to_scratch_fails_closed_zero_writes(self):
+        # The retired promoter --install path fails closed immediately and
+        # performs zero target writes.
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
             world = synthetic_world(tmp)
@@ -368,20 +393,42 @@ class PromoterTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
             target = tmp / "install-target"
             target.mkdir()
+            sentinel = target / "sentinel.txt"
+            sentinel.write_text("untouched\n", encoding="utf-8")
             proc2 = run_cmd(promoter_argv(
                 tmp, tmp / "s4", tmp / "adapted", tmp / "proposal.json",
                 world["provenance"], "R5",
                 extra=("--install", "--install-root", str(target))))
-            self.assertEqual(proc2.returncode, 0, proc2.stdout + proc2.stderr)
-            self.assertIn("WS33_C_PROMOTER=INSTALLED", proc2.stdout)
-            self.assertTrue((target / "WS33_PATH_COVERAGE.json").is_file())
-            # canonical install without serial-authority approval fails closed
-            proc3 = run_cmd(promoter_argv(
+            self.assertEqual(proc2.returncode, 2, proc2.stdout + proc2.stderr)
+            self.assertIn("LEGACY_INSTALL_DISABLED_USE_TRANSACTION_INSTALLER",
+                          proc2.stdout)
+            self.assertEqual(sorted(p.name for p in target.iterdir()),
+                             ["sentinel.txt"])
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "untouched\n")
+
+    def test_legacy_install_canonical_shaped_fails_closed_zero_writes(self):
+        # Even with WS33_C_ALLOW_CANONICAL_INSTALL=1 the retired promoter
+        # path must refuse (the env gate is not honored here) and write
+        # nothing anywhere under the base tree.
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            world = synthetic_world(tmp)
+            proc, staging = self.stage_once(tmp, world)
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            before = {str(p.relative_to(tmp)): hashlib.sha256(p.read_bytes()).hexdigest()
+                      for p in sorted(tmp.rglob("*")) if p.is_file()}
+            env = dict(os.environ)
+            env["WS33_C_ALLOW_CANONICAL_INSTALL"] = "1"
+            proc2 = run_cmd(promoter_argv(
                 tmp, tmp / "s5", tmp / "adapted", tmp / "proposal.json",
                 world["provenance"], "R6",
-                extra=("--install", "--install-root", str(tmp))))
-            self.assertEqual(proc3.returncode, 2)
-            self.assertIn("INSTALL_REFUSED", proc3.stdout)
+                extra=("--install", "--install-root", str(tmp))), env=env)
+            self.assertEqual(proc2.returncode, 2, proc2.stdout + proc2.stderr)
+            self.assertIn("LEGACY_INSTALL_DISABLED_USE_TRANSACTION_INSTALLER",
+                          proc2.stdout)
+            after = {str(p.relative_to(tmp)): hashlib.sha256(p.read_bytes()).hexdigest()
+                     for p in sorted(tmp.rglob("*")) if p.is_file()}
+            self.assertEqual(before, after)
 
 
 class RealStagingAuditTests(unittest.TestCase):

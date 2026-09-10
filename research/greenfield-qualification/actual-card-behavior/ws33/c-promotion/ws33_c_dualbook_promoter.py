@@ -2,12 +2,16 @@
 """Deterministic dual-book (Book-A 4276 / Book-B 4188) C promotion mechanism.
 
 Architecture: staging -> audit -> install.
-  - Default mode stages promoted books under --staging-root and writes an audit
-    receipt. Canonical books under --base-root are opened READ-ONLY and never
-    mutated in stage/audit mode.
-  - Install mode (--install) copies staged books over an explicit --install-root
-    only; it refuses to touch --base-root unless WS33_C_ALLOW_CANONICAL_INSTALL=1
-    is set in the environment (serial-authority approval, never in dry-run).
+  - This promoter is staging/audit ONLY. It stages promoted books under
+    --staging-root and writes an audit receipt. Canonical books under
+    --base-root are opened READ-ONLY and never mutated.
+  - The legacy --install/--install-root flags are retained for CLI parsing
+    compatibility only and are RETIRED: supplying --install fails closed
+    immediately with LEGACY_INSTALL_DISABLED_USE_TRANSACTION_INSTALLER and
+    performs zero writes. The single permitted installation path is
+    ws33_c_install_transaction.py (backup/restore transaction, post-install
+    receipt, evidence-ref validation). WS33_C_ALLOW_CANONICAL_INSTALL is not
+    honored here.
 
 Promotion rule (BOOK_RECONCILIATION = EXACT_SHARED_ID_DUAL_WRITE_ONLY):
   - a path promotes only when the exact same path ID exists in both books with
@@ -114,8 +118,12 @@ def main() -> int:
     ap.add_argument("--receipt-id", required=True)
     ap.add_argument("--c-campaign-root", type=Path, required=True,
                     help="read-only C witness branch ws33 dir (C manifest/partition source)")
-    ap.add_argument("--install", action="store_true")
-    ap.add_argument("--install-root", type=Path, default=None)
+    ap.add_argument("--install", action="store_true",
+                    help="RETIRED: fails closed with "
+                    "LEGACY_INSTALL_DISABLED_USE_TRANSACTION_INSTALLER; use "
+                    "ws33_c_install_transaction.py")
+    ap.add_argument("--install-root", type=Path, default=None,
+                    help="RETIRED alongside --install (parsing compatibility only)")
     args = ap.parse_args()
     try:
         return run(args)
@@ -133,6 +141,12 @@ def parse_counts(spec: str) -> Counter:
 
 
 def run(args) -> int:
+    if getattr(args, "install", False):
+        fail("LEGACY_INSTALL_DISABLED_USE_TRANSACTION_INSTALLER",
+             "promoter --install is retired and performs zero writes; "
+             "installation is permitted only via ws33_c_install_transaction.py "
+             "(backup/restore transaction, post-install receipt, "
+             "evidence-ref validation)")
     base = args.base_root.resolve()
     proposal = load_json(args.proposal)
     path_ids = proposal.get("path_ids", [])
@@ -395,18 +409,6 @@ def run(args) -> int:
     receipt["staging_provenance_sha256"] = sha_file(args.provenance)
     receipt["proposal_sha256"] = sha_file(args.proposal)
     write_json(staging / "receipt.json", receipt)
-
-    if args.install:
-        target = args.install_root.resolve() if args.install_root else None
-        if target is None:
-            fail("INSTALL_REFUSED", "install mode requires --install-root")
-        if target == base and os.environ.get("WS33_C_ALLOW_CANONICAL_INSTALL") != "1":
-            fail("INSTALL_REFUSED",
-                 "canonical install requires WS33_C_ALLOW_CANONICAL_INSTALL=1 (serial authority)")
-        for name in BOOK_A_FILES + BOOK_B_FILES:
-            shutil.copy2(staging / "books" / name, target / name)
-        print(f"WS33_C_PROMOTER=INSTALLED receipt={args.receipt_id} files={len(BOOK_A_FILES + BOOK_B_FILES)}")
-        return 0
 
     print(f"WS33_C_PROMOTER=STAGED receipt={args.receipt_id} "
           f"book_a={dict(post_a)} book_b={dict(post_b)}")
