@@ -69,13 +69,13 @@ def main() -> int:
         assert any(x.startswith("effect-kind-") for x in assertion_ids), "missing effect-kind assertion"
         assert "doubling-season-battlefield" in assertion_ids, "missing enabler assertion"
         assert "entry-loyalty-8" in assertion_ids, "missing entry-doubling proof assertion"
-        assert trace.get("entry_loyalty") == 8, "trace entry loyalty must read 8"
         assert record["final_semantic_state"]["deltas_equal"] is True
         assert record["execution"]["silent_fallbacks"] == 0
         assert record["execution"]["direct_effect_resolution"] is False
         trace = json.loads((d / "trace.json").read_text())
         assert trace["forge_pin"] == a.forge_pin and trace["path_id"] == pid
         assert trace.get("effect_kind") in ("static", "trigger"), "missing effect kind"
+        assert trace.get("entry_loyalty") == 8, "trace entry loyalty must read 8"
         tape = json.loads((d / "decision-tape.json").read_text())
         resolutions = trace.get("intent_resolutions", [])
         assert len(resolutions) == len(tape["events"]), "resolution/tape count mismatch"
