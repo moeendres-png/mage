@@ -22,6 +22,7 @@ objective: Establish whether XMage can support controlled Rules randomness and d
   gates without creating a second Rules engine.
 ownership: WS54-XMAGE-RNG-REEXECUTION-REMEDIATION
 repository: moeendres-png/mage
+worktree: /home/moeen/code/ws54-xmage-rng-reexecution-remediation-engine
 schema_version: '2.0'
 state_written_against_head: 0c1f455ea8c8fa48ab9d638ad5068ec242800428
 status: ACTIVE
