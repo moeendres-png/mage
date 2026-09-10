@@ -1,0 +1,40 @@
+audit_base_sha: 0c1f455ea8c8fa48ab9d638ad5068ec242800428
+audit_base_tree: fdb8bf56a8bd8199a4ef372e468d93d6550b0649
+branch: qualification/ws54-xmage-rng-reexecution-remediation-20260910
+exact_next_action: XHIGH adjudication of RNG authority design (GameRandom topology, default-seed policy, copy semantics, Match scope, candidate canonicalization), then implement per-game RNG core.
+in_scope:
+- Mage core game-scoped Rules RNG (Game/Library/Player/Cards/Target/Choice-audit/Modes/effects/Mulligan)
+- Deck.getMaindeckCards + Library.addAll setup-order determinism
+- Production Rules call-site migration in Mage core + Mage.Sets card files
+- Match seating RNG scope (bounded)
+- MCTS:282 AI consumer migration (single call site)
+- P1-P6 + negative-control + fresh-process reexecution evidence
+out_of_scope:
+- XMage master upgrade, upstream merge/rebase, RQ-X1 pin consumption
+- Decision adapter modes, CPL envelope, hidden-info provider redesign
+- GUI modernization, broad card repairs, Forge, Argentum, perf optimization
+- Booster/draft/tournament/collation/cosmetic/server-session/UI randomness determinism
+- Arbitrary mid-decision snapshot/restore replay (NOT_QUALIFIED disposition expected)
+- XMage selection as production provider; architecture freeze; behavior credit
+objective: Establish whether XMage can support controlled Rules randomness and deterministic
+  start-to-finish semantic reexecution via bounded systemic engine remediation; implement
+  game-scoped Rules RNG authority + setup-order determinism + call-site closure + isolation/reexecution
+  gates without creating a second Rules engine.
+ownership: WS54-XMAGE-RNG-REEXECUTION-REMEDIATION
+repository: moeendres-png/mage
+schema_version: '2.0'
+state_written_against_head: 0c1f455ea8c8fa48ab9d638ad5068ec242800428
+status: ACTIVE
+validated_head: null
+milestones:
+  A_source_lock_and_pre_repair_repro:
+    status: COMPLETE
+    evidence:
+    - research/ws54-xmage-rng-reexecution-remediation/WS54_SOURCE_LOCK.md
+    - research/ws54-xmage-rng-reexecution-remediation/WS54_PRE_REPAIR_M5_REPRO.json
+    - Mage/src/test/java/mage/WS54PreRepairM5ReproTest.java (5/5 PASS x3 fresh JVM runs)
+  B_inventory_and_architecture_decision:
+    status: IN_PROGRESS
+    evidence:
+    - research/ws54-xmage-rng-reexecution-remediation/WS54_RANDOMNESS_INVENTORY.json
+    - research/ws54-xmage-rng-reexecution-remediation/WS54_RANDOMNESS_INVENTORY.md
