@@ -155,11 +155,23 @@ public final class Ws33D4cTargetCampaignTest extends AITest {
 
             final PlayerControllerHuman controller = new PlayerControllerHuman(
                     game, actor, new LobbyPlayerHuman("ws33-d4c-principal"));
+            // Registered-controller attachment (Forge pin: AITest wires
+            // LobbyPlayerAi, so the game's registered controllers are AI and
+            // PlaySpellAbility/setupTargets consult p.getController(), NOT a
+            // separately constructed object). The provider-wired Human
+            // controller must BE the registered one, exactly as a human-lobby
+            // game assigns it (LobbyPlayerHuman.createIngamePlayer +
+            // setFirstController); dangerouslySetController performs the same
+            // field assignment minus the already-assigned guard. Without
+            // this, targeting is answered invisibly by the AI controller and
+            // the provider sees zero requests (run 34426307199 FAIL).
+            actor.dangerouslySetController(controller);
             final Provider decisions = new Provider(replay, requestLog, intentKindOf(c), designated, true);
             controller.setExternalDecisionProvider(decisions::decide);
 
             final PlayerControllerHuman oppController = new PlayerControllerHuman(
                     game, opponent, new LobbyPlayerHuman("ws33-d4c-opp"));
+            opponent.dangerouslySetController(oppController);
             final Provider oppDecisions = new Provider(replayOpp, requestLogOpp, "NONE", null, false);
             oppController.setExternalDecisionProvider(oppDecisions::decide);
 
