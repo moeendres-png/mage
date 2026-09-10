@@ -702,27 +702,30 @@ public final class Ws33D4cTargetCampaignTest extends AITest {
                 // The engine alone supplies legal target options. The harness
                 // transports the externally specified discretionary selection
                 // only by unique match to an already engine-authoritative
-                // option. Zero or multiple matches fail closed. DONE/CANCEL
-                // transitions never match the entity semantic and fail closed.
+                // option. Matching is by native entity id against
+                // entity-backed options (authoritative encoding proven by run
+                // 34429297453 logs: option_id `card:<id>`, entity_kind CARD,
+                // entity-backed, semantic `<id>` — NOT `CARD:<id>`).
+                // Zero or multiple matches fail closed. Non-backed
+                // DONE/CANCEL transitions can never match and fail closed.
                 if (!"ENTITY".equals(intentKind) || designated == null) {
                     throw new IllegalStateException("fail-closed target selection without ENTITY intent kind="
                             + request.getDecisionKind());
                 }
-                final String expectedSemantic = "CARD:" + designated.getId();
                 final List<ExternalDecisionRequest.Option> matches = new ArrayList<>();
                 for (final ExternalDecisionRequest.Option option : request.getOptions()) {
-                    if (expectedSemantic.equals(option.getSemanticValue())) {
+                    if (option.isEntityBacked() && option.getEntityId() == designated.getId()) {
                         matches.add(option);
                     }
                 }
                 if (matches.size() != 1) {
                     throw new IllegalStateException("fail-closed designated target not uniquely authoritative kind="
                             + request.getDecisionKind() + " matches=" + matches.size()
-                            + " expectedSemantic=" + expectedSemantic);
+                            + " designated_entity_id=" + designated.getId());
                 }
                 chosen = matches.get(0);
                 sawDesignated = true;
-                expectedSelect = expectedSemantic;
+                expectedSelect = String.valueOf(designated.getId());
                 selectedSelect = chosen.getSemanticValue();
             } else {
                 final StringBuilder ids = new StringBuilder();
