@@ -20,7 +20,10 @@ public abstract class ReplacementEffectImpl extends ContinuousEffectImpl impleme
     // already modified how it enters the battlefield (see rule 616.1), continuous effects from the
     // permanent's own static abilities that would apply to it once it's on the battlefield, and
     // continuous effects that already exist and would apply to the permanent.
-    // (ContinuousEffects establishes self-scope entering applicability on this basis; see CR 614.12.)
+    // (ContinuousEffects establishes self-scope entering applicability on this basis
+    // for the bounded layer-6 ability-removal subset; see
+    // CR61412_LAYER6_ABILITY_REMOVAL_SUPPORT. Full general future-state projection
+    // is explicitly out of scope.)
     protected boolean selfScope;
 
     protected ReplacementEffectImpl(Duration duration, Outcome outcome) {

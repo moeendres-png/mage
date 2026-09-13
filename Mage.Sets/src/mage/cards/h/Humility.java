@@ -85,6 +85,23 @@ public final class Humility extends CardImpl {
             return false;
         }
 
+        /**
+         * Pure CR 614.12 probe: the same creature filter the layer-6 branch of
+         * {@code apply(Layer, SubLayer, ...)} uses, evaluated against the detached
+         * entering view. No battlefield query beyond read-only filter matching, no
+         * ability removal.
+         */
+        @Override
+        public boolean wouldRemoveEnteringAbility(Permanent entering, Ability enteringAbility, Ability source, Game game) {
+            if (entering == null || source == null || game == null) {
+                return false;
+            }
+            if (game.getPlayer(source.getControllerId()) == null) {
+                return false;
+            }
+            return StaticFilters.FILTER_PERMANENT_CREATURE.match(entering, source.getControllerId(), source, game);
+        }
+
         @Override
         public boolean hasLayer(Layer layer) {
             return layer == Layer.AbilityAddingRemovingEffects_6

@@ -48,6 +48,23 @@ public class LoseAbilityTargetEffect extends ContinuousEffectImpl {
         return result;
     }
 
+    /**
+     * Pure CR 614.12 probe: reports removal only when the entering object is among the
+     * effect's targets (read-only pointer resolution, no removal) and the entering
+     * ability is an instance the effect would remove (same {@code isSameInstance}
+     * matching {@code removeAbility} uses).
+     */
+    @Override
+    public boolean wouldRemoveEnteringAbility(Permanent entering, Ability enteringAbility, Ability source, Game game) {
+        if (entering == null || enteringAbility == null || source == null || game == null) {
+            return false;
+        }
+        if (!getTargetPointer().getTargets(game, source).contains(entering.getId())) {
+            return false;
+        }
+        return enteringAbility.isSameInstance(ability);
+    }
+
     @Override
     public String getText(Mode mode) {
         if (staticText != null && !staticText.isEmpty()) {

@@ -100,4 +100,46 @@ public class LoseAbilityAllEffect extends ContinuousEffectImpl {
         return true;
     }
 
+    /**
+     * Pure CR 614.12 probe: mirrors {@code apply()}'s affected-object determination
+     * (fixed reference set resolved read-only, no pruning, no discard; or the same
+     * dynamic filter plus source exclusion) and reports removal only when the entering
+     * ability itself is an instance the effect would remove (same
+     * {@code isSameInstance} matching {@code removeAbility} uses).
+     */
+    @Override
+    public boolean wouldRemoveEnteringAbility(Permanent entering, Ability enteringAbility, Ability source, Game game) {
+        if (entering == null || source == null || game == null) {
+            return false;
+        }
+        if (getAffectedObjectsSet()) {
+            for (MageObjectReference mor : affectedObjectList) {
+                Permanent perm = mor.getPermanentOrLKIBattlefield(game);
+                if (perm != null && perm.getId().equals(entering.getId())) {
+                    return removesEnteringAbility(enteringAbility);
+                }
+            }
+            return false;
+        }
+        if (excludeSource && entering.getId().equals(source.getSourceId())) {
+            return false;
+        }
+        if (!filter.match(entering, source.getControllerId(), source, game)) {
+            return false;
+        }
+        return removesEnteringAbility(enteringAbility);
+    }
+
+    private boolean removesEnteringAbility(Ability enteringAbility) {
+        if (enteringAbility == null || ability == null) {
+            return false;
+        }
+        for (Ability removed : ability) {
+            if (removed != null && enteringAbility.isSameInstance(removed)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }

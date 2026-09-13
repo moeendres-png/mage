@@ -44,6 +44,18 @@ public class LoseAllAbilitiesAllEffect extends ContinuousEffectImpl {
         return true;
     }
 
+    /**
+     * Pure CR 614.12 probe: same filter {@code apply()} uses, evaluated against the
+     * detached entering view. No battlefield access beyond read-only filter matching.
+     */
+    @Override
+    public boolean wouldRemoveEnteringAbility(Permanent entering, Ability enteringAbility, Ability source, Game game) {
+        if (entering == null || source == null || game == null) {
+            return false;
+        }
+        return filter.match(entering, source.getControllerId(), source, game);
+    }
+
     @Override
     public String getText(Mode mode) {
         if (staticText != null && !staticText.isEmpty()) {

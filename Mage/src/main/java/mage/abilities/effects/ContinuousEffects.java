@@ -38,9 +38,6 @@ public class ContinuousEffects implements Serializable {
 
     private long order = 0;
 
-    // CR 614.12 future-state reentrancy guard (fail-closed: nested checks allow the effect).
-    private transient boolean in61412FutureCheck = false;
-
     //transient Continuous effects
     private ContinuousEffectsList<ContinuousEffect> layeredEffects = new ContinuousEffectsList<>();
     private ContinuousEffectsList<ContinuousRuleModifyingEffect> continuousRuleModifyingEffects = new ContinuousEffectsList<>();
@@ -383,8 +380,9 @@ public class ContinuousEffects implements Serializable {
                                 || effect.hasSelfScope()
                                 || !event.getTargetId().equals(ability.getSourceId())) {
                             // CR 614.12: a self entering replacement exists only if its source ability
-                            // would exist on the battlefield future state (own statics + already-applied
-                            // replacements + pre-existing continuous effects that would apply).
+                            // would exist on the battlefield future state. Bounded layer-6
+                            // ability-removal subset only (see helper); not a general projection
+                            // over own statics / already-applied replacements / other layers.
                             if (isSelfEnteringReplacementWithoutFutureAbility(effect, ability, event, game)) {
                                 continue;
                             }
@@ -415,6 +413,9 @@ public class ContinuousEffects implements Serializable {
             for (Ability ability : abilities) {
                 if (ability.getAbilityType() != AbilityType.STATIC || ability.isInUseableZone(game, null, event)) {
                     if (effect.getDuration() != Duration.OneUse || !effect.isUsed()) {
+                        // Same shared CR 614.12 entering check as for replacements. Unreachable
+                        // for all current damage-only prevention effects (their checksEventType
+                        // gates damage events), kept for a hypothetical future entering prevention.
                         if (isSelfEnteringReplacementWithoutFutureAbility(effect, ability, event, game)) {
                             continue;
                         }
@@ -433,117 +434,101 @@ public class ContinuousEffects implements Serializable {
     }
 
     /**
-     * CR 614.12 entry-applicability for self entering replacements.
+     * CR 614.12 entry-applicability for self entering replacements (bounded scope).
      *
      * <p>Returns true when a self-scope entering replacement must be excluded because its
-     * source ability would not exist on the battlefield future state: pre-existing layer-6
-     * ability-removing continuous effects that would apply to the entering permanent remove it.
-     * Returns false (allow) for all non-entering events, non-self effects, other-source effects,
-     * missing entering objects, and on any unexpected evaluation problem (fail-closed toward
-     * existing behavior).</p>
+     * source ability would not exist on the battlefield future state: a pre-existing
+     * layer-6 ability-removing continuous effect with a pure probe answers positively
+     * for the entering object.
      *
-     * <p>No card names, no H01 branches, no blanket copy suppression: each active layer-6
-     * {@code LoseAbility} effect reuses its own {@code apply} filter logic against the entering
-     * permanent temporarily exposed to battlefield queries. Targeted/fixed-set removals therefore
-     * do not match an entering object they were never set for; global creature removers match only
-     * entering objects that satisfy their own filter.</p>
+     * <p>Scope is deliberately bounded to pre-existing layer-6 {@code LoseAbility}
+     * removal answered by each remover's own pure {@code wouldRemoveEnteringAbility}
+     * probe. It is not a full general CR 614.12 future-state engine (own-statics
+     * interplay, already-applied replacement interplay, other layers are out of scope).
+     *
+     * <p>Failure semantics are explicit: programming-identity violations (null effect,
+     * ability, event or game) throw; defined non-applicability inputs (non-entering
+     * events, non-self effects, other-source effects, untracked entering objects)
+     * return false without claiming removal. Evaluation errors from a remover's pure
+     * probe propagate to the caller: they are never swallowed into an allow answer.
+     *
+     * <p>No card names, no H01 branches, no blanket copy suppression. Targeted and
+     * fixed-set removals match only entering objects in their own target/reference
+     * state; global removers match only entering objects satisfying their own filter.
      */
     private boolean isSelfEnteringReplacementWithoutFutureAbility(ReplacementEffect effect, Ability ability, GameEvent event, Game game) {
-        try {
-            if (effect == null || ability == null || event == null || game == null) {
-                return false;
-            }
-            GameEvent.EventType type = event.getType();
-            if (type != GameEvent.EventType.ENTERS_THE_BATTLEFIELD
-                    && type != GameEvent.EventType.ENTERS_THE_BATTLEFIELD_SELF
-                    && type != GameEvent.EventType.ENTERS_THE_BATTLEFIELD_CONTROL
-                    && type != GameEvent.EventType.ENTERS_THE_BATTLEFIELD_COPY) {
-                return false;
-            }
-            if (!effect.hasSelfScope()) {
-                return false;
-            }
-            if (event.getTargetId() == null || ability.getSourceId() == null) {
-                return false;
-            }
-            if (!event.getTargetId().equals(ability.getSourceId())) {
-                return false;
-            }
-            Permanent entering = game.getPermanentEntering(event.getTargetId());
-            if (entering == null) {
-                return false;
-            }
-            if (in61412FutureCheck) {
-                return false;
-            }
-            return wouldLoseEnteringAbilityViaPreexistingLayer6(entering, ability, game);
-        } catch (Exception e) {
-            logger.debug("CR614.12 future-ability check failed closed: " + e, e);
+        if (effect == null || ability == null || event == null || game == null) {
+            throw new IllegalStateException("CR 614.12 applicability check requires non-null effect, ability, event and game");
+        }
+        GameEvent.EventType type = event.getType();
+        if (type != GameEvent.EventType.ENTERS_THE_BATTLEFIELD
+                && type != GameEvent.EventType.ENTERS_THE_BATTLEFIELD_SELF
+                && type != GameEvent.EventType.ENTERS_THE_BATTLEFIELD_CONTROL
+                && type != GameEvent.EventType.ENTERS_THE_BATTLEFIELD_COPY) {
             return false;
         }
+        if (!effect.hasSelfScope()) {
+            return false;
+        }
+        if (event.getTargetId() == null || ability.getSourceId() == null) {
+            return false;
+        }
+        if (!event.getTargetId().equals(ability.getSourceId())) {
+            return false;
+        }
+        Permanent entering = game.getPermanentEntering(event.getTargetId());
+        if (entering == null) {
+            return false;
+        }
+        return wouldLoseEnteringAbilityViaPreexistingLayer6(entering, ability, game);
     }
 
+    /**
+     * Pure CR 614.12 layer-6 probe.
+     *
+     * <p>Observational analysis only: the entering permanent is evaluated as a detached
+     * hypothetical copy that is never inserted into the live battlefield, and each
+     * pre-existing layer-6 {@code LoseAbility} remover answers through its own pure
+     * {@code wouldRemoveEnteringAbility} probe. No {@code ContinuousEffect.apply} call,
+     * no ability removal, no trigger/event/stack/control/zone/RNG effects, no
+     * battlefield membership change on any object, live or copied.
+     *
+     * <p>Removers without pure-probe support keep the interface default ({@code false}:
+     * no evidence of removal), which preserves pre-existing behavior for effect classes
+     * outside the bounded claim instead of fabricating suppression.
+     */
     private boolean wouldLoseEnteringAbilityViaPreexistingLayer6(Permanent entering, Ability enteringAbility, Game game) {
-        List<Ability> savedAbilities = new ArrayList<>(entering.getAbilities());
-        boolean addedToBattlefield = false;
-        in61412FutureCheck = true;
-        try {
-            if (game.getBattlefield().getPermanent(entering.getId()) == null) {
-                game.getBattlefield().addPermanent(entering);
-                addedToBattlefield = true;
-            }
-            List<ContinuousEffect> removers;
+        Permanent enteringView = entering.copy();
+        List<ContinuousEffect> removers;
+        synchronized (this) {
+            removers = new ArrayList<>(layeredEffects);
+        }
+        removers.removeIf(eff -> eff == null
+                || !eff.hasLayer(Layer.AbilityAddingRemovingEffects_6)
+                || eff.getOutcome() != Outcome.LoseAbility);
+        removers.sort(Comparator.comparingLong(ContinuousEffect::getOrder));
+        for (ContinuousEffect remover : removers) {
+            Set<Ability> sourceAbilities;
             synchronized (this) {
-                removers = new ArrayList<>(layeredEffects);
+                sourceAbilities = layeredEffects.getAbility(remover.getId());
             }
-            removers.removeIf(eff -> eff == null
-                    || !eff.hasLayer(Layer.AbilityAddingRemovingEffects_6)
-                    || eff.getOutcome() != Outcome.LoseAbility);
-            removers.sort(Comparator.comparingLong(ContinuousEffect::getOrder));
-            boolean anyRemoverActive = false;
-            for (ContinuousEffect remover : removers) {
-                Set<Ability> sourceAbilities;
-                synchronized (this) {
-                    sourceAbilities = layeredEffects.getAbility(remover.getId());
-                }
-                if (sourceAbilities == null || sourceAbilities.isEmpty()) {
+            if (sourceAbilities == null || sourceAbilities.isEmpty()) {
+                continue;
+            }
+            for (Ability sourceAbility : sourceAbilities) {
+                if (sourceAbility == null) {
                     continue;
                 }
-                for (Ability sourceAbility : sourceAbilities) {
-                    if (sourceAbility == null) {
-                        continue;
-                    }
-                    if (sourceAbility instanceof StaticAbility
-                            && !sourceAbility.isInUseableZone(game, null, null)) {
-                        continue;
-                    }
-                    anyRemoverActive = true;
-                    remover.apply(Layer.AbilityAddingRemovingEffects_6, SubLayer.NA, sourceAbility, game);
+                if (sourceAbility instanceof StaticAbility
+                        && !sourceAbility.isInUseableZone(game, null, null)) {
+                    continue;
+                }
+                if (remover.wouldRemoveEnteringAbility(enteringView, enteringAbility, sourceAbility, game)) {
+                    return true;
                 }
             }
-            if (!anyRemoverActive) {
-                return false;
-            }
-            return !entering.hasAbility(enteringAbility, game);
-        } catch (Exception e) {
-            logger.debug("CR614.12 layer-6 probe failed closed: " + e, e);
-            return false;
-        } finally {
-            try {
-                entering.getAbilities().clear();
-                entering.getAbilities().addAll(savedAbilities);
-            } catch (Exception restoreEx) {
-                logger.error("CR614.12 entering ability restore failed: " + restoreEx, restoreEx);
-            }
-            if (addedToBattlefield) {
-                try {
-                    game.getBattlefield().removePermanent(entering.getId());
-                } catch (Exception removeEx) {
-                    logger.error("CR614.12 entering battlefield cleanup failed: " + removeEx, removeEx);
-                }
-            }
-            in61412FutureCheck = false;
         }
+        return false;
     }
 
     private boolean checkAbilityStillExists(Ability ability, ContinuousEffect effect, GameEvent event, Game game) {
