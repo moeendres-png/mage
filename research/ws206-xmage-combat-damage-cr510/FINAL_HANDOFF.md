@@ -6,7 +6,8 @@
 - branch: ws206/xmage-combat-damage-cr510-hardening-20260914
 - AUDIT_BASE_SHA: cfc36f445f917f101fa2ed588770e043f53bc44c
 - AUDIT_BASE_TREE: e51ba998d35decff087b5bebfdc001e62e8d33e4
-- HEAD at handoff: see commit evidence (local only until push step below)
+- HEAD at handoff (local): b82226f365efa01aec3f7e5d69516869b6a5129b (2 commits over audit base;
+  tree clean; remote branch not yet created — see Publication below).
 - worktree clean except the listed change set; WS204/Lab read-only respected.
 
 ## Work Completed
@@ -68,10 +69,21 @@
 
 ## Exact Next Action
 
-- Canonical safe_push dry-run then actual push to
+- DRY_RUN_OK (verified 2026-09-14; push NOT performed in this session — see Publication).
+- Canonical safe_push (gated; never raw git push) of local b82226f365 to
   ws206/xmage-combat-damage-cr510-hardening-20260914 (expected repo moeendres-png/mage,
-  audit-base ref ws85/xmage-cr61412-future-state-hardening-20260913), then fetch and prove
-  exact remote HEAD/tree + clean worktree. No raw git push. No PR. No merge.
+  audit-base ref origin/ws85/xmage-cr61412-future-state-hardening-20260913 = cfc36f44),
+  then fetch and prove exact remote HEAD/tree + clean worktree. No PR. No merge.
+
+## Publication (dry-run record; push NOT executed in this session)
+
+- `git status --short --branch` => clean, on ws206/xmage-combat-damage-cr510-hardening-20260914.
+- Local HEAD b82226f365; `git branch -r --list origin/ws206*` => empty (push creates it;
+  no overwrite/divergence risk).
+- origin URL https://github.com/moeendres-png/mage.git (matches expected repository).
+- origin/ws85/xmage-cr61412-future-state-hardening-20260913 = cfc36f44 (matches AUDIT_BASE_SHA).
+- Push not attempted: `git push*` is deny by the inherited permission policy and no push
+  approval gate was granted in this run. RAW_GIT_PUSH_USED = NO.
 
 ## Terminal fields
 
