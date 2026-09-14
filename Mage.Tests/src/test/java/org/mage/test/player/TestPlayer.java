@@ -60,7 +60,6 @@ import mage.target.*;
 import mage.target.common.*;
 import mage.util.CardUtil;
 import mage.util.MultiAmountMessage;
-import mage.util.RandomUtil;
 import mage.watchers.common.AttackedOrBlockedThisCombatWatcher;
 
 /**
@@ -3654,8 +3653,10 @@ public class TestPlayer implements Player {
         }
         this.chooseStrictModeFailed("flip coin result", game, "Use setFlipCoinResult to set it up in unit tests");
 
-        // implementation from PlayerImpl:
-        return RandomUtil.nextBoolean();
+        // WS214: unscripted Rules-random fallback consumes the authoritative game Rules
+        // stream with the exact production algorithm (PlayerImpl.flipCoinResult),
+        // never the shared non-Rules RandomUtil stream.
+        return game.getRulesRandom().nextBoolean();
     }
 
     @Override
@@ -3675,8 +3676,10 @@ public class TestPlayer implements Player {
         }
         this.chooseStrictModeFailed("die roll result", game, "Use setDieRollResult to set it up in unit tests");
 
-        // implementation from PlayerImpl:
-        return RandomUtil.nextInt(sides) + 1;
+        // WS214: unscripted Rules-random fallback consumes the authoritative game Rules
+        // stream with the exact production algorithm (PlayerImpl.rollDieResult),
+        // never the shared non-Rules RandomUtil stream.
+        return game.getRulesRandom().nextInt(sides) + 1;
     }
 
     @Override
