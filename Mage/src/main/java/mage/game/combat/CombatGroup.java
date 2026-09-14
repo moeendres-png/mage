@@ -276,7 +276,6 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
             }
             Map<UUID, Integer> assigned = new HashMap<>();
             List<MultiAmountMessage> damageDivision = new ArrayList<>();
-            List<UUID> blockersCopy = new ArrayList<>(blockers);
             if (blocked) {
                 int remainingDamage = damage;
                 for (UUID blockerId : blockers) {
@@ -297,7 +296,12 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                         MultiAmountType dialogue = new MultiAmountType("Assign combat damage (with trample)",
                                 String.format("Assign combat damage among creatures blocking %s, P/T: %d/%d (Unassigned damage tramples through)",
                                         attacker.getLogName(), attacker.getPower().getValue(), attacker.getToughness().getValue()));
-                        amounts = player.getMultiAmountWithIndividualConstraints(Outcome.Damage, damageDivision, damage - remainingDamage, damage, dialogue, game);
+                        // CR 510.1e + 702.19b: the engine owns complete-assignment legality.
+                        // The Player seam selects discretionary values only; an illegal
+                        // trample-through distribution must be rejected/re-requested here
+                        // and can never be executed merely because it was returned.
+                        amounts = requestLegalTrampleBlockerAssignment(player, attacker, blockers, damageDivision,
+                                damage - remainingDamage, damage, dialogue, game);
                     } else {
                         amounts = new ArrayList<>();
                         if (damageDivision.size() == 1) { // Assign all damage to one blocker
@@ -309,14 +313,18 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                         defenderDamage(attacker, trampleDamage, game, false);
                     }
                 } else {
-                    if (remainingDamage > 0){
+                    if (remainingDamage > 0 && !damageDivision.isEmpty()){
                         damageDivision.get(0).defaultValue += remainingDamage;
                     }
                     if (damageDivision.size() > 1) {
                         MultiAmountType dialogue = new MultiAmountType("Assign combat damage",
                                 String.format("Assign combat damage among creatures blocking %s, P/T: %d/%d",
                                         attacker.getLogName(), attacker.getPower().getValue(), attacker.getToughness().getValue()));
-                        amounts = player.getMultiAmountWithIndividualConstraints(Outcome.Damage, damageDivision, damage, damage, dialogue, game);
+                        // CR 510.1c + 510.1e: any division totaling damage is legal
+                        // (no lethal ordering, no assignment order). Still validate the
+                        // returned total so an untrusted Player implementation cannot
+                        // execute a short/over total.
+                        amounts = requestLegalFreeBlockerAssignment(player, damageDivision, damage, dialogue, game);
                     } else {
                         amounts = new LinkedList<>();
                         if (damageDivision.size() == 1) { // Assign all damage to one blocker
@@ -324,9 +332,15 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                         }
                     }
                 }
-                if (!damageDivision.isEmpty()){
-                    for (int i=0; i<blockersCopy.size(); i++) {
-                        assigned.put(blockersCopy.get(i), amounts.get(i));
+                if (!damageDivision.isEmpty() && amounts.size() == damageDivision.size()){
+                    List<UUID> assignedBlockerIds = new ArrayList<>();
+                    for (UUID blockerId : blockers) {
+                        if (game.getPermanent(blockerId) != null) {
+                            assignedBlockerIds.add(blockerId);
+                        }
+                    }
+                    for (int i = 0; i < assignedBlockerIds.size() && i < amounts.size(); i++) {
+                        assigned.put(assignedBlockerIds.get(i), amounts.get(i));
                     }
                 }
             }
@@ -465,7 +479,6 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
         if (dealsDamageThisStep(blocker, first, game)) {
             Map<UUID, Integer> assigned = new HashMap<>();
             List<MultiAmountMessage> damageDivision = new ArrayList<>();
-            List<UUID> attackersCopy = new ArrayList<>(attackers);
             int remainingDamage = damage;
             for (UUID attackerId : attackers) {
                 Permanent attacker = game.getPermanent(attackerId);
@@ -480,21 +493,30 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                 }
             }
             List<Integer> amounts;
-            if (remainingDamage > 0){
+            if (remainingDamage > 0 && !damageDivision.isEmpty()){
                 damageDivision.get(0).defaultValue += remainingDamage;
             }
             if (damageDivision.size() > 1) {
                 MultiAmountType dialogue = new MultiAmountType("Assign blocker combat damage",
                         String.format("Assign combat damage among creatures blocked by %s, P/T: %d/%d",
                                 blocker.getLogName(), blocker.getPower().getValue(), blocker.getToughness().getValue()));
-                amounts = player.getMultiAmountWithIndividualConstraints(Outcome.Damage, damageDivision, damage, damage, dialogue, game);
+                // CR 510.1d + 510.1e: a blocker divides freely among the creatures
+                // it blocks (total must equal its damage). Validate so an untrusted
+                // Player implementation cannot execute a short/over total.
+                amounts = requestLegalFreeBlockerAssignment(player, damageDivision, damage, dialogue, game);
             } else {
                 amounts = new LinkedList<>();
                 amounts.add(damage);
             }
-            if (!damageDivision.isEmpty()){
-                for (int i=0; i<attackersCopy.size(); i++) {
-                    assigned.put(attackersCopy.get(i), amounts.get(i));
+            if (!damageDivision.isEmpty() && amounts.size() == damageDivision.size()){
+                List<UUID> assignedAttackerIds = new ArrayList<>();
+                for (UUID attackerId : attackers) {
+                    if (game.getPermanent(attackerId) != null) {
+                        assignedAttackerIds.add(attackerId);
+                    }
+                }
+                for (int i = 0; i < assignedAttackerIds.size() && i < amounts.size(); i++) {
+                    assigned.put(assignedAttackerIds.get(i), amounts.get(i));
                 }
             }
             for (Map.Entry<UUID, Integer> entry : assigned.entrySet()) {
@@ -867,6 +889,131 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
 
     private static int getLethalDamage(Permanent blocker, Permanent attacker, Game game) {
         return blocker.getLethalDamage(attacker.getId(), game);
+    }
+
+    /**
+     * WS206: engine-side validation for trampling attacker assignment (CR 702.19b + 510.1e).
+     *
+     * <p>Legal classes preserved:
+     * <ul>
+     *   <li>zero through-damage: free division among blockers, no lethal required;</li>
+     *   <li>positive through-damage: every blocker must have lethal assigned,
+     *   where lethal accounts for already-marked damage, same-step assigned damage
+     *   visible via {@link Permanent#getLethalDamage}, and deathtouch (1).</li>
+     * </ul>
+     * Protection/prevention never lower the requirement because
+     * {@code getLethalDamage} ignores them. The generic Player seam is preserved:
+     * this method only validates/re-requests, it never moves choice into the core
+     * beyond legality.
+     */
+    private static List<Integer> requestLegalTrampleBlockerAssignment(Player player, Permanent attacker,
+                                                                     List<UUID> blockerIds, List<MultiAmountMessage> damageDivision,
+                                                                     int totalMin, int totalMax, MultiAmountType dialogue, Game game) {
+        int damage = totalMax;
+        if (player == null) {
+            return MultiAmountType.prepareDefaultValues(damageDivision, totalMin, totalMax);
+        }
+        for (int attempt = 0; attempt < 5; attempt++) {
+            List<Integer> candidate = player.getMultiAmountWithIndividualConstraints(
+                    Outcome.Damage, damageDivision, totalMin, totalMax, dialogue, game);
+            if (isLegalTrampleBlockerAssignment(attacker, blockerIds, damageDivision, candidate, damage, totalMin, totalMax, game)) {
+                return candidate;
+            }
+            informIllegalCombatAssignment(player, attacker, game, attempt);
+        }
+        // Bounded fallback to a legal-by-construction default (lethal to each
+        // blocker in order, remainder tramples). Never executes illegal data.
+        List<Integer> fallback = new ArrayList<>();
+        for (MultiAmountMessage message : damageDivision) {
+            fallback.add(message.defaultValue);
+        }
+        if (!MultiAmountType.isGoodValues(fallback, damageDivision, totalMin, totalMax)
+                || !isLegalTrampleBlockerAssignment(attacker, blockerIds, damageDivision, fallback, damage, totalMin, totalMax, game)) {
+            fallback = MultiAmountType.prepareDefaultValues(damageDivision, totalMin, totalMax);
+        }
+        return fallback;
+    }
+
+    private static boolean isLegalTrampleBlockerAssignment(Permanent attacker, List<UUID> blockerIds,
+                                                          List<MultiAmountMessage> damageDivision, List<Integer> amounts,
+                                                          int damage, int totalMin, int totalMax, Game game) {
+        if (attacker == null || amounts == null || damageDivision == null || blockerIds == null) {
+            return false;
+        }
+        if (!MultiAmountType.isGoodValues(amounts, damageDivision, totalMin, totalMax)) {
+            return false;
+        }
+        List<UUID> assignedBlockerIds = new ArrayList<>();
+        for (UUID blockerId : blockerIds) {
+            if (game.getPermanent(blockerId) != null) {
+                assignedBlockerIds.add(blockerId);
+            }
+        }
+        if (amounts.size() != damageDivision.size() || amounts.size() != assignedBlockerIds.size()) {
+            return false;
+        }
+        int assignedToBlockers = amounts.stream().mapToInt(x -> x).sum();
+        int throughDamage = damage - assignedToBlockers;
+        if (throughDamage < 0) {
+            return false;
+        }
+        if (throughDamage == 0) {
+            return true;
+        }
+        for (int i = 0; i < assignedBlockerIds.size(); i++) {
+            Permanent blocker = game.getPermanent(assignedBlockerIds.get(i));
+            if (blocker == null) {
+                continue;
+            }
+            int lethalRequired = blocker.getLethalDamage(attacker.getId(), game);
+            if (amounts.get(i) < lethalRequired) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * WS206: engine-side total validation for free current-rules division
+     * (CR 510.1c attacker vs blockers, CR 510.1d blocker vs attackers).
+     * Any per-blocker split totaling the creature's damage is legal; this only
+     * rejects short/over totals or out-of-range options from untrusted Player
+     * implementations, with bounded re-request and legal fallback.
+     */
+    private static List<Integer> requestLegalFreeBlockerAssignment(Player player, List<MultiAmountMessage> damageDivision,
+                                                                  int damage, MultiAmountType dialogue, Game game) {
+        if (player == null) {
+            return MultiAmountType.prepareDefaultValues(damageDivision, damage, damage);
+        }
+        for (int attempt = 0; attempt < 5; attempt++) {
+            List<Integer> candidate = player.getMultiAmountWithIndividualConstraints(
+                    Outcome.Damage, damageDivision, damage, damage, dialogue, game);
+            if (candidate != null && MultiAmountType.isGoodValues(candidate, damageDivision, damage, damage)
+                    && candidate.size() == damageDivision.size()) {
+                return candidate;
+            }
+            if (player != null) {
+                game.informPlayer(player, "Illegal combat damage assignment (must total "
+                        + damage + "). Please assign again.");
+            }
+        }
+        List<Integer> fallback = new ArrayList<>();
+        for (MultiAmountMessage message : damageDivision) {
+            fallback.add(message.defaultValue);
+        }
+        if (!MultiAmountType.isGoodValues(fallback, damageDivision, damage, damage)) {
+            fallback = MultiAmountType.prepareDefaultValues(damageDivision, damage, damage);
+        }
+        return fallback;
+    }
+
+    private static void informIllegalCombatAssignment(Player player, Permanent attacker, Game game, int attempt) {
+        if (player == null) {
+            return;
+        }
+        game.informPlayer(player, "Illegal combat damage assignment for " + attacker.getLogName()
+                + " (positive trample through-damage requires lethal damage to every blocking creature)."
+                + " Please assign again." + (attempt > 0 ? " Attempt " + (attempt + 1) + " of 5." : ""));
     }
 
     @Override
