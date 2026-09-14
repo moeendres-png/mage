@@ -493,6 +493,27 @@ public interface Game extends MageItem, Serializable, Copyable<Game> {
 
     void concede(UUID playerId);
 
+    /**
+     * WS211: engine-authoritative concession availability.
+     * <p>
+     * Answers whether concession is currently an authoritative legal player
+     * action for the given actor: true if and only if the game has not ended
+     * and the actor is a player still in this game. Per CR 104.3a concession
+     * needs no priority, no empty stack and no particular game step; per CR
+     * 723.6 turn control is irrelevant to availability (a controlled player
+     * may still concede themself, and a controller may never concede for them
+     * -- actor binding stays with the caller, typically the server
+     * user-to-player map).
+     * <p>
+     * External bridges must project a CONCEDE action only when this returns
+     * true, and must submit it for the same actor through
+     * {@link #concede(UUID)} / {@link #setConcedingPlayer(UUID)}.
+     *
+     * @param playerId actor asking to concede (the conceding player itself)
+     * @return true if concession is an authoritative legal action for the actor now
+     */
+    boolean canConcede(UUID playerId);
+
     void setConcedingPlayer(UUID playerId);
 
     void setManaPaymentMode(UUID playerId, boolean autoPayment);

@@ -1730,9 +1730,26 @@ public abstract class GameImpl implements Game {
     }
 
     @Override
-    public synchronized void concede(UUID playerId) {
+    public boolean canConcede(UUID playerId) {
+        // WS211: engine-owned availability, no Rules RNG, no priority/step/stack/turn-control requirement.
+        if (playerId == null || hasEnded()) {
+            return false;
+        }
         Player player = state.getPlayer(playerId);
-        if (player != null && !player.hasLost()) {
+        return player != null && player.isInGame();
+    }
+
+    @Override
+    public synchronized void concede(UUID playerId) {
+        // WS211: fail closed on stale requests (unknown actor, already lost/left/won/drew/quit, post-game).
+        // Availability true <=> execution accepted; internal flows (quit/timeout/forced-loss) use
+        // Player.concede / setConcedingPlayer directly and are unaffected by this guard.
+        if (!canConcede(playerId)) {
+            logger.debug("Ignoring stale concession request for player " + playerId + " in game " + this.getId());
+            return;
+        }
+        Player player = state.getPlayer(playerId);
+        if (player != null) {
             logger.debug("Player " + player.getName() + " concedes game " + this.getId());
             fireInformEvent(player.getLogName() + " has conceded.");
             player.concede(this);
