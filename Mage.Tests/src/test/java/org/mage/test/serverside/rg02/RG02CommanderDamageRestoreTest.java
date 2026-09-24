@@ -142,9 +142,130 @@ public class RG02CommanderDamageRestoreTest extends CardTestCommander3PlayersFFA
 
         castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, ISAMARU);
         waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN, playerA);
-        attack(3, playerA, ISAMARU, playerB);
+        attack(4, playerA, ISAMARU, playerB);
+
+        setStopAt(4, PhaseStep.POSTCOMBAT_MAIN);
+        execute();
+
+        assertLostTheGame(playerB);
+    }
+
+    @Test
+    public void noncombatCommanderDamageDoesNotIncrementLedger() {
+        String ruric = "Ruric Thar, the Unbowed";
+        addCard(Zone.COMMAND, playerA, ruric, 1);
+        addCard(Zone.BATTLEFIELD, playerA, "Forest", 5);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 1);
+        addCard(Zone.BATTLEFIELD, playerB, "Mountain", 1);
+        addCard(Zone.HAND, playerB, "Shock", 1);
+
+        runCode("restore 20", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) ->
+                restore(game, player, ruric, playerB, 20));
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, ruric);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN, playerA);
+
+        castSpell(3, PhaseStep.PRECOMBAT_MAIN, playerB, "Shock", playerC);
+        waitStackResolved(3, PhaseStep.PRECOMBAT_MAIN, playerB);
+        runCode("verify noncombat ignored", 3, PhaseStep.PRECOMBAT_MAIN, playerB, (info, player, game) ->
+                Assert.assertEquals(Integer.valueOf(20),
+                        watcher(game, playerA, ruric).getDamageToPlayer().get(playerB.getId())));
+
+        setStopAt(3, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        Assert.assertNotNull("Noncombat damage from a commander must not cause commander-damage loss",
+                currentGame.getPlayer(playerB.getId()));
+        assertLife(playerB, 34);
+    }
+
+    @Test
+    public void commanderDamageTracksIdentityAfterControllerChange() {
+        addCard(Zone.COMMAND, playerA, ISAMARU, 1);
+        addCard(Zone.BATTLEFIELD, playerA, "Plains", 1);
+        addCard(Zone.BATTLEFIELD, playerB, "Mountain", 3);
+        addCard(Zone.HAND, playerB, "Act of Treason", 1);
+
+        runCode("restore 19", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) ->
+                restore(game, player, ISAMARU, playerC, 19));
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, ISAMARU);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN, playerA);
+
+        castSpell(3, PhaseStep.PRECOMBAT_MAIN, playerB, "Act of Treason", ISAMARU);
+        waitStackResolved(3, PhaseStep.PRECOMBAT_MAIN, playerB);
+        attack(3, playerB, ISAMARU, playerC);
 
         setStopAt(3, PhaseStep.POSTCOMBAT_MAIN);
+        execute();
+
+        assertLostTheGame(playerC);
+    }
+
+    @Test
+    public void commanderDamageContinuesAfterBlinkReentry() {
+        addCard(Zone.COMMAND, playerA, ISAMARU, 1);
+        addCard(Zone.BATTLEFIELD, playerA, "Plains", 3);
+        addCard(Zone.HAND, playerA, "Cloudshift", 1);
+
+        runCode("restore 17", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) ->
+                restore(game, player, ISAMARU, playerB, 17));
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, ISAMARU);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN, playerA);
+
+        attack(4, playerA, ISAMARU, playerB);
+        castSpell(4, PhaseStep.POSTCOMBAT_MAIN, playerA, "Cloudshift", ISAMARU);
+        setChoice(playerA, false);
+        waitStackResolved(4, PhaseStep.POSTCOMBAT_MAIN, playerA);
+
+        attack(7, playerA, ISAMARU, playerB);
+
+        setStopAt(7, PhaseStep.POSTCOMBAT_MAIN);
+        execute();
+
+        assertLostTheGame(playerB);
+    }
+
+    @Test
+    public void modalDoubleFacedCommanderUsesFrontIdentityForDamage() {
+        String esika = "Esika, God of the Tree";
+        addCard(Zone.COMMAND, playerA, esika, 1);
+        addCard(Zone.BATTLEFIELD, playerA, "Forest", 3);
+
+        runCode("restore 20", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) ->
+                restore(game, player, esika, playerB, 20));
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, esika);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN, playerA);
+        attack(4, playerA, esika, playerB);
+
+        setStopAt(4, PhaseStep.POSTCOMBAT_MAIN);
+        execute();
+
+        assertLostTheGame(playerB);
+    }
+
+    @Test
+    public void mutatedPermanentNormalizesCommanderSourceIdentity() {
+        String otrimi = "Otrimi, the Ever-Playful";
+        String host = "Beastcaller Savant";
+        addCard(Zone.COMMAND, playerA, otrimi, 1);
+        addCard(Zone.BATTLEFIELD, playerA, host, 1);
+        addCard(Zone.BATTLEFIELD, playerA, "Island", 2);
+        addCard(Zone.BATTLEFIELD, playerA, "Swamp", 2);
+        addCard(Zone.BATTLEFIELD, playerA, "Forest", 2);
+
+        runCode("restore 20", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) ->
+                restore(game, player, otrimi, playerB, 20));
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, otrimi + " using Mutate", host);
+        setChoice(playerA, true);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN, playerA);
+
+        attack(4, playerA, host, playerB);
+
+        setStopAt(4, PhaseStep.POSTCOMBAT_MAIN);
         execute();
 
         assertLostTheGame(playerB);
