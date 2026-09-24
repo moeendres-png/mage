@@ -216,7 +216,6 @@ public class RG02CommanderDamageRestoreTest extends CardTestCommander3PlayersFFA
 
         attack(4, playerA, ISAMARU, playerB);
         castSpell(4, PhaseStep.POSTCOMBAT_MAIN, playerA, "Cloudshift", ISAMARU);
-        setChoice(playerA, false);
         waitStackResolved(4, PhaseStep.POSTCOMBAT_MAIN, playerA);
 
         attack(7, playerA, ISAMARU, playerB);
