@@ -281,6 +281,17 @@ public class BecomesFaceDownCreatureEffect extends ContinuousEffectImpl {
                 break;
             case MANIFESTED:
             case CLOAKED:
+                // The existing ManifestEffect still documents unsupported alternate
+                // turn-up semantics when the underlying card also has morph/disguise.
+                // State-load must not silently construct a partially-correct permanent.
+                if (findNativeFaceDownBlueprintForGameLoad(card, FaceDownType.MORPHED, game) != null
+                        || findNativeFaceDownBlueprintForGameLoad(card, FaceDownType.MEGAMORPHED, game) != null
+                        || findNativeFaceDownBlueprintForGameLoad(card, FaceDownType.DISGUISED, game) != null) {
+                    throw new IllegalArgumentException(
+                            "Manifest/cloak restore for morph/disguise cards is unsupported until alternate turn-up semantics are implemented"
+                    );
+                }
+
                 Card faceCard = findDefaultCardSideForFaceDown(game, card);
                 ManaCosts turnFaceUpCosts = null;
                 if (faceCard.isCreature(game)) {
