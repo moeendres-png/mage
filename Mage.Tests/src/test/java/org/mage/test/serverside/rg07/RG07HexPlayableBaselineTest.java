@@ -20,6 +20,25 @@ public class RG07HexPlayableBaselineTest extends CardTestPlayerBase {
 
     private static final String HEX = "Hex";
 
+    private static final String[] SIX_CREATURES = {
+            "Grizzly Bears",
+            "Runeclaw Bear",
+            "Bear Cub",
+            "Hill Giant",
+            "Llanowar Elves",
+            "Savannah Lions"
+    };
+
+    private void addSixCreaturesToPlayerB() {
+        for (String creature : SIX_CREATURES) {
+            addCard(Zone.BATTLEFIELD, playerB, creature, 1);
+        }
+    }
+
+    private static String sixTargets() {
+        return String.join("^", SIX_CREATURES);
+    }
+
     private static boolean isSpellOffered(Game game, Player player, String cardName) {
         for (ActivatedAbility ability : player.getPlayable(game, false)) {
             Card source = game.getCard(ability.getSourceId());
@@ -212,4 +231,131 @@ public class RG07HexPlayableBaselineTest extends CardTestPlayerBase {
     }
 
 
+
+    @Test
+    public void hexActualCastRequiresAndSelectsExactlySixTargets() {
+        addCard(Zone.HAND, playerA, HEX, 1);
+        addCard(Zone.BATTLEFIELD, playerA, "Swamp", 6);
+        addSixCreaturesToPlayerB();
+
+        runCode("Hex offered before real cast", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) ->
+                Assert.assertTrue("Hex must be offered with six legal creatures",
+                        isSpellOffered(game, player, HEX)));
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, HEX, sixTargets());
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        for (String creature : SIX_CREATURES) {
+            assertPermanentCount(playerB, creature, 0);
+            assertGraveyardCount(playerB, creature, 1);
+        }
+        assertGraveyardCount(playerA, HEX, 1);
+    }
+
+    @Test
+    public void secondExactNSpellTracksMinimumCardinality() {
+        String ashes = "Ashes to Ashes";
+        addCard(Zone.HAND, playerA, ashes, 1);
+        addCard(Zone.BATTLEFIELD, playerA, "Swamp", 3);
+        addCard(Zone.BATTLEFIELD, playerB, "Grizzly Bears", 1);
+
+        runCode("Ashes one target", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) ->
+                Assert.assertFalse("Exact-two target spell must not be offered with one legal target",
+                        isSpellOffered(game, player, ashes)));
+
+        addCard(Zone.BATTLEFIELD, playerB, "Runeclaw Bear", 1);
+        runCode("Ashes two targets", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) ->
+                Assert.assertTrue("Exact-two target spell must be offered with two legal targets",
+                        isSpellOffered(game, player, ashes)));
+
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+    }
+
+    @Test
+    public void upToNSpellIsOfferedWithZeroTargets() {
+        String intoTheVoid = "Into the Void";
+        addCard(Zone.HAND, playerA, intoTheVoid, 1);
+        addCard(Zone.BATTLEFIELD, playerA, "Island", 4);
+
+        runCode("up-to-two zero-target offer", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) ->
+                Assert.assertTrue("A zero-minimum up-to-N spell must remain castable with zero targets",
+                        isSpellOffered(game, player, intoTheVoid)));
+
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+    }
+
+    @Test
+    public void hexproofReductionRemovesIneligibleCreatureFromTargetPool() {
+        addCard(Zone.HAND, playerA, HEX, 1);
+        addCard(Zone.BATTLEFIELD, playerA, "Swamp", 6);
+        addCard(Zone.BATTLEFIELD, playerB, "Grizzly Bears", 5);
+        addCard(Zone.BATTLEFIELD, playerB, "Knight of Grace", 1);
+
+        runCode("Hex with five legal plus one black-hexproof creature", 1, PhaseStep.PRECOMBAT_MAIN, playerA,
+                (info, player, game) ->
+                        Assert.assertFalse("Hex must not count an illegal black-hexproof creature toward six legal targets",
+                                isSpellOffered(game, player, HEX)));
+
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+    }
+
+    @Test
+    public void targetBecomingIllegalAfterOfferUsesNormalResolutionLegality() {
+        addCard(Zone.HAND, playerA, HEX, 1);
+        addCard(Zone.BATTLEFIELD, playerA, "Swamp", 6);
+        addSixCreaturesToPlayerB();
+        addCard(Zone.HAND, playerB, "Ranger's Guile", 1);
+        addCard(Zone.BATTLEFIELD, playerB, "Forest", 1);
+
+        runCode("Hex offered before target changes legality", 1, PhaseStep.PRECOMBAT_MAIN, playerA,
+                (info, player, game) ->
+                        Assert.assertTrue(isSpellOffered(game, player, HEX)));
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, HEX, sixTargets());
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerB, "Ranger's Guile", "Grizzly Bears");
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertPermanentCount(playerB, "Grizzly Bears", 1);
+        assertGraveyardCount(playerB, "Grizzly Bears", 0);
+        for (String creature : SIX_CREATURES) {
+            if (!"Grizzly Bears".equals(creature)) {
+                assertPermanentCount(playerB, creature, 0);
+                assertGraveyardCount(playerB, creature, 1);
+            }
+        }
+    }
+
+    @Test
+    public void costReductionKeepsOfferingAndActualCastLegalityAligned() {
+        addCard(Zone.HAND, playerA, HEX, 1);
+        addCard(Zone.BATTLEFIELD, playerA, "Swamp", 5);
+        addCard(Zone.BATTLEFIELD, playerA, "Goblin Electromancer", 1);
+        addCard(Zone.BATTLEFIELD, playerB, "Grizzly Bears", 1);
+        addCard(Zone.BATTLEFIELD, playerB, "Runeclaw Bear", 1);
+        addCard(Zone.BATTLEFIELD, playerB, "Bear Cub", 1);
+        addCard(Zone.BATTLEFIELD, playerB, "Hill Giant", 1);
+        addCard(Zone.BATTLEFIELD, playerB, "Llanowar Elves", 1);
+
+        runCode("Hex offered under cost reduction", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) ->
+                Assert.assertTrue("getPlayable must include Hex when generic reduction makes {4}{B}{B} payable with five black mana",
+                        isSpellOffered(game, player, HEX)));
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, HEX,
+                "Goblin Electromancer^Grizzly Bears^Runeclaw Bear^Bear Cub^Hill Giant^Llanowar Elves");
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertGraveyardCount(playerA, HEX, 1);
+        assertPermanentCount(playerA, "Goblin Electromancer", 0);
+        assertGraveyardCount(playerA, "Goblin Electromancer", 1);
+    }
 }
