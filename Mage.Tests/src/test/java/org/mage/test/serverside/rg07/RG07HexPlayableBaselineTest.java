@@ -1,5 +1,6 @@
 package org.mage.test.serverside.rg07;
 
+import mage.abilities.Ability;
 import mage.abilities.ActivatedAbility;
 import mage.cards.Card;
 import mage.constants.PhaseStep;
@@ -191,7 +192,7 @@ public class RG07HexPlayableBaselineTest extends CardTestPlayerBase {
                     .filter(card -> HEX.equals(card.getName()))
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("Hex must be in hand"));
-            var source = hex.getSpellAbility();
+            Ability source = hex.getSpellAbility();
 
             TargetPermanent exactTwo = new TargetPermanent(2, StaticFilters.FILTER_PERMANENT_CREATURES);
             Assert.assertFalse("one creature cannot satisfy exact-two targeting",
