@@ -10,8 +10,10 @@ import mage.abilities.costs.Cost;
 import mage.abilities.costs.CostAdjuster;
 import mage.abilities.costs.Costs;
 import mage.abilities.costs.CostsImpl;
+import mage.abilities.costs.mana.ManaCosts;
 import mage.abilities.costs.mana.ManaCostsImpl;
 import mage.abilities.effects.ContinuousEffectImpl;
+import mage.abilities.effects.Effect;
 import mage.abilities.effects.common.InfoEffect;
 import mage.abilities.keyword.WardAbility;
 import mage.cards.Card;
@@ -228,6 +230,126 @@ public class BecomesFaceDownCreatureEffect extends ContinuousEffectImpl {
         return true;
     }
 
+
+    /**
+     * Restores an existing battlefield permanent to a native face-down rules state
+     * without replaying the historical cast/manifest/cloak event that originally
+     * produced that state.
+     *
+     * <p>This game-load/replay seam is deliberately narrow: it does not create or
+     * move objects, does not reveal the hidden card identity, and does not invent a
+     * second face-down model. Morph/Disguise states reuse the card's own native
+     * BecomesFaceDownCreatureEffect blueprint (including turn-up costs and cost
+     * adjusters). Manifest/Cloak states reuse the same construction as
+     * ManifestEffect for the already-existing permanent.
+     */
+    public static void restoreFaceDownStateForGameLoad(UUID permanentId, FaceDownType faceDownType, Game game) {
+        if (game == null) {
+            throw new IllegalArgumentException("Face-down restore game must not be null");
+        }
+        if (permanentId == null) {
+            throw new IllegalArgumentException("Face-down restore permanent id must not be null");
+        }
+        if (faceDownType == null) {
+            throw new IllegalArgumentException("Face-down restore type must not be null");
+        }
+        if (faceDownType == FaceDownType.MANUAL) {
+            throw new IllegalArgumentException("Manual face-down state is not a supported game-load type");
+        }
+
+        Permanent permanent = game.getPermanent(permanentId);
+        Card card = game.getCard(permanentId);
+        if (permanent == null || card == null || game.getState().getZone(permanentId) != Zone.BATTLEFIELD) {
+            throw new IllegalArgumentException("Face-down restore requires an existing battlefield card permanent");
+        }
+        if (!card.getOwnerId().equals(permanent.getOwnerId())) {
+            throw new IllegalArgumentException("Face-down restore card/permanent ownership mismatch");
+        }
+        if (permanent.isFaceDown(game) || findFaceDownType(game, permanent) != null) {
+            throw new IllegalArgumentException("Face-down restore refuses an already face-down permanent");
+        }
+
+        BecomesFaceDownCreatureEffect restoreEffect;
+        switch (faceDownType) {
+            case MORPHED:
+            case MEGAMORPHED:
+            case DISGUISED:
+                restoreEffect = findNativeFaceDownBlueprintForGameLoad(card, faceDownType, game);
+                if (restoreEffect == null) {
+                    throw new IllegalArgumentException("Card does not natively support requested face-down type");
+                }
+                break;
+            case MANIFESTED:
+            case CLOAKED:
+                Card faceCard = findDefaultCardSideForFaceDown(game, card);
+                ManaCosts turnFaceUpCosts = null;
+                if (faceCard.isCreature(game)) {
+                    turnFaceUpCosts = faceCard.getSpellAbility() == null
+                            ? new ManaCostsImpl<>("{0}")
+                            : faceCard.getSpellAbility().getManaCosts().copy();
+                }
+                MageObjectReference objectReference = new MageObjectReference(
+                        faceCard.getId(), faceCard.getZoneChangeCounter(game), game
+                );
+                restoreEffect = new BecomesFaceDownCreatureEffect(
+                        turnFaceUpCosts,
+                        objectReference,
+                        Duration.Custom,
+                        faceDownType
+                );
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported face-down game-load type");
+        }
+
+        // Complete all validation and construction before mutating live state.
+        Ability restoreSource = new SimpleStaticAbility(Zone.ALL, restoreEffect);
+        restoreSource.setSourceId(permanentId);
+        restoreSource.setControllerId(permanent.getControllerId());
+        restoreSource.setWorksFaceDown(true);
+
+        permanent.setFaceDown(true, game);
+        game.addEffect(restoreEffect, restoreSource);
+        restoreEffect.apply(game, restoreSource);
+    }
+
+    private static BecomesFaceDownCreatureEffect findNativeFaceDownBlueprintForGameLoad(
+            Card card,
+            FaceDownType requestedType,
+            Game game
+    ) {
+        for (Ability ability : card.getAbilities(game)) {
+            BecomesFaceDownCreatureEffect found = findNativeFaceDownBlueprintForGameLoad(ability, requestedType);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    private static BecomesFaceDownCreatureEffect findNativeFaceDownBlueprintForGameLoad(
+            Ability ability,
+            FaceDownType requestedType
+    ) {
+        for (Effect effect : ability.getEffects()) {
+            if (effect instanceof BecomesFaceDownCreatureEffect) {
+                BecomesFaceDownCreatureEffect faceDownEffect = (BecomesFaceDownCreatureEffect) effect;
+                if (faceDownEffect.faceDownType == requestedType) {
+                    BecomesFaceDownCreatureEffect copy = faceDownEffect.copy();
+                    copy.foundPermanent = false;
+                    return copy;
+                }
+            }
+        }
+        for (Ability subAbility : ability.getSubAbilities()) {
+            BecomesFaceDownCreatureEffect found = findNativeFaceDownBlueprintForGameLoad(subAbility, requestedType);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
     // TODO: implement multiple face down types?!
     public static FaceDownType findFaceDownType(Game game, Permanent permanent) {
         if (permanent.isMorphed()) {
@@ -249,8 +371,6 @@ public class BecomesFaceDownCreatureEffect extends ContinuousEffectImpl {
      * Convert any object (card, token) to face down (remove/hide all face up information and make it a 2/2 creature)
      */
     public static void makeFaceDownObject(Game game, UUID sourceId, MageObject object, FaceDownType faceDownType, List<Ability> additionalAbilities) {
-        String originalObjectInfo = object.toString();
-
         // warning, it's a direct changes to the object (without game state, so no game param here)
         object.setName(EmptyNames.FACE_DOWN_CREATURE.getObjectName());
         object.removeAllSuperTypes();
@@ -354,7 +474,7 @@ public class BecomesFaceDownCreatureEffect extends ContinuousEffectImpl {
             faceDownToken.setImageFileName(faceDownInfo.getName());
             faceDownToken.setImageNumber(faceDownInfo.getImageNumber());
         } else {
-            logger.error("Can't find face down image for " + tokenName + ": " + originalObjectInfo);
+            logger.error("Can't find face down image for " + tokenName);
             // TODO: add default image like backface (warning, missing image info must be visible in card popup)?
         }
 
