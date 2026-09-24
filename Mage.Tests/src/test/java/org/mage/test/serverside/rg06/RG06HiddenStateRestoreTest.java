@@ -148,7 +148,7 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
             List<UUID> restored = Arrays.asList(lion, grizzly, runeclaw);
             player.getLibrary().restoreOrderForGameLoad(restored, game);
 
-            player.shuffleLibrary(game);
+            player.shuffleLibrary(null, game);
 
             List<UUID> after = player.getLibrary().getCardList();
             Assert.assertEquals(3, after.size());
@@ -248,9 +248,9 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
 
         runCode("restore manifest and cloak", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
             Permanent manifest = game.getBattlefield().getAllActivePermanents().stream()
-                    .filter(p -> "Grizzly Bears".equals(p.getName())).findFirst().orElseThrow();
+                    .filter(p -> "Grizzly Bears".equals(p.getName())).findFirst().orElseThrow(() -> new AssertionError("Expected object not found"));
             Permanent cloak = game.getBattlefield().getAllActivePermanents().stream()
-                    .filter(p -> "Runeclaw Bear".equals(p.getName())).findFirst().orElseThrow();
+                    .filter(p -> "Runeclaw Bear".equals(p.getName())).findFirst().orElseThrow(() -> new AssertionError("Expected object not found"));
 
             BecomesFaceDownCreatureEffect.restoreFaceDownStateForGameLoad(
                     manifest.getId(), FaceDownType.MANIFESTED, game);
@@ -333,7 +333,7 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
         runCode("reject invalid face-down payloads", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
             Permanent bears = permanent(game, "Grizzly Bears");
             Card handMorph = player.getHand().getCards(game).stream()
-                    .filter(card -> "Sagu Mauler".equals(card.getName())).findFirst().orElseThrow();
+                    .filter(card -> "Sagu Mauler".equals(card.getName())).findFirst().orElseThrow(() -> new AssertionError("Expected object not found"));
 
             expectIllegalArgument("non-disguise card must reject disguise state", () ->
                     BecomesFaceDownCreatureEffect.restoreFaceDownStateForGameLoad(
