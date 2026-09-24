@@ -328,18 +328,26 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
     @Test
     public void invalidFaceDownRestoreFailsBeforeMutation() {
         addCard(Zone.BATTLEFIELD, playerA, "Grizzly Bears", 1);
-        addCard(Zone.HAND, playerA, "Sagu Mauler", 1);
+        addCard(Zone.BATTLEFIELD, playerA, "Sagu Mauler", 1);
+        addCard(Zone.HAND, playerA, "Willbender", 1);
 
         runCode("reject invalid face-down payloads", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
             Permanent bears = permanent(game, "Grizzly Bears");
+            Permanent nativeMorph = permanent(game, "Sagu Mauler");
             Card handMorph = player.getHand().getCards(game).stream()
-                    .filter(card -> "Sagu Mauler".equals(card.getName())).findFirst().orElseThrow(() -> new AssertionError("Expected object not found"));
+                    .filter(card -> "Willbender".equals(card.getName())).findFirst()
+                    .orElseThrow(() -> new AssertionError("Expected hand morph card not found"));
 
             expectIllegalArgument("non-disguise card must reject disguise state", () ->
                     BecomesFaceDownCreatureEffect.restoreFaceDownStateForGameLoad(
                             bears.getId(), FaceDownType.DISGUISED, game));
             Assert.assertFalse(bears.isFaceDown(game));
             Assert.assertEquals("Grizzly Bears", bears.getName());
+
+            expectIllegalArgument("manifest restore of morph card must fail closed", () ->
+                    BecomesFaceDownCreatureEffect.restoreFaceDownStateForGameLoad(
+                            nativeMorph.getId(), FaceDownType.MANIFESTED, game));
+            Assert.assertFalse(nativeMorph.isFaceDown(game));
 
             expectIllegalArgument("non-battlefield card must fail", () ->
                     BecomesFaceDownCreatureEffect.restoreFaceDownStateForGameLoad(
