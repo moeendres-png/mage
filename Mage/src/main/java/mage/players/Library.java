@@ -142,6 +142,61 @@ public class Library implements Serializable {
         }
     }
 
+
+    /**
+     * Restores only the order of cards that are already in this library.
+     *
+     * <p>This is a narrow game-load/replay seam. It never creates cards, moves cards
+     * between zones, reveals cards, shuffles, draws, or fires game events. The
+     * requested order must be a complete permutation of the current library and all
+     * cards must still exist, be owned by this library's player, and be in the
+     * library zone. Validation completes before the authoritative deque is mutated.
+     *
+     * @param orderedCardIds exact top-to-bottom order
+     * @param game authoritative game containing the existing card objects
+     * @throws IllegalArgumentException on invalid, incomplete, duplicated, foreign,
+     *                                  unknown, or wrong-zone payloads
+     */
+    public void restoreOrderForGameLoad(List<UUID> orderedCardIds, Game game) {
+        if (orderedCardIds == null) {
+            throw new IllegalArgumentException("Library restore order must not be null");
+        }
+        if (game == null) {
+            throw new IllegalArgumentException("Library restore game must not be null");
+        }
+        if (orderedCardIds.size() != library.size()) {
+            throw new IllegalArgumentException("Library restore order must contain every current library card exactly once");
+        }
+
+        LinkedHashSet<UUID> validated = new LinkedHashSet<>();
+        for (UUID cardId : orderedCardIds) {
+            if (cardId == null) {
+                throw new IllegalArgumentException("Library restore order contains null card id");
+            }
+            if (!validated.add(cardId)) {
+                throw new IllegalArgumentException("Library restore order contains duplicate card id");
+            }
+
+            Card card = game.getCard(cardId);
+            if (card == null) {
+                throw new IllegalArgumentException("Library restore order contains unknown card id");
+            }
+            if (!card.isOwnedBy(playerId)) {
+                throw new IllegalArgumentException("Library restore order contains card owned by another player");
+            }
+            if (!library.contains(cardId) || game.getState().getZone(cardId) != Zone.LIBRARY) {
+                throw new IllegalArgumentException("Library restore order contains card that is not currently in this library");
+            }
+        }
+
+        if (!validated.containsAll(library)) {
+            throw new IllegalArgumentException("Library restore order does not match current library membership");
+        }
+
+        library.clear();
+        library.addAll(orderedCardIds);
+    }
+
     public Library copy() {
         return new Library(this);
     }
