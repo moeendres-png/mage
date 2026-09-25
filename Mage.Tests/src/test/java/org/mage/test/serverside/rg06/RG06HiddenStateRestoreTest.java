@@ -321,6 +321,7 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
 
     @Test
     public void restoredMorphDoesNotOfferFaceUpActivatedAbility() {
+        // RG-06B regression: restored state must match native morph hidden-information behavior.
         addCard(Zone.BATTLEFIELD, playerA, "Goblin Taskmaster", 1);
         addCard(Zone.BATTLEFIELD, playerA, "Mountain", 2);
 
