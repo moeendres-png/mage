@@ -321,16 +321,40 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
 
     @Test
     public void restoredMorphDoesNotOfferFaceUpActivatedAbility() {
-        // RG-06B regression: restored state must match native morph hidden-information behavior.
         addCard(Zone.BATTLEFIELD, playerA, "Akroma, Angel of Fury", 1);
         addCard(Zone.BATTLEFIELD, playerA, "Mountain", 1);
 
-        runCode("restore morph and inspect authoritative playable actions", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
+        // The production restore path runs before Game.start(). Reproduce that
+        // lifecycle instead of restoring after the engine has already arrived.
+        for (Player gamePlayer : currentGame.getPlayers().values()) {
+            gamePlayer.updateRange(currentGame);
+        }
+        currentGame.cheat(playerA.getId(), getCommands(playerA));
+        currentGame.cheat(
+                playerA.getId(),
+                getLibraryCards(playerA),
+                getHandCards(playerA),
+                getBattlefieldCards(playerA),
+                getGraveCards(playerA),
+                getCommandCards(playerA),
+                getExiledCards(playerA));
+
+        getCommands(playerA).clear();
+        getLibraryCards(playerA).clear();
+        getHandCards(playerA).clear();
+        getBattlefieldCards(playerA).clear();
+        getGraveCards(playerA).clear();
+        getCommandCards(playerA).clear();
+        getExiledCards(playerA).clear();
+
+        Permanent restored = permanent(currentGame, "Akroma, Angel of Fury");
+        BecomesFaceDownCreatureEffect.restoreFaceDownStateForGameLoad(
+                restored.getId(), FaceDownType.MORPHED, currentGame);
+        Assert.assertTrue(restored.isFaceDown(currentGame));
+        Assert.assertTrue(restored.isMorphed());
+
+        runCode("inspect authoritative playable actions after pre-start morph restore", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
             Permanent p = permanent(game, "Akroma, Angel of Fury");
-
-            BecomesFaceDownCreatureEffect.restoreFaceDownStateForGameLoad(
-                    p.getId(), FaceDownType.MORPHED, game);
-
             Assert.assertTrue(p.isFaceDown(game));
             Assert.assertTrue(p.isMorphed());
 
