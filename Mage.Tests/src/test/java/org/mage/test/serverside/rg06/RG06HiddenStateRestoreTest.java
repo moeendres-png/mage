@@ -18,8 +18,6 @@ import org.junit.Test;
 import org.mage.test.serverside.base.CardTestPlayerBase;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -233,13 +231,26 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
         runCode("reject invalid library payloads", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
             List<UUID> baseline = new ArrayList<>(player.getLibrary().getCardList());
             UUID first = baseline.get(0);
-            UUID second = baseline.get(1);
             UUID handCard = player.getHand().getCards(game).iterator().next().getId();
             Player other = game.getPlayer(playerB.getId());
             UUID foreignCard = other.getLibrary().getCardList().get(0);
 
+            List<UUID> duplicate = new ArrayList<>(baseline);
+            duplicate.set(1, first);
             expectIllegalArgument("duplicate id must fail", () ->
-                    player.getLibrary().restoreOrderForGameLoad(Arrays.asList(first, first, second), game));
+                    player.getLibrary().restoreOrderForGameLoad(duplicate, game));
+            Assert.assertEquals(baseline, player.getLibrary().getCardList());
+
+            List<UUID> incomplete = new ArrayList<>(baseline);
+            incomplete.remove(incomplete.size() - 1);
+            expectIllegalArgument("incomplete payload must fail", () ->
+                    player.getLibrary().restoreOrderForGameLoad(incomplete, game));
+            Assert.assertEquals(baseline, player.getLibrary().getCardList());
+
+            List<UUID> nullId = new ArrayList<>(baseline);
+            nullId.set(0, null);
+            expectIllegalArgument("null card id must fail", () ->
+                    player.getLibrary().restoreOrderForGameLoad(nullId, game));
             Assert.assertEquals(baseline, player.getLibrary().getCardList());
 
             List<UUID> unknown = new ArrayList<>(baseline);
