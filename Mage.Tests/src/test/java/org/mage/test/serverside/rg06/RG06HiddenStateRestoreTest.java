@@ -281,9 +281,11 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
             Permanent p = permanent(game, "Sagu Mauler");
             ForbiddenRestoreEventWatcher watcher = new ForbiddenRestoreEventWatcher();
             game.getState().addWatcher(watcher);
+            int revealedBefore = game.getState().getRevealed().size();
 
             BecomesFaceDownCreatureEffect.restoreFaceDownStateForGameLoad(p.getId(), FaceDownType.MORPHED, game);
 
+            Assert.assertEquals("Restore must not reveal hidden identity", revealedBefore, game.getState().getRevealed().size());
             Assert.assertTrue(p.isFaceDown(game));
             Assert.assertTrue(p.isMorphed());
             Assert.assertEquals(EmptyNames.FACE_DOWN_CREATURE.getObjectName(), p.getName());
