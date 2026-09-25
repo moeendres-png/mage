@@ -168,6 +168,34 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
     }
 
     @Test
+    public void genuineLibrarySearchUsesRestoredLibraryAndNormalShuffle() {
+        addCard(Zone.BATTLEFIELD, playerA, "Swamp", 2);
+        addCard(Zone.HAND, playerA, "Demonic Tutor", 1);
+        addCard(Zone.LIBRARY, playerA, "Silvercoat Lion", 1);
+        addCard(Zone.LIBRARY, playerA, "Runeclaw Bear", 1);
+        skipInitShuffling();
+
+        runCode("restore searched card to bottom", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
+            UUID lion = libraryId(player, game, "Silvercoat Lion");
+            List<UUID> restored = new ArrayList<>(player.getLibrary().getCardList());
+            Assert.assertTrue(restored.remove(lion));
+            restored.add(lion);
+            player.getLibrary().restoreOrderForGameLoad(restored, game);
+            Assert.assertEquals(lion, player.getLibrary().getCardList().get(player.getLibrary().size() - 1));
+        });
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Demonic Tutor");
+        addTarget(playerA, "Silvercoat Lion");
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertHandCount(playerA, "Silvercoat Lion", 1);
+        assertLibraryCount(playerA, "Silvercoat Lion", 0);
+    }
+
+    @Test
     public void genuineShuffleOperatesOnRestoredLibraryWithoutChangingMembership() {
         addCard(Zone.LIBRARY, playerA, "Grizzly Bears", 1);
         addCard(Zone.LIBRARY, playerA, "Silvercoat Lion", 1);
