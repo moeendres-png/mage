@@ -322,11 +322,11 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
     @Test
     public void restoredMorphDoesNotOfferFaceUpActivatedAbility() {
         // RG-06B regression: restored state must match native morph hidden-information behavior.
-        addCard(Zone.BATTLEFIELD, playerA, "Goblin Taskmaster", 1);
-        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 2);
+        addCard(Zone.BATTLEFIELD, playerA, "Akroma, Angel of Fury", 1);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 1);
 
         runCode("restore morph and inspect authoritative playable actions", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
-            Permanent p = permanent(game, "Goblin Taskmaster");
+            Permanent p = permanent(game, "Akroma, Angel of Fury");
 
             BecomesFaceDownCreatureEffect.restoreFaceDownStateForGameLoad(
                     p.getId(), FaceDownType.MORPHED, game);
@@ -336,7 +336,7 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
 
             boolean leakedFaceUpPump = player.getPlayable(game, true).stream()
                     .anyMatch(ability -> p.getId().equals(ability.getSourceId())
-                            && ability.toString().contains("Target Goblin creature gets +1/+0 until end of turn"));
+                            && ability.toString().contains("gets +1/+0 until end of turn"));
 
             Assert.assertFalse(
                     "A restored morph must not offer an activated ability from its hidden face-up identity",
