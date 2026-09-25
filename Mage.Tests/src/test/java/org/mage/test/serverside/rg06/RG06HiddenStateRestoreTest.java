@@ -26,6 +26,8 @@ import java.util.UUID;
  */
 public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
 
+    private static final UUID UNKNOWN_OBJECT_ID = new UUID(0L, 0L);
+
     private static class ForbiddenRestoreEventWatcher extends Watcher {
         private int count;
 
@@ -253,8 +255,9 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
                     player.getLibrary().restoreOrderForGameLoad(nullId, game));
             Assert.assertEquals(baseline, player.getLibrary().getCardList());
 
+            Assert.assertNull("Deterministic unknown id must be absent", game.getCard(UNKNOWN_OBJECT_ID));
             List<UUID> unknown = new ArrayList<>(baseline);
-            unknown.set(0, UUID.randomUUID());
+            unknown.set(0, UNKNOWN_OBJECT_ID);
             expectIllegalArgument("unknown id must fail", () ->
                     player.getLibrary().restoreOrderForGameLoad(unknown, game));
             Assert.assertEquals(baseline, player.getLibrary().getCardList());
@@ -427,9 +430,10 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
             expectIllegalArgument("non-battlefield card must fail", () ->
                     BecomesFaceDownCreatureEffect.restoreFaceDownStateForGameLoad(
                             handMorph.getId(), FaceDownType.MORPHED, game));
+            Assert.assertNull("Deterministic unknown permanent id must be absent", game.getPermanent(UNKNOWN_OBJECT_ID));
             expectIllegalArgument("unknown permanent must fail", () ->
                     BecomesFaceDownCreatureEffect.restoreFaceDownStateForGameLoad(
-                            UUID.randomUUID(), FaceDownType.MANIFESTED, game));
+                            UNKNOWN_OBJECT_ID, FaceDownType.MANIFESTED, game));
             expectIllegalArgument("manual type must fail closed", () ->
                     BecomesFaceDownCreatureEffect.restoreFaceDownStateForGameLoad(
                             bears.getId(), FaceDownType.MANUAL, game));
