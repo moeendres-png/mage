@@ -35,6 +35,16 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
             super(WatcherScope.GAME);
         }
 
+        private ForbiddenRestoreEventWatcher(final ForbiddenRestoreEventWatcher watcher) {
+            super(watcher);
+            this.count = watcher.count;
+        }
+
+        @Override
+        public ForbiddenRestoreEventWatcher copy() {
+            return new ForbiddenRestoreEventWatcher(this);
+        }
+
         @Override
         public void watch(GameEvent event, Game game) {
             switch (event.getType()) {
@@ -71,6 +81,33 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
                 .orElseThrow(() -> new AssertionError("Permanent not found: " + name));
     }
 
+    private static List<UUID> withTop(Player player, UUID top) {
+        List<UUID> order = new ArrayList<>(player.getLibrary().getCardList());
+        Assert.assertTrue("Requested top card must already be in the library", order.remove(top));
+        order.add(0, top);
+        return order;
+    }
+
+    private static List<UUID> withTopAndBottom(Player player, UUID top, UUID bottom) {
+        List<UUID> order = new ArrayList<>(player.getLibrary().getCardList());
+        Assert.assertTrue("Requested top card must already be in the library", order.remove(top));
+        Assert.assertTrue("Requested bottom card must already be in the library", order.remove(bottom));
+        order.add(0, top);
+        order.add(bottom);
+        return order;
+    }
+
+    private static List<UUID> withLeadingCards(Player player, UUID... leading) {
+        List<UUID> order = new ArrayList<>(player.getLibrary().getCardList());
+        for (UUID cardId : leading) {
+            Assert.assertTrue("Requested leading card must already be in the library", order.remove(cardId));
+        }
+        for (int i = leading.length - 1; i >= 0; i--) {
+            order.add(0, leading[i]);
+        }
+        return order;
+    }
+
     private static void expectIllegalArgument(String message, Runnable action) {
         try {
             action.run();
@@ -89,17 +126,17 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
 
         runCode("restore exact library order", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
             UUID lion = libraryId(player, game, "Silvercoat Lion");
-            UUID grizzly = libraryId(player, game, "Grizzly Bears");
             UUID runeclaw = libraryId(player, game, "Runeclaw Bear");
+            List<UUID> restored = withTopAndBottom(player, lion, runeclaw);
 
             ForbiddenRestoreEventWatcher watcher = new ForbiddenRestoreEventWatcher();
             game.getState().addWatcher(watcher);
             int handBefore = player.getHand().size();
             int revealedBefore = game.getState().getRevealed().size();
 
-            player.getLibrary().restoreOrderForGameLoad(Arrays.asList(lion, grizzly, runeclaw), game);
+            player.getLibrary().restoreOrderForGameLoad(restored, game);
 
-            Assert.assertEquals(Arrays.asList(lion, grizzly, runeclaw), player.getLibrary().getCardList());
+            Assert.assertEquals(restored, player.getLibrary().getCardList());
             Assert.assertEquals("Silvercoat Lion", player.getLibrary().getFromTop(game).getName());
             Assert.assertEquals("Runeclaw Bear", player.getLibrary().getFromBottom(game).getName());
             Assert.assertEquals(handBefore, player.getHand().size());
@@ -119,12 +156,8 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
         skipInitShuffling();
 
         runCode("put Silvercoat Lion on top", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
-            List<UUID> order = Arrays.asList(
-                    libraryId(player, game, "Silvercoat Lion"),
-                    libraryId(player, game, "Grizzly Bears"),
-                    libraryId(player, game, "Runeclaw Bear")
-            );
-            player.getLibrary().restoreOrderForGameLoad(order, game);
+            UUID lion = libraryId(player, game, "Silvercoat Lion");
+            player.getLibrary().restoreOrderForGameLoad(withTop(player, lion), game);
         });
 
         setStopAt(3, PhaseStep.PRECOMBAT_MAIN);
@@ -145,14 +178,15 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
             UUID lion = libraryId(player, game, "Silvercoat Lion");
             UUID grizzly = libraryId(player, game, "Grizzly Bears");
             UUID runeclaw = libraryId(player, game, "Runeclaw Bear");
-            List<UUID> restored = Arrays.asList(lion, grizzly, runeclaw);
+            List<UUID> restored = withLeadingCards(player, lion, grizzly, runeclaw);
             player.getLibrary().restoreOrderForGameLoad(restored, game);
 
             player.shuffleLibrary(null, game);
 
             List<UUID> after = player.getLibrary().getCardList();
-            Assert.assertEquals(3, after.size());
+            Assert.assertEquals(restored.size(), after.size());
             Assert.assertTrue(after.containsAll(restored));
+            Assert.assertTrue(restored.containsAll(after));
         });
 
         setStopAt(1, PhaseStep.BEGIN_COMBAT);
