@@ -1,5 +1,12 @@
 # XMage — Magic, Another Game Engine
 
+> [!NOTE]
+> **Commander Simulator Next research fork.** This repository is a GitHub fork of [`magefree/mage`](https://github.com/magefree/mage) used for bounded rules-engine research, remediation, and qualification for [Commander Playtest Lab](https://github.com/moeendres-png/commander-playtest-lab). It is not an official XMage release, and fork-only changes should not be attributed to upstream XMage maintainers unless they are accepted upstream.
+>
+> XMage's original MIT [`LICENSE.txt`](LICENSE.txt) and copyright/permission notice are retained unchanged in this fork. The inherited XMage README below may lag current upstream release information; use [the upstream XMage repository](https://github.com/magefree/mage) for authoritative XMage user and release documentation.
+>
+> Magic: The Gathering and related Wizards of the Coast intellectual property are not owned by this repository. This research fork is not affiliated with or endorsed by Wizards of the Coast. Use of this fork does not itself select XMage as Commander Simulator Next's production provider; provider selection remains qualification-driven.
+
 [![Build Status](https://github.com/magefree/mage/actions/workflows/maven.yml/badge.svg)](https://github.com/magefree/mage/actions/workflows/maven.yml)
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=magefree_mage&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=magefree_mage)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=magefree_mage&metric=coverage)](https://sonarcloud.io/summary/new_code?id=magefree_mage)
