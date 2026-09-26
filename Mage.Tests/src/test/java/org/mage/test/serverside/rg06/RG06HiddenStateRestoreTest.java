@@ -319,6 +319,8 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
         assertPowerToughness(playerA, "Sagu Mauler", 6, 6);
     }
 
+    private UUID rg06bRestoredMorphId;
+
     @Test
     public void restoredMorphDoesNotOfferFaceUpActivatedAbility() {
         addCard(Zone.BATTLEFIELD, playerA, "Akroma, Angel of Fury", 1);
@@ -350,13 +352,21 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
         Permanent restored = permanent(currentGame, "Akroma, Angel of Fury");
         BecomesFaceDownCreatureEffect.restoreFaceDownStateForGameLoad(
                 restored.getId(), FaceDownType.MORPHED, currentGame);
+        Assert.assertTrue("restored object must exist on the battlefield", restored != null);
         Assert.assertTrue(restored.isFaceDown(currentGame));
         Assert.assertTrue(restored.isMorphed());
+        // Capture the native identity: after Game.start() the face-down
+        // placeholder name replaces the card name, so name lookup is void.
+        rg06bRestoredMorphId = restored.getId();
 
         runCode("inspect authoritative playable actions after pre-start morph restore", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
-            Permanent p = permanent(game, "Akroma, Angel of Fury");
+            Permanent p = game.getPermanent(rg06bRestoredMorphId);
+            Assert.assertTrue("intended object must exist at the observation point", p != null);
             Assert.assertTrue(p.isFaceDown(game));
             Assert.assertTrue(p.isMorphed());
+            Assert.assertEquals(2, p.getPower().getValue());
+            Assert.assertEquals(2, p.getToughness().getValue());
+            Assert.assertEquals(EmptyNames.FACE_DOWN_CREATURE.getObjectName(), p.getName());
 
             boolean leakedFaceUpPump = player.getPlayable(game, true).stream()
                     .anyMatch(ability -> p.getId().equals(ability.getSourceId())
@@ -365,10 +375,107 @@ public class RG06HiddenStateRestoreTest extends CardTestPlayerBase {
             Assert.assertFalse(
                     "A restored morph must not offer an activated ability from its hidden face-up identity",
                     leakedFaceUpPump);
+
+            // Hidden-information negatives: the restore must not reveal the
+            // identity and no offered action may name it.
+            Assert.assertEquals("restore must not reveal hidden identity",
+                    0, game.getState().getRevealed().size());
+            boolean namedIdentityOffered = player.getPlayable(game, true).stream()
+                    .anyMatch(ability -> p.getId().equals(ability.getSourceId())
+                            && ability.toString().contains("Akroma"));
+            Assert.assertFalse("no offered action may name the hidden card", namedIdentityOffered);
         });
 
         setStopAt(1, PhaseStep.BEGIN_COMBAT);
         execute();
+    }
+
+    @Test
+    public void naturalMorphDoesNotOfferFaceUpActivatedAbility() {
+        // Negative control: a naturally morph-cast Akroma must not offer the
+        // face-up pump while face down. Same authoritative surface, same
+        // discriminator, same characteristics gates.
+        addCard(Zone.HAND, playerA, "Akroma, Angel of Fury", 1);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 3);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Akroma, Angel of Fury using Morph");
+
+        runCode("inspect authoritative playable actions for natural morph", 1, PhaseStep.POSTCOMBAT_MAIN, playerA, (info, player, game) -> {
+            Permanent p = game.getBattlefield().getAllActivePermanents().stream()
+                    .filter(perm -> perm.isFaceDown(game))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("natural morph must exist face down"));
+            Assert.assertTrue(p.isMorphed());
+            Assert.assertEquals(2, p.getPower().getValue());
+            Assert.assertEquals(2, p.getToughness().getValue());
+
+            boolean leakedFaceUpPump = player.getPlayable(game, true).stream()
+                    .anyMatch(ability -> p.getId().equals(ability.getSourceId())
+                            && ability.toString().contains("gets +1/+0 until end of turn"));
+
+            Assert.assertFalse(
+                    "A natural morph must not offer an activated ability from its hidden face-up identity",
+                    leakedFaceUpPump);
+        });
+
+        setStopAt(1, PhaseStep.END_TURN);
+        execute();
+    }
+
+    @Test
+    public void restoredMorphTurnFaceUpRestoresAbilityNormally() {
+        // Positive control: turning the restored morph genuinely face up must
+        // return the face-up identity AND its activated ability through the
+        // same authoritative surface. Proves the restore is non-destructive.
+        addCard(Zone.BATTLEFIELD, playerA, "Akroma, Angel of Fury", 1);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 7);
+
+        for (Player gamePlayer : currentGame.getPlayers().values()) {
+            gamePlayer.updateRange(currentGame);
+        }
+        currentGame.cheat(playerA.getId(), getCommands(playerA));
+        currentGame.cheat(
+                playerA.getId(),
+                getLibraryCards(playerA),
+                getHandCards(playerA),
+                getBattlefieldCards(playerA),
+                getGraveCards(playerA),
+                getCommandCards(playerA),
+                getExiledCards(playerA));
+
+        getCommands(playerA).clear();
+        getLibraryCards(playerA).clear();
+        getHandCards(playerA).clear();
+        getBattlefieldCards(playerA).clear();
+        getGraveCards(playerA).clear();
+        getCommandCards(playerA).clear();
+        getExiledCards(playerA).clear();
+
+        Permanent restored = permanent(currentGame, "Akroma, Angel of Fury");
+        BecomesFaceDownCreatureEffect.restoreFaceDownStateForGameLoad(
+                restored.getId(), FaceDownType.MORPHED, currentGame);
+        rg06bRestoredMorphId = restored.getId();
+
+        activateAbility(1, PhaseStep.POSTCOMBAT_MAIN, playerA,
+                "{3}{R}{R}{R}: Turn this face-down permanent face up.");
+
+        runCode("face-up ability available after genuine turn-up", 1, PhaseStep.END_TURN, playerA, (info, player, game) -> {
+            Permanent p = game.getPermanent(rg06bRestoredMorphId);
+            Assert.assertTrue("turned-up object must exist", p != null);
+            Assert.assertFalse(p.isFaceDown(game));
+            Assert.assertEquals("Akroma, Angel of Fury", p.getName());
+
+            boolean pumpOffered = player.getPlayable(game, true).stream()
+                    .anyMatch(ability -> p.getId().equals(ability.getSourceId())
+                            && ability.toString().contains("gets +1/+0 until end of turn"));
+            Assert.assertTrue("face-up Akroma must offer its pump normally", pumpOffered);
+        });
+
+        setStopAt(1, PhaseStep.END_TURN);
+        execute();
+
+        assertPermanentCount(playerA, "Akroma, Angel of Fury", 1);
+        assertPowerToughness(playerA, "Akroma, Angel of Fury", 6, 6);
     }
 
     @Test
