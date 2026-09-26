@@ -13,7 +13,14 @@ Validation commands (all from the branch worktree):
 - `git diff b1959698...HEAD -- Mage/src/main` → empty (no production change).
 - `git merge-base HEAD b1959698...` → `b1959698...` (direct descendant).
 
-Full-reactor CI is owned by the PR #17 Actions runs (master-based vehicle);
-whole-reactor `Mage.Verify` ambient drift, if observed there, is classified
-`FAIL_AMBIENT_MAGE_VERIFY` per lineage precedent and does not touch the
+Full-reactor CI observed on terminal HEAD `d87f0f4005` (PR #17, run
+36225815241, retargeted base): `Mage Tests 1.4.61 SUCCESS` — 6932 run,
+0 failures, 0 errors, 125 skipped — including all three RG-06B tests
+individually `[OK]` (`restoredMorphDoesNotOfferFaceUpActivatedAbility`,
+`naturalMorphDoesNotOfferFaceUpActivatedAbility`,
+`restoredMorphTurnFaceUpRestoresAbilityNormally`).
+`Mage Verify 1.4.61 FAILURE` is solely the ambient card-data drift
+(`test_verifyCards`: 15 subtype errors in 91,085 cards;
+`test_checkMissingSetData`: 1 missing set) — classified
+`FAIL_AMBIENT_MAGE_VERIFY` per M1–M4 precedent; it does not touch the
 `Mage Tests` module result that carries RG-06B semantics.
