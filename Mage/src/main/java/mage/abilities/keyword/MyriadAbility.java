@@ -75,7 +75,8 @@ class MyriadEffect extends OneShotEffect {
                 return false;
             }
             List<Permanent> tokens = new ArrayList<>();
-            for (UUID playerId : game.getState().getPlayersInRange(controller.getId(), game)) {
+            // F-23: a player who left the game is no longer an opponent (800.4a)
+            for (UUID playerId : game.getState().getPlayersInRange(controller.getId(), game, true)) {
                 if (!playerId.equals(defendingPlayerId) && controller.hasOpponent(playerId, game)) {
                     Player opponent = game.getPlayer(playerId);
                     if (opponent != null && controller.chooseUse(Outcome.PutCreatureInPlay,
