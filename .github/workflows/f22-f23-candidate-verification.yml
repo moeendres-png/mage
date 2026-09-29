@@ -21,6 +21,7 @@ jobs:
         run: >
           mvn -B -ntp -pl Mage,Mage.Sets,Mage.Tests test
           -Dtest=BattleProtectorLeaves4PTest,OpponentsCountAfterLeave4PTest,OpponentsCountAfterLeave5PTest,OpponentLifeAfterLeave4PTest,MyriadAfterLeave4PTest,OpponentsMembershipAfterLeave4PTest
+          -Dsurefire.failIfNoSpecifiedTests=false
           -Dxmage.dataCollectors.printGameLogs=false
           -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/.travis/log4j.properties
 
