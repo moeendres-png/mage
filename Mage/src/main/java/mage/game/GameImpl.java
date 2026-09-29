@@ -2947,7 +2947,8 @@ public abstract class GameImpl implements Game {
                         .map(CombatGroup::getDefenderId)
                         .filter(Objects::nonNull)
                         .noneMatch(perm.getId()::equals)
-                        && this.getPlayer(perm.getProtectorId()) == null
+                        && (this.getPlayer(perm.getProtectorId()) == null
+                        || !this.getPlayer(perm.getProtectorId()).isInGame())
                         || perm.isControlledBy(perm.getProtectorId())) {
                     perm.chooseProtector(this, null);
                     if (this.getPlayer(perm.getProtectorId()) == null) {
