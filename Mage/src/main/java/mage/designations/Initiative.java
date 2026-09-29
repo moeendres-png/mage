@@ -85,6 +85,9 @@ class InitiativeDamageTriggeredAbility extends TriggeredAbilityImpl implements B
         if (playerId == null) {
             return false;
         }
+        // the initiative's abilities are controlled by the player who has it, not by its first holder
+        // (who may have left the game, so its triggers would never be put on the stack)
+        setControllerId(game.getInitiativeId());
         this.getEffects().setTargetPointer(new FixedTarget(playerId));
         return true;
     }
@@ -155,6 +158,8 @@ class InitiativeVentureTriggeredAbility extends TriggeredAbilityImpl {
             default:
                 return false;
         }
+        // "you" is the player who has the initiative
+        setControllerId(playerId);
         this.getEffects().setTargetPointer(new FixedTarget(playerId));
         return true;
     }
