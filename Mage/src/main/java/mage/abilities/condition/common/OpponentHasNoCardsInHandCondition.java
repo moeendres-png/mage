@@ -19,7 +19,7 @@ public enum OpponentHasNoCardsInHandCondition implements Condition {
     public boolean apply(Game game, Ability source) {
         Player player = game.getPlayer(source.getControllerId());
         if (player != null) {
-            for (UUID playerId : game.getOpponents(source.getControllerId())) {
+            for (UUID playerId : game.getOpponentsInGame(source.getControllerId())) {
                 Player opponent = game.getPlayer(playerId);
                 if (opponent != null && opponent.getHand().isEmpty()) {
                     return true;
