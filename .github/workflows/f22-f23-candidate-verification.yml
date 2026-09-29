@@ -19,7 +19,7 @@ jobs:
           cache: maven
       - name: Targeted F-22/F-23 tests
         run: >
-          mvn -B -ntp -pl Mage,Mage.Sets,Mage.Tests test
+          mvn -B -ntp -pl Mage.Tests -am test
           -Dtest=BattleProtectorLeaves4PTest,OpponentsCountAfterLeave4PTest,OpponentsCountAfterLeave5PTest,OpponentLifeAfterLeave4PTest,MyriadAfterLeave4PTest,OpponentsMembershipAfterLeave4PTest
           -Dsurefire.failIfNoSpecifiedTests=false
           -Dxmage.dataCollectors.printGameLogs=false
@@ -37,6 +37,6 @@ jobs:
           cache: maven
       - name: Full Mage Tests reactor
         run: >
-          mvn -B -ntp -pl Mage,Mage.Sets,Mage.Tests test
+          mvn -B -ntp test
           -Dxmage.dataCollectors.printGameLogs=false
           -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/.travis/log4j.properties
