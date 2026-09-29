@@ -3605,7 +3605,7 @@ public abstract class GameImpl implements Game {
                 }
             }
         }
-        // 725.4 If the player who has the initiative leaves the game, the active player takes the initiative
+        // If the player who has the initiative leaves the game, the active player takes the initiative
         // at the same time that player leaves the game. If the active player is leaving the game or if there
         // is no active player, the next player in turn order takes the initiative.
         if (playerId.equals(getInitiativeId())) {

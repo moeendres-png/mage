@@ -1,4 +1,4 @@
-# F-20: the initiative when its holder leaves the game (CR 725.4)
+# F-20: the initiative when its holder leaves the game (CR 726.4, inferred)
 
 Commander Simulator Next tracker: moeendres-png/commander-playtest-lab#327.
 Author: Claude Opus 5.5 (Claude Code), 2026-09-29.
@@ -6,8 +6,11 @@ Author: Claude Opus 5.5 (Claude Code), 2026-09-29.
 ## Source lock
 - Base: the exact candidate pin `b19596980f2734496ea1896504253e1bdd2756dd` (head of Mage PR #16). Not master; `magefree` code at `798b75e5` has the same gap.
 - Fix commit: `71b4e9317faed5de2443f8e4d2c99286948030a5`, tree `dce25c9a4d5a0df7460d29a4f78fd67a662df494`.
-- Rule: CR 725.4. If the player who has the initiative leaves the game, the active player takes the initiative at the same time. If the active player is the one leaving, the next player in turn order takes it.
-  - The verbatim CR text was not re-fetched in this session (egress blocked). The paraphrase mirrors CR 724.4 (monarch), which the pin already implements in `GameImpl.leave()`.
+- Rule: the initiative's leave-the-game rule. If the player who has the initiative leaves the game, the active player takes the initiative at the same time. If the active player is the one leaving, the next player in turn order takes it.
+  - **Rule number and verbatim text NOT verified in this session.** Egress to the CR and Scryfall is blocked.
+  - The number is inferred: the initiative section follows the monarch section. The Lab's 2026-09-25 CR citation numbers the monarch CR 725 (`XmageMultiplayerMonarchTest`), so this is probably **CR 726.4**. In 2022 editions it was 725.4 (monarch 724.4).
+  - The fix commit message says "CR 725.4" (older numbering). This handoff supersedes it.
+  - The paraphrase mirrors the monarch's leave rule, which the pin already implements in `GameImpl.leave()`.
   - Taking the initiative this way triggers "whenever you take the initiative, venture into Undercity".
 
 ## Defects (two, both needed for the rule to work)

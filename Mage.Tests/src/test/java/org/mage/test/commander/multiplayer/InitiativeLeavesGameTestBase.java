@@ -22,12 +22,16 @@ import java.util.List;
 /**
  * F-20 (Commander Simulator Next): the initiative when its holder leaves the game.
  * <p>
- * CR 725.4: if the player who has the initiative leaves the game, the active
+ * CR 726.4 (the initiative): if the player who has the initiative leaves the game, the active
  * player takes the initiative at the same time that player leaves the game. If
  * the active player is leaving the game, the next player in turn order takes
  * the initiative. Taking the initiative this way is still taking it, so "whenever
- * you take the initiative, venture into Undercity" (CR 725.2) triggers for the
+ * you take the initiative, venture into Undercity" (CR 726.2) triggers for the
  * new holder, and from then on it ventures at the beginning of its upkeep.
+ * <p>
+ * Rule numbers are inferred: the initiative section follows the monarch's, which
+ * is CR 725 in the 2026-09-25 edition the Lab cites (724/725 in 2022 editions).
+ * The CR text was not re-read in the session that wrote this test.
  * <p>
  * The holder is White Plume Adventurer's controller ("When White Plume
  * Adventurer enters the battlefield, you take the initiative"). The holder's
