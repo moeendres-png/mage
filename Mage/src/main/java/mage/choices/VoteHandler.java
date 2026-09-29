@@ -28,9 +28,10 @@ public abstract class VoteHandler<T> {
         this.aiVoteHint = aiVoteHint;
         this.playerMap.clear();
         int stepCurrent = 0;
-        int stepTotal = game.getState().getPlayersInRange(source.getControllerId(), game).size();
+        // players who left the game don't vote (they are no longer in the game)
+        int stepTotal = game.getState().getPlayersInRange(source.getControllerId(), game, true).size();
         List<String> messages = new ArrayList<>();
-        for (UUID playerId : game.getState().getPlayersInRange(source.getControllerId(), game)) {
+        for (UUID playerId : game.getState().getPlayersInRange(source.getControllerId(), game, true)) {
             stepCurrent++;
             VoteEvent event = new VoteEvent(playerId, source);
             game.replaceEvent(event);
