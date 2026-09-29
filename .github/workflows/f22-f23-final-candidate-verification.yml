@@ -1,0 +1,42 @@
+name: F22 F23 final candidate verification
+
+on:
+  push:
+    branches:
+      - ci/xmage-f22-f23-final-20260929
+  workflow_dispatch:
+
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Targeted F-22/F-23 tests
+        run: >
+          mvn -B -ntp -pl Mage.Tests -am test
+          -Dtest=BattleProtectorLeaves4PTest,OpponentsCountAfterLeave4PTest,OpponentsCountAfterLeave5PTest,OpponentLifeAfterLeave4PTest,MyriadAfterLeave4PTest,OpponentsMembershipAfterLeave4PTest
+          -Dsurefire.failIfNoSpecifiedTests=false
+          -Dxmage.dataCollectors.printGameLogs=false
+          -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/.travis/log4j.properties
+
+  full-mage-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Full Mage Tests reactor
+        run: >
+          mvn -B -ntp test
+          -Dxmage.dataCollectors.printGameLogs=false
+          -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/.travis/log4j.properties
