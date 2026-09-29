@@ -67,16 +67,16 @@ enum MoggAssassinAdjuster implements TargetAdjuster {
             return;
         }
         UUID opponentId = null;
-        if (game.getOpponents(controller.getId()).size() > 1) {
+        if (game.getOpponentsInGame(controller.getId()).size() > 1) {
             Target target = ability.getTargets().get(0);
             if (controller.chooseTarget(Outcome.DestroyPermanent, target, ability, game)) {
                 Permanent permanent = game.getPermanent(target.getFirstTarget());
                 opponentId = permanent.getControllerId();
             } else {
-                opponentId = game.getOpponents(controller.getId()).iterator().next();
+                opponentId = game.getOpponentsInGame(controller.getId()).iterator().next();
             }
         } else {
-            opponentId = game.getOpponents(controller.getId()).iterator().next();
+            opponentId = game.getOpponentsInGame(controller.getId()).iterator().next();
         }
 
         if (opponentId != null) {
