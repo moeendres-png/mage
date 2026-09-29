@@ -200,11 +200,34 @@ public interface Game extends MageItem, Serializable, Copyable<Game> {
             return new LinkedHashSet<>();
         }
 
-        return this.getPlayerList().stream()
+        return getPlayerIdsInApnapOrder().stream()
                 .filter(opponentId -> !opponentId.equals(playerId))
                 .filter(player::hasPlayerInRange)
                 .filter(opponentId -> !excludeLeavedPlayers || getPlayer(opponentId).isInGame())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /**
+     * All player ids in APNAP order (rule 101.4): the active player first, then the other players in
+     * turn order (honouring reversed turn order). Built from a copy of the static turn-order list, so
+     * the result doesn't depend on where that list's current pointer happens to be (it moves with
+     * priority). Players who left keep their turn-order position; callers filter them as needed.
+     */
+    default List<UUID> getPlayerIdsInApnapOrder() {
+        List<UUID> ordered = new ArrayList<>();
+        PlayerList turnOrder = getPlayerList().copy();
+        if (turnOrder.isEmpty()) {
+            return ordered;
+        }
+        if (getActivePlayerId() != null) {
+            turnOrder.setCurrent(getActivePlayerId());
+        }
+        UUID playerId = turnOrder.get();
+        for (int index = 0; index < turnOrder.size(); index++) {
+            ordered.add(playerId);
+            playerId = isTurnOrderReversed() ? turnOrder.getPrevious() : turnOrder.getNext();
+        }
+        return ordered;
     }
 
     default boolean isActivePlayer(UUID playerId) {
