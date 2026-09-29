@@ -187,6 +187,14 @@ public interface Game extends MageItem, Serializable, Copyable<Game> {
      * {@code excludeLeavedPlayers = false} explicitly.
      */
     default Set<UUID> getOpponents(UUID playerId) {
+        return getOpponentsInGame(playerId);
+    }
+
+    /**
+     * Returns opponents currently in the game and in range for the given playerId.
+     * This explicit semantic primitive is also used as the successor runtime fingerprint.
+     */
+    default Set<UUID> getOpponentsInGame(UUID playerId) {
         return getOpponents(playerId, true);
     }
 
