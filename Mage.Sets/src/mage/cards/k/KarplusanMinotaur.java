@@ -117,7 +117,7 @@ class KarplusanMinotaurCost extends CostImpl {
     @Override
     public boolean canPay(Ability ability, Ability source, UUID controllerId, Game game) {
         Player controller = game.getPlayer(controllerId);
-        return controller != null && (!game.getOpponents(controllerId).isEmpty());
+        return controller != null && (!game.getOpponentsInGame(controllerId).isEmpty());
     }
 
     @Override
@@ -136,13 +136,13 @@ enum KarplusanMinotaurAdjuster implements TargetAdjuster {
             return;
         }
         UUID opponentId = null;
-        if (game.getOpponents(controller.getId()).size() > 1) {
+        if (game.getOpponentsInGame(controller.getId()).size() > 1) {
             Target target = new TargetOpponent(true);
             if (controller.chooseTarget(Outcome.Neutral, target, ability, game)) {
                 opponentId = target.getFirstTarget();
             }
         } else {
-            opponentId = game.getOpponents(controller.getId()).iterator().next();
+            opponentId = game.getOpponentsInGame(controller.getId()).iterator().next();
         }
         if (opponentId != null) {
             ability.getTargets().get(0).setTargetController(opponentId);
