@@ -1,0 +1,80 @@
+name: F22 F23 candidate verification v5
+
+on:
+  push:
+    branches:
+      - ci/xmage-f22-f23-v5-20260929
+  workflow_dispatch:
+
+jobs:
+  source-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Audit default opponent-query callers
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          roots = [
+              Path("Mage/src/main/java/mage/abilities/condition/common"),
+              Path("Mage/src/main/java/mage/abilities/dynamicvalue/common"),
+          ]
+          allowed_snapshot = {
+              "Mage/src/main/java/mage/abilities/condition/common/DealtDamageToAnOpponent.java",
+              "Mage/src/main/java/mage/abilities/condition/common/OpponentLostLifeCondition.java",
+          }
+
+          hits = []
+          for root in roots:
+              for path in sorted(root.rglob("*.java")):
+                  text = path.read_text(encoding="utf-8")
+                  if ".getOpponents(" in text:
+                      hits.append(path.as_posix())
+
+          print("default getOpponents callers in common opponent logic:")
+          for hit in hits:
+              print(" -", hit)
+
+          unexpected = [hit for hit in hits if hit not in allowed_snapshot]
+          missing = sorted(allowed_snapshot - set(hits))
+          if unexpected:
+              raise SystemExit("unexpected snapshot/default opponent callers: " + ", ".join(unexpected))
+          if missing:
+              raise SystemExit("expected historical snapshot callers disappeared without adjudication: " + ", ".join(missing))
+          PY
+
+  targeted:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Targeted F-22/F-23 and snapshot-regression tests
+        run: >
+          mvn -B -ntp -pl Mage.Tests -am test
+          -Dtest=BattleProtectorLeaves4PTest,OpponentsCountAfterLeave4PTest,OpponentsCountAfterLeave5PTest,OpponentLifeAfterLeave4PTest,MyriadAfterLeave4PTest,OpponentsMembershipAfterLeave4PTest,BloodchiefAscensionTest
+          -Dsurefire.failIfNoSpecifiedTests=false
+          -Dxmage.dataCollectors.printGameLogs=false
+          -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/.travis/log4j.properties
+
+  full-mage-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Full Mage Tests reactor
+        run: >
+          mvn -B -ntp test
+          -Dxmage.dataCollectors.printGameLogs=false
+          -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/.travis/log4j.properties
