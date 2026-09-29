@@ -673,7 +673,7 @@ public class Combat implements Serializable, Copyable<Combat> {
         //20101001 - 509.1c
         game.getCombat().retrieveMustBlockAttackerRequirements(attacker, game);
         Player controller;
-        for (UUID defenderId : getPlayerDefenders(game)) {
+        for (UUID defenderId : getPlayerDefendersInApnapOrder(game)) {
             Player defender = game.getPlayer(defenderId);
             if (defender == null) {
                 continue;
@@ -845,7 +845,7 @@ public class Combat implements Serializable, Copyable<Combat> {
 
     public void resumeSelectBlockers(Game game) {
         //TODO: this isn't quite right - but will work fine for two-player games
-        for (UUID defenderId : getPlayerDefenders(game)) {
+        for (UUID defenderId : getPlayerDefendersInApnapOrder(game)) {
             game.fireEvent(GameEvent.getEvent(GameEvent.EventType.DECLARED_BLOCKERS, defenderId, defenderId));
         }
     }
@@ -1790,6 +1790,28 @@ public class Combat implements Serializable, Copyable<Combat> {
                 .map(CombatGroup::getDefendingPlayerId)
                 .findFirst()
                 .orElse(null);
+    }
+
+    /**
+     * The defending players in APNAP order (802.4: "each defending player in APNAP order declares blockers").
+     * getPlayerDefenders is a hash set of player ids, so iterating it made the block declaration order
+     * arbitrary, and different between otherwise identical games (F-29). Defending players missing from the
+     * APNAP enumeration (left the game) keep their place after the others, in turn order.
+     */
+    private List<UUID> getPlayerDefendersInApnapOrder(Game game) {
+        Set<UUID> defenders = getPlayerDefenders(game);
+        List<UUID> ordered = new ArrayList<>();
+        for (UUID playerId : game.getPlayerIdsInApnapOrder()) {
+            if (defenders.contains(playerId)) {
+                ordered.add(playerId);
+            }
+        }
+        for (UUID playerId : game.getState().getPlayerList()) {
+            if (defenders.contains(playerId) && !ordered.contains(playerId)) {
+                ordered.add(playerId);
+            }
+        }
+        return ordered;
     }
 
     public Set<UUID> getPlayerDefenders(Game game) {
