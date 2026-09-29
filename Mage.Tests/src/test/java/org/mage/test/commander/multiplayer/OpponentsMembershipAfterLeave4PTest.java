@@ -37,6 +37,10 @@ public class OpponentsMembershipAfterLeave4PTest extends CardTestPlayerAPIImpl {
         runCode("opponent membership after leave", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
             Assert.assertFalse("default opponent membership excludes a player who left",
                     game.getOpponents(playerA.getId()).contains(playerC.getId()));
+            Assert.assertEquals("default query is the explicit in-game opponent contract",
+                    game.getOpponentsInGame(playerA.getId()), game.getOpponents(playerA.getId()));
+            Assert.assertFalse("explicit in-game opponent primitive excludes a player who left",
+                    game.getOpponentsInGame(playerA.getId()).contains(playerC.getId()));
             Assert.assertTrue("explicit snapshot access remains available",
                     game.getOpponents(playerA.getId(), false).contains(playerC.getId()));
             Assert.assertTrue(game.getOpponents(playerA.getId()).contains(playerB.getId()));
