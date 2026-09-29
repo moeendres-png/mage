@@ -3605,6 +3605,28 @@ public abstract class GameImpl implements Game {
                 }
             }
         }
+        // 725.4 If the player who has the initiative leaves the game, the active player takes the initiative
+        // at the same time that player leaves the game. If the active player is leaving the game or if there
+        // is no active player, the next player in turn order takes the initiative.
+        if (playerId.equals(getInitiativeId())) {
+            UUID newHolderId = null;
+            if (!isActivePlayer(playerId) && getActivePlayerId() != null) {
+                newHolderId = getActivePlayerId();
+            } else {
+                // use a copy: the game's own player list tracks the current turn
+                PlayerList turnOrder = getPlayerList().copy();
+                turnOrder.setCurrent(playerId);
+                Player nextPlayer = turnOrder.getNext(this, false);
+                if (nextPlayer != null && !nextPlayer.getId().equals(playerId)) {
+                    newHolderId = nextPlayer.getId();
+                }
+            }
+            if (newHolderId != null) {
+                takeInitiative(null, newHolderId);
+            } else {
+                getState().setInitiativeId(null);
+            }
+        }
         // 801.2c The particular players within each player‘s range of influence are determined as each turn begins.
         // So no update of range if influence yet
     }
