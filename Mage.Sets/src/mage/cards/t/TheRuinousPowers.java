@@ -67,7 +67,7 @@ class TheRuinousPowersEffect extends OneShotEffect {
         if (player == null){
             return false;
         }
-        List<UUID> opponents = new ArrayList<>(game.getOpponents(source.getControllerId()));
+        List<UUID> opponents = new ArrayList<>(game.getOpponentsInGame(source.getControllerId()));
         if (opponents.isEmpty()) {
             return false;
         }
