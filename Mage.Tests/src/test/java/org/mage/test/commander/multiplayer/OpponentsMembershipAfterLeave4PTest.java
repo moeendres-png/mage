@@ -14,9 +14,9 @@ import org.mage.test.serverside.base.impl.CardTestPlayerAPIImpl;
 import java.io.FileNotFoundException;
 
 /**
- * F-23 API contract: the ordinary opponent query exposes only opponents still in the game.
- * The explicit false overload remains available for engine code that deliberately needs the
- * turn-start range snapshot.
+ * F-23 API contract: current gameplay membership is explicit via getOpponentsInGame.
+ * The legacy/default opponent query remains the turn-start range snapshot because trigger/history
+ * semantics can intentionally need a player who left during the turn.
  */
 public class OpponentsMembershipAfterLeave4PTest extends CardTestPlayerAPIImpl {
 
@@ -32,19 +32,17 @@ public class OpponentsMembershipAfterLeave4PTest extends CardTestPlayerAPIImpl {
     }
 
     @Test
-    public void defaultOpponentQueryExcludesDepartedPlayerButSnapshotOverloadCanRetainIt() {
+    public void explicitInGameOpponentQueryExcludesDepartedPlayerWhileSnapshotRetainsIt() {
         concede(1, PhaseStep.UPKEEP, playerC);
         runCode("opponent membership after leave", 1, PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
-            Assert.assertFalse("default opponent membership excludes a player who left",
-                    game.getOpponents(playerA.getId()).contains(playerC.getId()));
-            Assert.assertEquals("default query is the explicit in-game opponent contract",
-                    game.getOpponentsInGame(playerA.getId()), game.getOpponents(playerA.getId()));
             Assert.assertFalse("explicit in-game opponent primitive excludes a player who left",
                     game.getOpponentsInGame(playerA.getId()).contains(playerC.getId()));
-            Assert.assertTrue("explicit snapshot access remains available",
-                    game.getOpponents(playerA.getId(), false).contains(playerC.getId()));
-            Assert.assertTrue(game.getOpponents(playerA.getId()).contains(playerB.getId()));
-            Assert.assertTrue(game.getOpponents(playerA.getId()).contains(playerD.getId()));
+            Assert.assertTrue("default query retains the turn-start snapshot",
+                    game.getOpponents(playerA.getId()).contains(playerC.getId()));
+            Assert.assertEquals("default query remains the explicit snapshot overload",
+                    game.getOpponents(playerA.getId(), false), game.getOpponents(playerA.getId()));
+            Assert.assertTrue(game.getOpponentsInGame(playerA.getId()).contains(playerB.getId()));
+            Assert.assertTrue(game.getOpponentsInGame(playerA.getId()).contains(playerD.getId()));
         });
         setStopAt(1, PhaseStep.PRECOMBAT_MAIN);
         setStrictChooseMode(true);
