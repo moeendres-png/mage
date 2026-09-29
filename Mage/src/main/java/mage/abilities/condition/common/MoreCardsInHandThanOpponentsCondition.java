@@ -16,7 +16,7 @@ public enum MoreCardsInHandThanOpponentsCondition implements Condition {
         Player player = game.getPlayer(source.getControllerId());
         if (player != null) {
             int cardsInHand = player.getHand().size();
-            for (UUID playerId : game.getOpponents(source.getControllerId())) {
+            for (UUID playerId : game.getOpponentsInGame(source.getControllerId())) {
                 Player opponent = game.getPlayer(playerId);
                 if (opponent != null && opponent.getHand().size() >= cardsInHand) {
                     return false;
