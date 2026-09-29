@@ -41,7 +41,7 @@ Author: Claude Opus 5.5 (Claude Code), 2026-09-29.
   - Everything else, 6953 tests, is green.
 
 ## Residual (not changed here)
-- About 70 other card-local "each player sacrifices" loops in `Mage.Sets` still use `getPlayersInRange(controllerId)`.
+- About 70 other card-local (list below) "each player sacrifices" loops in `Mage.Sets` still use `getPlayersInRange(controllerId)`.
 - They are APNAP-correct whenever the controller is the active player (sorceries, most ETBs). They stay controller-first for triggers or instants on another player's turn.
 - `getPlayersInApnapOrder()` is the drop-in replacement for them.
 
@@ -52,3 +52,17 @@ Author: Claude Opus 5.5 (Claude Code), 2026-09-29.
 
 ## Not done here
 - No Lab repin.
+
+### Residual site list (Mage.Sets files using `getPlayersInRange(` together with sacrifice; not all of them are simultaneous-choice loops)
+    ArgothianWurm BalancingAct BellowingMauler BringerOfTheLastGift CatchRelease CracklingDoom CryptChampion 
+    DanseMacabre DeadlyBrew DescentIntoMadness FadeAway FallOfTheFirstCivilization FallOfTheThran FieldOfRuin 
+    FrayingOmnipotence GoblinAssassin GrimoireOfTheDead InfernalOffering InvestigatorsJournal KefkaCourtMage 
+    KeldonFirebombers KillingWave LilianaDreadhordeGeneral MagusOfTheJar MartyrsBond MaximumCarnage 
+    MedomaisProphecy MemoryJar MindSwords NaturalBalance NightmaresAndDaydreams OlorinsSearingLight OmenOfFire 
+    OutpaceOblivion Plaguecrafter PossessedPortal Pox PoxPlague ProwlingPangolin PyxisOfPandemonium RaidingParty 
+    ReignOfThePit RiseOfTheWitchKing SavraQueenOfTheGolgari SerraBestiary ShadowgrangeArchfiend 
+    ShattergangBrothers Sheoldred ShivanWumpus ShredderShadowMaster SotheraTheSupervoid StraxSontaranNurse 
+    StrefanMaurerProgenitor StrongholdDiscipline SummonEsperValigarmanda SyphonFlesh TaintedSigil TectonicHellion 
+    TheDeathOfGwenStacy TheEternalWanderer TheHorusHeresy TheThreeSeasons TheWarGames ThoughtsOfRuin 
+    Vault11VotersDilemma Vault12TheNecropolis VolatileRig WhimsOfTheFates WhirlpoolWarrior WorldQueller 
+    WormsOfTheEarth ZodiarkUmbralGod 
