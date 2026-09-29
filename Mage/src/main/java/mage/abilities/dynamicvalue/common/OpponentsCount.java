@@ -15,7 +15,8 @@ public enum OpponentsCount implements DynamicValue {
 
     @Override
     public int calculate(Game game, Ability sourceAbility, Effect effect) {
-        return game.getOpponents(sourceAbility.getControllerId())
+        // a player who left the game is no longer an opponent (without waiting for the range update)
+        return game.getOpponents(sourceAbility.getControllerId(), true)
                 .stream()
                 .map(game::getPlayer)
                 .map(Objects::nonNull)
