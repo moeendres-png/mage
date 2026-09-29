@@ -69,7 +69,7 @@ public class BattleProtectorLeaves4PTest extends CardTestPlayerAPIImpl {
         concede(2, PhaseStep.PRECOMBAT_MAIN, playerD);
         attack(3, playerC, "Grizzly Bears", SIEGE);
         setStopAt(3, PhaseStep.END_COMBAT);
-        setStrictChooseMode(false);
+        setStrictChooseMode(true);
         execute();
 
         Assert.assertEquals("Grizzly Bears dealt 2 damage to the battle (defense 3 -> 1)", 1,
@@ -96,8 +96,7 @@ public class BattleProtectorLeaves4PTest extends CardTestPlayerAPIImpl {
         Assert.assertNotNull("the battle stays", battle);
         Assert.assertNotEquals("a player who left the game can't protect a battle", playerD.getId(),
                 battle.getProtectorId());
-        Assert.assertTrue("the new protector is an opponent of A still in the game",
-                battle.getProtectorId() != null
-                        && (battle.getProtectorId().equals(playerB.getId()) || battle.getProtectorId().equals(playerC.getId())));
+        Assert.assertEquals("the queued in-game opponent becomes the new protector",
+                playerB.getId(), battle.getProtectorId());
     }
 }
