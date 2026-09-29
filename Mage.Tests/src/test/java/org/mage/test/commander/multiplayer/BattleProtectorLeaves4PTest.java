@@ -47,7 +47,7 @@ public class BattleProtectorLeaves4PTest extends CardTestPlayerAPIImpl {
         addCard(Zone.HAND, playerA, SIEGE);
         addCard(Zone.BATTLEFIELD, playerC, "Grizzly Bears");
         castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, SIEGE);
-        setChoice(playerA, "PlayerD"); // protector
+        addTarget(playerA, playerD); // protector
         attack(3, playerC, "Grizzly Bears", SIEGE);
         setStopAt(3, PhaseStep.END_COMBAT);
         setStrictChooseMode(true);
@@ -63,8 +63,8 @@ public class BattleProtectorLeaves4PTest extends CardTestPlayerAPIImpl {
         addCard(Zone.HAND, playerA, SIEGE);
         addCard(Zone.BATTLEFIELD, playerC, "Grizzly Bears");
         castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, SIEGE);
-        setChoice(playerA, "PlayerD"); // initial protector
-        setChoice(playerA, "PlayerB"); // replacement protector after D leaves
+        addTarget(playerA, playerD); // initial protector
+        addTarget(playerA, playerB); // replacement protector after D leaves
         waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
         concede(2, PhaseStep.PRECOMBAT_MAIN, playerD);
         attack(3, playerC, "Grizzly Bears", SIEGE);
