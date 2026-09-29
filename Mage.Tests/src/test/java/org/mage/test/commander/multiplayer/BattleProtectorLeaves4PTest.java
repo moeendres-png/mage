@@ -86,7 +86,7 @@ public class BattleProtectorLeaves4PTest extends CardTestPlayerAPIImpl {
         castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, SIEGE);
         setChoice(playerA, "PlayerD"); // initial protector
         addTarget(playerA, TestPlayer.TARGET_SKIP); // Invasion ETB: search for zero basics
-        addTarget(playerA, playerB); // SBA replacement with source == null uses target queue
+        setChoice(playerA, "PlayerB"); // SBA replacement protector choice
         waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
         runCode("protector D", 1, PhaseStep.POSTCOMBAT_MAIN, playerA, (info, player, game) ->
                 Assert.assertEquals(playerD.getId(), siege().getProtectorId()));
