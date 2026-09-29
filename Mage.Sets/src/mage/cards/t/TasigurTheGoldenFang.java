@@ -74,13 +74,13 @@ class TasigurTheGoldenFangEffect extends OneShotEffect {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
             UUID opponentId = null;
-            if (game.getOpponents(controller.getId()).size() > 1) {
+            if (game.getOpponentsInGame(controller.getId()).size() > 1) {
                 Target target = new TargetOpponent(true);
                 if (controller.chooseTarget(outcome, target, source, game)) {
                     opponentId = target.getFirstTarget();
                 }
             } else {
-                opponentId = game.getOpponents(controller.getId()).iterator().next();
+                opponentId = game.getOpponentsInGame(controller.getId()).iterator().next();
             }
             if (opponentId != null) {
                 Player opponent = game.getPlayer(opponentId);

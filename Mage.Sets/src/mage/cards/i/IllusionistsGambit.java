@@ -109,7 +109,7 @@ class IllusionistsGambitRequirementEffect extends RequirementEffect {
     @Override
     public boolean applies(Permanent permanent, Ability source, Game game) {
         if (attackers.contains(permanent.getId())) {
-            return game.getOpponents(permanent.getControllerId()).size() > 1;
+            return game.getOpponentsInGame(permanent.getControllerId()).size() > 1;
         }
         return false;
     }

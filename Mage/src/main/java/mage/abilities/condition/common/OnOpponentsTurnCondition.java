@@ -14,7 +14,7 @@ public enum OnOpponentsTurnCondition implements Condition {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        return game.getOpponents(source.getControllerId()).contains(game.getActivePlayerId());
+        return game.getOpponentsInGame(source.getControllerId()).contains(game.getActivePlayerId());
     }
 
     @Override

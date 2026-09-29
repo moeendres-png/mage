@@ -15,7 +15,7 @@ public enum PermanentsYouOwnThatOpponentsControlCount implements DynamicValue {
 
     @Override
     public int calculate(Game game, Ability sourceAbility, Effect effect) {
-        Set<UUID> opponentIds = game.getOpponents(sourceAbility.getControllerId());
+        Set<UUID> opponentIds = game.getOpponentsInGame(sourceAbility.getControllerId());
         int count = 0;
 
         for (Permanent permanent : game.getBattlefield().getActivePermanents(sourceAbility.getControllerId(), game)) {

@@ -15,7 +15,7 @@ public enum OpponentsCount implements DynamicValue {
 
     @Override
     public int calculate(Game game, Ability sourceAbility, Effect effect) {
-        return game.getOpponents(sourceAbility.getControllerId())
+        return game.getOpponentsInGame(sourceAbility.getControllerId())
                 .stream()
                 .map(game::getPlayer)
                 .map(Objects::nonNull)

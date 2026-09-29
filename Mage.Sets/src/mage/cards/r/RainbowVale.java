@@ -89,8 +89,8 @@ class OpponentGainControlEffect extends ContinuousEffectImpl {
         Player controller = game.getPlayer(source.getControllerId());
         Permanent permanent = game.getPermanent(source.getSourceId());
         if (controller != null && permanent != null) {
-            if (game.getOpponents(controller.getId()).size() == 1) {
-                opponentId = game.getOpponents(controller.getId()).iterator().next();
+            if (game.getOpponentsInGame(controller.getId()).size() == 1) {
+                opponentId = game.getOpponentsInGame(controller.getId()).iterator().next();
             } else {
                 Target target = new TargetOpponent(true);
                 controller.chooseTarget(outcome, target, source, game);

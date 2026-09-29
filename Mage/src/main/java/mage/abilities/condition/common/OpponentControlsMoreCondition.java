@@ -24,7 +24,7 @@ public class OpponentControlsMoreCondition implements Condition {
     @Override
     public boolean apply(Game game, Ability source) {
         int numLands = game.getBattlefield().countAll(filter, source.getControllerId(), game);
-        for (UUID opponentId: game.getOpponents(source.getControllerId())) {
+        for (UUID opponentId: game.getOpponentsInGame(source.getControllerId())) {
             if (numLands < game.getBattlefield().countAll(filter, opponentId, game)) {
                 return true;
             }

@@ -43,7 +43,7 @@ public class LifeCompareCondition implements Condition {
                 return ComparisonType.compare(controller.getLife(), comparisonType, amount);
             case OPPONENT:
                 return game
-                        .getOpponents(controller.getId())
+                        .getOpponentsInGame(controller.getId())
                         .stream()
                         .map(game::getPlayer)
                         .filter(Objects::nonNull)

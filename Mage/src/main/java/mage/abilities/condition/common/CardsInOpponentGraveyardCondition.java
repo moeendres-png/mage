@@ -33,7 +33,7 @@ public enum CardsInOpponentGraveyardCondition implements Condition {
     @Override
     public boolean apply(Game game, Ability source) {
         return game
-                .getOpponents(source.getControllerId())
+                .getOpponentsInGame(source.getControllerId())
                 .stream()
                 .map(game::getPlayer)
                 .filter(Objects::nonNull)
@@ -66,7 +66,7 @@ public enum CardsInOpponentGraveyardCondition implements Condition {
         @Override
         public String getText(Game game, Ability ability) {
             int maxGraveSize = game
-                    .getOpponents(ability.getControllerId())
+                    .getOpponentsInGame(ability.getControllerId())
                     .stream()
                     .map(game::getPlayer)
                     .filter(Objects::nonNull)

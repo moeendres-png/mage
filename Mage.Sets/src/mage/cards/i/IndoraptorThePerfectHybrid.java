@@ -128,7 +128,7 @@ class IndoraptorThePerfectHybridDamageEffect extends OneShotEffect {
         if (controller == null) {
             return false;
         }
-        List<UUID> opponents = new ArrayList<>(game.getOpponents(controller.getId()));
+        List<UUID> opponents = new ArrayList<>(game.getOpponentsInGame(controller.getId()));
         Player opponent = game.getPlayer(opponents.get(game.getRulesRandom().nextInt(opponents.size())));
         if (opponent == null){
             return false;

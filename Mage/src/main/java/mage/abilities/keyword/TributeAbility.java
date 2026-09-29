@@ -69,8 +69,8 @@ class TributeEffect extends OneShotEffect {
         Permanent sourcePermanent = game.getPermanentEntering(source.getSourceId());
         if (controller != null && sourcePermanent != null) {
             UUID opponentId;
-            if (game.getOpponents(controller.getId()).size() == 1) {
-                opponentId = game.getOpponents(controller.getId()).iterator().next();
+            if (game.getOpponentsInGame(controller.getId()).size() == 1) {
+                opponentId = game.getOpponentsInGame(controller.getId()).iterator().next();
             } else {
                 Target target = new TargetOpponent();
                 controller.choose(outcome, target, source, game);

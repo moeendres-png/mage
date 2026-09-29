@@ -67,7 +67,7 @@ public enum CardTypesInGraveyardCount implements DynamicValue {
                 playerIds = Collections.singletonList(ability.getControllerId());
                 break;
             case OPPONENTS:
-                playerIds = game.getOpponents(ability.getControllerId());
+                playerIds = game.getOpponentsInGame(ability.getControllerId());
                 break;
             case ALL:
                 playerIds = game.getState().getPlayersInRange(ability.getControllerId(), game);

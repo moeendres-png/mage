@@ -1985,7 +1985,7 @@ public abstract class PermanentImpl extends CardImpl implements Permanent {
 
     @Override
     public void chooseProtector(Game game, Ability source) {
-        Set<UUID> opponents = game.getOpponents(this.getControllerId());
+        Set<UUID> opponents = game.getOpponentsInGame(this.getControllerId());
         Player controller = game.getPlayer(this.getControllerId());
         if (controller == null) {
             return;

@@ -36,7 +36,7 @@ public class CreatureCountCondition implements Condition {
             case YOU:
                 return game.getBattlefield().countAll(filter, source.getControllerId(), game) == creatureCount;
             case OPPONENT:
-                for (UUID opponent : game.getOpponents(source.getControllerId())) {
+                for (UUID opponent : game.getOpponentsInGame(source.getControllerId())) {
                     if (game.getBattlefield().countAll(filter, opponent, game) != creatureCount) {
                         return false;
                     }

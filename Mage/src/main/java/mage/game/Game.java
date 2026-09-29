@@ -179,20 +179,32 @@ public interface Game extends MageItem, Serializable, Copyable<Game> {
     PlayerList getPlayerList();
 
     /**
-     * Returns opponents list in range for the given playerId. Use it to interate by starting turn order.
+     * Returns the turn-start opponent/range snapshot for the given playerId.
      * <p>
-     * Warning, it will return leaved players until end of turn. For dialogs and one shot effects use excludeLeavedPlayers
+     * Some trigger/history semantics intentionally need players who left during the turn.
+     * Gameplay code that needs only opponents still in the game must use
+     * {@link #getOpponentsInGame(UUID)}.
      */
-    // TODO: check usage of getOpponents in cards and replace with correct call of excludeLeavedPlayers, see #13289
     default Set<UUID> getOpponents(UUID playerId) {
         return getOpponents(playerId, false);
     }
 
     /**
-     * Returns opponents list in range for the given playerId. Use it to interate by starting turn order.
-     * Warning, it will return dead players until end of turn.
+     * Returns opponents currently in the game and in range for the given playerId.
+     * This explicit semantic primitive is also used as the successor runtime fingerprint.
+     */
+    default Set<UUID> getOpponentsInGame(UUID playerId) {
+        return getOpponents(playerId, true);
+    }
+
+    /**
+     * Returns players in the turn-start opponent/range snapshot for the given playerId.
+     * Use it to iterate by starting turn order.
+     * <p>
+     * Passing {@code false} deliberately preserves players who left after the range snapshot was
+     * established; passing {@code true} returns only opponents still in the game.
      *
-     * @param excludeLeavedPlayers exclude dead player immediately without waiting range update on next turn
+     * @param excludeLeavedPlayers whether to exclude players who have left the game immediately
      */
     default Set<UUID> getOpponents(UUID playerId, boolean excludeLeavedPlayers) {
         Player player = getPlayer(playerId);
