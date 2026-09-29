@@ -47,7 +47,7 @@ public class BattleProtectorLeaves4PTest extends CardTestPlayerAPIImpl {
         addCard(Zone.HAND, playerA, SIEGE);
         addCard(Zone.BATTLEFIELD, playerC, "Grizzly Bears");
         castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, SIEGE);
-        addTarget(playerA, playerD); // protector
+        setChoice(playerA, "PlayerD"); // initial protector choice on battle entry
         attack(3, playerC, "Grizzly Bears", SIEGE);
         setStopAt(3, PhaseStep.END_COMBAT);
         setStrictChooseMode(true);
@@ -63,7 +63,7 @@ public class BattleProtectorLeaves4PTest extends CardTestPlayerAPIImpl {
         addCard(Zone.HAND, playerA, SIEGE);
         addCard(Zone.BATTLEFIELD, playerC, "Grizzly Bears");
         castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, SIEGE);
-        addTarget(playerA, playerD); // initial protector
+        setChoice(playerA, "PlayerD"); // initial protector choice on battle entry
         addTarget(playerA, playerB); // replacement protector after D leaves
         waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
         concede(2, PhaseStep.PRECOMBAT_MAIN, playerD);
@@ -82,7 +82,7 @@ public class BattleProtectorLeaves4PTest extends CardTestPlayerAPIImpl {
         addCard(Zone.HAND, playerA, SIEGE);
         castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, SIEGE);
         setChoice(playerA, "PlayerD"); // initial protector
-        setChoice(playerA, "PlayerB"); // replacement protector after D leaves
+        addTarget(playerA, playerB); // SBA replacement with source == null uses target queue
         waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
         runCode("protector D", 1, PhaseStep.POSTCOMBAT_MAIN, playerA, (info, player, game) ->
                 Assert.assertEquals(playerD.getId(), siege().getProtectorId()));
