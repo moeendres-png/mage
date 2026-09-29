@@ -79,11 +79,13 @@ public class SacrificeAllEffect extends OneShotEffect {
             return false;
         }
         Set<UUID> perms = new HashSet<>();
+        Player controller = game.getPlayer(source.getControllerId());
+        // 101.4 each player chooses in APNAP order, starting with the active player (not the controller)
         for (UUID playerId : onlyOpponents ?
                 game.getOpponents(source.getControllerId()) :
-                game.getState().getPlayersInRange(source.getControllerId(), game)) {
+                game.getPlayersInApnapOrder()) {
             Player player = game.getPlayer(playerId);
-            if (player == null) {
+            if (player == null || controller == null || !controller.hasPlayerInRange(playerId)) {
                 continue;
             }
             int numTargets = Math.min(num, game.getBattlefield().count(TargetSacrifice.makeFilter(filter), player.getId(), source, game));

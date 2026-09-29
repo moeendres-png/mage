@@ -63,9 +63,11 @@ class GravePactEffect extends OneShotEffect {
         List<UUID> perms = new ArrayList<>();
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            for (UUID playerId : game.getState().getPlayersInRange(controller.getId(), game)) {
+            // each other player chooses in APNAP order (101.4)
+            for (UUID playerId : game.getPlayersInApnapOrder()) {
                 Player player = game.getPlayer(playerId);
-                if (player != null && !playerId.equals(source.getControllerId())) {
+                if (player != null && !playerId.equals(source.getControllerId())
+                        && controller.hasPlayerInRange(playerId)) {
                     TargetSacrifice target = new TargetSacrifice(StaticFilters.FILTER_PERMANENT_A_CREATURE);
                     if (target.canChoose(player.getId(), source, game)) {
                         player.choose(Outcome.Sacrifice, target, source, game);

@@ -200,11 +200,33 @@ public interface Game extends MageItem, Serializable, Copyable<Game> {
             return new LinkedHashSet<>();
         }
 
-        return this.getPlayerList().stream()
+        // 101.4 simultaneous choices are made in APNAP order, so start with the active player
+        return this.getPlayersInApnapOrder().stream()
                 .filter(opponentId -> !opponentId.equals(playerId))
                 .filter(player::hasPlayerInRange)
                 .filter(opponentId -> !excludeLeavedPlayers || getPlayer(opponentId).isInGame())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /**
+     * Returns all players of the game (leaved players too) in APNAP order: the active player first, then
+     * the other players in turn order (101.4). Use it for "each player/opponent" choices made at the same time.
+     * The game's own player list (and its priority pointer) is not changed.
+     */
+    default List<UUID> getPlayersInApnapOrder() {
+        PlayerList playerList = getPlayerList().copy();
+        List<UUID> players = new ArrayList<>();
+        if (playerList.isEmpty()) {
+            return players;
+        }
+        if (getActivePlayerId() != null) {
+            playerList.setCurrent(getActivePlayerId());
+        }
+        players.add(playerList.get());
+        for (int i = 1; i < playerList.size(); i++) {
+            players.add(isTurnOrderReversed() ? playerList.getPrevious() : playerList.getNext());
+        }
+        return players;
     }
 
     default boolean isActivePlayer(UUID playerId) {
