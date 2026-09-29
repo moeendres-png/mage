@@ -179,20 +179,25 @@ public interface Game extends MageItem, Serializable, Copyable<Game> {
     PlayerList getPlayerList();
 
     /**
-     * Returns opponents list in range for the given playerId. Use it to interate by starting turn order.
+     * Returns opponents currently in the game and in range for the given playerId.
+     * Use it to iterate by starting turn order.
      * <p>
-     * Warning, it will return leaved players until end of turn. For dialogs and one shot effects use excludeLeavedPlayers
+     * A player who has left the game is no longer an opponent. Engine code that deliberately
+     * needs the turn-start range snapshot may call {@link #getOpponents(UUID, boolean)} with
+     * {@code excludeLeavedPlayers = false} explicitly.
      */
-    // TODO: check usage of getOpponents in cards and replace with correct call of excludeLeavedPlayers, see #13289
     default Set<UUID> getOpponents(UUID playerId) {
-        return getOpponents(playerId, false);
+        return getOpponents(playerId, true);
     }
 
     /**
-     * Returns opponents list in range for the given playerId. Use it to interate by starting turn order.
-     * Warning, it will return dead players until end of turn.
+     * Returns players in the turn-start opponent/range snapshot for the given playerId.
+     * Use it to iterate by starting turn order.
+     * <p>
+     * Passing {@code false} deliberately preserves players who left after the range snapshot was
+     * established; passing {@code true} returns only opponents still in the game.
      *
-     * @param excludeLeavedPlayers exclude dead player immediately without waiting range update on next turn
+     * @param excludeLeavedPlayers whether to exclude players who have left the game immediately
      */
     default Set<UUID> getOpponents(UUID playerId, boolean excludeLeavedPlayers) {
         Player player = getPlayer(playerId);
