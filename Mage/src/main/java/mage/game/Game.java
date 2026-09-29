@@ -179,15 +179,14 @@ public interface Game extends MageItem, Serializable, Copyable<Game> {
     PlayerList getPlayerList();
 
     /**
-     * Returns opponents currently in the game and in range for the given playerId.
-     * Use it to iterate by starting turn order.
+     * Returns the turn-start opponent/range snapshot for the given playerId.
      * <p>
-     * A player who has left the game is no longer an opponent. Engine code that deliberately
-     * needs the turn-start range snapshot may call {@link #getOpponents(UUID, boolean)} with
-     * {@code excludeLeavedPlayers = false} explicitly.
+     * Some trigger/history semantics intentionally need players who left during the turn.
+     * Gameplay code that needs only opponents still in the game must use
+     * {@link #getOpponentsInGame(UUID)}.
      */
     default Set<UUID> getOpponents(UUID playerId) {
-        return getOpponentsInGame(playerId);
+        return getOpponents(playerId, false);
     }
 
     /**
