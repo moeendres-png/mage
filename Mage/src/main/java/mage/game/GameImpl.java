@@ -2453,6 +2453,12 @@ public abstract class GameImpl implements Game {
                     played |= player.triggerAbility(abilities.get(0), this);
                 } else {
                     TriggeredAbility ability = player.chooseTriggeredAbility(abilities, this);
+                    if (!player.canRespond()) {
+                        // 800.4a: a player who left the game while choosing the order
+                        // puts none of its triggered abilities on the stack; their
+                        // sources left the game with it.
+                        break;
+                    }
                     if (ability != null) {
                         state.removeTriggeredAbility(ability);
                         played |= player.triggerAbility(ability, this);
