@@ -179,20 +179,32 @@ public interface Game extends MageItem, Serializable, Copyable<Game> {
     PlayerList getPlayerList();
 
     /**
-     * Returns opponents list in range for the given playerId. Use it to interate by starting turn order.
+     * Returns the turn-start opponent/range snapshot for the given playerId.
      * <p>
-     * Warning, it will return leaved players until end of turn. For dialogs and one shot effects use excludeLeavedPlayers
+     * Some trigger/history semantics intentionally need players who left during the turn.
+     * Gameplay code that needs only opponents still in the game must use
+     * {@link #getOpponentsInGame(UUID)}.
      */
-    // TODO: check usage of getOpponents in cards and replace with correct call of excludeLeavedPlayers, see #13289
     default Set<UUID> getOpponents(UUID playerId) {
         return getOpponents(playerId, false);
     }
 
     /**
-     * Returns opponents list in range for the given playerId. Use it to interate by starting turn order.
-     * Warning, it will return dead players until end of turn.
+     * Returns opponents currently in the game and in range for the given playerId.
+     * This explicit semantic primitive is also used as the successor runtime fingerprint.
+     */
+    default Set<UUID> getOpponentsInGame(UUID playerId) {
+        return getOpponents(playerId, true);
+    }
+
+    /**
+     * Returns players in the turn-start opponent/range snapshot for the given playerId.
+     * Use it to iterate by starting turn order.
+     * <p>
+     * Passing {@code false} deliberately preserves players who left after the range snapshot was
+     * established; passing {@code true} returns only opponents still in the game.
      *
-     * @param excludeLeavedPlayers exclude dead player immediately without waiting range update on next turn
+     * @param excludeLeavedPlayers whether to exclude players who have left the game immediately
      */
     default Set<UUID> getOpponents(UUID playerId, boolean excludeLeavedPlayers) {
         Player player = getPlayer(playerId);
@@ -205,6 +217,51 @@ public interface Game extends MageItem, Serializable, Copyable<Game> {
                 .filter(player::hasPlayerInRange)
                 .filter(opponentId -> !excludeLeavedPlayers || getPlayer(opponentId).isInGame())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /**
+     * Players still in the game in APNAP order (rule 101.4): the active player first (if still in the game),
+     * then the other players in turn order. Use it where several players make choices or take actions at the
+     * same time (e.g. "each opponent may ..."); for plain membership use getOpponents.
+     * <p>
+     * Walks a copy of the game's turn-order list from the active player with PlayerList.getNext, so reversed
+     * turn order is honoured, players who left the game are skipped, and the list's own priority pointer is
+     * not touched (same idiom as Tempt with Reflections).
+     */
+    default List<UUID> getPlayerIdsInApnapOrder() {
+        List<UUID> ordered = new ArrayList<>();
+        UUID activePlayerId = getActivePlayerId();
+        PlayerList turnOrder = getPlayerList().copy();
+        if (activePlayerId == null || !turnOrder.setCurrent(activePlayerId)) {
+            return ordered;
+        }
+        Player active = getPlayer(activePlayerId);
+        if (active != null && active.isInGame()) {
+            ordered.add(activePlayerId);
+        }
+        for (int index = 1; index < turnOrder.size(); index++) {
+            Player next = turnOrder.getNext(this, false);
+            if (next == null || ordered.contains(next.getId())) {
+                break;
+            }
+            ordered.add(next.getId());
+        }
+        return ordered;
+    }
+
+    /**
+     * Opponents of the given player (in their range of influence, still in the game) in APNAP order,
+     * see {@link #getPlayerIdsInApnapOrder()}.
+     */
+    default List<UUID> getOpponentsInApnapOrder(UUID playerId) {
+        Player player = getPlayer(playerId);
+        if (player == null) {
+            return new ArrayList<>();
+        }
+        return getPlayerIdsInApnapOrder().stream()
+                .filter(opponentId -> !opponentId.equals(playerId))
+                .filter(player::hasPlayerInRange)
+                .collect(Collectors.toList());
     }
 
     default boolean isActivePlayer(UUID playerId) {

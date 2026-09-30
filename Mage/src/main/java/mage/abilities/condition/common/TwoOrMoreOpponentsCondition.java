@@ -14,7 +14,7 @@ public enum TwoOrMoreOpponentsCondition implements Condition {
     
     @Override
     public boolean apply(Game game, Ability source) {
-        return game.getOpponents(source.getControllerId(), true)
+        return game.getOpponentsInGame(source.getControllerId())
                 .stream()
                 .map(game::getPlayer)
                 .filter(Objects::nonNull)

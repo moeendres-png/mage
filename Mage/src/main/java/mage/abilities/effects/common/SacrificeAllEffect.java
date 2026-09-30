@@ -13,6 +13,7 @@ import mage.target.common.TargetSacrifice;
 import mage.util.CardUtil;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author BetaSteward_at_googlemail.com, JayDi85
@@ -79,9 +80,18 @@ public class SacrificeAllEffect extends OneShotEffect {
             return false;
         }
         Set<UUID> perms = new HashSet<>();
-        for (UUID playerId : onlyOpponents ?
-                game.getOpponents(source.getControllerId()) :
-                game.getState().getPlayersInRange(source.getControllerId(), game)) {
+        Player controller = game.getPlayer(source.getControllerId());
+        if (controller == null) {
+            return false;
+        }
+        // 101.4: the sacrifice choices are made at the same time, so in APNAP order
+        // (starting with the active player, not the controller); range of influence is kept
+        List<UUID> choosers = onlyOpponents
+                ? game.getOpponentsInApnapOrder(controller.getId())
+                : game.getPlayerIdsInApnapOrder().stream()
+                        .filter(controller::hasPlayerInRange)
+                        .collect(Collectors.toList());
+        for (UUID playerId : choosers) {
             Player player = game.getPlayer(playerId);
             if (player == null) {
                 continue;

@@ -64,7 +64,7 @@ class TemptWithBunniesEffect extends OneShotEffect {
             tokenCopy.putOntoBattlefield(1, game, source, source.getControllerId(), false, false);
 
             int opponentsAddedTokens = 0;
-            for (UUID playerId : game.getOpponents(controller.getId())) {
+            for (UUID playerId : game.getOpponentsInApnapOrder(controller.getId())) {
                 Player opponent = game.getPlayer(playerId);
                 if (opponent != null) {
                     if (opponent.chooseUse(outcome, "Draw a card and create a Rabbit token?", source, game)) {

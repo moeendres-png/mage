@@ -32,7 +32,7 @@ public enum OpponentHasMoreCardsInHandCondition implements Condition {
                 .map(Player::getHand)
                 .map(Set::size)
                 .orElse(0);
-        return game.getOpponents(source.getControllerId())
+        return game.getOpponentsInGame(source.getControllerId())
                 .stream()
                 .map(game::getPlayer)
                 .map(Player::getHand)

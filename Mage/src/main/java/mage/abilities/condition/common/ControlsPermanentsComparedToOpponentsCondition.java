@@ -28,7 +28,7 @@ public class ControlsPermanentsComparedToOpponentsCondition implements Condition
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
             int ownNumber = game.getBattlefield().countAll(filterPermanent, source.getControllerId(), game);
-            for (UUID playerId : game.getOpponents(source.getControllerId())) {
+            for (UUID playerId : game.getOpponentsInGame(source.getControllerId())) {
                 if (!ComparisonType.compare(ownNumber, type, game.getBattlefield().countAll(filterPermanent, playerId, game))) {
                     return false;
                 }

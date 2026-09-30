@@ -116,12 +116,18 @@ class MysticRemoraEffect extends OneShotEffect {
         Player opponent = game.getPlayer(getTargetPointer().getFirst(game, source));
         MageObject sourceObject = source.getSourceObject(game);
         if (controller != null && opponent != null && sourceObject != null) {
-            if (controller.chooseUse(Outcome.DrawCard, "Draw a card (" + sourceObject.getLogName() + ')', source, game)) {
-                Cost cost = ManaUtil.createManaCost(4, false);
-                if (opponent.chooseUse(Outcome.Benefit, "Pay {4}?", source, game)
-                        && cost.pay(source, game, source, opponent.getId(), false, null)) {
+            // The paying player decides first; the controller decides whether to draw only
+            // afterwards, and only if the cost wasn't paid (official ruling). A player can
+            // only choose to pay a cost they are able to pay.
+            Cost cost = ManaUtil.createManaCost(4, false);
+            if (cost.canPay(source, source, opponent.getId(), game)
+                    && opponent.chooseUse(Outcome.Benefit, "Pay {4}?", source, game)) {
+                cost.clearPaid();
+                if (cost.pay(source, game, source, opponent.getId(), false, null)) {
                     return true;
                 }
+            }
+            if (controller.chooseUse(Outcome.DrawCard, "Draw a card (" + sourceObject.getLogName() + ')', source, game)) {
                 controller.drawCards(1, source, game);
             }
             return true;

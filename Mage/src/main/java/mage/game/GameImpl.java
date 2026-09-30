@@ -2472,6 +2472,35 @@ public abstract class GameImpl implements Game {
      * until no further state-based actions are performed and no abilities
      * trigger. Then the player who would have received priority does so.
      */
+    /**
+     * All players in APNAP order (rule 101.4): the active player first, then the others in turn order,
+     * following the game's own static turn-order list (including reversed turn order). Players that
+     * already left the game are kept in their turn-order position, so callers see the same players as a
+     * plain iteration over all players, only in rules order.
+     */
+    private List<Player> getPlayersInApnapOrderIncludingLeft() {
+        List<Player> ordered = new ArrayList<>();
+        PlayerList turnOrder = state.getPlayerList().copy();
+        if (turnOrder.isEmpty()) {
+            return ordered;
+        }
+        turnOrder.setCurrent(state.getActivePlayerId());
+        UUID playerId = turnOrder.get();
+        for (int index = 0; index < turnOrder.size(); index++) {
+            Player player = getPlayer(playerId);
+            if (player != null) {
+                ordered.add(player);
+            }
+            playerId = isTurnOrderReversed() ? turnOrder.getPrevious() : turnOrder.getNext();
+        }
+        for (Player player : state.getPlayers().values()) {
+            if (!ordered.contains(player)) {
+                ordered.add(player);
+            }
+        }
+        return ordered;
+    }
+
     protected boolean checkStateBasedActions() {
         boolean somethingHappened = false;
 
@@ -2526,7 +2555,10 @@ public abstract class GameImpl implements Game {
         // If a commander is in a graveyard or in exile and that card was put into that zone
         // since the last time state-based actions were checked, its owner may put it into the command zone.
         // signature spells goes to command zone all the time
-        for (Player player : state.getPlayers().values()) {
+        // 704.3 + 101.4: this is one simultaneous state-based action, so the owners choose in APNAP
+        // order (active player first, then turn order) and nothing moves until every owner has chosen
+        Map<Player, Cards> commandersToMove = new LinkedHashMap<>();
+        for (Player player : getPlayersInApnapOrderIncludingLeft()) {
             Set<UUID> commanderIds = getCommandersIds(player, CommanderCardType.COMMANDER_OR_OATHBREAKER, false);
             if (commanderIds.isEmpty()) {
                 continue;
@@ -2556,10 +2588,12 @@ public abstract class GameImpl implements Game {
                     state.setCommanderShouldStay(card, this);
                 }
             }
-            if (toMove.isEmpty()) {
-                continue;
+            if (!toMove.isEmpty()) {
+                commandersToMove.put(player, toMove);
             }
-            player.moveCards(toMove, Zone.COMMAND, null, this);
+        }
+        for (Map.Entry<Player, Cards> entry : commandersToMove.entrySet()) {
+            entry.getKey().moveCards(entry.getValue(), Zone.COMMAND, null, this);
             somethingHappened = true;
         }
 
@@ -2913,7 +2947,8 @@ public abstract class GameImpl implements Game {
                         .map(CombatGroup::getDefenderId)
                         .filter(Objects::nonNull)
                         .noneMatch(perm.getId()::equals)
-                        && this.getPlayer(perm.getProtectorId()) == null
+                        && (this.getPlayer(perm.getProtectorId()) == null
+                        || !this.getPlayer(perm.getProtectorId()).isInGame())
                         || perm.isControlledBy(perm.getProtectorId())) {
                     perm.chooseProtector(this, null);
                     if (this.getPlayer(perm.getProtectorId()) == null) {
@@ -3469,6 +3504,17 @@ public abstract class GameImpl implements Game {
         }
         logger.debug("Start leave game: " + player.getName());
         player.leave();
+        // 800.4a: effects that give the leaving player control of players end,
+        // so any player whose turn it controlled takes back its own decisions.
+        for (UUID controlledId : new HashSet<>(player.getPlayersUnderYourControl())) {
+            Player controlled = getPlayer(controlledId);
+            if (controlled != null && player.getId().equals(controlled.getTurnControlledBy())) {
+                controlled.setGameUnderYourControl(this, true, true);
+                informPlayers(controlled.getLogName() + " is no longer controlled by " + player.getLogName()
+                        + " (that player left the game)");
+            }
+        }
+        player.resetOtherTurnsControlled();
         if (checkIfGameIsOver()) {
             // no need to remove objects if only one player is left so the game is over
             return;
@@ -3603,6 +3649,28 @@ public abstract class GameImpl implements Game {
                 if (nextPlayer != null) {
                     setMonarchId(null, nextPlayer.getId());
                 }
+            }
+        }
+        // If the player who has the initiative leaves the game, the active player takes the initiative
+        // at the same time that player leaves the game. If the active player is leaving the game or if there
+        // is no active player, the next player in turn order takes the initiative.
+        if (playerId.equals(getInitiativeId())) {
+            UUID newHolderId = null;
+            if (!isActivePlayer(playerId) && getActivePlayerId() != null) {
+                newHolderId = getActivePlayerId();
+            } else {
+                // use a copy: the game's own player list tracks the current turn
+                PlayerList turnOrder = getPlayerList().copy();
+                turnOrder.setCurrent(playerId);
+                Player nextPlayer = turnOrder.getNext(this, false);
+                if (nextPlayer != null && !nextPlayer.getId().equals(playerId)) {
+                    newHolderId = nextPlayer.getId();
+                }
+            }
+            if (newHolderId != null) {
+                takeInitiative(null, newHolderId);
+            } else {
+                getState().setInitiativeId(null);
             }
         }
         // 801.2c The particular players within each player‘s range of influence are determined as each turn begins.

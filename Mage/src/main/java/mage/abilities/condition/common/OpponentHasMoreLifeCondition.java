@@ -21,7 +21,7 @@ public enum OpponentHasMoreLifeCondition implements Condition {
         if (controller == null) {
             return false;
         }
-        for (UUID uuid : game.getOpponents(controller.getId())) {
+        for (UUID uuid : game.getOpponentsInGame(controller.getId())) {
             Player opponent = game.getPlayer(uuid);
             if (opponent != null && opponent.getLife() > controller.getLife()) {
                 return true;

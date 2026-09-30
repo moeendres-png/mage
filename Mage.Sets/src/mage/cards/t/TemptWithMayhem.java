@@ -65,7 +65,7 @@ class TemptWithMayhemEffect extends OneShotEffect {
             return false;
         }
         int count = 0;
-        for (UUID opponentId : game.getOpponents(source.getControllerId())) {
+        for (UUID opponentId : game.getOpponentsInApnapOrder(source.getControllerId())) {
             Player opponent = game.getPlayer(opponentId);
             if (opponent != null && opponent.chooseUse(
                     Outcome.Copy, "Copy " + spell.getIdName() + '?', source, game

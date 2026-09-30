@@ -50,7 +50,7 @@ public class OpponentControlsPermanentCondition implements Condition {
     @Override
     public boolean apply(Game game, Ability source) {
         boolean conditionApplies = false;
-        for (UUID opponentId : game.getOpponents(source.getControllerId())) {
+        for (UUID opponentId : game.getOpponentsInGame(source.getControllerId())) {
             FilterPermanent localFilter = filter.copy();
             localFilter.add(new ControllerIdPredicate(opponentId));
             if (ComparisonType.compare(game.getBattlefield().count(localFilter, source.getControllerId(), source, game), type, this.count)) {
