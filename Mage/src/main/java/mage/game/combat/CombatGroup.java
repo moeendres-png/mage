@@ -183,7 +183,7 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                                 game
                         );
                         attacker = revalidateCombatDamageSource(
-                                attackerReference, attackerControllerId, player, game
+                                attackerReference, attackerControllerId, game
                         );
                         if (attacker == null) {
                             return;
@@ -277,14 +277,15 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
      * Re-resolve a combat-damage source after a player-controlled decision.
      *
      * The exact permanent/ZCC must still exist, its controller must be the same
-     * player that controlled it before the callback, that controller must still
-     * be in the game, and any distinct decision player must also still be in
-     * the game. A control change during combat therefore fails closed as well.
+     * player that controlled it before the callback, and that controller must
+     * still be in the game. This is deliberately source-scoped: if some other
+     * player was entitled to make the assignment and leaves during that callback,
+     * this helper must not invent "zero damage" for a source that still exists.
+     * Re-acquiring changed assignment authority is a separate semantic problem.
      */
     private static Permanent revalidateCombatDamageSource(
             MageObjectReference sourceReference,
             UUID expectedControllerId,
-            Player decisionPlayer,
             Game game
     ) {
         Permanent currentSource = sourceReference.getPermanent(game);
@@ -293,9 +294,6 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
         }
         Player sourceController = game.getPlayer(expectedControllerId);
         if (sourceController == null || !sourceController.isInGame()) {
-            return null;
-        }
-        if (decisionPlayer != null && !decisionPlayer.isInGame()) {
             return null;
         }
         return currentSource;
@@ -358,7 +356,7 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                     // removes that player's objects immediately, so a cached Permanent
                     // must never continue as a combat-damage source after the callback.
                     attacker = revalidateCombatDamageSource(
-                            attackerReference, attackerControllerId, player, game
+                            attackerReference, attackerControllerId, game
                     );
                     if (attacker == null) {
                         return;
@@ -387,7 +385,7 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                         }
                     }
                     attacker = revalidateCombatDamageSource(
-                            attackerReference, attackerControllerId, player, game
+                            attackerReference, attackerControllerId, game
                     );
                     if (attacker == null) {
                         return;
@@ -462,7 +460,7 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                         int damageAssigned = 0;
                         damageAssigned = player.getAmount(0, damage, "Assign damage to " + defendingCreature.getName(), null, game);
                         attacker = revalidateCombatDamageSource(
-                                attackerReference, attackerControllerId, player, game
+                                attackerReference, attackerControllerId, game
                         );
                         if (attacker == null) {
                             return;
@@ -580,7 +578,7 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                 amounts.add(damage);
             }
             blocker = revalidateCombatDamageSource(
-                    blockerReference, blockerControllerId, player, game
+                    blockerReference, blockerControllerId, game
             );
             if (blocker == null) {
                 return;
@@ -964,12 +962,12 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                         game
                 );
                 Permanent currentCreature = revalidateCombatDamageSource(
-                        creatureReference, creatureControllerId, player, game
+                        creatureReference, creatureControllerId, game
                 );
                 if (currentCreature == null) {
-                    // The decision boundary invalidated the damage source or its
-                    // decision authority. Treat this source as handled so callers
-                    // cannot fall back to cached-source normal damage.
+                    // The decision boundary invalidated the exact damage source.
+                    // Treat this source as handled so callers cannot fall back to
+                    // cached-source normal damage.
                     return true;
                 }
                 if (useDividedDamage) {
