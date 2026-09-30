@@ -2484,7 +2484,14 @@ public abstract class GameImpl implements Game {
         if (turnOrder.isEmpty()) {
             return ordered;
         }
-        turnOrder.setCurrent(state.getActivePlayerId());
+        UUID activePlayerId = state.getActivePlayerId();
+        if (activePlayerId == null || !turnOrder.setCurrent(activePlayerId)) {
+            // No active player to start from (e.g. before the first turn): the copy's cursor
+            // would still point wherever the priority loop left it, so an order walked from it
+            // would only look like APNAP. Return the plain player iteration instead, which is
+            // exactly what callers saw before APNAP ordering was introduced.
+            return new ArrayList<>(state.getPlayers().values());
+        }
         UUID playerId = turnOrder.get();
         for (int index = 0; index < turnOrder.size(); index++) {
             Player player = getPlayer(playerId);
