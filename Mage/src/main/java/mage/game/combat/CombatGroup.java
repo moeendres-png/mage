@@ -263,6 +263,7 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
             return;
         }
         int damage = getDamageValueFromPermanent(attacker, game);
+        MageObjectReference attackerReference = new MageObjectReference(attacker, game);
         if (dealsDamageThisStep(attacker, first, game)) {
             // must be set before attacker damage marking because of effects like Test of Faith
             Map<UUID, Integer> blockerPower = new HashMap<>();
@@ -308,6 +309,13 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                             amounts.add(damage);
                         }
                     }
+                    // A player may leave during the MultiAmount callback. CR 800.4a
+                    // removes that player's objects immediately, so a cached Permanent
+                    // must never continue as a combat-damage source after the callback.
+                    attacker = attackerReference.getPermanent(game);
+                    if (attacker == null) {
+                        return;
+                    }
                     int trampleDamage = damage - (amounts.stream().mapToInt(x -> x).sum());
                     if (trampleDamage > 0) {
                         defenderDamage(attacker, trampleDamage, game, false);
@@ -330,6 +338,10 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                         if (damageDivision.size() == 1) { // Assign all damage to one blocker
                             amounts.add(damage);
                         }
+                    }
+                    attacker = attackerReference.getPermanent(game);
+                    if (attacker == null) {
+                        return;
                     }
                 }
                 if (!damageDivision.isEmpty() && amounts.size() == damageDivision.size()){
@@ -379,6 +391,7 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                 return;
             }
             int damage = getDamageValueFromPermanent(attacker, game);
+            MageObjectReference attackerReference = new MageObjectReference(attacker, game);
             if (dealsDamageThisStep(attacker, first, game)) {
                 // must be set before attacker damage marking because of effects like Test of Faith
                 Map<UUID, Integer> blockerPower = new HashMap<>();
@@ -398,6 +411,10 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                         }
                         int damageAssigned = 0;
                         damageAssigned = player.getAmount(0, damage, "Assign damage to " + defendingCreature.getName(), null, game);
+                        attacker = attackerReference.getPermanent(game);
+                        if (attacker == null) {
+                            return;
+                        }
                         assigned.put(defendingCreature.getId(), damageAssigned);
                         damage -= damageAssigned;
                     }
@@ -475,6 +492,7 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
         //Handle Banding
         Player player = game.getPlayer(attackerAssignsCombatDamage(game) ? game.getCombat().getAttackingPlayerId() : blocker.getControllerId());
         int damage = getDamageValueFromPermanent(blocker, game);
+        MageObjectReference blockerReference = new MageObjectReference(blocker, game);
 
         if (dealsDamageThisStep(blocker, first, game)) {
             Map<UUID, Integer> assigned = new HashMap<>();
@@ -507,6 +525,10 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
             } else {
                 amounts = new LinkedList<>();
                 amounts.add(damage);
+            }
+            blocker = blockerReference.getPermanent(game);
+            if (blocker == null) {
+                return;
             }
             if (!damageDivision.isEmpty() && amounts.size() == damageDivision.size()){
                 List<UUID> assignedAttackerIds = new ArrayList<>();
@@ -878,8 +900,15 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
             // 10/4/2004 	If it is blocked but then all of its blockers are removed before combat damage is assigned, then it won't be able to deal combat damage and you won't be able to use its ability.
             // (same principle should apply if it's blocking and its blocked attacker is removed from combat)
             if (!((blocked && blockers.isEmpty() && isAttacking) || (attackers.isEmpty() && !isAttacking)) && dealsDamageThisStep(creature, first, game)) {
+                MageObjectReference creatureReference = new MageObjectReference(creature, game);
                 if (player.chooseUse(Outcome.Damage, "Have " + creature.getLogName() + " assign its combat damage divided among defending player and/or any number of defending creatures?", null, game)) {
-                    defendingPlayerAndOrDefendingCreaturesDividedDamage(creature, player, first, game, isAttacking);
+                    Permanent currentCreature = creatureReference.getPermanent(game);
+                    if (currentCreature != null) {
+                        defendingPlayerAndOrDefendingCreaturesDividedDamage(currentCreature, player, first, game, isAttacking);
+                    }
+                    // The special assignment path was chosen even if the source left
+                    // during the callback. Returning true prevents any cached-source
+                    // fallback damage from the caller.
                     return true;
                 }
             }
