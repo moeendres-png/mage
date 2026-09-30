@@ -276,6 +276,21 @@ public class CombatDamageSourceLeaves4PTest extends CardTestCommander4Players {
             Player controllerAfter = game.getPlayer(damageSourceControllerId);
             controllerInGameAfterConcede = controllerAfter != null && controllerAfter.isInGame();
             controllerCanRespondAfterConcede = controllerAfter != null && controllerAfter.canRespond();
+
+            System.out.println(
+                    "F43_TRACE source=" + expectedDamageSourceName
+                            + " sourceId=" + damageSourceId
+                            + " controllerId=" + damageSourceControllerId
+                            + " multiAmountHeader=" + multiAmountHeader
+                            + " returnedAmounts=" + returnedAmounts
+                            + " sourcePresentBefore=" + damageSourcePresentBeforeConcede
+                            + " controllerInGameBefore=" + controllerInGameBeforeConcede
+                            + " controllerCanRespondBefore=" + controllerCanRespondBeforeConcede
+                            + " sourcePresentAfter=" + damageSourcePresentAfterConcede
+                            + " controllerInGameAfter=" + controllerInGameAfterConcede
+                            + " controllerCanRespondAfter=" + controllerCanRespondAfterConcede
+                            + " damageMarkedBeforeCombatGroupResume=0"
+            );
             return answer;
         }
 
