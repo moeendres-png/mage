@@ -3504,6 +3504,17 @@ public abstract class GameImpl implements Game {
         }
         logger.debug("Start leave game: " + player.getName());
         player.leave();
+        // 800.4a: effects that give the leaving player control of players end,
+        // so any player whose turn it controlled takes back its own decisions.
+        for (UUID controlledId : new HashSet<>(player.getPlayersUnderYourControl())) {
+            Player controlled = getPlayer(controlledId);
+            if (controlled != null && player.getId().equals(controlled.getTurnControlledBy())) {
+                controlled.setGameUnderYourControl(this, true, true);
+                informPlayers(controlled.getLogName() + " is no longer controlled by " + player.getLogName()
+                        + " (that player left the game)");
+            }
+        }
+        player.resetOtherTurnsControlled();
         if (checkIfGameIsOver()) {
             // no need to remove objects if only one player is left so the game is over
             return;
