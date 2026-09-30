@@ -172,8 +172,24 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                     unblockedDamage(first, game);
                 } else {
                     Player player = game.getPlayer(defenderAssignsCombatDamage(game) ? defendingPlayerId : attacker.getControllerId());
-                    if ((attacker.getAbilities().containsKey(DamageAsThoughNotBlockedAbility.getInstance().getId()) &&
-                            player.chooseUse(Outcome.Damage, "Have " + attacker.getLogName() + " assign damage as though it weren't blocked?", null, game)) ||
+                    boolean assignAsThoughUnblocked = false;
+                    if (attacker.getAbilities().containsKey(DamageAsThoughNotBlockedAbility.getInstance().getId())) {
+                        MageObjectReference attackerReference = new MageObjectReference(attacker, game);
+                        UUID attackerControllerId = attacker.getControllerId();
+                        assignAsThoughUnblocked = player.chooseUse(
+                                Outcome.Damage,
+                                "Have " + attacker.getLogName() + " assign damage as though it weren't blocked?",
+                                null,
+                                game
+                        );
+                        attacker = revalidateCombatDamageSource(
+                                attackerReference, attackerControllerId, player, game
+                        );
+                        if (attacker == null) {
+                            return;
+                        }
+                    }
+                    if (assignAsThoughUnblocked ||
                             !game.getContinuousEffects().asThough(attacker.getId(), AsThoughEffectType.DAMAGE_NOT_BLOCKED,
                                     null, attacker.getControllerId(), game).isEmpty()) {
                         // for handling creatures like Thorn Elemental
@@ -257,12 +273,41 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
             }
         }
     }
+    /**
+     * Re-resolve a combat-damage source after a player-controlled decision.
+     *
+     * The exact permanent/ZCC must still exist, its controller must be the same
+     * player that controlled it before the callback, that controller must still
+     * be in the game, and any distinct decision player must also still be in
+     * the game. A control change during combat therefore fails closed as well.
+     */
+    private static Permanent revalidateCombatDamageSource(
+            MageObjectReference sourceReference,
+            UUID expectedControllerId,
+            Player decisionPlayer,
+            Game game
+    ) {
+        Permanent currentSource = sourceReference.getPermanent(game);
+        if (currentSource == null || !Objects.equals(expectedControllerId, currentSource.getControllerId())) {
+            return null;
+        }
+        Player sourceController = game.getPlayer(expectedControllerId);
+        if (sourceController == null || !sourceController.isInGame()) {
+            return null;
+        }
+        if (decisionPlayer != null && !decisionPlayer.isInGame()) {
+            return null;
+        }
+        return currentSource;
+    }
+
     private void blockerDamage(Player player, boolean first, Game game) {
         Permanent attacker = game.getPermanent(attackers.get(0));
         if (attacker == null) {
             return;
         }
         int damage = getDamageValueFromPermanent(attacker, game);
+        UUID attackerControllerId = attacker.getControllerId();
         MageObjectReference attackerReference = new MageObjectReference(attacker, game);
         if (dealsDamageThisStep(attacker, first, game)) {
             // must be set before attacker damage marking because of effects like Test of Faith
@@ -312,7 +357,9 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                     // A player may leave during the MultiAmount callback. CR 800.4a
                     // removes that player's objects immediately, so a cached Permanent
                     // must never continue as a combat-damage source after the callback.
-                    attacker = attackerReference.getPermanent(game);
+                    attacker = revalidateCombatDamageSource(
+                            attackerReference, attackerControllerId, player, game
+                    );
                     if (attacker == null) {
                         return;
                     }
@@ -339,7 +386,9 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                             amounts.add(damage);
                         }
                     }
-                    attacker = attackerReference.getPermanent(game);
+                    attacker = revalidateCombatDamageSource(
+                            attackerReference, attackerControllerId, player, game
+                    );
                     if (attacker == null) {
                         return;
                     }
@@ -391,6 +440,7 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                 return;
             }
             int damage = getDamageValueFromPermanent(attacker, game);
+            UUID attackerControllerId = attacker.getControllerId();
             MageObjectReference attackerReference = new MageObjectReference(attacker, game);
             if (dealsDamageThisStep(attacker, first, game)) {
                 // must be set before attacker damage marking because of effects like Test of Faith
@@ -411,7 +461,9 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                         }
                         int damageAssigned = 0;
                         damageAssigned = player.getAmount(0, damage, "Assign damage to " + defendingCreature.getName(), null, game);
-                        attacker = attackerReference.getPermanent(game);
+                        attacker = revalidateCombatDamageSource(
+                                attackerReference, attackerControllerId, player, game
+                        );
                         if (attacker == null) {
                             return;
                         }
@@ -492,6 +544,7 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
         //Handle Banding
         Player player = game.getPlayer(attackerAssignsCombatDamage(game) ? game.getCombat().getAttackingPlayerId() : blocker.getControllerId());
         int damage = getDamageValueFromPermanent(blocker, game);
+        UUID blockerControllerId = blocker.getControllerId();
         MageObjectReference blockerReference = new MageObjectReference(blocker, game);
 
         if (dealsDamageThisStep(blocker, first, game)) {
@@ -526,7 +579,9 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                 amounts = new LinkedList<>();
                 amounts.add(damage);
             }
-            blocker = blockerReference.getPermanent(game);
+            blocker = revalidateCombatDamageSource(
+                    blockerReference, blockerControllerId, player, game
+            );
             if (blocker == null) {
                 return;
             }
@@ -901,14 +956,26 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
             // (same principle should apply if it's blocking and its blocked attacker is removed from combat)
             if (!((blocked && blockers.isEmpty() && isAttacking) || (attackers.isEmpty() && !isAttacking)) && dealsDamageThisStep(creature, first, game)) {
                 MageObjectReference creatureReference = new MageObjectReference(creature, game);
-                if (player.chooseUse(Outcome.Damage, "Have " + creature.getLogName() + " assign its combat damage divided among defending player and/or any number of defending creatures?", null, game)) {
-                    Permanent currentCreature = creatureReference.getPermanent(game);
-                    if (currentCreature != null) {
-                        defendingPlayerAndOrDefendingCreaturesDividedDamage(currentCreature, player, first, game, isAttacking);
-                    }
-                    // The special assignment path was chosen even if the source left
-                    // during the callback. Returning true prevents any cached-source
-                    // fallback damage from the caller.
+                UUID creatureControllerId = creature.getControllerId();
+                boolean useDividedDamage = player.chooseUse(
+                        Outcome.Damage,
+                        "Have " + creature.getLogName() + " assign its combat damage divided among defending player and/or any number of defending creatures?",
+                        null,
+                        game
+                );
+                Permanent currentCreature = revalidateCombatDamageSource(
+                        creatureReference, creatureControllerId, player, game
+                );
+                if (currentCreature == null) {
+                    // The decision boundary invalidated the damage source or its
+                    // decision authority. Treat this source as handled so callers
+                    // cannot fall back to cached-source normal damage.
+                    return true;
+                }
+                if (useDividedDamage) {
+                    defendingPlayerAndOrDefendingCreaturesDividedDamage(
+                            currentCreature, player, first, game, isAttacking
+                    );
                     return true;
                 }
             }
