@@ -172,8 +172,24 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                     unblockedDamage(first, game);
                 } else {
                     Player player = game.getPlayer(defenderAssignsCombatDamage(game) ? defendingPlayerId : attacker.getControllerId());
-                    if ((attacker.getAbilities().containsKey(DamageAsThoughNotBlockedAbility.getInstance().getId()) &&
-                            player.chooseUse(Outcome.Damage, "Have " + attacker.getLogName() + " assign damage as though it weren't blocked?", null, game)) ||
+                    boolean assignAsThoughUnblocked = false;
+                    if (attacker.getAbilities().containsKey(DamageAsThoughNotBlockedAbility.getInstance().getId())) {
+                        MageObjectReference attackerReference = new MageObjectReference(attacker, game);
+                        UUID attackerControllerId = attacker.getControllerId();
+                        assignAsThoughUnblocked = player.chooseUse(
+                                Outcome.Damage,
+                                "Have " + attacker.getLogName() + " assign damage as though it weren't blocked?",
+                                null,
+                                game
+                        );
+                        attacker = revalidateCombatDamageSource(
+                                attackerReference, attackerControllerId, game
+                        );
+                        if (attacker == null) {
+                            return;
+                        }
+                    }
+                    if (assignAsThoughUnblocked ||
                             !game.getContinuousEffects().asThough(attacker.getId(), AsThoughEffectType.DAMAGE_NOT_BLOCKED,
                                     null, attacker.getControllerId(), game).isEmpty()) {
                         // for handling creatures like Thorn Elemental
@@ -257,12 +273,40 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
             }
         }
     }
+    /**
+     * Re-resolve a combat-damage source after a player-controlled decision.
+     *
+     * The exact permanent/ZCC must still exist, its controller must be the same
+     * player that controlled it before the callback, and that controller must
+     * still be in the game. This is deliberately source-scoped: if some other
+     * player was entitled to make the assignment and leaves during that callback,
+     * this helper must not invent "zero damage" for a source that still exists.
+     * Re-acquiring changed assignment authority is a separate semantic problem.
+     */
+    private static Permanent revalidateCombatDamageSource(
+            MageObjectReference sourceReference,
+            UUID expectedControllerId,
+            Game game
+    ) {
+        Permanent currentSource = sourceReference.getPermanent(game);
+        if (currentSource == null || !Objects.equals(expectedControllerId, currentSource.getControllerId())) {
+            return null;
+        }
+        Player sourceController = game.getPlayer(expectedControllerId);
+        if (sourceController == null || !sourceController.isInGame()) {
+            return null;
+        }
+        return currentSource;
+    }
+
     private void blockerDamage(Player player, boolean first, Game game) {
         Permanent attacker = game.getPermanent(attackers.get(0));
         if (attacker == null) {
             return;
         }
         int damage = getDamageValueFromPermanent(attacker, game);
+        UUID attackerControllerId = attacker.getControllerId();
+        MageObjectReference attackerReference = new MageObjectReference(attacker, game);
         if (dealsDamageThisStep(attacker, first, game)) {
             // must be set before attacker damage marking because of effects like Test of Faith
             Map<UUID, Integer> blockerPower = new HashMap<>();
@@ -300,13 +344,27 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                         // The Player seam selects discretionary values only; an illegal
                         // trample-through distribution must be rejected/re-requested here
                         // and can never be executed merely because it was returned.
-                        amounts = requestLegalTrampleBlockerAssignment(player, attacker, blockers, damageDivision,
-                                damage - remainingDamage, damage, dialogue, game);
+                        amounts = requestLegalTrampleBlockerAssignment(
+                                player, attackerReference, attackerControllerId, attacker, blockers, damageDivision,
+                                damage - remainingDamage, damage, dialogue, game
+                        );
+                        if (amounts == null) {
+                            return;
+                        }
                     } else {
                         amounts = new ArrayList<>();
                         if (damageDivision.size() == 1) { // Assign all damage to one blocker
                             amounts.add(damage);
                         }
+                    }
+                    // A player may leave during the MultiAmount callback. CR 800.4a
+                    // removes that player's objects immediately, so a cached Permanent
+                    // must never continue as a combat-damage source after the callback.
+                    attacker = revalidateCombatDamageSource(
+                            attackerReference, attackerControllerId, game
+                    );
+                    if (attacker == null) {
+                        return;
                     }
                     int trampleDamage = damage - (amounts.stream().mapToInt(x -> x).sum());
                     if (trampleDamage > 0) {
@@ -324,12 +382,23 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                         // (no lethal ordering, no assignment order). Still validate the
                         // returned total so an untrusted Player implementation cannot
                         // execute a short/over total.
-                        amounts = requestLegalFreeBlockerAssignment(player, damageDivision, damage, dialogue, game);
+                        amounts = requestLegalFreeBlockerAssignment(
+                                player, attackerReference, attackerControllerId, damageDivision, damage, dialogue, game
+                        );
+                        if (amounts == null) {
+                            return;
+                        }
                     } else {
                         amounts = new LinkedList<>();
                         if (damageDivision.size() == 1) { // Assign all damage to one blocker
                             amounts.add(damage);
                         }
+                    }
+                    attacker = revalidateCombatDamageSource(
+                            attackerReference, attackerControllerId, game
+                    );
+                    if (attacker == null) {
+                        return;
                     }
                 }
                 if (!damageDivision.isEmpty() && amounts.size() == damageDivision.size()){
@@ -379,6 +448,8 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                 return;
             }
             int damage = getDamageValueFromPermanent(attacker, game);
+            UUID attackerControllerId = attacker.getControllerId();
+            MageObjectReference attackerReference = new MageObjectReference(attacker, game);
             if (dealsDamageThisStep(attacker, first, game)) {
                 // must be set before attacker damage marking because of effects like Test of Faith
                 Map<UUID, Integer> blockerPower = new HashMap<>();
@@ -398,6 +469,12 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                         }
                         int damageAssigned = 0;
                         damageAssigned = player.getAmount(0, damage, "Assign damage to " + defendingCreature.getName(), null, game);
+                        attacker = revalidateCombatDamageSource(
+                                attackerReference, attackerControllerId, game
+                        );
+                        if (attacker == null) {
+                            return;
+                        }
                         assigned.put(defendingCreature.getId(), damageAssigned);
                         damage -= damageAssigned;
                     }
@@ -475,6 +552,8 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
         //Handle Banding
         Player player = game.getPlayer(attackerAssignsCombatDamage(game) ? game.getCombat().getAttackingPlayerId() : blocker.getControllerId());
         int damage = getDamageValueFromPermanent(blocker, game);
+        UUID blockerControllerId = blocker.getControllerId();
+        MageObjectReference blockerReference = new MageObjectReference(blocker, game);
 
         if (dealsDamageThisStep(blocker, first, game)) {
             Map<UUID, Integer> assigned = new HashMap<>();
@@ -503,10 +582,21 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
                 // CR 510.1d + 510.1e: a blocker divides freely among the creatures
                 // it blocks (total must equal its damage). Validate so an untrusted
                 // Player implementation cannot execute a short/over total.
-                amounts = requestLegalFreeBlockerAssignment(player, damageDivision, damage, dialogue, game);
+                amounts = requestLegalFreeBlockerAssignment(
+                        player, blockerReference, blockerControllerId, damageDivision, damage, dialogue, game
+                );
+                if (amounts == null) {
+                    return;
+                }
             } else {
                 amounts = new LinkedList<>();
                 amounts.add(damage);
+            }
+            blocker = revalidateCombatDamageSource(
+                    blockerReference, blockerControllerId, game
+            );
+            if (blocker == null) {
+                return;
             }
             if (!damageDivision.isEmpty() && amounts.size() == damageDivision.size()){
                 List<UUID> assignedAttackerIds = new ArrayList<>();
@@ -878,8 +968,27 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
             // 10/4/2004 	If it is blocked but then all of its blockers are removed before combat damage is assigned, then it won't be able to deal combat damage and you won't be able to use its ability.
             // (same principle should apply if it's blocking and its blocked attacker is removed from combat)
             if (!((blocked && blockers.isEmpty() && isAttacking) || (attackers.isEmpty() && !isAttacking)) && dealsDamageThisStep(creature, first, game)) {
-                if (player.chooseUse(Outcome.Damage, "Have " + creature.getLogName() + " assign its combat damage divided among defending player and/or any number of defending creatures?", null, game)) {
-                    defendingPlayerAndOrDefendingCreaturesDividedDamage(creature, player, first, game, isAttacking);
+                MageObjectReference creatureReference = new MageObjectReference(creature, game);
+                UUID creatureControllerId = creature.getControllerId();
+                boolean useDividedDamage = player.chooseUse(
+                        Outcome.Damage,
+                        "Have " + creature.getLogName() + " assign its combat damage divided among defending player and/or any number of defending creatures?",
+                        null,
+                        game
+                );
+                Permanent currentCreature = revalidateCombatDamageSource(
+                        creatureReference, creatureControllerId, game
+                );
+                if (currentCreature == null) {
+                    // The decision boundary invalidated the exact damage source.
+                    // Treat this source as handled so callers cannot fall back to
+                    // cached-source normal damage.
+                    return true;
+                }
+                if (useDividedDamage) {
+                    defendingPlayerAndOrDefendingCreaturesDividedDamage(
+                            currentCreature, player, first, game, isAttacking
+                    );
                     return true;
                 }
             }
@@ -906,9 +1015,18 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
      * this method only validates/re-requests, it never moves choice into the core
      * beyond legality.
      */
-    private static List<Integer> requestLegalTrampleBlockerAssignment(Player player, Permanent attacker,
-                                                                     List<UUID> blockerIds, List<MultiAmountMessage> damageDivision,
-                                                                     int totalMin, int totalMax, MultiAmountType dialogue, Game game) {
+    private static List<Integer> requestLegalTrampleBlockerAssignment(
+            Player player,
+            MageObjectReference attackerReference,
+            UUID attackerControllerId,
+            Permanent attacker,
+            List<UUID> blockerIds,
+            List<MultiAmountMessage> damageDivision,
+            int totalMin,
+            int totalMax,
+            MultiAmountType dialogue,
+            Game game
+    ) {
         int damage = totalMax;
         if (player == null) {
             return MultiAmountType.prepareDefaultValues(damageDivision, totalMin, totalMax);
@@ -916,10 +1034,21 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
         for (int attempt = 0; attempt < 5; attempt++) {
             List<Integer> candidate = player.getMultiAmountWithIndividualConstraints(
                     Outcome.Damage, damageDivision, totalMin, totalMax, dialogue, game);
-            if (isLegalTrampleBlockerAssignment(attacker, blockerIds, damageDivision, candidate, damage, totalMin, totalMax, game)) {
+            Permanent currentAttacker = revalidateCombatDamageSource(
+                    attackerReference, attackerControllerId, game
+            );
+            if (currentAttacker == null) {
+                // The source left during the callback. Do not retry and do not
+                // synthesize a default vector for a departed combat source.
+                return null;
+            }
+            if (isLegalTrampleBlockerAssignment(
+                    currentAttacker, blockerIds, damageDivision, candidate,
+                    damage, totalMin, totalMax, game
+            )) {
                 return candidate;
             }
-            informIllegalCombatAssignment(player, attacker, game, attempt);
+            informIllegalCombatAssignment(player, currentAttacker, game, attempt);
         }
         // Bounded fallback to a legal-by-construction default (lethal to each
         // blocker in order, remainder tramples). Never executes illegal data.
@@ -980,14 +1109,26 @@ public class CombatGroup implements Serializable, Copyable<CombatGroup> {
      * rejects short/over totals or out-of-range options from untrusted Player
      * implementations, with bounded re-request and legal fallback.
      */
-    private static List<Integer> requestLegalFreeBlockerAssignment(Player player, List<MultiAmountMessage> damageDivision,
-                                                                  int damage, MultiAmountType dialogue, Game game) {
+    private static List<Integer> requestLegalFreeBlockerAssignment(
+            Player player,
+            MageObjectReference sourceReference,
+            UUID sourceControllerId,
+            List<MultiAmountMessage> damageDivision,
+            int damage,
+            MultiAmountType dialogue,
+            Game game
+    ) {
         if (player == null) {
             return MultiAmountType.prepareDefaultValues(damageDivision, damage, damage);
         }
         for (int attempt = 0; attempt < 5; attempt++) {
             List<Integer> candidate = player.getMultiAmountWithIndividualConstraints(
                     Outcome.Damage, damageDivision, damage, damage, dialogue, game);
+            if (revalidateCombatDamageSource(sourceReference, sourceControllerId, game) == null) {
+                // The source left during the callback. Do not ask the departed
+                // source's assignment path again and do not construct a fallback.
+                return null;
+            }
             if (candidate != null && MultiAmountType.isGoodValues(candidate, damageDivision, damage, damage)
                     && candidate.size() == damageDivision.size()) {
                 return candidate;
