@@ -1243,13 +1243,16 @@ public abstract class PlayerImpl implements Player, Serializable {
     private void moveObjectToLibrary(UUID objectId, Ability source, Game game, boolean toTop) {
         MageObject mageObject = game.getObject(objectId);
         if (mageObject instanceof Spell && mageObject.isCopy()) {
-            // Spell copies are not moved as cards, so here the no copy spell has to be selected to move
-            // (but because copy and original have the same objectId the wrong spell can be selected from stack).
-            // So let's check if the original spell is on the stack and has to be selected. // TODO: Better handling so each spell could be selected by a unique id
-            Spell spellNoCopy = game.getStack().getSpell(source.getSourceId(), false);
-            if (spellNoCopy != null) {
-                mageObject = spellNoCopy;
+            // Prefer a non-copy spell that is this very object (keyed by the moved object's id,
+            // never by the effect's source: that is the resolving spell itself, e.g. Sudden Setback).
+            Spell original = game.getStack().getSpell(objectId, false);
+            if (original == null) {
+                // CR 707.10a: a copy of a spell that leaves the stack ceases to exist. It is removed
+                // from the stack and nothing is put into the library in its place.
+                game.getStack().remove((Spell) mageObject, game);
+                return;
             }
+            mageObject = original;
         }
         if (mageObject != null) {
             Zone fromZone = game.getState().getZone(objectId);
