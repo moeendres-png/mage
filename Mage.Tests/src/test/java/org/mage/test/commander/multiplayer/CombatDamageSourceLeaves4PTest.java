@@ -83,7 +83,7 @@ public class CombatDamageSourceLeaves4PTest extends CardTestCommander4Players {
         assertLostTheGame(playerA);
         Assert.assertFalse("remaining multiplayer game continues", currentGame.hasEnded());
         assertLifetimeTrace(leaver, playerA);
-        Assert.assertEquals("exact multi_amount vector", List.of(3, 3), leaver.returnedAmounts);
+        Assert.assertEquals("exact multi_amount vector", java.util.Arrays.asList(3, 3), leaver.returnedAmounts);
         assertPermanentCount(playerB, GRIZZLY, 1);
         assertPermanentCount(playerB, RUNECLAW, 1);
         assertDamageReceived(playerB, GRIZZLY, 0);
