@@ -10,6 +10,9 @@ on:
   pull_request_review_comment:
     types: [created]
 
+# least privilege: no token permission by default; each job grants only what it needs
+permissions: {}
+
 jobs:
   fetch-card-references:
     name: Fetch MTG Card
@@ -18,4 +21,4 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: ldeluigi/mtg-fetch-action@v1
+      - uses: ldeluigi/mtg-fetch-action@cd265f5a6536b4b241173339fa86ab592c51fbf7 # v1.5.1
