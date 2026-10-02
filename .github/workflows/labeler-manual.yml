@@ -9,6 +9,9 @@ on:
         type: string
         default: '123'
 
+# least privilege: no token permission by default; each job grants only what it needs
+permissions: {}
+
 jobs:
   labeler:
     permissions:
@@ -17,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: label-the-PR
-        uses: actions/labeler@v6
+        uses: actions/labeler@b8dd2d9be0f68b860e7dae5dae7d772984eacd6d # v6.2.0
         with:
           configuration-path: '.github/labeler.yml'
           pr-number: |
