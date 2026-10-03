@@ -261,25 +261,33 @@ def path_probe_findings(user: str) -> list[dict]:
 
 
 def harden_world_writable() -> list[str]:
-    """Remove o+w from every non-sticky world-writable directory on the root filesystem.
+    """Remove o+w from every non-sticky world-writable directory and every world-writable file.
 
     On hosted runners /opt (tool cache, pipx) is world-writable and not sticky, so
     the candidate account could rename and replace directories that trusted steps
-    and post-job actions later execute from. Sticky directories (/tmp) are left alone.
+    and post-job actions later execute from. Files too: trusted code loads more
+    than the tools it runs (Python site files, shared libraries, git config,
+    action scripts), and the runner VM is ephemeral. Sticky directories (/tmp)
+    are left alone. One find per kind changes everything in bulk (the hosted
+    tool cache holds many thousands of such files); the returned list is the
+    directories changed plus a count of files.
     """
-    found = _run(_priv(["find", "/", "-xdev", "-type", "d", "-perm", "-0002", "!", "-perm", "-1000",
-                        "-not", "-path", "/proc/*", "-print"]))
-    changed = [line for line in found.stdout.splitlines() if line.strip()]
-    for directory in changed:
-        _must(_priv(["chmod", "o-w", directory]), "harden {}".format(directory))
-    # World-writable files too: trusted code loads more than the tools it runs
-    # (Python site files, shared libraries, git config, action scripts), and the
-    # runner VM is ephemeral, so no file anyone may write is left behind.
-    files = _run(_priv(["find", "/", "-xdev", "-type", "f", "-perm", "-0002",
-                        "-not", "-path", "/proc/*", "-print"]))
-    for path in [line for line in files.stdout.splitlines() if line.strip()]:
-        _must(_priv(["chmod", "o-w", path]), "harden {}".format(path))
-        changed.append(path)
+    dir_test = ["-type", "d", "-perm", "-0002", "!", "-perm", "-1000"]
+    file_test = ["-type", "f", "-perm", "-0002"]
+    # find may exit non-zero for entries that vanish during the walk; what
+    # matters is the re-check below, which fails closed if anything remains.
+    dirs = _run(_priv(["find", "/", "-xdev", *dir_test, "-not", "-path", "/proc/*",
+                       "-print", "-exec", "chmod", "o-w", "{}", "+"])).stdout
+    files = _run(_priv(["find", "/", "-xdev", *file_test, "-not", "-path", "/proc/*",
+                        "-print", "-exec", "chmod", "o-w", "{}", "+"])).stdout
+    for test in (dir_test, file_test):
+        left = _run(_priv(["find", "/", "-xdev", *test, "-not", "-path", "/proc/*", "-print", "-quit"])).stdout.strip()
+        if left:
+            raise SandboxError("world-writable entry survived hardening: {}".format(left))
+    changed = [line for line in dirs.splitlines() if line.strip()]
+    count = sum(1 for line in files.splitlines() if line.strip())
+    if count:
+        changed.append("{} world-writable file(s)".format(count))
     return changed
 
 
