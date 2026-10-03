@@ -167,6 +167,10 @@ jobs:
         run: |
           set -euo pipefail
           command_files="$(dirname "$GITHUB_ENV")"
+          maven_home="$(dirname "$(dirname "$(readlink -f "$(command -v mvn)")")")"
+          # From here on the trusted side resolves tools only from the trusted PATH,
+          # which is also the PATH prepare probes.
+          export PATH="$C12_TRUSTED_PATH"
           /usr/bin/python3 -I -B "$QUALIFICATION_DIR/sandbox.py" prepare \
             --user "$C12_SANDBOX_USER" \
             --repo "$TRUSTED_ROOT" \
@@ -182,7 +186,7 @@ jobs:
             --probe "$command_files" \
             --stage-jdk "$JAVA_HOME" \
             --jdk-dest "$C12_TRUSTED_JDK" \
-            --stage-maven "$(dirname "$(dirname "$(readlink -f "$(command -v mvn)")")")" \
+            --stage-maven "$maven_home" \
             --maven-dest "$C12_TRUSTED_MAVEN" \
             --harden-world-writable \
             --out "$EVIDENCE_DIR/SANDBOX_PREPARE.json"

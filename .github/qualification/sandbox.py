@@ -59,6 +59,14 @@ PRIVILEGED_GROUPS = ("sudo", "admin", "wheel", "docker", "adm", "lxd", "root")
 # Variables a candidate process may see. Nothing else crosses the boundary.
 ENV_ALLOWLIST = ("LANG", "LC_ALL", "TZ", "MAVEN_OPTS", "JAVA_HOME")
 REAP_TIMEOUT_SECONDS = 15
+# Every tool a trusted step runs after candidate code has started: sandbox.py and
+# witness.py themselves, and the trusted workflow's own shell lines. Each must
+# resolve to a file the candidate account cannot write.
+TRUSTED_TOOLS = (
+    "python3", "git", "sudo", "env", "sh", "bash", "tar", "find", "cp", "chmod", "chown",
+    "pgrep", "pkill", "kill", "mkdir", "rm", "test", "readlink", "dirname", "sha256sum",
+    "java", "javac", "mvn",
+)
 # Trusted code resolves its tools only from root-owned system directories, never
 # from the inherited PATH (hosted runners put world-writable /opt entries first).
 TOOL_PATH = "/usr/sbin:/usr/bin:/sbin:/bin"
@@ -227,6 +235,31 @@ def path_entries() -> list[Path]:
     return [Path(p) for p in os.environ.get("PATH", "").split(os.pathsep) if p and Path(p).is_absolute()]
 
 
+def trusted_tool_paths() -> list[Path]:
+    """The real path of every tool a trusted step runs, resolved on the inherited PATH."""
+    found = []
+    for name in TRUSTED_TOOLS:
+        hit = shutil.which(name)
+        if hit:
+            real = Path(hit).resolve()
+            if real not in found:
+                found.append(real)
+    return found
+
+
+def path_probe_findings(user: str) -> list[dict]:
+    """What a trusted step resolving tools on this PATH could be made to run.
+
+    A PATH directory is probed for shadowing: the candidate could write a new
+    entry into it, or replace it through a writable ancestor. It is not probed
+    recursively, because a candidate-writable file there that no trusted step
+    runs (hosted runners ship hundreds of world-writable tool-cache files)
+    cannot reach trusted code. Every tool a trusted step does run is probed at
+    its real path, so a candidate-writable java, git or python3 still refuses.
+    """
+    return writable_by(user, path_entries(), recursive=False) + writable_by(user, trusted_tool_paths())
+
+
 def harden_world_writable() -> list[str]:
     """Remove o+w from every non-sticky world-writable directory on the root filesystem.
 
@@ -308,18 +341,23 @@ def seed_maven_repository(user: str, home: Path, source: Path) -> bool:
 # probes and integrity
 
 
-def writable_by(user: str, paths: list[Path]) -> list[dict]:
-    """Every trusted path the candidate account could write, itself or via an ancestor."""
+def writable_by(user: str, paths: list[Path], recursive: bool = True) -> list[dict]:
+    """Every trusted path the candidate account could write, itself or via an ancestor.
+
+    ``recursive`` also searches everything below each path; without it only the
+    path itself and its ancestors are probed.
+    """
     findings: list[dict] = []
     checked_ancestors: set = set()
     for path in paths:
         if not path.exists():
             continue
-        probe = _run(_priv(["sudo", "-n", "-u", user, "--", "/usr/bin/env", "-i", "PATH=/usr/bin:/bin",
-                            "find", str(path), "-writable", "-print", "-quit"]))
-        hit = probe.stdout.strip()
-        if hit:
-            findings.append({"path": str(path), "writable": hit})
+        if recursive:
+            probe = _run(_priv(["sudo", "-n", "-u", user, "--", "/usr/bin/env", "-i", "PATH=/usr/bin:/bin",
+                                "find", str(path), "-writable", "-print", "-quit"]))
+            hit = probe.stdout.strip()
+            if hit:
+                findings.append({"path": str(path), "writable": hit})
         for ancestor in [path] + list(path.parents):
             if str(ancestor) in checked_ancestors:
                 continue
@@ -425,7 +463,7 @@ def integrity(repo: Path, sha: str, rel_dir: str, seals: list[Path], user: str, 
         doc["surviving_candidate_processes"] = survivors
         if survivors:
             doc["violations"].append("candidate_process_survived: {}".format(survivors[:5]))
-        writable = writable_by(user, probe_paths)
+        writable = writable_by(user, probe_paths) + path_probe_findings(user)
         doc["candidate_writable_trusted_paths"] = writable
         if writable:
             doc["violations"].append("trusted_path_writable_by_candidate: {}".format(writable[:5]))
@@ -471,7 +509,7 @@ def cmd_prepare(args) -> int:
         doc["bundle_dir"] = str(bundle)
         # Every PATH entry is probed too: a trusted step resolving a tool from a
         # candidate-writable directory would run candidate code as the runner.
-        probes = [Path(p) for p in args.probe] + [bundle] + path_entries()
+        probes = [Path(p) for p in args.probe] + [bundle]
         if args.stage_jdk:
             # The toolchain the trusted steps use AFTER candidate code has run must
             # not sit under a candidate-writable ancestor (on hosted runners /opt,
@@ -490,8 +528,10 @@ def cmd_prepare(args) -> int:
                 raise SandboxError("staged Maven at {} has no bin/mvn".format(maven))
             doc["trusted_maven"] = str(maven)
             probes.append(maven)
-        writable = writable_by(args.user, probes)
+        writable = writable_by(args.user, probes) + path_probe_findings(args.user)
         doc["probed_paths"] = [str(p) for p in probes]
+        doc["probed_path_entries"] = [str(p) for p in path_entries()]
+        doc["probed_trusted_tools"] = [str(p) for p in trusted_tool_paths()]
         doc["candidate_writable_trusted_paths"] = writable
         if writable:
             raise SandboxError("trusted path writable by the candidate account: {}".format(writable[:5]))
@@ -542,7 +582,7 @@ def cmd_seal(args) -> int:
 
 def cmd_verify(args) -> int:
     doc = integrity(Path(args.repo), args.trusted_sha, args.rel_dir, [Path(s) for s in args.seal],
-                    args.user, [Path(p) for p in args.probe] + path_entries())
+                    args.user, [Path(p) for p in args.probe])
     _write(args.out, doc)
     print("INTEGRITY = {}{}".format(doc["status"], " ({})".format("; ".join(doc["violations"])[:400]) if doc["violations"] else ""))
     return {"OK": 0, "VIOLATION": 1}.get(doc["status"], 2)

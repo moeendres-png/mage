@@ -51,12 +51,30 @@ jobs:
           jar="${HOME}/.m2/repository/org/junit/platform/junit-platform-console-standalone/${JUNIT_PLATFORM_VERSION}/junit-platform-console-standalone-${JUNIT_PLATFORM_VERSION}.jar"
           test -f "$jar"
           echo "TRUSTED_JUNIT_CLASSPATH=$jar" >> "$GITHUB_ENV"
+      - name: Stage a root-owned read-only JDK and Maven for the trusted side
+        # The hosted tool cache is writable by any account, so the trusted side
+        # runs java, javac and mvn only from root-owned copies (as the gate does).
+        run: |
+          set -euo pipefail
+          maven_home="$(dirname "$(dirname "$(readlink -f "$(command -v mvn)")")")"
+          for pair in "$(readlink -f "$JAVA_HOME"):/var/lib/c12-selftest/jdk" "$maven_home:/var/lib/c12-selftest/maven"; do
+            src="${pair%%:*}"
+            dest="${pair#*:}"
+            sudo rm -rf "$dest"
+            sudo mkdir -p "$dest"
+            sudo cp -a "$src/." "$dest/"
+            sudo chown -R root:root "$dest"
+            sudo chmod -R go-w "$dest"
+          done
+          echo "JAVA_HOME=/var/lib/c12-selftest/jdk" >> "$GITHUB_ENV"
       - name: Run gate controls with the separate sandbox account
         run: |
           set -euo pipefail
+          # The trusted side resolves tools only from root-owned directories.
+          export PATH=/var/lib/c12-selftest/jdk/bin:/var/lib/c12-selftest/maven/bin:/usr/sbin:/usr/bin:/sbin:/bin
           mkdir -p evidence
-          python3 -I -B .github/qualification/qualification_selftest.py \
-            --maven mvn \
+          /usr/bin/python3 -I -B .github/qualification/qualification_selftest.py \
+            --maven /var/lib/c12-selftest/maven/bin/mvn \
             --sandbox-user c12cand \
             --harden-world-writable \
             --out evidence/GATE_CONTROLS.json
