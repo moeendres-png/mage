@@ -231,6 +231,24 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
         )
         if required_from_policy != required_in_witness:
             fail("required_set_not_policy_derived: witness required set differs from the corpus policy")
+        # A class can stay while its methods go. Every method the policy requires
+        # (the candidate's enabled tests plus every baseline method still owed)
+        # must have been started by the trusted driver; a method the static
+        # reading still sees but that never ran is not credit.
+        required_methods = corpus.get("required_methods")
+        observed_methods = execution.get("observed_methods")
+        if corpus.get("status") == "OK" and (
+            not isinstance(required_methods, list) or not all(isinstance(m, str) for m in required_methods)
+        ):
+            unknown("required_methods_missing: the corpus policy bound no test methods")
+        elif isinstance(required_methods, list):
+            if not isinstance(observed_methods, list) or not all(isinstance(m, str) for m in observed_methods):
+                fail("observed_methods_missing: the trusted witness reports no started test methods")
+            else:
+                not_started = sorted(set(required_methods) - set(observed_methods))
+                if not_started:
+                    fail("required_test_methods_not_started: {} of {}: {}".format(
+                        len(not_started), len(required_methods), ",".join(not_started[:10])))
 
     never_entered = execution.get("classes_never_entered") or []
     if never_entered:

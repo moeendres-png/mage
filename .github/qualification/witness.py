@@ -12,11 +12,16 @@ What the candidate controls, and what it does not
   the trusted baseline at the trusted validator commit and the candidate's
   enumeration from Git objects of the locked SHA; removing, renaming or moving a
   baseline test without a default-branch approval is a FAIL.
+* Neither are the required test methods: the baseline also binds each enabled
+  test method, and ``qualify.py`` requires the driver to report every one of
+  them started.
 * The executed test bytecode is NOT the candidate's build output. Test sources
   are exported from the locked commit through Git and compiled here, by trusted
   code, with annotation processing disabled (``-proc:none``), so no candidate
   code runs during that compilation and a build that rewrites
-  ``target/test-classes`` changes nothing that executes.
+  ``target/test-classes`` changes nothing that executes. Test resources are
+  copied next to that bytecode without any ``.class`` file, and the compiled
+  classes are verified byte-identical afterwards.
 * Candidate code that must run (its main classes and its tests) runs only as
   the separate sandbox account, which cannot write any trusted path; every
   candidate process is killed after each module and the kill is verified.
@@ -187,6 +192,7 @@ def trusted_compile_module(export_root: Path, module: str, classpath: list[str],
     record["exit_code"] = proc.returncode
     record["stderr_tail"] = proc.stderr.strip()[-2000:]
     record["dropped_test_resources"] = []
+    compiled_before = class_file_digests(out)
     for rel in TEST_RESOURCE_DIRS:
         resources = module_dir / rel
         if resources.is_dir():
@@ -198,14 +204,32 @@ def trusted_compile_module(export_root: Path, module: str, classpath: list[str],
                     # JUnit registration and configuration never come from the
                     # candidate (the driver also disables auto-registration and
                     # implicit configuration; this is defence in depth).
-                    if path.is_symlink() or name == "junit-platform.properties" or (
+                    # Bytecode never comes from resources either: a candidate
+                    # RequiredTest.class resource would otherwise overwrite the
+                    # class trusted javac just compiled, in the very directory the
+                    # code-origin check accepts.
+                    if path.is_symlink() or name == "junit-platform.properties" or name.endswith(".class") or (
                         rel_path.startswith("META-INF/services/org.junit")
                     ):
                         dropped.append(name)
                         record["dropped_test_resources"].append(rel_path)
                 return dropped
             shutil.copytree(resources, out, dirs_exist_ok=True, symlinks=False, ignore=ignore)
+    # Defence in depth: copying resources must leave every trusted-compiled
+    # class byte-identical and add none.
+    if class_file_digests(out) != compiled_before:
+        raise RuntimeError("test resources altered trusted-compiled bytecode in {}".format(module))
     return record
+
+
+def class_file_digests(root: Path) -> dict:
+    if not root.is_dir():
+        return {}
+    return {
+        path.relative_to(root).as_posix(): sha256_file(path)
+        for path in root.rglob("*.class")
+        if path.is_file()
+    }
 
 
 def compiled_classes(root: Path) -> set:
@@ -472,6 +496,7 @@ def aggregate(execution: list[dict]) -> dict:
     totals = {k: 0 for k in ("tests_found", "tests_started", "tests_succeeded", "tests_failed",
                              "tests_aborted", "tests_skipped", "containers_failed")}
     entered_pairs: set = set()
+    observed_methods: set = set()
     never_entered: set = set()
     origin_violations: set = set()
     entered_modules: list = []
@@ -493,6 +518,9 @@ def aggregate(execution: list[dict]) -> dict:
             entered_pairs.add(corpus_policy.pair(module, name))
         for name in witness.get("classes_never_entered") or []:
             never_entered.add(corpus_policy.pair(module, name))
+        for name in witness.get("observed_methods") or []:
+            if isinstance(name, str):
+                observed_methods.add(corpus_policy.pair(module, name))
         for violation in witness.get("code_origin_violations") or []:
             origin_violations.add("{}: {}".format(module, violation))
         for name, location in (witness.get("class_code_origins") or {}).items():
@@ -514,6 +542,7 @@ def aggregate(execution: list[dict]) -> dict:
         "entered_pairs": sorted(entered_pairs),
         "classes_entered_total": len(entered_pairs),
         "classes_never_entered": sorted(never_entered),
+        "observed_methods": sorted(observed_methods),
         "code_origin_violations": sorted(origin_violations),
         "class_code_origins": origin_paths,
         "driver_verdict": "PENDING",

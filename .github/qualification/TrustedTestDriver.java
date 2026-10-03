@@ -81,6 +81,29 @@ public final class TrustedTestDriver {
         return legacy.substring(0, cut);
     }
 
+    private static String methodIdentityOf(MethodSource source) {
+        // Attributed to the class that DECLARES the method, as the trusted
+        // baseline reads it from that class's source file; an inherited test runs
+        // under its subclass but is the declaring class's required method. A
+        // JUnit 4 Parameterized invocation is reported as name[index]: the
+        // identity is the method, not the invocation.
+        String declaring;
+        try {
+            declaring = source.getJavaMethod().getDeclaringClass().getName();
+        } catch (RuntimeException exc) {
+            declaring = source.getClassName();
+        }
+        String name = source.getMethodName();
+        int cut = name.length();
+        for (char stop : new char[] {'[', '('}) {
+            int at = name.indexOf(stop);
+            if (at >= 0) {
+                cut = Math.min(cut, at);
+            }
+        }
+        return topLevel(declaring) + "#" + name.substring(0, cut);
+    }
+
     private static final class CodeSourceStub {
         private final String location;
 
@@ -304,6 +327,10 @@ public final class TrustedTestDriver {
         // trusted side required but the launcher never entered cannot be reported as
         // green by anything, including a file the candidate wrote.
         final Set<String> observedClasses = new TreeSet<>();
+        // Every test method the launcher started, test or container (a
+        // parameterized or factory method is a container of invocations). The
+        // trusted side requires each baseline method to appear here.
+        final Set<String> observedMethods = new TreeSet<>();
         final Map<String, Integer> failuresByClass = new LinkedHashMap<>();
         final Map<String, String> classOrigins = new LinkedHashMap<>();
         final Set<String> originViolations = new TreeSet<>();
@@ -311,11 +338,16 @@ public final class TrustedTestDriver {
         TestExecutionListener witness = new TestExecutionListener() {
             @Override
             public void executionStarted(TestIdentifier identifier) {
+                String engine = engineOf(identifier);
+                boolean trustedEngine = ALLOWED_ENGINES.contains(engine);
+                if (trustedEngine && identifier.getSource().isPresent()
+                        && identifier.getSource().get() instanceof MethodSource) {
+                    observedMethods.add(methodIdentityOf((MethodSource) identifier.getSource().get()));
+                }
                 if (!identifier.isTest()) {
                     return;
                 }
-                String engine = engineOf(identifier);
-                if (!ALLOWED_ENGINES.contains(engine)) {
+                if (!trustedEngine) {
                     // Only the trusted engines this driver instantiated may report.
                     originViolations.add(identifier.getUniqueId() + " reported by foreign engine " + engine);
                     return;
@@ -428,6 +460,7 @@ public final class TrustedTestDriver {
         json.append("  \"trusted_selected_class_names\": ").append(quoted(new TreeSet<>(selected))).append(",\n");
         json.append("  \"observed_classes\": ").append(quoted(observedClasses)).append(",\n");
         json.append("  \"classes_never_entered\": ").append(quoted(missing)).append(",\n");
+        json.append("  \"observed_methods\": ").append(quoted(observedMethods)).append(",\n");
         json.append("  \"class_code_origins\": {");
         boolean firstOrigin = true;
         for (Map.Entry<String, String> entry : classOrigins.entrySet()) {

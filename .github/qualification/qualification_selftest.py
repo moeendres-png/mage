@@ -309,7 +309,10 @@ class Harness:
 
     def _baseline(self, repo: Path, approvals=None) -> str:
         paths = [p.relative_to(repo).as_posix() for p in repo.rglob("*") if p.is_file() and ".git" not in p.relative_to(repo).parts[:1]]
-        doc = corpus_policy.build_baseline(corpus_policy.pairs_of(corpus_policy.enumerate_paths(paths)), approvals)
+        entries = corpus_policy.enumerate_paths(paths)
+        methods, _ = corpus_policy.enumerate_methods(
+            entries, lambda rel: (repo / rel).read_bytes() if (repo / rel).is_file() else None)
+        doc = corpus_policy.build_baseline(corpus_policy.pairs_of(entries), approvals, methods)
         return json.dumps(doc, indent=1, sort_keys=True) + "\n"
 
     def fixture(self, name: str, base: dict, candidate: dict | None = None, *, trusted_baseline="auto",
@@ -949,6 +952,28 @@ INITIALIZE_PLUGIN = """      <plugin>
 """
 
 
+def many_methods(count: int, disabled=frozenset()) -> str:
+    """A public Jupiter class ProbeTest with ``count`` passing test methods."""
+    lines = ["package probe;", "", "import org.junit.jupiter.api.Disabled;", "import org.junit.jupiter.api.Test;",
+             "", "public class ProbeTest {"]
+    for index in range(count):
+        if index in disabled:
+            lines.append('    @Disabled("candidate suppressed this test")')
+        lines.append("    @Test public void test{}() {{ }}".format(index))
+    return "\n".join(lines + ["}", ""])
+
+
+FAKE_TEST_ANNOTATION = """package probe;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Test {
+}
+"""
+
+
 def three_tests(**override) -> dict:
     tests = {"AlphaTest": passing("AlphaTest"), "BetaTest": passing("BetaTest"), "GammaTest": passing("GammaTest")}
     tests.update(override)
@@ -1224,6 +1249,29 @@ def junit_controls(h: Harness) -> list[dict]:
         run("CTRL-62-junit-config-via-dependency-jar",
             "an extension and configuration shipped in a dependency jar cannot hide a failing test", via_dependency)
 
+    # Codex P1 on witness.py:178: a .class test resource must not replace the
+    # failing test that trusted javac compiled from the locked source.
+    name = "CTRL-66-test-resource-class-overwrite"
+    forged = h.tmp / "forged-class"
+    (forged / "src" / "probe").mkdir(parents=True)
+    (forged / "src" / "probe" / "MixedTest.java").write_text(
+        MIXED_TEST.replace("assertEquals(3, 1 + 1)", "assertEquals(2, 1 + 1)"))
+    compiled = subprocess.run(
+        ["javac", "-proc:none", "-nowarn", "-cp", os.pathsep.join(str(p) for p in api + extra_cp),
+         "-d", str(forged / "classes"), str(forged / "src" / "probe" / "MixedTest.java")],
+        capture_output=True, text=True, check=False)
+    bytecode = forged / "classes" / "probe" / "MixedTest.class"
+    if compiled.returncode != 0 or not bytecode.is_file():
+        rows.append({"control": name, "kind": "not_run",
+                     "expectation": "needs junit-jupiter-api to compile the forged bytecode",
+                     "observed_verdict": "NOT_RUN", "expected_verdict": "FAIL", "ok": False,
+                     "error": compiled.stderr[-400:]})
+    else:
+        overwrite = project({"MixedTest": MIXED_TEST},
+                            extra={"src/test/resources/probe/MixedTest.class": bytecode.read_bytes()})
+        run(name, "a passing MixedTest.class shipped as a test resource cannot replace the failing compiled test",
+            overwrite)
+
     # P1-B: a trusted step must never resolve tools from a candidate-writable
     # PATH entry; prepare and verify both probe every PATH entry.
     name = "CTRL-63-candidate-writable-path-entry-refused"
@@ -1327,6 +1375,35 @@ def corpus_controls(h: Harness) -> list[dict]:
         "a malformed module count must not disappear into a coerced-zero aggregate",
         "FAIL", result, reason="invalid_module_counter",
     ))
+    # Codex P1 on corpus_policy.py:132: a class can stay while its methods go.
+    ten = project({"ProbeTest": many_methods(10)})
+    run("CTRL-56-within-class-method-shrink", "red",
+        "deleting nine of ten required methods from a retained class is a removal, not a PASS",
+        "FAIL", "baseline_test_method_removed", project({"ProbeTest": many_methods(1)}), base=ten)
+    run("CTRL-57-baseline-method-disabled", "red",
+        "disabling a required method is a removal unless the default branch approves it",
+        "FAIL", "baseline_test_method_removed",
+        project({"ProbeTest": many_methods(10, disabled={3})}), base=ten)
+    run("CTRL-58-baseline-method-renamed", "red", "renaming a required method is a removal",
+        "FAIL", "baseline_test_method_removed",
+        project({"ProbeTest": many_methods(10).replace("test7()", "renamed7()")}), base=ten)
+    # The static reading still sees @Test, but the annotation is the candidate's
+    # own: nine required methods never run, and only the driver can tell.
+    evasive = many_methods(10).replace(
+        "import org.junit.jupiter.api.Test;", "import probe.Test;"
+    ).replace("@Test public void test0()", "@org.junit.jupiter.api.Test public void test0()")
+    run("CTRL-59-required-method-never-started", "red",
+        "a required method the static reading accepts but the launcher never starts earns no credit",
+        "FAIL", "required_test_methods_not_started",
+        project({"ProbeTest": evasive}, extra={"src/main/java/probe/Test.java": FAKE_TEST_ANNOTATION}),
+        base=ten)
+    run("CTRL-64-approved-method-removal", "positive",
+        "a method removal approved on the default branch first, then performed, qualifies",
+        "PASS", None, project({"ProbeTest": many_methods(9)}), base=ten,
+        approvals=[{"entry": ".::probe.ProbeTest#test9", "reason": "duplicate of test8", "reference": "review#2"}])
+    run("CTRL-65-method-addition-required", "positive",
+        "adding methods to a retained class qualifies when they pass and the baseline lists them",
+        "PASS", None, project({"ProbeTest": many_methods(12)}), base=ten)
     return rows
 
 

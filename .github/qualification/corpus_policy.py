@@ -32,6 +32,15 @@ Policy, evaluated in trusted code only
   cause, which is fixed by merging the default branch.
 * Candidate additions are welcome and are required as well: the required set
   is every pair the candidate enumerates.
+* The same holds per test method. A class that stays but loses methods is a
+  shrunken corpus, so the baseline also lists every enabled test method of
+  every baseline class (``module::Class#method``). A baseline method that the
+  candidate deletes, renames, un-annotates or disables (``@Ignore``,
+  ``@Disabled*``, ``@Enabled*``, on the method or an enclosing class) is a
+  FAIL unless the trusted baseline approves its removal. The static reading is
+  only the first gate: every required method must also be reported started by
+  the trusted driver (``qualify.py``), so source the parser misreads cannot
+  turn a test that never ran into credit.
 * The candidate's own baseline file must describe the candidate exactly, so a
   merge can never leave the default branch with a stale baseline. Adding a test
   therefore means adding its entry; removing one means a prior, separately
@@ -56,8 +65,8 @@ from pathlib import PurePosixPath
 # Trusted code never resolves tools from the inherited PATH (see sandbox.TOOL_PATH).
 GIT = shutil.which("git", path="/usr/sbin:/usr/bin:/sbin:/bin") or "/usr/bin/git"
 
-BASELINE_SCHEMA = "mage.candidate-qualification.test-corpus-baseline/1"
-POLICY_SCHEMA = "mage.candidate-qualification.corpus-policy/1"
+BASELINE_SCHEMA = "mage.candidate-qualification.test-corpus-baseline/2"
+POLICY_SCHEMA = "mage.candidate-qualification.corpus-policy/2"
 BASELINE_PATH = ".github/qualification/test_corpus_baseline.json"
 
 # Selection rule for what must run, never an evidence heuristic: a class that
@@ -66,6 +75,15 @@ TEST_CLASS_RE = r"(Test|Tests|TestCase|Spec|IT)$"
 SOURCE_DIR_MARKERS = ("src/test/java", "src/test/kotlin", "src/test/groovy")
 SOURCE_SUFFIX = ".java"
 PAIR_SEPARATOR = "::"
+METHOD_SEPARATOR = "#"
+
+# What makes a method a required test, read from source. JUnit 4 and Jupiter
+# test annotations are matched by simple name; a JUnit 3 ``TestCase`` subclass
+# contributes its public no-argument ``test*`` methods.
+TEST_METHOD_ANNOTATIONS = ("Test", "ParameterizedTest", "RepeatedTest", "TestFactory", "TestTemplate")
+DISABLING_ANNOTATION_RE = r"^(Ignore|Disabled\w*|Enabled\w*)$"
+JUNIT3_BASE_RE = r"\bextends\s+(?:junit\.framework\.)?TestCase\b"
+JUNIT3_METHOD_RE = r"\bpublic\s+void\s+(test[\w$]*)\s*\(\s*\)"
 
 ENUMERATION_RULE = {
     "class_regex": TEST_CLASS_RE,
@@ -73,6 +91,15 @@ ENUMERATION_RULE = {
     "source_suffix": SOURCE_SUFFIX,
     "pair_format": "module" + PAIR_SEPARATOR + "fully.qualified.ClassName",
     "module_rule": "nearest ancestor directory of the test source root that holds a pom.xml",
+    "method_format": "module" + PAIR_SEPARATOR + "fully.qualified.ClassName" + METHOD_SEPARATOR + "methodName",
+    "method_rule": {
+        "test_annotations": list(TEST_METHOD_ANNOTATIONS),
+        "disabling_annotation_regex": DISABLING_ANNOTATION_RE,
+        "junit3_base_regex": JUNIT3_BASE_RE,
+        "junit3_method_regex": JUNIT3_METHOD_RE,
+        "scope": "methods declared anywhere in the source file of a baseline class, comments and literals ignored",
+        "enabled": "a test method with no disabling annotation on itself or an enclosing type",
+    },
 }
 
 
@@ -101,6 +128,29 @@ def read_blob(repo: str, rev: str, path: str) -> bytes | None:
         check=False,
     )
     return proc.stdout if proc.returncode == 0 else None
+
+
+def read_blobs(repo: str, rev: str, paths: list[str]) -> dict:
+    """Contents of many paths at one commit, through one ``git cat-file --batch``."""
+    if any("\n" in path for path in paths):
+        raise CorpusError("a tree path contains a newline")
+    request = "".join("{}:{}\n".format(rev, path) for path in paths).encode("utf-8")
+    proc = subprocess.run(
+        [GIT, "-C", str(repo), "cat-file", "--batch"], input=request, capture_output=True, check=False
+    )
+    if proc.returncode != 0:
+        raise CorpusError("git cat-file --batch failed: {}".format(proc.stderr.decode("utf-8", "replace").strip()))
+    out, offset, blobs = proc.stdout, 0, {}
+    for path in paths:
+        end = out.index(b"\n", offset)
+        header = out[offset:end].split()
+        offset = end + 1
+        if len(header) != 3 or header[1] != b"blob":
+            raise CorpusError("{}:{} is not a blob".format(rev, path))
+        size = int(header[2])
+        blobs[path] = out[offset:offset + size]
+        offset += size + 1
+    return blobs
 
 
 def pair(module: str, class_name: str) -> str:
@@ -133,10 +183,10 @@ def enumerate_paths(paths: list[str]) -> list[dict]:
                 break
             stem = PurePosixPath(rest).with_suffix("")
             if pattern.search(stem.name):
-                found.setdefault(module, set()).add(".".join(stem.parts))
+                found.setdefault(module, {}).setdefault(".".join(stem.parts), path)
             break
     return [
-        {"module": module, "class_name": name}
+        {"module": module, "class_name": name, "path": found[module][name]}
         for module in sorted(found)
         for name in sorted(found[module])
     ]
@@ -157,6 +207,143 @@ def enumerate_rev(repo: str, rev: str) -> list[dict]:
     return enumerate_paths(tree_paths(repo, rev))
 
 
+_TOKEN = re.compile(r"[A-Za-z_$][\w$]*|\S")
+_IDENT = re.compile(r"^[A-Za-z_$][\w$]*$")
+
+
+def strip_java(text: str) -> str:
+    """Java source with comments and string/char/text-block contents removed."""
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        if text.startswith("//", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+            out.append(" ")
+        elif text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            i = n if j < 0 else j + 2
+            out.append(" ")
+        elif text.startswith('"""', i):
+            j = i + 3
+            while j < n and not text.startswith('"""', j):
+                j += 2 if text[j] == "\\" else 1
+            i = j + 3
+            out.append('""')
+        elif text[i] in "\"'":
+            quote, j = text[i], i + 1
+            while j < n and text[j] != quote and text[j] != "\n":
+                j += 2 if text[j] == "\\" else 1
+            i = j + 1
+            out.append(quote * 2)
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
+
+
+def _skip_parens(tokens: list[str], start: int) -> int:
+    depth = 0
+    for index in range(start, len(tokens)):
+        if tokens[index] == "(":
+            depth += 1
+        elif tokens[index] == ")":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+    return len(tokens)
+
+
+def java_test_methods(source: str) -> tuple[set, set]:
+    """(enabled, disabled) test method names declared in one Java source file."""
+    code = strip_java(source)
+    tokens = _TOKEN.findall(code)
+    disabling = re.compile(DISABLING_ANNOTATION_RE)
+    enabled: set = set()
+    disabled: set = set()
+    scopes = [False]  # per brace scope: is an enclosing type disabled?
+    pending: list[str] = []  # simple names of annotations awaiting their declaration
+    type_disabled = None  # a type declaration waiting for its body
+    prev = None
+    i, n = 0, len(tokens)
+    while i < n:
+        tok = tokens[i]
+        if tok == "@" and i + 1 < n and tokens[i + 1] != "interface":
+            j, name = i + 1, None
+            while j < n and _IDENT.match(tokens[j]):
+                name = tokens[j]
+                if j + 2 < n and tokens[j + 1] == "." and _IDENT.match(tokens[j + 2]):
+                    j += 2
+                else:
+                    j += 1
+                    break
+            if j < n and tokens[j] == "(":
+                j = _skip_parens(tokens, j)
+            if name:
+                pending.append(name)
+            i, prev = max(j, i + 1), None
+            continue
+        if tok in ("class", "interface", "enum") and prev != ".":
+            type_disabled = scopes[-1] or any(disabling.match(a) for a in pending)
+            pending = []
+        elif tok == "{":
+            scopes.append(scopes[-1] if type_disabled is None else type_disabled)
+            type_disabled, pending = None, []
+        elif tok == "}":
+            if len(scopes) > 1:
+                scopes.pop()
+            pending = []
+        elif tok == ";":
+            pending = []
+        elif tok == "(":
+            if prev and _IDENT.match(prev) and any(a in TEST_METHOD_ANNOTATIONS for a in pending):
+                off = scopes[-1] or any(disabling.match(a) for a in pending)
+                (disabled if off else enabled).add(prev)
+            pending = []
+            i, prev = _skip_parens(tokens, i), ")"
+            continue
+        prev = tok
+        i += 1
+    if re.search(JUNIT3_BASE_RE, code):
+        enabled.update(re.findall(JUNIT3_METHOD_RE, code))
+    return enabled, disabled - enabled
+
+
+def method_id(class_pair: str, method: str) -> str:
+    return "{}{}{}".format(class_pair, METHOD_SEPARATOR, method)
+
+
+def class_of_method(value: str) -> str:
+    return value.rpartition(METHOD_SEPARATOR)[0]
+
+
+def enumerate_methods(entries: list[dict], read) -> tuple[list[str], list[str]]:
+    """Enabled and disabled test method identities of enumerated classes.
+
+    ``read(path)`` returns the file's bytes; a class whose source cannot be read
+    fails closed rather than contributing no methods.
+    """
+    enabled: set = set()
+    disabled: set = set()
+    for entry in entries:
+        blob = read(entry["path"])
+        if blob is None:
+            raise CorpusError("source of {} is unreadable".format(entry["path"]))
+        on, off = java_test_methods(blob.decode("utf-8", errors="replace"))
+        base = pair(entry["module"], entry["class_name"])
+        enabled.update(method_id(base, name) for name in on)
+        disabled.update(method_id(base, name) for name in off)
+    return sorted(enabled), sorted(disabled - enabled)
+
+
+def corpus_rev(repo: str, rev: str) -> dict:
+    """Classes and test methods of one exact commit, from Git objects only."""
+    entries = enumerate_rev(repo, rev)
+    blobs = read_blobs(repo, rev, [e["path"] for e in entries])
+    enabled, disabled = enumerate_methods(entries, blobs.get)
+    return {"pairs": pairs_of(entries), "methods": enabled, "disabled_methods": disabled}
+
+
 def pairs_of(entries: list[dict]) -> list[str]:
     return sorted({pair(e["module"], e["class_name"]) for e in entries})
 
@@ -165,14 +352,19 @@ def entries_digest(entries: list[str]) -> str:
     return hashlib.sha256(("\n".join(entries) + "\n").encode("utf-8")).hexdigest()
 
 
-def build_baseline(entries: list[str], approved_removals: list[dict] | None = None) -> dict:
+def build_baseline(entries: list[str], approved_removals: list[dict] | None = None,
+                   methods: list[str] | None = None) -> dict:
     entries = sorted(set(entries))
+    methods = sorted(set(methods or []))
     return {
         "schema": BASELINE_SCHEMA,
         "enumeration_rule": ENUMERATION_RULE,
         "entries": entries,
         "entries_count": len(entries),
         "entries_sha256": entries_digest(entries),
+        "methods": methods,
+        "methods_count": len(methods),
+        "methods_sha256": entries_digest(methods),
         "approved_removals": sorted(approved_removals or [], key=lambda r: r.get("entry", "")),
     }
 
@@ -199,6 +391,23 @@ def validate_baseline(doc) -> list[str]:
         problems.append("entries_count does not match entries")
     if doc.get("entries_sha256") != entries_digest(entries):
         problems.append("entries_sha256 does not match entries")
+    methods = doc.get("methods")
+    if not isinstance(methods, list) or not all(isinstance(m, str) for m in methods):
+        problems.append("methods must be a list of strings")
+        return problems
+    if methods != sorted(set(methods)):
+        problems.append("methods must be sorted and unique")
+    known = set(entries)
+    known_methods = set(methods)
+    for method in methods:
+        owner, _, name = method.rpartition(METHOD_SEPARATOR)
+        if owner not in known or not _IDENT.match(name):
+            problems.append("malformed method {!r}".format(method))
+            break
+    if doc.get("methods_count") != len(methods):
+        problems.append("methods_count does not match methods")
+    if doc.get("methods_sha256") != entries_digest(methods):
+        problems.append("methods_sha256 does not match methods")
     removals = doc.get("approved_removals")
     if not isinstance(removals, list):
         problems.append("approved_removals must be a list")
@@ -209,7 +418,7 @@ def validate_baseline(doc) -> list[str]:
             problems.append("approved removal is not an object")
             continue
         entry = removal.get("entry")
-        if not isinstance(entry, str) or entry not in entries:
+        if not isinstance(entry, str) or (entry not in known and entry not in known_methods):
             # An approval for a test the baseline no longer lists is stale: it
             # would otherwise linger as a blanket licence for a future removal.
             problems.append("approved removal {!r} is not a baseline entry".format(entry))
@@ -247,18 +456,26 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
         "unknowns": [],
         "violations": [],
         "required_pairs": [],
+        "required_methods": [],
         "additions": [],
         "removed_without_approval": [],
         "behind_default_branch": [],
         "approved_removals_applied": [],
+        "method_additions": [],
+        "methods_removed_without_approval": [],
+        "methods_disabled_without_approval": [],
+        "methods_behind_default_branch": [],
         "candidate_baseline": None,
     }
 
-    candidate_pairs = pairs_of(enumerate_rev(repo, candidate_rev))
+    candidate = corpus_rev(repo, candidate_rev)
+    candidate_pairs = candidate["pairs"]
     result["required_pairs"] = candidate_pairs
+    result["required_methods"] = candidate["methods"]
 
     doc, problems = load_baseline_blob(read_blob(repo, trusted_rev, BASELINE_PATH))
-    trusted_pairs = pairs_of(enumerate_rev(repo, trusted_rev))
+    trusted = corpus_rev(repo, trusted_rev)
+    trusted_pairs = trusted["pairs"]
     summary = {"present": doc is not None, "problems": problems}
     result["trusted_baseline"] = summary
     if problems == ["missing"]:
@@ -269,24 +486,34 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
         return result
 
     entries = doc["entries"]
+    methods = doc["methods"]
     summary["entries_count"] = len(entries)
     summary["entries_sha256"] = doc["entries_sha256"]
+    summary["methods_count"] = len(methods)
+    summary["methods_sha256"] = doc["methods_sha256"]
     if doc.get("enumeration_rule") != ENUMERATION_RULE:
         result["unknowns"].append("corpus_baseline_stale: enumeration rule differs from the trusted validator")
         return result
-    if entries != trusted_pairs:
+    if entries != trusted_pairs or methods != trusted["methods"]:
         missing = sorted(set(trusted_pairs) - set(entries))
         extra = sorted(set(entries) - set(trusted_pairs))
+        missing_methods = sorted(set(trusted["methods"]) - set(methods))
+        extra_methods = sorted(set(methods) - set(trusted["methods"]))
         summary["unlisted_trusted_tests"] = missing[:50]
         summary["listed_but_absent"] = extra[:50]
+        summary["unlisted_trusted_methods"] = missing_methods[:50]
+        summary["listed_methods_absent"] = extra_methods[:50]
         result["unknowns"].append(
             "corpus_baseline_stale: baseline differs from the trusted enumeration "
-            "({} unlisted, {} absent)".format(len(missing), len(extra))
+            "({} unlisted, {} absent; {} unlisted methods, {} absent methods)".format(
+                len(missing), len(extra), len(missing_methods), len(extra_methods)
+            )
         )
         return result
 
     approved = {r["entry"]: r for r in doc["approved_removals"]}
-    base_pairs = set(pairs_of(enumerate_rev(repo, base_rev)))
+    base = corpus_rev(repo, base_rev)
+    base_pairs = set(base["pairs"])
     candidate_set = set(candidate_pairs)
     for entry in entries:
         if entry in candidate_set:
@@ -299,6 +526,32 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
             result["removed_without_approval"].append(entry)
     result["additions"] = sorted(candidate_set - set(entries))
 
+    # Methods of a class that is gone are reported with the class, once.
+    base_methods = set(base["methods"])
+    candidate_methods = set(candidate["methods"])
+    candidate_disabled = set(candidate["disabled_methods"])
+    retained: set = set()
+    for method in methods:
+        if class_of_method(method) not in candidate_set:
+            continue
+        if method in candidate_methods:
+            retained.add(method)
+        elif method in approved:
+            result["approved_removals_applied"].append(approved[method])
+        elif method not in base_methods:
+            result["methods_behind_default_branch"].append(method)
+            retained.add(method)
+        elif method in candidate_disabled:
+            result["methods_disabled_without_approval"].append(method)
+            retained.add(method)
+        else:
+            result["methods_removed_without_approval"].append(method)
+            retained.add(method)
+    result["method_additions"] = sorted(candidate_methods - set(methods))
+    # Every baseline method still owed, whatever the static reading of the
+    # candidate says, must also be seen started by the trusted driver.
+    result["required_methods"] = sorted(candidate_methods | retained)
+
     if result["removed_without_approval"]:
         result["violations"].append(
             "baseline_test_removed: {} required test class(es) no longer enumerated without a "
@@ -307,13 +560,19 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
                 ",".join(result["removed_without_approval"][:10]),
             )
         )
-    if result["behind_default_branch"]:
+    shrunk = result["methods_removed_without_approval"] + result["methods_disabled_without_approval"]
+    if shrunk:
         result["violations"].append(
-            "candidate_behind_default_branch: {} baseline test class(es) were added after the "
-            "merge base; merge the default branch: {}".format(
-                len(result["behind_default_branch"]),
-                ",".join(result["behind_default_branch"][:10]),
+            "baseline_test_method_removed: {} required test method(s) deleted, renamed, "
+            "un-annotated or disabled without a default-branch approval: {}".format(
+                len(shrunk), ",".join(sorted(shrunk)[:10]),
             )
+        )
+    behind = result["behind_default_branch"] + result["methods_behind_default_branch"]
+    if behind:
+        result["violations"].append(
+            "candidate_behind_default_branch: {} baseline test class(es) or method(s) were added "
+            "after the merge base; merge the default branch: {}".format(len(behind), ",".join(behind[:10]))
         )
 
     candidate_doc, candidate_problems = load_baseline_blob(read_blob(repo, candidate_rev, BASELINE_PATH))
@@ -326,16 +585,22 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
     else:
         unlisted = sorted(candidate_set - set(candidate_doc["entries"]))
         listed_absent = sorted(set(candidate_doc["entries"]) - candidate_set)
+        unlisted_methods = sorted(candidate_methods - set(candidate_doc["methods"]))
+        listed_methods_absent = sorted(set(candidate_doc["methods"]) - candidate_methods)
         candidate_summary["unlisted"] = unlisted[:50]
         candidate_summary["listed_but_absent"] = listed_absent[:50]
-        candidate_summary["consistent"] = not unlisted and not listed_absent and (
-            candidate_doc.get("enumeration_rule") == ENUMERATION_RULE
-        )
+        candidate_summary["unlisted_methods"] = unlisted_methods[:50]
+        candidate_summary["listed_methods_absent"] = listed_methods_absent[:50]
+        candidate_summary["consistent"] = not (
+            unlisted or listed_absent or unlisted_methods or listed_methods_absent
+        ) and candidate_doc.get("enumeration_rule") == ENUMERATION_RULE
         if not candidate_summary["consistent"]:
             result["violations"].append(
                 "candidate_corpus_baseline_not_updated: the candidate's {} does not describe the "
-                "candidate ({} unlisted, {} listed but absent)".format(
-                    BASELINE_PATH, len(unlisted), len(listed_absent)
+                "candidate ({} unlisted, {} listed but absent; {} unlisted methods, {} listed "
+                "methods absent)".format(
+                    BASELINE_PATH, len(unlisted), len(listed_absent),
+                    len(unlisted_methods), len(listed_methods_absent),
                 )
             )
 
@@ -362,18 +627,21 @@ def main() -> int:
 
     args = parser.parse_args()
     if args.command == "generate":
-        entries = pairs_of(enumerate_rev(args.repo, args.rev))
+        corpus = corpus_rev(args.repo, args.rev)
+        entries, methods = corpus["pairs"], corpus["methods"]
         approvals = []
         if args.keep_approvals_from:
             with open(args.keep_approvals_from, "rb") as handle:
                 previous, _ = load_baseline_blob(handle.read())
+            known = set(entries) | set(methods)
             approvals = [
-                r for r in (previous or {}).get("approved_removals") or [] if r.get("entry") in entries
+                r for r in (previous or {}).get("approved_removals") or [] if r.get("entry") in known
             ]
-        doc = build_baseline(entries, approvals)
+        doc = build_baseline(entries, approvals, methods)
         with open(args.out, "w", encoding="utf-8") as handle:
             handle.write(json.dumps(doc, indent=1, sort_keys=True) + "\n")
-        print("CORPUS_BASELINE entries={} sha256={}".format(len(entries), doc["entries_sha256"]))
+        print("CORPUS_BASELINE entries={} methods={} sha256={} methods_sha256={}".format(
+            len(entries), len(methods), doc["entries_sha256"], doc["methods_sha256"]))
         return 0
 
     try:
