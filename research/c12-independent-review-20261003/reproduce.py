@@ -45,6 +45,8 @@ driver = driver.replace(needle, needle.replace(".append(failed)", ".append(-1)")
 cases = [
     ("unchanged-ten-methods", m.project({"ProbeTest": source(10)}), None, {}),
     ("ten-methods-to-one", m.project({"ProbeTest": source(10)}), m.project({"ProbeTest": source(1)}), {}),
+    ("authenticated-noninteger-module-counter", m.project({"ProbeTest": m.passing("ProbeTest")}), None,
+     {"trusted_followup": {m.FIXTURE_QUAL + "/TrustedTestDriver.java": driver.replace(".append(-1)", ".append(-1.0)")}}),
     ("authenticated-negative-counter", m.project({"ProbeTest": m.passing("ProbeTest")}), None,
      {"trusted_followup": {m.FIXTURE_QUAL + "/TrustedTestDriver.java": driver}}),
 ]

@@ -301,6 +301,26 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
         "tests_found", "tests_started", "tests_succeeded", "tests_failed",
         "tests_aborted", "tests_skipped", "containers_failed",
     )
+    module_totals = {key: 0 for key in counter_keys}
+    for entry in witness.get("module_execution") or []:
+        record = entry.get("witness")
+        if not isinstance(record, dict):
+            continue  # required missing witnesses are already rejected above
+        invalid_module = [key for key in counter_keys
+                          if type(record.get(key)) is not int or record[key] < 0]
+        if invalid_module:
+            fail("invalid_module_counter: {}: {}".format(
+                entry.get("module"), ",".join(invalid_module)))
+            continue
+        if record["tests_started"] != (
+            record["tests_succeeded"] + record["tests_failed"] + record["tests_aborted"]
+        ) or record["tests_found"] < record["tests_started"] + record["tests_skipped"]:
+            fail("module_outcomes_mismatch: {}".format(entry.get("module")))
+        for key in counter_keys:
+            module_totals[key] += record[key]
+    if any(module_totals[key] != execution.get(key) for key in counter_keys):
+        fail("module_totals_mismatch: aggregated counts differ from raw module records")
+
     # Authentication proves provenance, not that a buggy trusted producer has
     # emitted meaningful counts. Missing, boolean, negative or non-integer
     # counters must never turn into zero/success through coercion or `or 0`.

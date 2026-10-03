@@ -35,6 +35,16 @@ class CounterContract(unittest.TestCase):
                 del witness["trusted_execution_witness"][key]
                 self.assertEqual(qualify.decide(LOCK, witness)[0], "FAIL")
 
+    def test_invalid_module_counts_cannot_be_coerced_to_zero(self):
+        for key in KEYS:
+            for value in [-1, True, None, "0", 1.0]:
+                with self.subTest(key=key, value=value):
+                    witness = copy.deepcopy(WITNESS)
+                    witness["module_execution"][0]["witness"][key] = value
+                    status, reasons = qualify.decide(LOCK, witness)
+                    self.assertEqual(status, "FAIL")
+                    self.assertTrue(any("invalid_module_counter" in r for r in reasons))
+
     def test_duplicate_totals_and_outcome_counts_are_checked(self):
         controls = [
             ("tests_succeeded", 0, "execution_outcomes_mismatch"),

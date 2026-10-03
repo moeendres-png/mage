@@ -1,0 +1,55 @@
+{
+  "source_parent": "4584a4e7fb42e16bb193eecb146e434d9b3b5bb5",
+  "qualification_patch_sha256": "32fa9bdb76aebc6be305627933fa9c2d2bbd4c70f98a560ce9dc40e0b1b94299",
+  "records": {
+    "red/SOURCE_LOCK.json.gz": {
+      "raw_sha256": "4adca1cd01294da5d59fa01351915f59057574219dbe20fa3485eba960e4925e",
+      "gzip_sha256": "eb4ffd53b68b5cf9aa1a11495fcc55921a3ad22caa5e5a32d50a42d264164eb7"
+    },
+    "red/QUALIFICATION_EVIDENCE.json.gz": {
+      "raw_sha256": "2e83775d80f7acf35f36e032b29d059c39a1db9d6ab5410d3732a7b430e29b84",
+      "gzip_sha256": "bef963e93cb48b996d15c023010580bff9f502d05359b9be7b24619000b2f592"
+    },
+    "red/TRUSTED_WITNESS.json.gz": {
+      "raw_sha256": "685c0050b778de14311a167893b804d2e50b7705e911f56777c68dbb83e7facc",
+      "gzip_sha256": "8bc9d249bfa6c08c17b2f363beb4bbaf266406385444cd86cbe7308cebb986d1"
+    },
+    "red/INTEGRITY.json.gz": {
+      "raw_sha256": "e844af78b2def440897d7d819f9a9b1d217b2878af54c862bc240fccc238a5e2",
+      "gzip_sha256": "d33a6a8eccef2bbb2a2088c0b07bdb582a2057c0dc5281add5b333e96a1bd740"
+    },
+    "red/fixture.bundle": {
+      "sha256": "a51861ddd5a6455175be7cf585a0183cbb2fb9253734938978834f2fc27523f9"
+    },
+    "green/SOURCE_LOCK.json.gz": {
+      "raw_sha256": "35b6b76032d90d255a2d0b583ab610e4fe25d0e3ad7a844c24898404a187c4e5",
+      "gzip_sha256": "deb97a5483284b04c346173fc04a12046eee713ae859fc2d89579c3ee06e21e6"
+    },
+    "green/QUALIFICATION_EVIDENCE.json.gz": {
+      "raw_sha256": "8cddd639415e44cc7965a8349d564b760cc1c70a7c15dd13a44a043b39c9a690",
+      "gzip_sha256": "8229657ee0496fa1998777b22c346d89c49e6c08e19bc29ea0c6b9ab642df2b8"
+    },
+    "green/TRUSTED_WITNESS.json.gz": {
+      "raw_sha256": "f546970e6c25b32a64c00b96b788d50d69a89bf867daf21b5646b9ed37037a24",
+      "gzip_sha256": "8b977ea855a5e2520b1d21714c6eb9a30d6e2cbe9e949c13bf9a505d8c3d406d"
+    },
+    "green/INTEGRITY.json.gz": {
+      "raw_sha256": "770a6eee9700deddaf3b731298c649f9c4519f15fb68ee34b5365630266dbb2b",
+      "gzip_sha256": "f36bac4abc089b1bc75f859121492b299fb69c4875890e605c779ed3aed676ec"
+    },
+    "green/fixture.bundle": {
+      "sha256": "912f82a7ca0bc749e0bc699ae1d141030d8c8d587b94596c6d308f0ece33f112"
+    },
+    "C12-corpus-family-final-GREEN.json.gz": {
+      "raw_sha256": "c1497fc33e16b3308b4eb499bdea43008c03b713fa930d67fbbcc7e41882ee42",
+      "gzip_sha256": "ce853c5a9a07cce376c5cf0dc0099ffce0c8c2ba5df8510c2e1a63f08e9ff5ea"
+    }
+  },
+  "before": "Authenticated module tests_failed=-1.0 is coerced to aggregate zero and incorrectly earns PASS/credit.",
+  "after": "Full pipeline FAIL invalid_module_counter and module_totals_mismatch; qualification_credit=false; integrity OK.",
+  "affected_family": "16/16 full-path controls PASS",
+  "counter_unit_contracts": "4 unittest cases PASS: honest fixture;42 aggregate scalar controls;35 module scalar controls;3 consistency controls",
+  "classification": "DIRECTLY_VERIFIED synthetic robustness controls; no Rules qualification",
+  "remaining_blocker": "Within-class10-to1 method corpus shrink still earns credit. C12 PARTIAL and not mergeable.",
+  "reproduction": "Portable ../reproduce.py adds authenticated-module-noninteger case; unit command python3 -m unittest discover -s .github/qualification -p test_counter_contract.py -v; family controls belong to qualification_selftest.py corpus_controls."
+}

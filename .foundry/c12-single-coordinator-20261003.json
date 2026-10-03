@@ -5,7 +5,7 @@
   "ownership": "PRE-FREEZE-CAMPAIGN-SINGLE-COORDINATOR-20261003",
   "audit_base_sha": "2afe121f58c043cc8104e0b9ed6a5b285e81d29a",
   "audit_base_tree": "f14db82fe9073b2782d8d0fd53732c8a5e373fbe",
-  "state_written_against_head": "37ec2ddb113d3e33be699a7bd7379c47b2cb9e42",
+  "state_written_against_head": "4584a4e7fb42e16bb193eecb146e434d9b3b5bb5",
   "objective": "Close remaining trusted candidate-qualification trust/corpus and malformed-count defects",
   "inputs": [
     "Current Mage PR39",
@@ -47,8 +47,8 @@
   "validated_head": null,
   "execution_profile": null,
   "gate_status": {
-    "counter_contract": "PASS affected full-pipeline control and scalar/consistency contracts",
-    "class_baseline_family": "PASS15/15 affected controls",
+    "counter_contract": "PASS aggregate and raw-module full-path controls; four unit contracts",
+    "class_baseline_family": "PASS16/16 affected controls; method preservation remains FAIL",
     "within_class_method_preservation": "FAIL independently reproduced",
     "hosted_current_head_selftest": "NOT_RUN",
     "qualification_activation": "UNKNOWN",
@@ -56,7 +56,8 @@
   },
   "outputs": [
     "research/c12-independent-review-20261003/SOURCE_EVIDENCE.json",
-    "research/c12-independent-review-20261003/README.md"
+    "research/c12-independent-review-20261003/README.md",
+    "research/c12-independent-review-20261003/module-counter-followup/SOURCE_EVIDENCE.json"
   ],
   "exact_next_action": "Extend trusted corpus preservation to actual test-method identities, then execute full-path shrink/annotation/rename/addition/approved-removal controls. Do not mergePR39 while within-class shrink earns credit."
 }

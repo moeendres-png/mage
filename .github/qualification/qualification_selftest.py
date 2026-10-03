@@ -1163,6 +1163,18 @@ def corpus_controls(h: Harness) -> list[dict]:
         "an authenticated producer fault cannot grant PASS for a negative execution counter",
         "FAIL", result, reason="invalid_execution_counter",
     ))
+    driver = (QUALIFICATION_DIR / "TrustedTestDriver.java").read_text()
+    driver = driver.replace(needle, needle.replace(".append(failed)", ".append(-1.0)"))
+    fx = h.fixture(
+        "CTRL-55-authenticated-noninteger-module-counter", project({"ProbeTest": passing("ProbeTest")}),
+        trusted_followup={FIXTURE_QUAL + "/TrustedTestDriver.java": driver},
+    )
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-55-authenticated-noninteger-module-counter", "red",
+        "a malformed module count must not disappear into a coerced-zero aggregate",
+        "FAIL", result, reason="invalid_module_counter",
+    ))
     return rows
 
 
