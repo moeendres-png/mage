@@ -111,7 +111,18 @@ public class MonarchTest extends CardTestMultiPlayerBase {
 
         // kill itself, so monarch goes to next - player D
         activateAbility(1, PhaseStep.PRECOMBAT_MAIN, playerA, "target damage 100", playerA);
-        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        // The lethal damage ability is pending on the stack while PlayerA still holds priority and
+        // is still in the game, so it is observed before anything resolves.
+        checkStackSize("lethal damage ability pending", 1, PhaseStep.PRECOMBAT_MAIN, playerA, 1);
+        // Waiting for the stack to resolve is owned by the surviving players only. Once the damage
+        // resolves PlayerA loses the game by the 704.5a life total state-based action, and under
+        // 117.5 the engine performs that state-based action before handing priority over, so
+        // PlayerA is never asked for priority again and cannot consume its own queued wait command.
+        // Queueing that wait for every seated player (the global waitStackResolved overload) would
+        // depend on PlayerA receiving priority after it left the game.
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN, playerB);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN, playerC);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN, playerD);
 
         checkMonarch("monarch to D", 2, PhaseStep.POSTCOMBAT_MAIN, playerD, playerD);
 
