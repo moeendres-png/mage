@@ -45,8 +45,11 @@ env:
   EVIDENCE_DIR: ${{ github.workspace }}/evidence
   C12_SANDBOX_USER: c12cand
   C12_SANDBOX_DIR: /srv/c12-sandbox
-  C12_BUNDLE_DIR: /opt/c12-trusted/bundle
-  C12_RUNTIME_DIR: /opt/c12-trusted/runtime
+  # Root-owned parents only: on hosted runners /opt is writable by every user,
+  # so nothing trusted may live under it once candidate code has run.
+  C12_BUNDLE_DIR: /var/lib/c12-trusted/bundle
+  C12_RUNTIME_DIR: /var/lib/c12-trusted/runtime
+  C12_TRUSTED_JDK: /var/lib/c12-trusted/jdk
   PYTHONDONTWRITEBYTECODE: "1"
   # Trusted resolution of the JUnit Platform, pinned to an exact version.
   JUNIT_PLATFORM_VERSION: 1.9.3
@@ -168,7 +171,12 @@ jobs:
             --probe "$RUNNER_TEMP" \
             --probe "$HOME/.m2" \
             --probe "$command_files" \
+            --stage-jdk "$JAVA_HOME" \
+            --jdk-dest "$C12_TRUSTED_JDK" \
             --out "$EVIDENCE_DIR/SANDBOX_PREPARE.json"
+          # Every later step, trusted or sandboxed, uses the staged read-only JDK.
+          echo "JAVA_HOME=$C12_TRUSTED_JDK" >> "$GITHUB_ENV"
+          echo "$C12_TRUSTED_JDK/bin" >> "$GITHUB_PATH"
           mkdir -p "$RUNNER_TEMP/c12-seals"
           python3 -I -B "$QUALIFICATION_DIR/sandbox.py" seal \
             --out "$RUNNER_TEMP/c12-seals/before-candidate.json" \
@@ -248,6 +256,7 @@ jobs:
             --probe "$command_files" \
             --probe "$C12_BUNDLE_DIR" \
             --probe "$C12_RUNTIME_DIR" \
+            --probe "$C12_TRUSTED_JDK" \
             --out "$EVIDENCE_DIR/INTEGRITY.json"
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
       - name: Score qualification verdict from trusted evidence

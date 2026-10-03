@@ -283,8 +283,9 @@ class Harness:
         self.junit_classpath = junit_classpath
         self.user = user
         self.sandbox_dir = Path(os.environ.get("C12_SELFTEST_SANDBOX_DIR", "/srv/c12-selftest-sandbox"))
-        self.bundle_dir = Path("/opt/c12-selftest/bundle")
-        self.runtime_dir = Path("/opt/c12-selftest/runtime")
+        # Root-owned parents only (/opt is world-writable on hosted runners).
+        self.bundle_dir = Path("/var/lib/c12-selftest/bundle")
+        self.runtime_dir = Path("/var/lib/c12-selftest/runtime")
         self.seed = str(Path(os.environ.get("HOME", "/root")) / ".m2" / "repository")
 
     # -- fixtures ---------------------------------------------------------
@@ -375,7 +376,7 @@ class Harness:
         return [self.maven, "-B"] + (["-o"] if self.offline else []) + list(goals)
 
     def stage_readonly(self, src: Path, name: str) -> Path:
-        dest = Path("/opt/c12-selftest") / name
+        dest = Path("/var/lib/c12-selftest") / name
         sandbox.stage_readonly(src, dest)
         return dest
 
@@ -384,7 +385,7 @@ class Harness:
             sandbox.reap(self.user)
         except sandbox.SandboxError:
             pass
-        subprocess.run(sandbox._priv(["rm", "-rf", "/opt/c12-selftest", str(self.sandbox_dir)]),
+        subprocess.run(sandbox._priv(["rm", "-rf", "/var/lib/c12-selftest", str(self.sandbox_dir)]),
                        capture_output=True, check=False)
 
     # -- the production pipeline -------------------------------------------

@@ -431,6 +431,17 @@ def cmd_prepare(args) -> int:
             stage_readonly(staging, bundle)
         doc["bundle_dir"] = str(bundle)
         probes = [Path(p) for p in args.probe] + [bundle]
+        if args.stage_jdk:
+            # The toolchain the trusted steps use AFTER candidate code has run must
+            # not sit under a candidate-writable ancestor (on hosted runners /opt,
+            # home of the tool cache, is world-writable): stage a root-owned,
+            # read-only copy before any candidate code runs and use only that.
+            jdk = Path(args.jdk_dest)
+            stage_readonly(Path(args.stage_jdk).resolve(), jdk)
+            if not (jdk / "bin" / "javac").is_file() or not (jdk / "bin" / "java").is_file():
+                raise SandboxError("staged JDK at {} has no java/javac".format(jdk))
+            doc["trusted_jdk"] = str(jdk)
+            probes.append(jdk)
         writable = writable_by(args.user, probes)
         doc["probed_paths"] = [str(p) for p in probes]
         doc["candidate_writable_trusted_paths"] = writable
@@ -503,6 +514,8 @@ def main() -> int:
     p.add_argument("--seed-maven-repo", default="")
     p.add_argument("--work-dir", required=True)
     p.add_argument("--probe", action="append", default=[])
+    p.add_argument("--stage-jdk", default="", help="JAVA_HOME to copy into a root-owned read-only location")
+    p.add_argument("--jdk-dest", default="/var/lib/c12-trusted/jdk")
     p.add_argument("--out", required=True)
 
     r = sub.add_parser("run")

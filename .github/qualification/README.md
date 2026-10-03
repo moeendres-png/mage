@@ -44,7 +44,15 @@ candidate test bytecode. The account:
 - must be separate from the invoking user, must not be root, and must not belong to sudo, admin, wheel, docker, adm or lxd;
 - gets an `env -i` allowlisted environment. No `GITHUB_ENV`, `GITHUB_PATH`, `GITHUB_OUTPUT`, `ACTIONS_*` or `RUNNER_*` value crosses (CTRL-32);
 - runs from a `git archive` export of the locked SHA in its own sandbox directory. HOME and `user.home` are pinned there, so its Maven repository is the sandbox's own;
-- reads trusted bytecode (the driver, JUnit and trusted-compiled tests) only from a root-owned, read-only bundle.
+- reads trusted bytecode (the driver, JUnit and trusted-compiled tests) only from a root-owned, read-only bundle under `/var/lib/c12-trusted`.
+
+`/opt` is not a safe location. The first GitHub-hosted run of the controls showed that
+`/opt` is writable by every user on hosted runners, and the writability probe refused the
+sandbox. Anything under `/opt` could be renamed and replaced by the candidate, including
+the JDK in `/opt/hostedtoolcache` that later trusted steps run. So `prepare` stages a
+root-owned, read-only copy of the JDK in `/var/lib/c12-trusted/jdk` before any candidate
+code runs, and every later step (trusted `javac` included) uses only that copy. The copy is
+probed as well.
 
 Before any candidate code runs, `sandbox.py prepare` runs a probe **as the candidate
 account**. The probe shows that none of these paths, nor any of their non-sticky ancestors, is writable:
