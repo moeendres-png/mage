@@ -4,7 +4,7 @@ worktree: /home/moeen/work/simulator-priority-20261003
 branch: simulator/sba-elimination-priority-20261003
 audit_base_sha: 103a1e0001ec7fb900ea03eddf345432b3ac31fe
 audit_base_tree: f6a53692d1b7bf44feded88081049bd4f5776c1d
-state_written_against_head: b0ebd84a52eb465fafced33db108ceeee16330ee
+state_written_against_head: 1a3888b8e0cec70f90386ee4fa7bf5f7d02a4408
 validated_head: null
 objective: 'Repair systemic priority after SBA elimination, including active-player-absent
   turn progression; Lab #507.'
@@ -47,11 +47,11 @@ authority_gates:
 execution_profile: space-bunny
 executor_model: opencode-go/space-bunny-free
 native_variant: max
-exact_next_action: 'Coordinator: independent exact-head review of the MonarchTest
-  fixture adaptation commit on simulator/sba-elimination-priority-20261003, then followup
-  publication and CI recheck on that head. validated_head stays null until that review.
-  No push/merge/pin change by the worker. Campaign beyond this bounded repair remains
-  reserved to Claude per Lab255 transition5968556784.'
+exact_next_action: 'Coordinator: independent exact-head review of commit 1a3888b8e0cec70f90386ee4fa7bf5f7d02a4408
+  (tree a6a388f76cad641d69da3de2b4a03a7f676c3a6f) on simulator/sba-elimination-priority-20261003,
+  then followup publication and CI recheck on that head. validated_head stays null
+  until that review. No push/merge/pin change by the worker. Campaign beyond this
+  bounded repair remains reserved to Claude per Lab255 transition5968556784.'
 executor_handoff_from: deepseek
 executor_handoff_reason: 'Coordinator explicit rerouting: DeepSeek run 2ea732bd session
   ses_efeb36419ffeC4XWHfG3MHfz4B at 2026-10-03T10:26:02.847Z reported Go usage limit
