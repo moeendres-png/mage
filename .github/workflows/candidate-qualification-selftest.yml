@@ -48,6 +48,10 @@ jobs:
           set -euo pipefail
           mvn -B -q dependency:get \
             -Dartifact=org.junit.platform:junit-platform-console-standalone:${JUNIT_PLATFORM_VERSION}
+          # CTRL-62 and CTRL-66 compile their forged bytecode against the Jupiter
+          # API (with opentest4j and apiguardian) from the seeded repository; a
+          # cold Maven cache would leave them NOT_RUN.
+          mvn -B -q dependency:get -Dartifact=org.junit.jupiter:junit-jupiter-api:5.8.1
           jar="${HOME}/.m2/repository/org/junit/platform/junit-platform-console-standalone/${JUNIT_PLATFORM_VERSION}/junit-platform-console-standalone-${JUNIT_PLATFORM_VERSION}.jar"
           test -f "$jar"
           echo "TRUSTED_JUNIT_CLASSPATH=$jar" >> "$GITHUB_ENV"
