@@ -5,6 +5,11 @@ Trust boundary: this script runs from the trusted default-branch checkout and is
 the only writer of the qualification evidence. It reads exactly two inputs, both
 produced by trusted code: the source lock and the trusted execution witness.
 
+It also reads the trusted integrity record (``sandbox.py verify``): if any
+trusted validator file, sealed evidence file or trusted path was changed or left
+writable by the candidate account, or a candidate process survived, the verdict
+is FAIL whatever the witness says.
+
 It deliberately has no code path that reads a candidate-authored report. The
 earlier design harvested ``candidate/**/target/surefire-reports/TEST-*.xml``,
 which was a hole: candidate POM configuration, Maven plugins, lifecycle hooks,
@@ -22,7 +27,10 @@ still reach PASS by supplying evidence, so the verdict is the conjunction of:
   3. every required class was actually entered by the trusted launcher;
   4. tests were found and started, with zero failed, zero aborted, zero failed
      containers, and not every discovered test skipped;
-  5. the witness is bound to the locked candidate SHA.
+  5. the witness is bound to the locked candidate SHA;
+  6. the required corpus satisfies the trusted baseline policy (no unapproved
+     removal, a fresh well-formed baseline, an updated candidate baseline);
+  7. trusted state integrity held across every candidate execution.
 
 Any missing, unreadable or ambiguous input is UNKNOWN or FAIL. Never PASS.
 Mergeability and synthetic-merge state carry no qualification credit here.
@@ -37,9 +45,10 @@ import os
 import sys
 from pathlib import Path
 
-SCHEMA = "mage.candidate-qualification.evidence/2"
-WITNESS_SCHEMA = "mage.candidate-qualification.witness/1"
+SCHEMA = "mage.candidate-qualification.evidence/3"
+WITNESS_SCHEMA = "mage.candidate-qualification.witness/3"
 EXEC_WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/1"
+INTEGRITY_SCHEMA = "mage.candidate-qualification.integrity/1"
 
 PASS = "PASS"
 FAIL = "FAIL"
@@ -96,6 +105,16 @@ def load_json(path: str, label: str) -> dict:
     return json.loads(p.read_text())
 
 
+def integrity_reasons(integrity) -> tuple[str, list[str]]:
+    if not isinstance(integrity, dict) or integrity.get("schema") != INTEGRITY_SCHEMA:
+        return UNKNOWN, ["trusted_state_integrity_unverified: integrity record missing or malformed"]
+    if integrity.get("status") == "OK" and not integrity.get("violations"):
+        return PASS, []
+    if integrity.get("status") == "VIOLATION":
+        return FAIL, ["trusted_state_integrity_violation: {}".format(v) for v in (integrity.get("violations") or ["unspecified"])[:5]]
+    return UNKNOWN, ["trusted_state_integrity_unverified: {}".format(v) for v in (integrity.get("violations") or ["status={}".format(integrity.get("status"))])[:5]]
+
+
 def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
     reasons: list[str] = []
     status = PASS
@@ -107,8 +126,10 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
         reasons.append(reason)
 
     def unknown(reason: str) -> None:
+        # A proven FAIL is never softened into UNKNOWN by a later gap.
         nonlocal status
-        status = UNKNOWN
+        if status != FAIL:
+            status = UNKNOWN
         reasons.append(reason)
 
     if witness.get("status") != "WITNESSED":
@@ -117,6 +138,19 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
                 "; ".join(witness.get("notes") or ["status={}".format(witness.get("status"))])
             )
         )
+        # What is already proven still decides: a failed candidate build or an
+        # altered build definition is a FAIL even when no witness was produced.
+        raw = witness.get("candidate_build_exit_code")
+        if isinstance(raw, int) and raw != 0:
+            fail("candidate_build_failed: maven exit {} is an unconditional qualification failure".format(raw))
+        audit = witness.get("build_definition_audit") or {}
+        if audit.get("status") == "VIOLATION":
+            fail("test_execution_definition_altered: {}".format(", ".join(
+                "{}:{}".format(v.get("kind"), v.get("detail")) for v in (audit.get("violations") or [])[:5])))
+        return status, reasons
+
+    if witness.get("schema") != WITNESS_SCHEMA:
+        unknown("trusted_witness_schema_unexpected: {!r}".format(witness.get("schema")))
         return status, reasons
 
     if not witness.get("source_binding_ok"):
@@ -130,8 +164,11 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
         unknown("trusted_execution_witness_unusable: unexpected schema")
         return status, reasons
 
-    if execution.get("bound_candidate_sha") != (lock.get("candidate") or {}).get("sha"):
+    locked_sha = (lock.get("candidate") or {}).get("sha")
+    if execution.get("bound_candidate_sha") != locked_sha or (execution.get("bound_candidate_shas") or [locked_sha]) != [locked_sha]:
         fail("witness_binding_mismatch: execution witness is bound to another candidate")
+    if witness.get("test_bytecode_origin") != "trusted_compile_of_locked_git_export" or witness.get("candidate_test_classes_used") is not False:
+        fail("test_bytecode_not_trusted: executed test bytecode was not compiled by trusted code from the locked commit")
 
     if execution.get("evidence_origin") != "trusted_side_direct_execution":
         fail(
@@ -178,6 +215,23 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
             )
         )
 
+    corpus = witness.get("corpus_policy")
+    if not isinstance(corpus, dict):
+        unknown("corpus_policy_missing: the required corpus was not checked against the trusted baseline")
+    else:
+        for reason in corpus.get("violations") or []:
+            fail(reason)
+        for reason in corpus.get("unknowns") or []:
+            unknown(reason)
+        if corpus.get("status") not in ("OK", "VIOLATION", "UNKNOWN"):
+            unknown("corpus_policy_unusable: status={}".format(corpus.get("status")))
+        required_from_policy = sorted(corpus.get("required_pairs") or [])
+        required_in_witness = sorted(
+            "{}::{}".format(e.get("module"), e.get("class_name")) for e in (witness.get("required_test_classes") or [])
+        )
+        if required_from_policy != required_in_witness:
+            fail("required_set_not_policy_derived: witness required set differs from the corpus policy")
+
     never_entered = execution.get("classes_never_entered") or []
     if never_entered:
         fail(
@@ -200,6 +254,11 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
                 ",".join(completeness.get("modules_missing_classpath") or [])
             )
         )
+
+    for entry in witness.get("module_execution") or []:
+        why = entry.get("reason")
+        if why and why != "no_required_classes_in_module":
+            fail("module_witness_rejected: {}: {}".format(entry.get("module"), why))
 
     modules_without_witness = execution.get("modules_without_witness") or []
     if modules_without_witness:
@@ -265,6 +324,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-lock", required=True)
     parser.add_argument("--witness", required=True)
+    parser.add_argument("--integrity", required=True, help="INTEGRITY.json from sandbox.py verify")
     parser.add_argument("--guard", default=str(Path(__file__).resolve()))
     parser.add_argument("--trusted-root", default="")
     parser.add_argument("--out", required=True)
@@ -311,6 +371,17 @@ def main() -> int:
     evidence["guard"]["witness_driver_sha256"] = (witness.get("driver") or {}).get("sha256")
 
     verdict, reasons = decide(lock, witness)
+    try:
+        integrity = json.loads(Path(args.integrity).read_text())
+    except (OSError, json.JSONDecodeError):
+        integrity = None
+    integrity_verdict, integrity_notes = integrity_reasons(integrity)
+    evidence["trusted_state_integrity"] = (integrity or {}).get("status")
+    if integrity_verdict == FAIL:
+        verdict = FAIL
+    elif integrity_verdict == UNKNOWN and verdict == PASS:
+        verdict = UNKNOWN
+    reasons = reasons + integrity_notes
     evidence["verdict"] = verdict
     evidence["qualification_credit"] = verdict == PASS
     evidence["reasons"] = reasons

@@ -17,7 +17,12 @@
 // semantic-coverage question for C13/C16, not a provenance question C12 can
 // close; see README "Trust boundary and its limits".
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.security.GeneralSecurityException;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.PrintWriter;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -149,7 +154,43 @@ public final class TrustedTestDriver {
         return out.append("]").toString();
     }
 
+    private static byte[] readWitnessKey() throws IOException {
+        // The witness authentication key arrives on stdin from the trusted parent
+        // and is read before any candidate class is loaded. Stdin is then closed,
+        // and the key is kept only in a local of main(), never in a field that
+        // candidate code could later reach by reflection.
+        InputStream in = System.in;
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        int next;
+        while ((next = in.read()) != -1 && next != '\n' && buffer.size() < 256) {
+            buffer.write(next);
+        }
+        in.close();
+        String hex = new String(buffer.toByteArray(), StandardCharsets.US_ASCII).trim();
+        if (hex.length() < 32 || hex.length() % 2 != 0) {
+            return null;
+        }
+        byte[] key = new byte[hex.length() / 2];
+        for (int i = 0; i < key.length; i++) {
+            key[i] = (byte) Integer.parseInt(hex.substring(2 * i, 2 * i + 2), 16);
+        }
+        return key;
+    }
+
+    private static String hex(byte[] bytes) {
+        StringBuilder out = new StringBuilder();
+        for (byte b : bytes) {
+            out.append(String.format("%02x", b & 0xff));
+        }
+        return out.toString();
+    }
+
     public static void main(String[] args) throws IOException {
+        final byte[] witnessKey = readWitnessKey();
+        if (witnessKey == null) {
+            System.err.println("TrustedTestDriver: no witness authentication key on stdin");
+            System.exit(3);
+        }
         Path evidence = null;
         String classPath = "";
         String bindSha = "";
@@ -351,11 +392,23 @@ public final class TrustedTestDriver {
         json.append("  \"driver_verdict\": \"").append(pass ? "PASS" : "FAIL").append("\"\n");
         json.append("}\n");
 
-        Files.createDirectories(evidence.toAbsolutePath().getParent());
-        try (PrintWriter writer = new PrintWriter(
-                Files.newBufferedWriter(evidence, StandardCharsets.UTF_8))) {
-            writer.print(json);
+        // The evidence is authenticated with the key only this frame holds. A file
+        // that candidate test code writes into the candidate-writable output
+        // directory carries no valid MAC and is rejected by witness.py.
+        byte[] payload = json.toString().getBytes(StandardCharsets.UTF_8);
+        String mac;
+        try {
+            Mac hmac = Mac.getInstance("HmacSHA256");
+            hmac.init(new SecretKeySpec(witnessKey, "HmacSHA256"));
+            mac = hex(hmac.doFinal(payload));
+        } catch (GeneralSecurityException exc) {
+            System.err.println("TrustedTestDriver: cannot authenticate the witness: " + exc);
+            System.exit(3);
+            return;
         }
+        Files.createDirectories(evidence.toAbsolutePath().getParent());
+        Files.write(evidence, payload);
+        Files.write(Paths.get(evidence.toString() + ".mac"), mac.getBytes(StandardCharsets.US_ASCII));
 
         System.out.println(
                 "TRUSTED_EXECUTION module=" + (moduleId.isEmpty() ? "-" : moduleId)

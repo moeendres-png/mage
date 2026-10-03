@@ -1,211 +1,195 @@
 # Trusted candidate qualification (C12)
 
-Qualifies an exact Mage candidate SHA using rules the candidate cannot change, and
-cannot be moved to another candidate-writable directory to make that true.
+This gate qualifies an exact Mage candidate SHA with rules the candidate cannot change, execute with
+write authority over, or shrink.
 
 ## Why this exists
 
-`.github/workflows/maven.yml` runs on `pull_request`, so its own definition belongs to
-the candidate: editing it edits the thing that judges it.
+`.github/workflows/maven.yml` runs on `pull_request`, so its definition belongs to the
+candidate: editing it edits the thing that judges it. The earlier C12 designs closed that
+hole and then four more.
 
-That was only the first hole. The reviewed implementation also harvested
-`candidate/**/target/surefire-reports/TEST-*.xml` from trusted Python, and that proved
-nothing — a candidate POM, Maven plugin, lifecycle hook, test or generated file can
-create those files. It was demonstrated, not theorised: a candidate POM that hardcoded
-surefire `skipTests` + `excludes` and copied a committed `TEST-*.xml` into the report
-directory got `BUILD SUCCESS` from Maven and **`PASS` with `tests=500`** from the old
-scorer, having executed nothing.
+1. **Candidate reports.** Harvesting `target/surefire-reports/TEST-*.xml` proved nothing: a
+   candidate POM, plugin, hook or test can author them. Candidate reports are no longer
+   read anywhere (CTRL-16).
+2. **Writable trust domain.** Candidate Maven and candidate tests ran as the same OS user
+   that owned the trusted checkout, the validator and the evidence. A plugin bound to
+   `initialize` (which the old audit did not cover) or a test could overwrite `qualify.py`,
+   `witness.py`, the source lock or the evidence before the trusted steps ran.
+3. **Candidate-controlled corpus.** The required tests were whatever the candidate tree
+   enumerated. A candidate could therefore rename most `*Test` classes out of the class regex, move them out of
+   `src/test/java` or delete them, and the witness would faithfully run what was left.
+4. **Non-functional wiring**, found during this repair:
+   - The guard job called the selftest with `--mvn`, but the selftest only accepts `--maven`. The guard job therefore always errored before running any control.
+   - The classpath step fed modules through a quoted heredoc, so `$(…)` never expanded.
 
-**Candidate-produced reports are no longer read anywhere.** Not relocated, not
-re-hashed, not sanity-checked: absent. `CTRL-16` enforces this structurally by walking
-`qualify.py`'s AST and failing if it contains any directory traversal or any candidate
-build-output path, and by failing if `witness.py` so much as names a surefire report
-path.
+   Neither gate step could ever have produced a verdict.
 
 ## Three identities
 
 | identity | value | role |
 | --- | --- | --- |
-| `trusted_validator` | `github.sha` (default-branch head) | executing source: workflow, audit, witness, driver, scorer |
-| `candidate` | `pull_request.head.sha` | the tree under test, in a separate checkout path |
-| `comparison_base` | `git merge-base` of the two | inspected Git data; never merged, never built |
+| `trusted_validator` | `github.sha` (default-branch head) | the executing source: workflow, audit, corpus baseline, sandbox, witness, driver, scorer |
+| `candidate` | `pull_request.head.sha` | the tree under test, used only as a `git archive` export of the locked commit |
+| `comparison_base` | `git merge-base` of the two | inspected Git data; never merged and never built |
 
-Each is locked to SHA **and** TREE. `CTRL-15` asserts the trusted workflow never passes
-the test-only `--candidate-ref` override, so production always fetches the PR head ref.
+Each identity is locked to SHA **and** TREE.
 
-## The three trusted-side controls
+## Trust domain (P1-1): candidate execution has no write authority over trusted state
 
-None of them consumes a candidate-authored artifact.
+All candidate code runs through `sandbox.py`, as the dedicated unprivileged account
+`c12cand`. That covers the Maven build, classpath resolution, and the JVM that executes
+candidate test bytecode. The account:
 
-**1. Build-definition audit** (`build_definition_audit.py`). Before anything runs, the
-test-execution fingerprint of every changed POM is compared against the comparison base
-through Git. Editing your own `skipTests`, surefire/failsafe configuration, test source
-or target directories, adding a build extension, or binding a plugin into a post-test
-lifecycle phase fails the gate. Scope is deliberately narrow — dependency versions and
-ordinary source edits are untouched — so this is not a change freeze.
+- must be separate from the invoking user, must not be root, and must not belong to sudo, admin, wheel, docker, adm or lxd;
+- gets an `env -i` allowlisted environment. No `GITHUB_ENV`, `GITHUB_PATH`, `GITHUB_OUTPUT`, `ACTIONS_*` or `RUNNER_*` value crosses (CTRL-32);
+- runs from a `git archive` export of the locked SHA in its own sandbox directory. HOME and `user.home` are pinned there, so its Maven repository is the sandbox's own;
+- reads trusted bytecode (the driver, JUnit and trusted-compiled tests) only from a root-owned, read-only bundle.
 
-**2. Maven/build-result binding.** A non-zero candidate build exit is an **unconditional
-FAIL**. This was the second hole: scoring ran under `if: always()` with no build-exit
-predicate, so a failed build plus forged green XML could reach PASS. It cannot now.
+Before any candidate code runs, `sandbox.py prepare` runs a probe **as the candidate
+account**. The probe shows that none of these paths, nor any of their non-sticky ancestors, is writable:
 
-**3. Trusted execution witness** (`witness.py` + `TrustedTestDriver.java`). The trusted
-side enumerates required test classes from the candidate's **source** tree, then its own
-JUnit Platform driver selects exactly those classes and records the counts **the driver
-observed**. A required class the launcher never entered is a FAIL, so a candidate cannot
-fabricate green evidence for tests it did not run.
+- the workspace;
+- `RUNNER_TEMP`;
+- the runner's Maven cache;
+- the workflow command-file directory;
+- the bundle.
+
+If any one is writable, the sandbox is refused (CTRL-36).
+
+After every candidate execution, every process of the account is killed and the kill is
+verified. Candidate output goes to trusted-owned files, not pipes, so a daemon cannot hold
+the trusted runner open.
+
+Before scoring, `sandbox.py verify`:
+
+- re-derives every file under `.github/qualification` from the trusted commit's Git blobs (`git hash-object` against `git ls-tree`);
+- rejects untracked files there. A planted `json.py` would shadow an import (CTRL-35), and every trusted script also runs with `python3 -I -B`;
+- re-hashes every sealed evidence file;
+- re-probes writability and checks for surviving processes.
+
+The workflow fails unless **both** the integrity check and the verdict pass. They are
+separate processes, so replacing the scorer cannot also pass the integrity check (CTRL-33).
+
+The driver authenticates its witness with HMAC-SHA256. The key is delivered on stdin from
+an unlinked trusted file. The driver reads it and closes stdin before any candidate class
+loads, and keeps it only in a local of `main()`. Candidate test code can write into the
+driver's (candidate-writable) output directory, but a forged witness carries no valid MAC
+(CTRL-38).
+
+The executed test bytecode is never the candidate's build output. `witness.py` compiles each
+module's test sources itself, from the `git archive` export, with `javac -proc:none`, so no
+annotation processor runs. A build that rewrites `target/test-classes` changes nothing that
+executes (CTRL-31). The candidate build runs with `-Dmaven.compiler.proc=none`.
+
+`build_definition_audit.py` is defence in depth. It now fingerprints every build plugin in
+every phase, build extensions, profiles, the parent POM, the properties the build
+interpolates, and `.mvn/**`. A plugin bound to `initialize` is a `build_definition_changed`
+FAIL (CTRL-30). Dependency declarations remain free.
+
+## Required corpus (P1-2): the trusted baseline decides what must run
+
+`test_corpus_baseline.json` lists every required `(module, class)` pair. The policy reads
+it **at the trusted validator commit** (`corpus_policy.py`, Git data only):
+
+| situation | result |
+| --- | --- |
+| baseline missing / malformed / stale (≠ trusted enumeration, or a different rule) | UNKNOWN |
+| a baseline test is no longer enumerated in the candidate (deleted, renamed out of the regex, moved out of a test root or to another module) with no default-branch approval | FAIL `baseline_test_removed` |
+| a baseline test was added on the default branch after the candidate's merge base | FAIL `candidate_behind_default_branch` |
+| the candidate's own baseline file does not describe the candidate | FAIL `candidate_corpus_baseline_not_updated` |
+| additions | required as well, and must run |
+
+The approved path for a removal or rename takes **two reviewed changes**:
+
+1. Land an `approved_removals` entry on the default branch. It needs an entry, a reason and a review reference. The tests still exist, so this change qualifies.
+2. Remove the tests, together with their entries and the approval.
+
+An approval that exists only in the candidate's own copy grants that candidate nothing
+(CTRL-49).
+
+Regenerate the baseline after adding or removing tests:
+
+```
+python3 -I -B .github/qualification/corpus_policy.py generate --repo . --rev HEAD \
+  --keep-approvals-from .github/qualification/test_corpus_baseline.json \
+  --out .github/qualification/test_corpus_baseline.json
+```
+
+The current baseline has 1996 entries over 7 modules, and is identical to the
+default-branch enumeration.
 
 ## Verdict rule
 
-`PASS` requires all of: source binding proven; build exit `0`; audit `CLEAN`; trusted
-enumeration non-empty; every required class entered; tests found and started; zero
-failed, zero aborted, zero failed containers, not all skipped; witness bound to the locked
-candidate SHA. Anything missing, unusable or ambiguous is `FAIL` or `UNKNOWN`, both
-non-zero. Mergeability is recorded by a separate job the verdict never reads.
+`PASS` requires all of the following:
 
-## Per-module classpath and execution
+- the sandbox is READY;
+- the source binding is proven (prepared SHA = locked SHA; locked tree = the tree of that SHA);
+- the sandboxed build exits `0`;
+- the audit is `CLEAN`;
+- the corpus policy is `OK`;
+- every required pair is trusted-compiled, authenticated and entered;
+- tests were found and started, with zero failed, zero aborted and zero failed containers, and not all skipped;
+- the witness is bound to the locked SHA;
+- trusted-state integrity is `OK`.
 
-Surefire runs each module with its own test classpath in its own forked JVM. The witness
-reproduces that rather than approximating it with one combined classpath:
+Anything else is `FAIL` or `UNKNOWN`, both non-zero. A proven FAIL is never softened to
+UNKNOWN. Mergeability is recorded by a separate job that the verdict never reads.
 
-1. `witness.py` enumerates required test classes **per module** from candidate source, so
-   the module that owns a class is known before anything runs.
-2. The workflow resolves a test classpath **per module** via `dependency:build-classpath`.
-3. Any `org/mage/...` repository entry is **dropped** and replaced by the candidate's own
-   reactor output directories. This is not cosmetic: resolving outside a full reactor
-   points a sibling module at an installed jar, and the workflow restores `~/.m2` between
-   runs via `cache: maven`, so such a jar can be silently stale — the witness would then
-   run the candidate's tests against a framework that is not the candidate's.
-4. `TrustedTestDriver` runs **once per module**, with that module's classes only, and
-   verifies via the code source that each executed class really loaded from its own
-   module's output.
-5. Aggregation happens only in `witness.py`, counting `(module, class)` **pairs** — bare
-   class names would collapse two modules that legitimately share a test class FQN.
+## Per-module execution
 
-Every step fails closed. A required module with no resolved classpath, a required class
-that is not compiled, a required class the launcher never entered, a module that produced
-no witness, or a class loaded from the wrong module all produce `FAIL`/`UNKNOWN`. No module
-is ever dropped because resolving it was inconvenient.
-
-The classpath map is candidate-influenced **input** — unavoidable, since executing a
-candidate's tests requires its declared dependencies. It is never authority: it can change
-which class loads, never whether a required class counts as executed, never the verdict.
+- **Single reactor session.** The candidate build is one reactor session: `mvn test-compile dependency:build-classpath -Dmdep.outputFile=target/c12-test-classpath.txt`. Sibling modules therefore resolve to the candidate's own reactor output, not to an installed and possibly stale `org/mage` jar. Any remaining `org/mage` repository entry is still dropped.
+- **Classpath collection.** `resolve_classpaths.py` reads each module's file back, refusing symlinks. The module list comes from the trusted Git enumeration. A missing module fails closed.
+- **Per-module driver runs.** The driver runs once per module. It enforces that each class loads from that module's trusted-compiled output, credits `@Nested` classes to the top-level class, and aggregates over `(module, class)` pairs.
 
 ## Controls
 
 ```
-python3 .github/qualification/qualification_selftest.py --offline   # local
-python3 .github/qualification/qualification_selftest.py             # as CI runs it
+python3 -I -B .github/qualification/qualification_selftest.py --offline --sandbox-user <account>   # local
+python3 -I -B .github/qualification/qualification_selftest.py --sandbox-user c12cand               # CI
 ```
 
-`SELFTEST = PASS (25/25 controls ok, 0 not run)`. Controls run before any candidate
-result is read; if the selftest fails, no candidate verdict is produced.
+Every pipeline control runs the production path against a real Git fixture:
 
-| control | kind | asserts |
-| --- | --- | --- |
-| CTRL-01 | positive | honest candidate, tests actually run by the trusted launcher → PASS |
-| CTRL-02 | red | lifecycle hook fabricates green `TEST-*.xml` while executing nothing → FAIL |
-| CTRL-03 | red | real failing test **plus** forged green XML → FAIL on both counts |
-| CTRL-04 | red | fabricated/copied report, required test never compiled → FAIL |
-| CTRL-05 | red | hardcoded surefire suppression: `BUILD SUCCESS`, verdict FAIL |
-| CTRL-06 | red | every test `@Disabled` → FAIL |
-| CTRL-07 | red | no required test class → UNKNOWN |
-| CTRL-08 | red | malformed witness → UNKNOWN |
-| CTRL-09 | red | evidence for a tree that is not the locked candidate → UNKNOWN |
-| CTRL-10 | positive | correct trusted/candidate pair locks with SHA, TREE, merge base |
-| CTRL-11–14 | red | wrong trusted SHA / non-default base / substituted candidate / non-SHA |
-| CTRL-15 | red | workflow keeps its no-credential, unmasked, PR-head-ref contract |
-| CTRL-16 | red | `qualify.py` traverses nothing; `witness.py` names no report path |
-| CTRL-17 | positive | the trusted driver exists as trusted source |
-| CTRL-18 | positive | two modules with different test classpaths both execute and aggregate |
-| CTRL-19 | positive | a dependency reachable only on its own module classpath is entered |
-| CTRL-20 | red | a required module with no resolved classpath → UNKNOWN, never a skip |
-| CTRL-21 | red | a required class that cannot resolve on its module classpath → FAIL |
-| CTRL-22 | red | one genuinely failing module is not masked by passing siblings |
-| CTRL-23 | red | partial module execution cannot aggregate into PASS |
-| CTRL-24 | red | a required class owned by a sibling module cannot be credited |
-| CTRL-25 | red | a module with zero required classes contributes nothing |
+1. lock;
+2. audit;
+3. sandbox prepare with the probe;
+4. sandboxed build;
+5. classpath collection;
+6. witness (corpus policy, trusted compile, sandboxed and authenticated driver);
+7. seals;
+8. integrity check;
+9. scorer.
 
-CTRL-19 uses a real installed Maven artifact that only one module may depend on, so
-per-module resolution is exercised rather than asserted. CTRL-22 asserts on
-`test_failures` specifically: it previously passed for the wrong reason (the failing module
-had not compiled), which would have hidden a masking bug.
+The executed scripts are the copies committed in the fixture's trusted commit, so a
+candidate able to overwrite them would be overwriting the scorer that actually runs. Red
+controls must also show their **intended reason**.
 
-Every control asserts the verdict actually observed, so the suite is a discriminator
-rather than a decoration. Meta control: replacing the scorer with one that returns `PASS`
-unconditionally turns 8 controls red and the suite to `SELFTEST = FAIL (9/17)`.
+`SELFTEST = PASS (52/52 controls ok, 0 not run)`. This was run locally as a separate
+unprivileged account (`nobody`, offline) in about 4 minutes. The PR-time workflow
+`candidate-qualification-selftest.yml` runs the same suite on GitHub-hosted runners with the
+real `c12cand` account.
 
-Controls needing Maven/JDK/JUnit report `NOT_RUN`, never `PASS`, when the toolchain is
-absent — a missing toolchain must not weaken the gate.
+| family | controls |
+| --- | --- |
+| P1-1 trust domain | CTRL-26–29: test code overwrites `qualify.py`, `witness.py`, the source lock and evidence (target unchanged, integrity OK, a genuinely failing candidate stays FAIL); CTRL-30: initialize-phase plugin; CTRL-31: test-bytecode mutation; CTRL-32: environment scrubbed (positive); CTRL-33–35: simulated breaches are caught (replaced scorer, rewritten sealed evidence, planted module); CTRL-36: writable trusted path refused; CTRL-38: forged witness rejected |
+| P1-2 corpus | CTRL-40: honest (positive); CTRL-41: mass rename leaving one; CTRL-42: delete; CTRL-43: move out of test roots; CTRL-44: rename out of regex; CTRL-45: green subset; CTRL-46: legitimate addition (positive); CTRL-47: addition without baseline update; CTRL-48: approved removal path (positive); CTRL-49: removal without default-branch approval; CTRL-50: malformed baseline; CTRL-51: missing baseline; CTRL-52: stale baseline; CTRL-53: candidate behind default branch |
+| reports, suppression, binding | CTRL-01–09 |
+| source lock | CTRL-10–14 |
+| static | CTRL-15: workflow contract (Maven only inside the sandbox, `-I -B`, independent integrity enforcement); CTRL-16: no report harvesting; CTRL-17: driver present; CTRL-37: no candidate test bytecode |
+| per-module | CTRL-18–25 |
 
-## Trust boundary and its limits
+**Meta-control.** With a scorer that always returns `PASS`, the suite reports
+`SELFTEST = FAIL (19/52)`. CTRL-33–36 stay red even then, because integrity is enforced
+independently of the scorer. A missing toolchain or sandbox reports `NOT_RUN`, and the
+suite fails.
 
-The honest limit, because it is not solvable inside C12: candidate test **bytecode**
-executes inside the trusted driver's JVM, as the same OS user. A candidate whose test
-code deliberately drives the trusted listener through reflection is beyond what any
-same-JVM qualification can exclude. That is a semantic-coverage question — it belongs to
-C13 (#494) and C16 (#497), not to C12's provenance boundary. C12's guarantee is precise
-and narrower: **no candidate-authored artifact, POM, plugin, lifecycle hook or generated
-file can produce qualification credit.**
+## Limits, stated
 
-Two consequences worth being explicit about:
-
-- The candidate build runs `test-compile` only. Its own test execution is redundant work,
-  so the workflow does not pay for it twice.
-- CPU/wall accounting was evaluated as a suppression detector and **rejected on
-  evidence**: an honest 2-test campaign measured 6.9–7.2 s CPU against 5.6–6.0 s for a
-  fully suppressed one, because Maven's own startup dominates. A magnitude threshold
-  would have been a heuristic that separates nothing.
-
-## Known production-path gaps (not closed here)
-
-The controls prove the *trust property* on a real Maven/JDK/JUnit toolchain, and the
-witness has been run against the **real Mage reactor**, not only synthetic fixtures. What
-remains unproven is stated rather than papered over.
-
-**Real-scale validation performed.** Against Mage master at `7edc440c83`, with real
-`dependency:build-classpath` resolution for all 7 modules that own required tests
-(`Mage`, `Mage.Client`, `Mage.Common`, `Mage.Server`, `Mage.Server.Console`, `Mage.Tests`,
-`Mage.Verify`; 1996 required classes):
-
-- 102 stale installed sibling jars detected and dropped across the module classpaths;
-- the two modules compiled locally (`Mage`, `Mage.Common`) executed **115 real tests,
-  115 succeeded, 0 failed** through the per-module trusted driver;
-- `code_origin_violations: []` — origin enforcement held on real Mage classes;
-- the 5 uncompiled modules were reported as `modules_without_witness`, and the scorer
-  returned `FAIL` naming all of them plus `partial_module_execution: 10 of 1996 required
-  module/class pairs entered`. No silent skip, no fabricated PASS.
-
-**Remaining gap: full-reactor execution of `Mage.Tests` (1976 classes).** Building the
-whole reactor locally was out of budget for this run, so the large module has not been
-executed end to end. The mechanism is proven on real Mage code in two modules and the
-fail-closed behaviour is proven on the uncompiled remainder; what is unproven is the
-behaviour with all 1996 classes actually running. That is a runtime-scale question, not a
-trust question, and it resolves on the first live run.
-
-**Inherited `Mage.Verify` red blocks the positive live control.** On plain master
-(`103a1e0001`, run `37101432319`) `maven.yml` fails with `Mage Verify ... FAILURE` while
-`Mage Tests ... SUCCESS [02:35 min]`. That red predates C12 — it also fails at `6e3db5046`
-and on the #38 merge. Because the trusted enumeration includes
-`mage.verify.VerifyCardDataTest`, the C12 gate will fail that class for **every**
-candidate, including a docs-only one.
-
-It is deliberately **not** excluded. Narrowing the required set to make a control pass
-would be exactly the silent coverage weakening this workstream exists to prevent. Which
-signals belong in the qualification campaign is C13's decision (#494); the drift root cause
-is C14's (#495).
-
-## Runtime bootstrap
-
-`pull_request_target` executes the default-branch copy, so this workflow cannot prove
-itself live on the PR that introduces it. `C12_RUNTIME` stays `UNKNOWN` until it is on
-`master` and the live controls have run.
-
-Ordinary Mage CI is currently red in `Mage.Verify` from external card/set reference
-drift. That is #495's surface and is **not** repaired here. It does mean a "docs-only →
-PASS" live control cannot be assumed: the positive control must be designed to isolate
-the C12 signal from the inherited `Mage.Verify` red, or it must wait for #495. See
-"Remaining blockers" in the #493 handoff.
-
-This workflow is **not** a required status check and does not claim to be one.
+- **Test code is candidate code.** It runs as the sandbox account and cannot write trusted state, forge the authenticated witness, or change which bytecode runs. A test whose own source is weak (an empty body, a swallowed assertion, a method-level shrink inside a kept class) is a source-review and coverage question for C13/C16. The corpus baseline is class-level.
+- **Network egress.** Candidate build code still has the runner's network access. The job is read-only, persists no credentials and references no secret.
+- **Main-class bytecode** comes from the candidate's Maven build under an audited build definition, with annotation processing disabled.
+- **The inherited `Mage.Verify` red** (`VerifyCardDataTest`, external card-data drift) fails every candidate's positive control. It is deliberately not excluded. Which signals belong in the campaign is C13's decision (#494), and the drift is C14's (#495).
+- **Runtime.** `pull_request_target` runs the default-branch copy, so the gate cannot prove itself live on the PR that introduces it. `C12_RUNTIME` stays `UNKNOWN` until the post-merge live controls run. The workflow is **not** a required status check.
 
 `PRODUCTION_PROVIDER = NOT_SELECTED` · `ARCHITECTURE_FREEZE = NOT_CLAIMED`

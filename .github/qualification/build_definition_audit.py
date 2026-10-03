@@ -14,16 +14,24 @@ compares the test-execution fingerprint of the candidate against the
 comparison base and fails closed on any difference, so the qualification
 definition cannot be edited in the same PR that is being qualified.
 
-Scope is deliberately narrow so the audit does not become a change freeze:
-dependency versions and ordinary source edits are untouched. Only the parts that
-define *how tests are discovered, executed or interfered with after* are
-compared.
+Scope: dependency declarations and ordinary source edits are untouched. What is
+compared is everything that makes Maven execute code during the build: every
+build plugin in any lifecycle phase (an ``initialize``-bound plugin runs before
+anything else, so restricting the audit to post-test phases left a hole), core
+build extensions, profiles, the parent POM, every property the build section
+interpolates, and the ``.mvn/`` directory (``extensions.xml``, ``maven.config``,
+``jvm.config``). A build-definition change cannot be qualified in the PR that
+makes it; it needs trusted review, exactly like a CI gate-definition change.
+
+This audit is defence in depth, not the trust boundary: candidate build code
+runs as a separate OS account that cannot write trusted state (sandbox.py).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -82,6 +90,69 @@ def _children(element: ET.Element, name: str) -> list[ET.Element]:
     return [child for child in element if _localname(child.tag) == name]
 
 
+def _canonical(element: ET.Element | None) -> str:
+    """Whitespace-insensitive serialisation, so formatting is not a change."""
+    if element is None:
+        return ""
+    parts = ["<{}".format(_localname(element.tag))]
+    for key in sorted(element.attrib):
+        parts.append(" {}={!r}".format(key, element.attrib[key]))
+    parts.append(">")
+    if element.text and element.text.strip():
+        parts.append(element.text.strip())
+    for child in element:
+        if not isinstance(child.tag, str):
+            continue
+        parts.append(_canonical(child))
+        if child.tail and child.tail.strip():
+            parts.append(child.tail.strip())
+    parts.append("</{}>".format(_localname(element.tag)))
+    return "".join(parts)
+
+
+PROPERTY_REFERENCE = re.compile(r"\$\{([^}]+)\}")
+
+
+def _build_code_fingerprint(root: ET.Element) -> dict:
+    """Everything in a POM that makes Maven run code, in any lifecycle phase."""
+    plugins: dict[str, str] = {}
+    build = _child(root, "build")
+    profiles = _child(root, "profiles")
+    for scope in [e for e in (build, profiles) if e is not None]:
+        for plugin in _find_all(scope, "plugin"):
+            key = "{}:{}".format(
+                _text(_child(plugin, "groupId")) or "org.apache.maven.plugins",
+                _text(_child(plugin, "artifactId")),
+            )
+            plugins.setdefault(key, [])
+            plugins[key].append(_canonical(plugin))
+    referenced = set()
+    for scope in [e for e in (build, profiles) if e is not None]:
+        referenced.update(PROPERTY_REFERENCE.findall(_canonical(scope)))
+    properties = _child(root, "properties")
+    values = {}
+    if properties is not None:
+        for child in properties:
+            if isinstance(child.tag, str) and _localname(child.tag) in referenced:
+                values[_localname(child.tag)] = _text(child)
+    return {
+        "build_plugins": {k: sorted(v) for k, v in sorted(plugins.items())},
+        "build_extensions": _canonical(_child(build, "extensions")) if build is not None else "",
+        "profiles": _canonical(profiles),
+        "parent": _canonical(_child(root, "parent")),
+        "interpolated_build_properties": dict(sorted(values.items())),
+    }
+
+
+BUILD_CODE_KEYS = (
+    "build_plugins",
+    "build_extensions",
+    "profiles",
+    "parent",
+    "interpolated_build_properties",
+)
+
+
 def fingerprint(pom_bytes: bytes) -> dict:
     """Reduce a POM to the parts that define how tests are executed."""
     try:
@@ -135,6 +206,7 @@ def fingerprint(pom_bytes: bytes) -> dict:
 
     return {
         "unparseable": None,
+        **_build_code_fingerprint(root),
         "test_execution_properties": props,
         "build_directories": directories,
         "test_execution_plugin_configuration": test_plugins,
@@ -216,6 +288,15 @@ def _compare_pom(path: str, base_blob, candidate_blob, violations: list) -> dict
                     "candidate": candidate_fp.get(key),
                 }
             )
+    for key in BUILD_CODE_KEYS:
+        if base_fp.get(key) != candidate_fp.get(key):
+            violations.append(
+                {
+                    "path": path,
+                    "kind": "build_definition_changed",
+                    "detail": key,
+                }
+            )
     entry["verdict"] = "AUDITED"
     return entry
 
@@ -235,11 +316,27 @@ def audit_pom_pairs(pairs) -> dict:
     }
 
 
+MAVEN_CONFIG_DIR = ".mvn"
+
+
+def changed_maven_config(repo: Path, base_rev: str, candidate_rev: str) -> list[str]:
+    out = git(repo, "diff", "--name-only", base_rev, candidate_rev, "--", MAVEN_CONFIG_DIR)
+    return [line for line in out.splitlines() if line.strip()]
+
+
 def audit(repo: Path, base_rev: str, candidate_rev: str) -> dict:
     pairs = []
     for path in changed_poms(repo, base_rev, candidate_rev):
         pairs.append((path, read_blob(repo, base_rev, path), read_blob(repo, candidate_rev, path)))
     result = audit_pom_pairs(pairs)
+    config = changed_maven_config(repo, base_rev, candidate_rev)
+    result["maven_config_changes"] = config
+    for path in config:
+        # .mvn/extensions.xml loads build extensions and maven.config/jvm.config
+        # inject arguments before any POM is read: always a build-code change.
+        result["violations"].append({"path": path, "kind": "maven_config_changed", "detail": path})
+    if result["violations"]:
+        result["status"] = "VIOLATION"
     result["comparison_base_rev"] = base_rev
     result["candidate_rev"] = candidate_rev
     return result

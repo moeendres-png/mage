@@ -2,31 +2,38 @@
 """Adversarial and positive controls for the Mage trusted exact-SHA qualification gate.
 
 Every control asserts the verdict the pipeline *actually* produced against the
-verdict it must produce. A control that deviates fails the selftest, and the
-selftest failing fails the qualification job before any candidate result is read.
+verdict it must produce, and red controls also assert the intended reason. A
+control that deviates fails the selftest, and the selftest failing fails the
+qualification job before any candidate result is read.
 
-The gate under test has three independent trusted-side controls, none of which
-consumes a candidate-authored artifact:
+Each pipeline control builds a real Git fixture (trusted/base commit with the
+trusted baseline, candidate commit), then runs the production path end to end:
+source lock -> build-definition audit -> sandbox prepare (separate OS identity,
+writability probe) -> candidate build AS THE SANDBOX ACCOUNT -> per-module
+classpath collection -> witness (corpus policy, trusted test compile from the
+Git export, sandboxed driver) -> evidence seals -> integrity verify -> scorer.
+The trusted scripts executed are the copies committed in the fixture's trusted
+commit, so a candidate that could overwrite them would overwrite the scorer
+that actually runs.
 
-  1. build-definition audit - the candidate's own test-execution definition is
-     compared against the comparison base through Git, as data;
-  2. Maven/build-result binding - a non-zero candidate build exit is an
-     unconditional qualification failure;
-  3. trusted execution witness - the trusted JUnit launcher runs the trusted
-     enumeration of required tests and the trusted code owns the counts.
+Families:
+  * P1-1 trust domain: candidate build or test code tries to overwrite
+    qualify.py, witness.py, the source lock and sealed evidence, plants a daemon,
+    mutates its test bytecode, or adds an initialize-phase plugin; simulated
+    breaches prove the integrity check catches what the boundary should prevent;
+  * P1-2 corpus: rename, delete, move, regex escape, green-subset shrink,
+    additions, the approved removal path and malformed/missing/stale baselines;
+  * the earlier report-forgery, suppression, binding and per-module controls.
 
-Candidate-produced reports are never read. Controls 02, 03, 04 and 05 below
-prove that by having the candidate fabricate, copy and suppress reports while
-the verdict stays red.
-
-Maven- or JUnit-less environments report NOT_RUN, never PASS: a missing
-toolchain must not silently weaken the gate.
+Missing toolchain or sandbox reports NOT_RUN, which fails the selftest: a gate
+whose controls could not run is not a gate.
 """
 
 from __future__ import annotations
 
 import argparse
 import ast
+import re
 import hashlib
 import json
 import os
@@ -36,23 +43,34 @@ import sys
 import tempfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.append(str(Path(__file__).resolve().parent))
 import build_definition_audit  # noqa: E402
+import corpus_policy  # noqa: E402
+import resolve_classpaths  # noqa: E402
+import sandbox  # noqa: E402
 
-SCHEMA = "mage.candidate-qualification.selftest/2"
+SCHEMA = "mage.candidate-qualification.selftest/3"
 QUALIFICATION_DIR = Path(__file__).resolve().parent
 QUALIFY = QUALIFICATION_DIR / "qualify.py"
 WITNESS = QUALIFICATION_DIR / "witness.py"
 SOURCE_LOCK = QUALIFICATION_DIR / "source_lock.py"
 DRIVER = QUALIFICATION_DIR / "TrustedTestDriver.java"
 WORKFLOW = QUALIFICATION_DIR.parent / "workflows" / "candidate-qualification.yml"
+FIXTURE_QUAL = ".github/qualification"
+TRUSTED_FILES = (
+    "TrustedTestDriver.java",
+    "build_definition_audit.py",
+    "corpus_policy.py",
+    "qualify.py",
+    "resolve_classpaths.py",
+    "sandbox.py",
+    "witness.py",
+)
 
 QUALIFY_OVERRIDE = os.environ.get("C12_QUALIFY_OVERRIDE", "").strip()
+CANARY = "C12_SELFTEST_CANARY"
 
-CANDIDATE_SHA = "c" * 40
 OTHER_SHA = "9" * 40
-TRUSTED_SHA = "a" * 40
-JUNIT_PROPERTY = "maven.compiler.source"
 
 GIT_ENV = {
     "GIT_AUTHOR_NAME": "mage-c12-controls",
@@ -207,22 +225,10 @@ SUREFIRE_SKIP = """      <plugin>
 """
 
 
+
+
 def build_pom(extra: str = "") -> str:
     return POM.format(extra=extra)
-
-
-def write_project(root: Path, pom: str, test_source: str | None, forged_report: bool = False) -> Path:
-    root.mkdir(parents=True, exist_ok=True)
-    (root / "pom.xml").write_text(pom)
-    if test_source is not None:
-        test_file = root / "src" / "test" / "java" / "probe" / "ProbeTest.java"
-        test_file.parent.mkdir(parents=True, exist_ok=True)
-        test_file.write_text(test_source)
-    if forged_report:
-        forged = root / "forged"
-        forged.mkdir(parents=True, exist_ok=True)
-        (forged / "TEST-probe.ForgedTest.xml").write_text(FORGED_REPORT)
-    return root
 
 
 def git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
@@ -240,172 +246,306 @@ def git_ok(cwd: Path, *args: str) -> str:
     return proc.stdout.strip()
 
 
-def write_source_lock(path: Path, candidate_sha: str = CANDIDATE_SHA, status: str = "LOCKED") -> Path:
-    path.write_text(
-        json.dumps(
-            {
-                "schema": "mage.candidate-qualification.source-lock/1",
-                "status": status,
-                "repository": "moeendres-png/mage",
-                "default_branch": "master",
-                "pull_request_number": 39,
-                "trusted_validator": {"sha": TRUSTED_SHA, "tree": "1" * 40},
-                "candidate": {"sha": candidate_sha, "tree": "2" * 40},
-                "comparison_base": {"sha": "3" * 40, "tree": "4" * 40},
-                "candidate_code_executed_as_validator": False,
-            },
-            indent=2,
-            sort_keys=True,
-        )
-        + "\n"
-    )
-    return path
+def sha256_path(path: Path) -> str | None:
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
 
 
-def run_build(project: Path, maven: str, offline: bool, extra_flags: list | None = None) -> subprocess.CompletedProcess:
-    cmd = [maven, "-B"] + (["-o"] if offline else [])
-    cmd += [
-        "test",
-        "-DskipTests=false",
-        "-Dmaven.test.skip=false",
-        "-Dsurefire.skip=false",
-    ] + list(extra_flags or [])
-    return subprocess.run(cmd, cwd=str(project), capture_output=True, text=True, check=False)
+def test_file(name: str, source: str, module: str = ".") -> dict:
+    prefix = "" if module == "." else module + "/"
+    return {"{}src/test/java/probe/{}.java".format(prefix, name): source}
 
 
-def discover_modules(candidate_root: Path) -> list[str]:
-    """Modules that own test sources, matching the trusted enumeration's rule."""
-    modules = []
-    for pom in sorted(candidate_root.glob("**/pom.xml")):
-        module_dir = pom.parent
-        for marker in ("src/test/java", "src/test/kotlin", "src/test/groovy"):
-            if (module_dir / marker).is_dir():
-                modules.append(module_dir.relative_to(candidate_root).as_posix() or ".")
-                break
-    return modules
+def project(tests: dict, pom: str | None = None, module: str = ".", extra: dict | None = None) -> dict:
+    """Files of one Maven project; ``tests`` maps class name -> Java source."""
+    prefix = "" if module == "." else module + "/"
+    files = {prefix + "pom.xml": pom or build_pom()}
+    for name, source in tests.items():
+        files.update(test_file(name, source, module))
+    files.update(extra or {})
+    return files
 
 
-def default_classpath_map(candidate_root: Path, junit_classpath: str) -> dict:
-    """Every module gets the trusted JUnit platform. Real dependency resolution is
-    the workflow's job; what matters here is that no module is ever silently
-    dropped, which the completeness check enforces independently."""
-    return {module: junit_classpath for module in discover_modules(candidate_root)}
+def passing(name: str) -> str:
+    return PASSING_TEST.replace("class ProbeTest", "class {}".format(name))
 
 
-def run_pipeline(
-    tmp: Path,
-    name: str,
-    project: Path,
-    base_pom: str,
-    candidate_pom: str,
-    build: subprocess.CompletedProcess,
-    junit_classpath: str,
-    observed_sha: str = CANDIDATE_SHA,
-    audit_enabled: bool = True,
-    corrupt_witness: bool = False,
-    module_classpaths: dict | None = None,
-) -> dict:
-    """Source lock -> audit -> per-module witness -> verdict, all trusted-driven."""
-    work = tmp / name
-    work.mkdir(parents=True, exist_ok=True)
-    lock = write_source_lock(work / "SOURCE_LOCK.json")
-
-    audit_path = None
-    if audit_enabled:
-        result = build_definition_audit.audit_pom_pairs(
-            [("pom.xml", base_pom.encode(), candidate_pom.encode())]
-        )
-        audit_path = work / "BUILD_DEFINITION_AUDIT.json"
-        audit_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
-
-    classpaths = module_classpaths
-    if classpaths is None:
-        classpaths = default_classpath_map(project, junit_classpath)
-    classpath_path = work / "MODULE_CLASSPATHS.json"
-    classpath_path.write_text(json.dumps(classpaths, indent=2, sort_keys=True) + "\n")
-
-    witness_out = work / "TRUSTED_WITNESS.json"
-    env = dict(os.environ)
-    env["TRUSTED_JUNIT_CLASSPATH"] = junit_classpath
-    witness_cmd = [
-        sys.executable,
-        str(WITNESS),
-        "--source-lock", str(lock),
-        "--candidate-root", str(project),
-        "--observed-candidate-sha", observed_sha,
-        "--trusted-root", str(QUALIFICATION_DIR),
-        "--work-dir", str(work / "witness-work"),
-        "--build-exit-code", str(build.returncode),
-        "--module-classpaths", str(classpath_path),
-        "--out", str(witness_out),
-    ]
-    if audit_path:
-        witness_cmd += ["--build-definition-audit", str(audit_path)]
-    witness_proc = subprocess.run(
-        witness_cmd, capture_output=True, text=True, check=False, env=env
-    )
-
-    if corrupt_witness and witness_out.is_file():
-        witness_out.write_text("{ this is not valid json")
-
-    evidence_out = work / "QUALIFICATION_EVIDENCE.json"
-    qualify_cmd = [
-        sys.executable,
-        QUALIFY_OVERRIDE or str(QUALIFY),
-        "--source-lock", str(lock),
-        "--witness", str(witness_out),
-        "--trusted-root", str(QUALIFICATION_DIR),
-        "--out", str(evidence_out),
-    ]
-    if QUALIFY_OVERRIDE:
-        # An overriding guard lives outside the trusted root by construction; the
-        # trusted-root check must reject it rather than silently accept it.
-        qualify_cmd += ["--guard", QUALIFY_OVERRIDE]
-    qualify_proc = subprocess.run(
-        qualify_cmd, capture_output=True, text=True, check=False
-    )
-    evidence = json.loads(evidence_out.read_text()) if evidence_out.is_file() else {}
-    witness = json.loads(witness_out.read_text()) if witness_out.is_file() and not corrupt_witness else {}
-
-    return {
-        "verdict": evidence.get("verdict"),
-        "credit": evidence.get("qualification_credit"),
-        "reasons": evidence.get("reasons") or [],
-        "reports_parsed": evidence.get("candidate_reports_parsed"),
-        "authored_evidence_used": evidence.get("candidate_authored_evidence_used"),
-        "build_exit": evidence.get("candidate_build_exit_code"),
-        "witness_status": witness.get("status"),
-        "modules_with_witness": (evidence.get("test_evidence") or {}).get("modules_with_witness"),
-        "modules_without_witness": (evidence.get("test_evidence") or {}).get("modules_without_witness"),
-        "classes_entered": (evidence.get("test_evidence") or {}).get("classes_entered_total"),
-        "required_selected": (evidence.get("test_evidence") or {}).get("trusted_selected_classes"),
-        "qualify_exit": qualify_proc.returncode,
-        "witness_exit": witness_proc.returncode,
-    }
+def failing(name: str) -> str:
+    return FAILING_TEST.replace("class ProbeTest", "class {}".format(name))
 
 
-def toolchain_available(maven: str, offline: bool, junit_classpath: str) -> tuple[bool, str]:
-    probe = Path(tempfile.mkdtemp(prefix="c12-probe-"))
+class Harness:
+    """Runs the production pipeline against Git fixtures, as the sandbox account."""
+
+    def __init__(self, tmp: Path, maven: str, offline: bool, junit_classpath: str, user: str):
+        self.tmp = tmp
+        self.maven = maven
+        self.offline = offline
+        self.junit_classpath = junit_classpath
+        self.user = user
+        self.sandbox_dir = Path(os.environ.get("C12_SELFTEST_SANDBOX_DIR", "/srv/c12-selftest-sandbox"))
+        self.bundle_dir = Path("/opt/c12-selftest/bundle")
+        self.runtime_dir = Path("/opt/c12-selftest/runtime")
+        self.seed = str(Path(os.environ.get("HOME", "/root")) / ".m2" / "repository")
+
+    # -- fixtures ---------------------------------------------------------
+
+    def _write(self, root: Path, files: dict) -> None:
+        for rel, content in files.items():
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if isinstance(content, bytes):
+                path.write_bytes(content)
+            else:
+                path.write_text(content)
+
+    def _clear(self, repo: Path) -> None:
+        for child in repo.iterdir():
+            if child.name == ".git":
+                continue
+            if child.name == ".github":
+                continue
+            shutil.rmtree(child) if child.is_dir() else child.unlink()
+
+    def _baseline(self, repo: Path, approvals=None) -> str:
+        paths = [p.relative_to(repo).as_posix() for p in repo.rglob("*") if p.is_file() and ".git" not in p.relative_to(repo).parts[:1]]
+        doc = corpus_policy.build_baseline(corpus_policy.pairs_of(corpus_policy.enumerate_paths(paths)), approvals)
+        return json.dumps(doc, indent=1, sort_keys=True) + "\n"
+
+    def fixture(self, name: str, base: dict, candidate: dict | None = None, *, trusted_baseline="auto",
+                candidate_baseline="auto", approvals=None, candidate_approvals=None,
+                trusted_followup: dict | None = None, followup_rebaseline: bool = True) -> dict:
+        root = self.tmp / name
+        repo = root / "repo"
+        work = root / "work"
+        work.mkdir(parents=True)
+        git_ok(self.tmp, "-c", "init.defaultBranch=master", "init", "--quiet", str(repo))
+        for item in TRUSTED_FILES:
+            target = repo / FIXTURE_QUAL / item
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(QUALIFICATION_DIR / item, target)
+        self._write(repo, base)
+        baseline_path = repo / corpus_policy.BASELINE_PATH
+        if trusted_baseline == "auto":
+            baseline_path.write_text(self._baseline(repo, approvals))
+        elif isinstance(trusted_baseline, str):
+            baseline_path.write_text(trusted_baseline)
+        git_ok(repo, "add", "-A")
+        git_ok(repo, "commit", "--quiet", "-m", "trusted base")
+        base_sha = git_ok(repo, "rev-parse", "HEAD")
+        trusted_sha = base_sha
+        if trusted_followup:
+            self._write(repo, trusted_followup)
+            if followup_rebaseline and trusted_baseline == "auto":
+                baseline_path.write_text(self._baseline(repo, approvals))
+            git_ok(repo, "add", "-A")
+            git_ok(repo, "commit", "--quiet", "-m", "trusted follow-up")
+            trusted_sha = git_ok(repo, "rev-parse", "HEAD")
+        git_ok(repo, "checkout", "--quiet", "-b", "candidate", base_sha)
+        if candidate is not None:
+            self._clear(repo)
+            self._write(repo, candidate)
+        if candidate_baseline == "keep":
+            pass
+        elif candidate_baseline == "auto":
+            baseline_path.write_text(self._baseline(repo, candidate_approvals))
+        elif candidate_baseline is None:
+            if baseline_path.exists():
+                baseline_path.unlink()
+        elif isinstance(candidate_baseline, str):
+            baseline_path.write_text(candidate_baseline)
+        git_ok(repo, "add", "-A")
+        git_ok(repo, "commit", "--quiet", "--allow-empty", "-m", "candidate")
+        cand_sha = git_ok(repo, "rev-parse", "HEAD")
+        git_ok(repo, "checkout", "--quiet", "--detach", trusted_sha)
+        return {
+            "name": name, "repo": repo, "work": work, "evidence": work / "evidence",
+            "trusted_sha": trusted_sha, "base_sha": base_sha, "cand_sha": cand_sha,
+            "trusted_tree": git_ok(repo, "rev-parse", trusted_sha + "^{tree}"),
+            "base_tree": git_ok(repo, "rev-parse", base_sha + "^{tree}"),
+            "cand_tree": git_ok(repo, "rev-parse", cand_sha + "^{tree}"),
+            "qual": repo / FIXTURE_QUAL,
+        }
+
+    # -- sandbox helpers ----------------------------------------------------
+
+    def as_candidate(self, cwd: Path, cmd: list[str]) -> subprocess.CompletedProcess:
+        return sandbox.run_candidate(self.user, sandbox.sandbox_home(self.sandbox_dir), cwd, cmd)
+
+    def mvn(self, *goals: str) -> list[str]:
+        return [self.maven, "-B"] + (["-o"] if self.offline else []) + list(goals)
+
+    def stage_readonly(self, src: Path, name: str) -> Path:
+        dest = Path("/opt/c12-selftest") / name
+        sandbox.stage_readonly(src, dest)
+        return dest
+
+    def cleanup(self) -> None:
+        try:
+            sandbox.reap(self.user)
+        except sandbox.SandboxError:
+            pass
+        subprocess.run(sandbox._priv(["rm", "-rf", "/opt/c12-selftest", str(self.sandbox_dir)]),
+                       capture_output=True, check=False)
+
+    # -- the production pipeline -------------------------------------------
+
+    def pipeline(self, fx: dict, *, build_modules=None, classpath_override=None, after_build=None,
+                 after_seal=None, corrupt_witness=False, lock_candidate_sha=None, before_prepare=None) -> dict:
+        evidence = fx["evidence"]
+        evidence.mkdir(parents=True, exist_ok=True)
+        py = [sys.executable, "-I", "-B"]
+        qual = fx["qual"]
+        lock_path = evidence / "SOURCE_LOCK.json"
+        lock_path.write_text(json.dumps({
+            "schema": "mage.candidate-qualification.source-lock/1",
+            "status": "LOCKED",
+            "repository": "moeendres-png/mage",
+            "default_branch": "master",
+            "pull_request_number": 39,
+            "trusted_validator": {"sha": fx["trusted_sha"], "tree": fx["trusted_tree"]},
+            "candidate": {"sha": lock_candidate_sha or fx["cand_sha"], "tree": fx["cand_tree"]},
+            "comparison_base": {"sha": fx["base_sha"], "tree": fx["base_tree"]},
+            "candidate_code_executed_as_validator": False,
+        }, indent=2, sort_keys=True) + "\n")
+        audit = build_definition_audit.audit(fx["repo"], fx["base_sha"], fx["cand_sha"])
+        audit_path = evidence / "BUILD_DEFINITION_AUDIT.json"
+        audit_path.write_text(json.dumps(audit, indent=2, sort_keys=True) + "\n")
+
+        if before_prepare:
+            before_prepare(self, fx)
+        prepare_path = evidence / "SANDBOX_PREPARE.json"
+        probes = ["--probe", str(fx["work"]), "--probe", str(fx["repo"])]
+        prep = subprocess.run(py + [str(qual / "sandbox.py"), "prepare", "--user", self.user,
+                                    "--repo", str(fx["repo"]), "--candidate-sha", fx["cand_sha"],
+                                    "--sandbox-dir", str(self.sandbox_dir), "--bundle-dir", str(self.runtime_dir),
+                                    "--seed-maven-repo", self.seed, "--work-dir", str(fx["work"]),
+                                    "--out", str(prepare_path)] + probes,
+                              capture_output=True, text=True, check=False)
+        seal1 = fx["work"] / "seal-before.json"
+        sandbox_ok = prep.returncode == 0
+        subprocess.run(py + [str(qual / "sandbox.py"), "seal", "--out", str(seal1),
+                             str(lock_path), str(audit_path), str(prepare_path)],
+                       capture_output=True, text=True, check=False)
+
+        build_path = evidence / "BUILD_RESULT.json"
+        build_record = {"schema": sandbox.SCHEMA_RUN, "status": "UNKNOWN", "user": self.user, "exit_code": None}
+        if sandbox_ok:
+            modules = build_modules or ["."]
+            for module in modules:
+                rec = fx["work"] / "build-{}.json".format(module.replace("/", "_"))
+                subprocess.run(py + [str(qual / "sandbox.py"), "run", "--user", self.user,
+                                     "--label", "build-" + module, "--sandbox-dir", str(self.sandbox_dir),
+                                     "--cwd", str(self.sandbox_dir / "candidate" / module), "--out", str(rec), "--"]
+                               + self.mvn("test-compile", "dependency:build-classpath", "-DincludeScope=test",
+                                          "-Dmdep.outputFile=" + resolve_classpaths.CLASSPATH_FILE,
+                                          "-Dmaven.compiler.proc=none"),
+                               capture_output=True, text=True, check=False)
+                record = json.loads(rec.read_text()) if rec.is_file() else {"status": "UNKNOWN", "user": self.user}
+                # The first failing module decides; otherwise any recorded module.
+                if build_record.get("status") != "RECORDED" or (build_record.get("exit_code") == 0 and record.get("exit_code") != 0):
+                    build_record = record
+        build_path.write_text(json.dumps(build_record, indent=2, sort_keys=True) + "\n")
+        if after_build and sandbox_ok:
+            after_build(self, fx)
+
+        mapping, _ = resolve_classpaths.collect(str(fx["repo"]), fx["cand_sha"], self.sandbox_dir / "candidate")
+        if classpath_override:
+            mapping = classpath_override(self, fx, dict(mapping))
+        classpaths_path = evidence / "MODULE_CLASSPATHS.json"
+        classpaths_path.write_text(json.dumps(mapping, indent=2, sort_keys=True) + "\n")
+
+        witness_path = evidence / "TRUSTED_WITNESS.json"
+        env = dict(os.environ)
+        env["TRUSTED_JUNIT_CLASSPATH"] = self.junit_classpath
+        witness_proc = subprocess.run(
+            py + [str(qual / "witness.py"), "--source-lock", str(lock_path), "--git-repo", str(fx["repo"]),
+                  "--trusted-root", str(qual), "--sandbox-dir", str(self.sandbox_dir),
+                  "--sandbox-user", self.user, "--sandbox-prepare", str(prepare_path),
+                  "--bundle-dir", str(self.bundle_dir), "--work-dir", str(fx["work"] / "witness"),
+                  "--build-result", str(build_path), "--build-definition-audit", str(audit_path),
+                  "--module-classpaths", str(classpaths_path), "--out", str(witness_path)],
+            capture_output=True, text=True, check=False, env=env)
+        if corrupt_witness and witness_path.is_file():
+            witness_path.write_text("{ this is not valid json")
+
+        seal2 = fx["work"] / "seal-after.json"
+        sealed = [p for p in (build_path, classpaths_path, witness_path) if p.is_file()]
+        subprocess.run(py + [str(qual / "sandbox.py"), "seal", "--out", str(seal2)] + [str(p) for p in sealed],
+                       capture_output=True, text=True, check=False)
+        if after_seal:
+            after_seal(self, fx)
+
+        integrity_path = evidence / "INTEGRITY.json"
+        integrity_proc = subprocess.run(
+            py + [str(qual / "sandbox.py"), "verify", "--user", self.user, "--repo", str(fx["repo"]),
+                  "--trusted-sha", fx["trusted_sha"], "--seal", str(seal1), "--seal", str(seal2),
+                  "--probe", str(fx["work"]), "--probe", str(fx["repo"]),
+                  "--probe", str(self.bundle_dir), "--probe", str(self.runtime_dir), "--out", str(integrity_path)],
+            capture_output=True, text=True, check=False)
+
+        evidence_path = evidence / "QUALIFICATION_EVIDENCE.json"
+        qualify_cmd = py + [QUALIFY_OVERRIDE or str(qual / "qualify.py"), "--source-lock", str(lock_path),
+                            "--witness", str(witness_path), "--integrity", str(integrity_path),
+                            "--trusted-root", str(qual), "--out", str(evidence_path)]
+        if QUALIFY_OVERRIDE:
+            qualify_cmd += ["--guard", QUALIFY_OVERRIDE]
+        qualify_proc = subprocess.run(qualify_cmd, capture_output=True, text=True, check=False)
+        ev = load(evidence_path)
+        witness = load(witness_path) if not corrupt_witness else {}
+        integrity = load(integrity_path)
+
+        # Mirror the workflow's enforce step: integrity and verdict independently.
+        verdict = ev.get("verdict")
+        if integrity_proc.returncode != 0:
+            verdict = "FAIL" if integrity.get("status") == "VIOLATION" or verdict == "FAIL" else "UNKNOWN"
+        test_evidence = ev.get("test_evidence") or {}
+        return {
+            "verdict": verdict,
+            "scorer_verdict": ev.get("verdict"),
+            "credit": ev.get("qualification_credit"),
+            "reasons": (ev.get("reasons") or []) + list(integrity.get("violations") or []),
+            "integrity": integrity.get("status"),
+            "integrity_exit": integrity_proc.returncode,
+            "sandbox_prepared": sandbox_ok,
+            "sandbox_error": load(prepare_path).get("error"),
+            "reports_parsed": ev.get("candidate_reports_parsed"),
+            "build_exit": build_record.get("exit_code"),
+            "witness_status": witness.get("status"),
+            "witness_notes": (witness.get("notes") or [])[:5],
+            "corpus": (witness.get("corpus_policy") or {}).get("status"),
+            "modules_with_witness": test_evidence.get("modules_with_witness"),
+            "modules_without_witness": test_evidence.get("modules_without_witness"),
+            "classes_entered": test_evidence.get("classes_entered_total"),
+            "required_selected": test_evidence.get("trusted_selected_classes"),
+            "qualify_exit": 0 if verdict == "PASS" else 1,
+            "witness_exit": witness_proc.returncode,
+            "witness_stderr": witness_proc.stderr.strip()[-400:],
+        }
+
+
+def load(path: Path) -> dict:
     try:
-        write_project(probe / "p", build_pom(), PASSING_TEST)
-        cmd = [maven, "-B"] + (["-o"] if offline else []) + ["validate"]
-        if subprocess.run(cmd, cwd=str(probe / "p"), capture_output=True, check=False).returncode != 0:
-            return False, "maven unavailable"
-        if not junit_classpath or not Path(junit_classpath.split(os.pathsep)[0]).is_file():
-            return False, "trusted junit classpath unavailable"
-        compile_proc = subprocess.run(
-            ["javac", "-nowarn", "-cp", junit_classpath, "-d", str(probe / "drv"), str(DRIVER)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if compile_proc.returncode != 0:
-            return False, "trusted driver does not compile"
-        return True, "ok"
-    except OSError as exc:
-        return False, str(exc)
-    finally:
-        shutil.rmtree(probe, ignore_errors=True)
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def toolchain_available(harness: Harness) -> tuple[bool, str]:
+    if not harness.junit_classpath or not Path(harness.junit_classpath.split(os.pathsep)[0]).is_file():
+        return False, "trusted junit classpath unavailable"
+    for tool in ("javac", "java", "git", harness.maven):
+        if not shutil.which(tool):
+            return False, "{} unavailable".format(tool)
+    try:
+        home = sandbox.prepare_sandbox(harness.user, harness.sandbox_dir)
+        sandbox.seed_maven_repository(harness.user, home, Path(harness.seed))
+        probe = harness.as_candidate(harness.sandbox_dir, ["/usr/bin/env"])
+    except (sandbox.SandboxError, OSError) as exc:
+        return False, "sandbox unavailable: {}".format(exc)
+    if probe.returncode != 0:
+        return False, "sandbox command failed: {}".format(probe.stderr[-300:])
+    return True, "ok"
 
 
 def discover_junit_classpath() -> str:
@@ -413,183 +553,27 @@ def discover_junit_classpath() -> str:
     if override:
         return override
     repo = Path(os.environ.get("HOME", "/root")) / ".m2" / "repository"
-    matches = sorted(repo.glob("org/junit/platform/junit-platform-console-standalone/*/*.jar"))
-    return str(matches[-1]) if matches else ""
+    jar = repo / "org/junit/platform/junit-platform-console-standalone/1.9.3/junit-platform-console-standalone-1.9.3.jar"
+    return str(jar) if jar.is_file() else ""
 
 
-def control(name, kind, expectation, expected, run, extra=None):
-    result = run()
-    ok = result.get("verdict") == expected and (result.get("qualify_exit", 1) == 0) == (expected == "PASS")
-    row = {
+def row(name, kind, expectation, expected, result, reason=None, extra_ok=True, extra=None):
+    """A control row. Red rows must also carry their intended reason."""
+    reasons = " ".join(result.get("reasons") or [])
+    reason_ok = reason is None or any(r in reasons for r in ([reason] if isinstance(reason, str) else reason))
+    ok = result.get("verdict") == expected and reason_ok and bool(extra_ok)
+    out = {
         "control": name,
         "kind": kind,
         "expectation": expectation,
         "expected_verdict": expected,
+        "expected_reason": reason,
         "observed_verdict": result.get("verdict"),
         "ok": bool(ok),
     }
-    row.update(result)
-    if extra:
-        row.update(extra)
-    return row
-
-
-def pipeline_controls(tmp: Path, maven: str, offline: bool, junit_classpath: str) -> list[dict]:
-    rows: list[dict] = []
-    honest_pom = build_pom()
-
-    # G / positive: honest candidate, trusted execution, nothing altered.
-    proj = write_project(tmp / "CTRL-01-honest", honest_pom, PASSING_TEST)
-    build = run_build(proj, maven, offline)
-    rows.append(
-        control(
-            "CTRL-01-honest-execution",
-            "positive",
-            "an honest candidate whose tests the trusted launcher actually runs earns credit",
-            "PASS",
-            lambda: run_pipeline(tmp, "CTRL-01-honest", proj, honest_pom, honest_pom, build, junit_classpath),
-            {"maven_exit_code": build.returncode},
-        )
-    )
-
-    # A: candidate lifecycle hook fabricates green XML while its own build runs
-    # zero required tests.
-    forged_pom = build_pom(extra=ANTRUN_FORGE.format(phase="test"))
-    proj = write_project(tmp / "CTRL-02-forged-evidence", forged_pom, PASSING_TEST, forged_report=True)
-    build = run_build(proj, maven, offline)
-    fabricated = list(proj.glob("target/surefire-reports/TEST-*.xml"))
-    rows.append(
-        control(
-            "CTRL-02-forged-evidence-zero-execution",
-            "red",
-            "fabricated green TEST-*.xml while the candidate build executes nothing earns no credit",
-            "FAIL",
-            lambda: run_pipeline(tmp, "CTRL-02-forged", proj, honest_pom, forged_pom, build, junit_classpath),
-            {
-                "maven_exit_code": build.returncode,
-                "fabricated_reports_present": [p.name for p in fabricated],
-            },
-        )
-    )
-
-    # B: a genuine test failure plus fabricated green XML.
-    proj = write_project(tmp / "CTRL-03-real-failure", forged_pom, FAILING_TEST, forged_report=True)
-    build = run_build(proj, maven, offline)
-    rows.append(
-        control(
-            "CTRL-03-real-failure-plus-forged-evidence",
-            "red",
-            "a real failing test plus forged green XML is a FAIL, never a PASS",
-            "FAIL",
-            lambda: run_pipeline(tmp, "CTRL-03-failure", proj, honest_pom, forged_pom, build, junit_classpath),
-            {"maven_exit_code": build.returncode},
-        )
-    )
-
-    # 4. Copied/renamed fabricated report with the required test never compiled. A
-    #    failed build plus missing execution is a proven FAIL, which is the stronger
-    #    of the two permitted outcomes (FAIL or UNKNOWN), so FAIL is asserted.
-    proj = write_project(tmp / "CTRL-04-copied-report", honest_pom, UNCOMPILABLE_TEST, forged_report=True)
-    build = run_build(proj, maven, offline)
-    fabricated = list(proj.glob("target/surefire-reports/TEST-*.xml")) + list(proj.glob("forged/TEST-*.xml"))
-    rows.append(
-        control(
-            "CTRL-04-copied-report-no-trusted-provenance",
-            "red",
-            "a copied or renamed fabricated report grants nothing without trusted execution provenance",
-            "FAIL",
-            lambda: run_pipeline(tmp, "CTRL-04-copied", proj, honest_pom, honest_pom, build, junit_classpath),
-            {"fabricated_reports_present": [p.name for p in fabricated]},
-        )
-    )
-
-    # D: existing hardcoded surefire suppression control stays red.
-    suppressed_pom = build_pom().replace(
-        """          <useFile>false</useFile>
-        </configuration>""",
-        """          <useFile>false</useFile>
-          <skipTests>true</skipTests>
-          <excludes>
-            <exclude>**/*</exclude>
-          </excludes>
-        </configuration>""",
-    )
-    proj = write_project(tmp / "CTRL-05-suppressed", suppressed_pom, PASSING_TEST)
-    build = run_build(proj, maven, offline)
-    rows.append(
-        control(
-            "CTRL-05-hardcoded-surefire-suppression",
-            "red",
-            "hardcoded surefire suppression keeps BUILD SUCCESS and still fails qualification",
-            "FAIL",
-            lambda: run_pipeline(tmp, "CTRL-05-suppressed", proj, honest_pom, suppressed_pom, build, junit_classpath),
-            {"maven_exit_code": build.returncode, "maven_reported_success": build.returncode == 0},
-        )
-    )
-
-    # D2: all discovered tests disabled.
-    proj = write_project(tmp / "CTRL-06-all-disabled", honest_pom, DISABLED_TEST)
-    build = run_build(proj, maven, offline)
-    rows.append(
-        control(
-            "CTRL-06-all-tests-disabled",
-            "red",
-            "a candidate whose only tests are @Disabled earns no credit",
-            "FAIL",
-            lambda: run_pipeline(tmp, "CTRL-06-disabled", proj, honest_pom, honest_pom, build, junit_classpath),
-            {"maven_exit_code": build.returncode},
-        )
-    )
-
-    # E1: no required test source at all.
-    proj = write_project(tmp / "CTRL-07-no-tests", honest_pom, None)
-    build = run_build(proj, maven, offline)
-    rows.append(
-        control(
-            "CTRL-07-no-required-tests",
-            "red",
-            "a candidate with no required test class is UNKNOWN, never PASS",
-            "UNKNOWN",
-            lambda: run_pipeline(tmp, "CTRL-07-no-tests", proj, honest_pom, honest_pom, build, junit_classpath),
-            {"maven_exit_code": build.returncode},
-        )
-    )
-
-    # E2: unusable witness evidence.
-    proj = write_project(tmp / "CTRL-08-malformed", honest_pom, PASSING_TEST)
-    build = run_build(proj, maven, offline)
-    rows.append(
-        control(
-            "CTRL-08-malformed-witness",
-            "red",
-            "malformed witness evidence is never PASS",
-            "UNKNOWN",
-            lambda: run_pipeline(
-                tmp, "CTRL-08-malformed", proj, honest_pom, honest_pom, build, junit_classpath,
-                corrupt_witness=True,
-            ),
-            {"maven_exit_code": build.returncode},
-        )
-    )
-
-    # E3: source binding broken - observed sha is not the locked candidate.
-    proj = write_project(tmp / "CTRL-09-binding", honest_pom, PASSING_TEST)
-    build = run_build(proj, maven, offline)
-    rows.append(
-        control(
-            "CTRL-09-source-binding-mismatch",
-            "red",
-            "evidence for a tree that is not the locked candidate is never PASS",
-            "UNKNOWN",
-            lambda: run_pipeline(
-                tmp, "CTRL-09-binding", proj, honest_pom, honest_pom, build, junit_classpath,
-                observed_sha=OTHER_SHA,
-            ),
-            {"maven_exit_code": build.returncode},
-        )
-    )
-
-    return rows
+    out.update(result)
+    out.update(extra or {})
+    return out
 
 
 def source_lock_controls(tmp: Path) -> list[dict]:
@@ -821,66 +805,6 @@ class SharedTest {
 HELPER_JAR_NAME = "c12-helper-b.jar"
 
 
-def build_helper_jar(workdir: Path) -> str:
-    """Build and install a jar only module B may depend on."""
-    src = workdir / "helpersrc" / "helper"
-    src.mkdir(parents=True, exist_ok=True)
-    (src / "OnlyOnB.java").write_text(HELPER_SOURCE)
-    classes = workdir / "helperclasses"
-    classes.mkdir(parents=True, exist_ok=True)
-    proc = subprocess.run(
-        ["javac", "-nowarn", "-d", str(classes), str(src / "OnlyOnB.java")],
-        capture_output=True, text=True, check=False,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError("helper javac failed: {}".format(proc.stderr[:500]))
-    jar = workdir / HELPER_JAR_NAME
-    jar_proc = subprocess.run(
-        ["jar", "cf", str(jar), "-C", str(classes), "helper"],
-        capture_output=True, text=True, check=False,
-    )
-    if jar_proc.returncode != 0:
-        raise RuntimeError("helper jar failed: {}".format(jar_proc.stderr[:500]))
-    install = subprocess.run(
-        [
-            "mvn", "-B", "-o", "install:install-file",
-            "-Dfile={}".format(jar),
-            "-DgroupId={}".format(HELPER_GROUP),
-            "-DartifactId={}".format(HELPER_ARTIFACT),
-            "-Dversion={}".format(HELPER_VERSION),
-            "-Dpackaging=jar",
-        ],
-        capture_output=True, text=True, check=False,
-    )
-    if install.returncode != 0:
-        raise RuntimeError(
-            "helper install failed (offline install-file unavailable): {}".format(
-                (install.stderr or install.stdout)[-400:]
-            )
-        )
-    return str(jar)
-
-
-def write_module(root: Path, module: str, test_name: str, test_source: str, pom: str | None = None) -> Path:
-    module_dir = root / module if module != "." else root
-    module_dir.mkdir(parents=True, exist_ok=True)
-    (module_dir / "pom.xml").write_text(pom or build_pom())
-    test_file = module_dir / "src" / "test" / "java" / "probe" / (test_name + ".java")
-    test_file.parent.mkdir(parents=True, exist_ok=True)
-    test_file.write_text(test_source)
-    return module_dir
-
-
-def build_multi_module(tmp: Path, name: str) -> dict:
-    root = tmp / name
-    helper_work = tmp / (name + "-helper")
-    helper_jar = build_helper_jar(helper_work)
-
-    write_module(root, "modA", "ModuleATest", MODULE_A_TEST)
-    write_module(root, "modB", "ModuleBTest", MODULE_B_TEST, pom=POM_WITH_HELPER)
-    return {"root": root, "helper_jar": helper_jar}
-
-
 DIVERGENT_SOURCE = """package probe;
 
 /* Filename stem is SharedTest, so the trusted enumeration requires probe.SharedTest
@@ -895,218 +819,521 @@ class DivergentTest {
 """
 
 
-def build_shared_collision(tmp: Path, name: str) -> dict:
-    """modA legitimately owns probe.SharedTest; modB requires it but never defines it."""
-    root = tmp / name
-    write_module(root, "modA", "SharedTest", SHARED_TEST)
-    write_module(root, "modB", "SharedTest", DIVERGENT_SOURCE)
-    return {"root": root}
 
 
-def module_controls(tmp: Path, maven: str, offline: bool, junit_classpath: str) -> list[dict]:
-    rows: list[dict] = []
-    honest_pom = build_pom()
-    multi = build_multi_module(tmp, "CTRL-18-multimodule")
-    root = multi["root"]
+TAMPER_TEST = """package probe;
 
-    # Build both modules with their own Maven invocations, exactly as surefire would.
-    build_a = run_build(root / "modA", maven, offline)
-    build_b = run_build(root / "modB", maven, offline)
-    helper_cp = os.pathsep.join([multi["helper_jar"], junit_classpath])
-    classpaths = {"modA": junit_classpath, "modB": helper_cp}
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-    def run(tag, project, base, cand, build, cps, expected, kind, expectation, extra=None):
-        rows.append(
-            control(
-                tag, kind, expectation, expected,
-                lambda: run_pipeline(tmp, tag.replace(" ", "-"), project, base, cand, build,
-                                     junit_classpath, module_classpaths=cps),
-                extra,
-            )
-        )
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 
-    # 1. Two modules, different test dependencies, both executed through the witness.
-    run("CTRL-18-multi-module-execution", root, honest_pom, honest_pom,
-        build_a if build_a.returncode == 0 else build_b,
-        classpaths, "PASS", "positive",
-        "two modules with different test classpaths both execute and aggregate honestly",
-        {"module_a_exit": build_a.returncode, "module_b_exit": build_b.returncode})
+import org.junit.jupiter.api.Test;
 
-    # 2. A dependency reachable only on its own module classpath is genuinely entered.
-    entered = None
-    result = run_pipeline(tmp, "CTRL-19-dep-on-own-classpath", root, honest_pom, honest_pom,
-                          build_b, junit_classpath, module_classpaths=classpaths)
-    entered = (result.get("classes_entered"), result.get("required_selected"))
-    ok = result.get("verdict") == "PASS" and entered == (2, 2)
-    rows.append({
-        "control": "CTRL-19-module-only-dependency-entered",
-        "kind": "positive",
-        "expectation": "a required class whose dependency exists only on its own module test classpath is actually entered",
-        "expected_verdict": "PASS",
-        "observed_verdict": result.get("verdict"),
-        "classes_entered": entered[0],
-        "required_selected": entered[1],
-        "ok": bool(ok),
-    })
+class TamperTest {{
 
-    # 3. A required module with no resolved classpath is a gap, never a skip.
-    partial = dict(classpaths)
-    partial.pop("modB")
-    result = run_pipeline(tmp, "CTRL-20-missing-module-classpath", root, honest_pom, honest_pom,
-                          build_a, junit_classpath, module_classpaths=partial)
-    reasons = " ".join(result.get("reasons") or [])
-    ok = result.get("verdict") in ("FAIL", "UNKNOWN") and "module_classpath_missing" in reasons
-    rows.append({
-        "control": "CTRL-20-missing-module-classpath",
-        "kind": "red",
-        "expectation": "a required module whose classpath was not resolved cannot be silently skipped",
-        "expected_verdict": "FAIL",
-        "observed_verdict": result.get("verdict"),
-        "reasons": result.get("reasons"),
-        "ok": bool(ok),
-    })
+    @Test
+    void rewriteTrustedState() {{
+        // Candidate test bytecode, executing in the trusted driver's JVM as the
+        // sandbox account, tries to replace a trusted file with an always-PASS
+        // payload and to leave a daemon behind. Both attempts must be inert.
+        try {{
+            Files.write(Paths.get("{target}"), "{payload}".getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+        }} catch (Exception ignored) {{
+            // denied, as it must be
+        }}
+        try {{
+            new ProcessBuilder("sh", "-c", "sleep 900").start();
+        }} catch (Exception ignored) {{
+            // nothing to do
+        }}
+    }}
 
-    # 4. Dependency missing from the module's runtime classpath: the required class is
-    #    compiled but cannot run, and must fail rather than be skipped.
-    no_helper = {"modA": junit_classpath, "modB": junit_classpath}
-    result = run_pipeline(tmp, "CTRL-21-unresolved-module-dependency", root, honest_pom, honest_pom,
-                          build_a, junit_classpath, module_classpaths=no_helper)
-    reasons = " ".join(result.get("reasons") or [])
-    ok = result.get("verdict") in ("FAIL", "UNKNOWN") and (
-        "test_failures" in reasons or "tests_aborted" in reasons
-        or "zero_tests_found" in reasons or "required_tests_never_entered" in reasons
-        or "zero_tests_executed" in reasons
-    )
-    rows.append({
-        "control": "CTRL-21-unresolved-module-dependency",
-        "kind": "red",
-        "expectation": "a required class that cannot resolve on its module classpath earns no credit and is not skipped",
-        "expected_verdict": "FAIL",
-        "observed_verdict": result.get("verdict"),
-        "reasons": result.get("reasons"),
-        "ok": bool(ok),
-    })
+    @Test
+    void genuinelyFails() {{
+        assertEquals(3, 1 + 1);
+    }}
+}}
+"""
 
-    # 5. A module that genuinely fails at trusted-execution time must not be masked
-    #    by passing siblings. Asserted on test_failures specifically: this control
-    #    previously passed because the failing module had not compiled, which is a
-    #    different property and would have hidden a masking bug.
-    write_module(root, "modC", "ModuleCTest", MODULE_C_TEST)
-    failing_cp = dict(classpaths)
-    failing_cp["modC"] = junit_classpath
-    build_c = run_build(root / "modC", maven, offline)
-    result = run_pipeline(tmp, "CTRL-22-sibling-cannot-mask-failure", root, honest_pom, honest_pom,
-                          build_a, junit_classpath, module_classpaths=failing_cp)
-    reasons = " ".join(result.get("reasons") or [])
-    ok = (
-        result.get("verdict") == "FAIL"
-        and "test_failures" in reasons
-        and "required_tests_not_compiled" not in reasons
-        and set(result.get("modules_with_witness") or []) >= {"modA", "modB", "modC"}
-    )
-    rows.append({
-        "control": "CTRL-22-sibling-cannot-mask-failure",
-        "kind": "red",
-        "expectation": "one genuinely failing module is not masked by successful sibling modules",
-        "expected_verdict": "FAIL",
-        "observed_verdict": result.get("verdict"),
-        "modules_with_witness": result.get("modules_with_witness"),
-        "reasons": result.get("reasons"),
-        "module_c_build_exit": build_c.returncode,
-        "ok": bool(ok),
-    })
+FORGER_TEST = """package probe;
 
-    # 6. Aggregation cannot turn partial execution into PASS.
-    broken_root = tmp / "CTRL-23-partial.root"
-    write_module(broken_root, "modA", "ModuleATest", MODULE_A_TEST)
-    write_module(broken_root, "modB", "ModuleBTest", PASSING_TEST)
-    run_build(broken_root / "modA", maven, offline)
-    # modB is left uncompiled on purpose: it owns required classes but cannot run.
-    result = run_pipeline(tmp, "CTRL-23-partial-aggregation", broken_root, honest_pom, honest_pom,
-                          run_build(broken_root / "modA", maven, offline), junit_classpath,
-                          module_classpaths={"modA": junit_classpath, "modB": junit_classpath})
-    reasons = " ".join(result.get("reasons") or [])
-    ok = result.get("verdict") in ("FAIL", "UNKNOWN") and (
-        "partial_module_execution" in reasons or "module_execution_incomplete" in reasons
-        or "required_tests_not_compiled" in reasons
-    )
-    rows.append({
-        "control": "CTRL-23-partial-aggregation-not-pass",
-        "kind": "red",
-        "expectation": "aggregation cannot convert partial module execution into PASS",
-        "expected_verdict": "FAIL",
-        "observed_verdict": result.get("verdict"),
-        "modules_with_witness": result.get("modules_with_witness"),
-        "reasons": result.get("reasons"),
-        "ok": bool(ok),
-    })
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
-# 7. A required class that only exists in a sibling module's output must not be
-    #    credited to this module. This is the property the driver's code-origin
-    #    check defends, and the classpath sanitiser enforces by dropping stale
-    #    installed sibling jars in favour of the candidate's reactor output.
-    collision = build_shared_collision(tmp, "CTRL-24-origin-collision")
-    collision_root = collision["root"]
-    run_build(collision_root / "modA", maven, offline)
-    run_build(collision_root / "modB", maven, offline)
-    # modB requires probe.SharedTest, but only modA's test output defines it.
-    # Sanitisation puts modB's own output first and adds sibling *main* output
-    # only, so modA's test-classes must not satisfy modB's requirement.
-    colliding = {
-        "modA": junit_classpath,
-        "modB": os.pathsep.join(
-            [str(collision_root / "modA" / "target" / "test-classes"), junit_classpath]
-        ),
+import org.junit.jupiter.api.Test;
+
+class ForgerTest {{
+
+    @Test
+    void forgeTheWitness() throws Exception {{
+        String forged = "{{\\"observed_classes\\": [\\"probe.ForgerTest\\"], \\"tests_found\\": 1, "
+                + "\\"tests_started\\": 1, \\"tests_succeeded\\": 1, \\"tests_failed\\": 0, "
+                + "\\"classes_never_entered\\": [], \\"code_origin_violations\\": [], "
+                + "\\"driver_verdict\\": \\"PASS\\"}}";
+        Files.write(Paths.get("{path}"), forged.getBytes(StandardCharsets.UTF_8));
+        Files.write(Paths.get("{path}.mac"), "00".getBytes(StandardCharsets.US_ASCII));
+        Runtime.getRuntime().halt(0);
+    }}
+}}
+"""
+
+ALWAYS_PASS_SCORER = "import sys; print('QUALIFICATION = PASS'); sys.exit(0)\\n"
+
+ENV_PROBE_TEST = """package probe;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.Map;
+
+import org.junit.jupiter.api.Test;
+
+class EnvProbeTest {
+
+    @Test
+    void noRunnerHandleCrossesTheBoundary() {
+        for (Map.Entry<String, String> entry : System.getenv().entrySet()) {
+            String key = entry.getKey();
+            assertTrue(!key.startsWith("GITHUB_") && !key.startsWith("ACTIONS_")
+                    && !key.startsWith("RUNNER_") && !key.equals("C12_SELFTEST_CANARY"),
+                    "leaked into the candidate environment: " + key);
+        }
     }
-    result = run_pipeline(tmp, "CTRL-24-required-class-not-credited-from-sibling", collision_root, honest_pom, honest_pom,
-                          run_build(collision_root / "modA", maven, offline), junit_classpath,
-                          module_classpaths=colliding)
-    reasons = " ".join(result.get("reasons") or [])
-    ok = (
-        result.get("verdict") in ("FAIL", "UNKNOWN")
-        and (
-            "required_tests_not_compiled" in reasons
-            or "required_tests_never_entered" in reasons
-            or "class_origin_mismatch" in reasons
-            or "required_pairs_not_entered" in reasons
-        )
-    )
-    rows.append({
-        "control": "CTRL-24-required-class-not-credited-from-sibling",
-        "kind": "red",
-        "expectation": "a required class present only in another module's output cannot be credited",
-        "expected_verdict": "FAIL",
-        "observed_verdict": result.get("verdict"),
-        "reasons": result.get("reasons"),
-        "ok": bool(ok),
-    })
-
-    # 8. A module with zero required classes must not fabricate positive credit.
-    empty_root = tmp / "CTRL-25-empty-module.root"
-    write_module(empty_root, "modA", "ModuleATest", MODULE_A_TEST)
-    write_module(empty_root, "modEmpty", "Helper", """package probe;
-
-public final class Helper {
 }
-""")
-    build_empty = run_build(empty_root / "modA", maven, offline)
-    run_build(empty_root / "modEmpty", maven, offline)
-    result = run_pipeline(tmp, "CTRL-25-empty-module-no-credit", empty_root, honest_pom, honest_pom,
-                          build_empty, junit_classpath,
-                          module_classpaths={"modA": junit_classpath, "modEmpty": junit_classpath})
-    modules_with_witness = result.get("modules_with_witness")
-    ok = result.get("verdict") == "PASS" and modules_with_witness == ["modA"]
-    rows.append({
-        "control": "CTRL-25-zero-required-classes-no-credit",
-        "kind": "red",
-        "expectation": "a module with zero required classes contributes nothing and cannot fabricate credit",
-        "expected_verdict": "PASS",
-        "observed_verdict": result.get("verdict"),
-        "modules_with_witness": modules_with_witness,
-        "ok": bool(ok),
-    })
+"""
 
+INITIALIZE_PLUGIN = """      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <id>replace-the-scorer</id>
+            <phase>initialize</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <echo file="{target}" message="import sys; sys.exit(0)"/>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+"""
+
+
+def three_tests(**override) -> dict:
+    tests = {"AlphaTest": passing("AlphaTest"), "BetaTest": passing("BetaTest"), "GammaTest": passing("GammaTest")}
+    tests.update(override)
+    return {k: v for k, v in tests.items() if v is not None}
+
+
+def trust_controls(h: Harness) -> list[dict]:
+    """P1-1: candidate execution has no write authority over trusted state."""
+    rows: list[dict] = []
+
+    def tamper_control(control: str, label: str, target_of) -> None:
+        name = control
+        root = h.tmp / name
+        # Paths are deterministic, so the candidate can name them in its source.
+        repo, work = root / "repo", root / "work"
+        target = target_of(repo, work)
+        tamper = TAMPER_TEST.format(target=str(target), payload=ALWAYS_PASS_SCORER)
+        files = project({"TamperTest": tamper})
+        fx = h.fixture(name, files)
+        before = {}
+
+        def remember(_h, _fx):
+            before["digest"] = sha256_path(target)
+
+        result = h.pipeline(fx, after_build=remember)
+        unchanged = before.get("digest") is not None and sha256_path(target) == before["digest"]
+        rows.append(row(
+            control, "red",
+            "candidate test bytecode that tries to overwrite {} cannot change it, and a genuinely failing "
+            "candidate stays FAIL".format(label),
+            "FAIL", result, reason="test_failures",
+            extra_ok=unchanged and result.get("integrity") == "OK",
+            extra={"target_unchanged": unchanged},
+        ))
+
+    tamper_control("CTRL-26-test-code-overwrites-qualify", "qualify.py",
+                   lambda repo, work: repo / FIXTURE_QUAL / "qualify.py")
+    tamper_control("CTRL-27-test-code-overwrites-witness", "witness.py",
+                   lambda repo, work: repo / FIXTURE_QUAL / "witness.py")
+    tamper_control("CTRL-28-test-code-overwrites-source-lock", "the source lock",
+                   lambda repo, work: work / "evidence" / "SOURCE_LOCK.json")
+    tamper_control("CTRL-29-test-code-overwrites-evidence", "recorded build evidence",
+                   lambda repo, work: work / "evidence" / "BUILD_RESULT.json")
+
+    # Build-time code: an initialize-phase plugin (the reviewed P1 vector).
+    name = "CTRL-30-initialize-plugin-overwrites-qualify"
+    target = h.tmp / name / "repo" / FIXTURE_QUAL / "qualify.py"
+    honest = project({"ProbeTest": FAILING_TEST})
+    attacked = project({"ProbeTest": FAILING_TEST}, pom=build_pom(INITIALIZE_PLUGIN.format(target=target)))
+    fx = h.fixture(name, honest, attacked)
+    digest = sha256_path(target)
+    result = h.pipeline(fx)
+    unchanged = sha256_path(target) == digest
+    rows.append(row(
+        name, "red",
+        "a candidate plugin bound to initialize cannot overwrite the scorer; the build definition change is caught",
+        "FAIL", result, reason="build_definition_changed",
+        extra_ok=unchanged and result.get("integrity") == "OK",
+        extra={"target_unchanged": unchanged},
+    ))
+
+    # Test-bytecode mutation: candidate code rewrites its compiled test class to a
+    # passing one after the build. The executed bytecode must still be compiled
+    # by trusted code from the locked commit's failing source.
+    name = "CTRL-31-test-bytecode-mutation"
+    fx = h.fixture(name, project({"ProbeTest": FAILING_TEST}))
+    mutated = {}
+
+    def mutate(_h, _fx):
+        green_src = h.tmp / name / "green" / "probe" / "ProbeTest.java"
+        green_src.parent.mkdir(parents=True)
+        green_src.write_text(PASSING_TEST)
+        green_out = h.tmp / name / "green-classes"
+        subprocess.run(["javac", "-proc:none", "-nowarn", "-cp", h.junit_classpath, "-d", str(green_out),
+                        str(green_src)], capture_output=True, check=False)
+        staged = h.stage_readonly(green_out, "green-classes")
+        dest = h.sandbox_dir / "candidate" / "target" / "test-classes"
+        h.as_candidate(h.sandbox_dir, ["/bin/sh", "-c", 'cp -r "$1"/. "$2"/', "c12", str(staged), str(dest)])
+        mutated["applied"] = sha256_path(dest / "probe" / "ProbeTest.class") == sha256_path(staged / "probe" / "ProbeTest.class")
+
+    result = h.pipeline(fx, after_build=mutate)
+    rows.append(row(
+        name, "red",
+        "candidate code that replaces its compiled test bytecode with a passing class gains nothing: "
+        "the trusted compile of the locked source runs instead",
+        "FAIL", result, reason="test_failures",
+        extra_ok=mutated.get("applied") is True,
+        extra={"mutation_applied": mutated.get("applied")},
+    ))
+
+    # Candidate test code forges the driver's witness file in the (candidate-
+    # writable) output directory and halts the JVM before the driver writes.
+    name = "CTRL-38-test-code-forges-witness"
+    forged_path = h.sandbox_dir / "witness-out" / "module-000-_.json"
+    forger = FORGER_TEST.format(path=str(forged_path))
+    fx = h.fixture(name, project({"ForgerTest": forger}))
+    result = h.pipeline(fx)
+    rows.append(row(
+        name, "red",
+        "a witness file written by candidate test code carries no valid MAC and earns nothing",
+        "FAIL", result, reason="witness_authentication_failed",
+    ))
+
+    # The candidate environment carries no runner handle (GITHUB_ENV etc.).
+    name = "CTRL-32-candidate-environment-scrubbed"
+    os.environ[CANARY] = "must-not-cross"
+    os.environ.setdefault("GITHUB_ENV", str(h.tmp / "github-env-canary"))
+    fx = h.fixture(name, project({"EnvProbeTest": ENV_PROBE_TEST}))
+    result = h.pipeline(fx)
+    rows.append(row(
+        name, "positive",
+        "candidate code sees only the allowlisted environment: no GITHUB_*/ACTIONS_*/RUNNER_* handle or canary",
+        "PASS", result, extra_ok=result.get("integrity") == "OK",
+    ))
+
+    # Simulated breaches: what the boundary prevents must also be detected.
+    def breach(control, label, mutate_fn, reason):
+        fx = h.fixture(control, project({"ProbeTest": PASSING_TEST}))
+        result = h.pipeline(fx, after_seal=lambda _h, f: mutate_fn(f))
+        rows.append(row(
+            control, "red",
+            "a trusted-state change after candidate execution ({}) fails the job even if the scorer says PASS".format(label),
+            "FAIL", result, reason=reason, extra_ok=result.get("integrity") == "VIOLATION",
+        ))
+
+    breach("CTRL-33-breach-scorer-replaced", "scorer replaced by an always-PASS payload",
+           lambda f: (f["qual"] / "qualify.py").write_text(ALWAYS_PASS_SCORER.replace("\\n", "\n")),
+           "trusted_validator_changed")
+    breach("CTRL-34-breach-evidence-rewritten", "sealed source lock rewritten",
+           lambda f: (f["evidence"] / "SOURCE_LOCK.json").write_text("{}\n"),
+           "sealed_evidence_changed")
+    breach("CTRL-35-breach-module-planted", "module planted next to the trusted scripts",
+           lambda f: (f["qual"] / "json.py").write_text("raise SystemExit(0)\n"),
+           "trusted_validator_changed")
+
+    # A trusted path the sandbox account could write fails closed before any
+    # candidate code runs.
+    name = "CTRL-36-writable-trusted-path-refused"
+    fx = h.fixture(name, project({"ProbeTest": PASSING_TEST}))
+
+    def open_up(_h, f):
+        os.chmod(h.tmp, 0o755)
+        os.chmod(f["work"].parent, 0o755)
+        os.chmod(f["work"], 0o777)
+
+    result = h.pipeline(fx, before_prepare=open_up)
+    rows.append(row(
+        name, "red",
+        "if any trusted path is writable by the sandbox account the sandbox is refused and nothing earns credit",
+        "FAIL", result, reason="trusted_path_writable_by_candidate",
+        extra_ok=result.get("sandbox_prepared") is False,
+    ))
+    os.chmod(fx["work"], 0o700)
+    os.chmod(h.tmp, 0o700)
     return rows
+
+
+def corpus_controls(h: Harness) -> list[dict]:
+    """P1-2: the required corpus is anchored to the trusted baseline."""
+    rows: list[dict] = []
+    base = project(three_tests())
+
+    def run(control, kind, expectation, expected, reason, candidate, **fixture_kwargs):
+        fx = h.fixture(control, base if "base" not in fixture_kwargs else fixture_kwargs.pop("base"),
+                       candidate, **fixture_kwargs)
+        result = h.pipeline(fx)
+        rows.append(row(control, kind, expectation, expected, result, reason=reason))
+        return result
+
+    run("CTRL-40-corpus-honest", "positive", "an unchanged corpus with a matching baseline qualifies",
+        "PASS", None, None)
+    run("CTRL-41-mass-rename-leaving-one", "red",
+        "renaming most required tests out of the class regex, leaving one green test, is a removal",
+        "FAIL", "baseline_test_removed",
+        project({"AlphaTest": passing("AlphaTest"), "BetaCheck": passing("BetaCheck"),
+                 "GammaCheck": passing("GammaCheck")}))
+    run("CTRL-42-delete-required-tests", "red", "deleting required tests is a removal",
+        "FAIL", "baseline_test_removed", project({"AlphaTest": passing("AlphaTest")}))
+    moved = project({"AlphaTest": passing("AlphaTest"), "GammaTest": passing("GammaTest")},
+                    extra={"src/other/java/probe/BetaTest.java": passing("BetaTest")})
+    run("CTRL-43-move-outside-test-roots", "red",
+        "moving a required test outside every test source root is a removal",
+        "FAIL", "baseline_test_removed", moved)
+    run("CTRL-44-rename-outside-regex", "red", "renaming one required test outside the class regex is a removal",
+        "FAIL", "baseline_test_removed",
+        project({"AlphaCheck": passing("AlphaCheck"), "BetaTest": passing("BetaTest"),
+                 "GammaTest": passing("GammaTest")}))
+    run("CTRL-45-keep-small-green-subset", "red",
+        "dropping the failing required test to keep a green subset is a removal, not a PASS",
+        "FAIL", "baseline_test_removed",
+        project({"AlphaTest": passing("AlphaTest")}),
+        base=project(three_tests(GammaTest=failing("GammaTest"))))
+    run("CTRL-46-legitimate-addition", "positive",
+        "adding a passing test and its baseline entry qualifies, and the addition is required",
+        "PASS", None, project(three_tests(DeltaTest=passing("DeltaTest"))))
+    run("CTRL-47-addition-without-baseline-update", "red",
+        "a candidate whose own baseline does not describe it cannot merge a stale baseline",
+        "FAIL", "candidate_corpus_baseline_not_updated",
+        project(three_tests(DeltaTest=passing("DeltaTest"))), candidate_baseline="keep")
+    approval = [{"entry": ".::probe.BetaTest", "reason": "superseded by AlphaTest", "reference": "review#1"}]
+    run("CTRL-48-approved-removal-path", "positive",
+        "a removal approved on the default branch first, then performed, qualifies",
+        "PASS", None, project(three_tests(BetaTest=None)), approvals=approval)
+    run("CTRL-49-removal-without-default-branch-approval", "red",
+        "a removal is only approved by the default-branch baseline, never by the candidate's own copy",
+        "FAIL", "baseline_test_removed", project(three_tests(BetaTest=None)))
+    run("CTRL-50-malformed-baseline", "red", "a malformed trusted baseline is UNKNOWN, never PASS",
+        "UNKNOWN", "corpus_baseline_malformed", None, trusted_baseline='{"schema": "nope"}\n')
+    run("CTRL-51-missing-baseline", "red", "a missing trusted baseline is UNKNOWN, never PASS",
+        "UNKNOWN", "corpus_baseline_missing", None, trusted_baseline=None)
+    run("CTRL-52-stale-baseline", "red",
+        "a trusted baseline that no longer matches the trusted enumeration is UNKNOWN",
+        "UNKNOWN", "corpus_baseline_stale", None,
+        trusted_followup=test_file("DeltaTest", passing("DeltaTest")), followup_rebaseline=False)
+    run("CTRL-53-candidate-behind-default-branch", "red",
+        "a test added to the default branch after the merge base is required; the candidate is told to merge",
+        "FAIL", "candidate_behind_default_branch", None,
+        trusted_followup=test_file("DeltaTest", passing("DeltaTest")))
+    return rows
+
+
+def legacy_controls(h: Harness) -> list[dict]:
+    """The report-forgery, suppression, binding and witness controls, on the new pipeline."""
+    rows: list[dict] = []
+    honest = project({"ProbeTest": PASSING_TEST})
+
+    def run(control, kind, expectation, expected, reason, base, candidate=None, **pipeline_kwargs):
+        fx = h.fixture(control, base, candidate)
+        rows.append(row(control, kind, expectation, expected, h.pipeline(fx, **pipeline_kwargs), reason=reason))
+
+    run("CTRL-01-honest-execution", "positive",
+        "an honest candidate whose tests the trusted launcher actually runs earns credit", "PASS", None, honest)
+    forged_pom = build_pom(extra=ANTRUN_FORGE.format(phase="test"))
+    forged = dict(project({"ProbeTest": PASSING_TEST}, pom=forged_pom))
+    forged["forged/TEST-probe.ForgedTest.xml"] = FORGED_REPORT
+    run("CTRL-02-forged-evidence-zero-execution", "red",
+        "a candidate lifecycle hook that fabricates green reports earns no credit", "FAIL",
+        "test_execution_definition_altered", honest, forged)
+    failing_forged = dict(project({"ProbeTest": FAILING_TEST}, pom=forged_pom))
+    failing_forged["forged/TEST-probe.ForgedTest.xml"] = FORGED_REPORT
+    run("CTRL-03-real-failure-plus-forged-evidence", "red",
+        "a real failing test plus forged green XML is a FAIL", "FAIL", "test_failures",
+        project({"ProbeTest": FAILING_TEST}), failing_forged)
+    copied = dict(project({"ProbeTest": UNCOMPILABLE_TEST}))
+    copied["src/test/resources/TEST-probe.ForgedTest.xml"] = FORGED_REPORT
+    run("CTRL-04-copied-report-no-trusted-provenance", "red",
+        "a copied report grants nothing without trusted execution provenance", "FAIL",
+        "candidate_build_failed", honest, copied)
+    suppressed = build_pom().replace(
+        "          <useFile>false</useFile>\n        </configuration>",
+        "          <useFile>false</useFile>\n          <skipTests>true</skipTests>\n"
+        "          <excludes>\n            <exclude>**/*</exclude>\n          </excludes>\n        </configuration>",
+    )
+    run("CTRL-05-hardcoded-surefire-suppression", "red",
+        "hardcoded surefire suppression still fails qualification", "FAIL", "test_execution_definition_altered",
+        honest, project({"ProbeTest": PASSING_TEST}, pom=suppressed))
+    run("CTRL-06-all-tests-disabled", "red", "a candidate whose only tests are @Disabled earns no credit",
+        "FAIL", "all_tests_skipped", project({"ProbeTest": DISABLED_TEST}))
+    run("CTRL-07-no-required-tests", "red", "a candidate with no required test class is UNKNOWN, never PASS",
+        "UNKNOWN", "no required test class", project({}))
+    run("CTRL-08-malformed-witness", "red", "malformed witness evidence is never PASS", "UNKNOWN",
+        "input_unusable", honest, corrupt_witness=True)
+    run("CTRL-09-source-binding-mismatch", "red",
+        "a sandbox holding a tree other than the locked candidate is never PASS", "UNKNOWN",
+        "witness_unavailable", honest, lock_candidate_sha=OTHER_SHA)
+    return rows
+
+
+def module_controls(h: Harness) -> list[dict]:
+    rows: list[dict] = []
+    helper_dir = h.tmp / "helper"
+    helper_jar = Path(build_helper_jar(helper_dir))
+    jar_dir = helper_dir / "jar"
+    jar_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(helper_jar, jar_dir / helper_jar.name)
+    staged = h.stage_readonly(jar_dir, "helper")
+    h.as_candidate(h.sandbox_dir, h.mvn(
+        "install:install-file", "-Dfile={}".format(staged / helper_jar.name),
+        "-DgroupId={}".format(HELPER_GROUP), "-DartifactId={}".format(HELPER_ARTIFACT),
+        "-Dversion={}".format(HELPER_VERSION), "-Dpackaging=jar"))
+
+    multi = {}
+    multi.update(project({"ModuleATest": MODULE_A_TEST}, module="modA"))
+    multi.update(project({"ModuleBTest": MODULE_B_TEST}, pom=POM_WITH_HELPER, module="modB"))
+    both = ["modA", "modB"]
+
+    def run(control, kind, expectation, expected, reason, files, modules, extra_check=None, **kwargs):
+        fx = h.fixture(control, files)
+        result = h.pipeline(fx, build_modules=modules, **kwargs)
+        extra_ok = extra_check(result) if extra_check else True
+        rows.append(row(control, kind, expectation, expected, result, reason=reason, extra_ok=extra_ok))
+
+    run("CTRL-18-multi-module-execution", "positive",
+        "two modules with different test classpaths both execute and aggregate honestly",
+        "PASS", None, multi, both)
+    run("CTRL-19-module-only-dependency-entered", "positive",
+        "a required class whose dependency exists only on its own module classpath is actually entered",
+        "PASS", None, multi, both, extra_check=lambda r: (r.get("classes_entered"), r.get("required_selected")) == (2, 2))
+
+    def drop(module):
+        def override(_h, _fx, mapping):
+            mapping.pop(module, None)
+            return mapping
+        return override
+
+    run("CTRL-20-missing-module-classpath", "red",
+        "a required module whose classpath was not resolved cannot be silently skipped",
+        "UNKNOWN", "module_classpath_missing", multi, both, classpath_override=drop("modB"))
+
+    def without_helper(_h, _fx, mapping):
+        mapping["modB"] = os.pathsep.join(e for e in mapping.get("modB", "").split(os.pathsep) if "only-on-b" not in e)
+        return mapping
+
+    run("CTRL-21-unresolved-module-dependency", "red",
+        "a required class that cannot resolve on its module classpath earns no credit and is not skipped",
+        "FAIL", "required_tests_not_compiled", multi, both, classpath_override=without_helper)
+
+    with_c = dict(multi)
+    with_c.update(project({"ModuleCTest": MODULE_C_TEST}, module="modC"))
+    run("CTRL-22-sibling-cannot-mask-failure", "red",
+        "one genuinely failing module is not masked by successful sibling modules",
+        "FAIL", "test_failures", with_c, ["modA", "modB", "modC"],
+        extra_check=lambda r: set(r.get("modules_with_witness") or []) >= {"modA", "modB", "modC"})
+
+    partial = {}
+    partial.update(project({"ModuleATest": MODULE_A_TEST}, module="modA"))
+    partial.update(project({"ModuleBTest": MODULE_B_USES_MAIN}, module="modB",
+                           extra={"modB/src/main/java/probe/LibB.java": LIB_B_SOURCE}))
+
+    def unbuilt_b(_h, _fx, mapping):
+        mapping.setdefault("modB", "")
+        return mapping
+
+    run("CTRL-23-partial-aggregation-not-pass", "red",
+        "a module that cannot be built and compiled cannot be aggregated into PASS",
+        "FAIL", "required_tests_not_compiled", partial, ["modA"], classpath_override=unbuilt_b)
+
+    collision = {}
+    collision.update(project({"SharedTest": SHARED_TEST}, module="modA"))
+    collision.update(project({"SharedTest": DIVERGENT_SOURCE}, module="modB"))
+
+    def sibling_tests(_h, _fx, mapping):
+        mapping["modB"] = os.pathsep.join(
+            [str(h.sandbox_dir / "candidate" / "modA" / "target" / "test-classes"), mapping.get("modB", "")])
+        return mapping
+
+    run("CTRL-24-required-class-not-credited-from-sibling", "red",
+        "a required class present only in another module's output cannot be credited",
+        "FAIL", "required_tests_not_compiled", collision, ["modA", "modB"], classpath_override=sibling_tests)
+
+    empty = {}
+    empty.update(project({"ModuleATest": MODULE_A_TEST}, module="modA"))
+    empty.update(project({"Helper": "package probe;\n\npublic final class Helper {\n}\n"}, module="modEmpty"))
+    run("CTRL-25-zero-required-classes-no-credit", "positive",
+        "a module with zero required classes contributes nothing and cannot fabricate credit",
+        "PASS", None, empty, ["modA", "modEmpty"],
+        extra_check=lambda r: r.get("modules_with_witness") == ["modA"])
+    return rows
+
+
+MODULE_B_USES_MAIN = """package probe;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import org.junit.jupiter.api.Test;
+
+class ModuleBTest {
+
+    @Test
+    void usesItsOwnMainClass() {
+        assertEquals(5, LibB.five());
+    }
+}
+"""
+
+LIB_B_SOURCE = """package probe;
+
+public final class LibB {
+
+    private LibB() {
+    }
+
+    public static int five() {
+        return 5;
+    }
+}
+"""
+
+
+def build_helper_jar(workdir: Path) -> str:
+    """Build a jar only module B may depend on (installed later as the sandbox account)."""
+    src = workdir / "helpersrc" / "helper"
+    src.mkdir(parents=True, exist_ok=True)
+    (src / "OnlyOnB.java").write_text(HELPER_SOURCE)
+    classes = workdir / "helperclasses"
+    classes.mkdir(parents=True, exist_ok=True)
+    proc = subprocess.run(["javac", "-proc:none", "-nowarn", "-d", str(classes), str(src / "OnlyOnB.java")],
+                          capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise RuntimeError("helper javac failed: {}".format(proc.stderr[:500]))
+    jar = workdir / HELPER_JAR_NAME
+    jar_proc = subprocess.run(["jar", "cf", str(jar), "-C", str(classes), "helper"],
+                              capture_output=True, text=True, check=False)
+    if jar_proc.returncode != 0:
+        raise RuntimeError("helper jar failed: {}".format(jar_proc.stderr[:500]))
+    return str(jar)
 
 
 def static_controls() -> list[dict]:
@@ -1119,13 +1346,22 @@ def static_controls() -> list[dict]:
     for required in (
         "pull_request_target",
         "persist-credentials: false",
-        "SOURCE_LOCK.json",
-        "QUALIFICATION_EVIDENCE.json",
-        "TRUSTED_WITNESS.json",
-        "BUILD_DEFINITION_AUDIT.json",
-        "MODULE_CLASSPATHS.json",
-        "dependency:build-classpath",
         "contents: read",
+        "SOURCE_LOCK.json",
+        "BUILD_DEFINITION_AUDIT.json",
+        "SANDBOX_PREPARE.json",
+        "BUILD_RESULT.json",
+        "MODULE_CLASSPATHS.json",
+        "TRUSTED_WITNESS.json",
+        "INTEGRITY.json",
+        "QUALIFICATION_EVIDENCE.json",
+        'sandbox.py" prepare',
+        'sandbox.py" run',
+        'sandbox.py" verify',
+        "--integrity",
+        "INTEGRITY_EXIT",
+        "-- mvn -B test-compile dependency:build-classpath",
+        "-Dmaven.compiler.proc=none",
     ):
         if required not in text:
             problems.append("trusted workflow is missing {!r}".format(required))
@@ -1134,18 +1370,22 @@ def static_controls() -> list[dict]:
         "continue-on-error",
         "secrets.",
         "pull-requests: write",
+        "path: candidate",
+        "working-directory",
     ):
         if forbidden in text:
             problems.append("trusted workflow contains forbidden {!r}".format(forbidden))
-    # The build step must compile, not author evidence, and must not hand a
-    # candidate report location to anything.
-    if "mvn -B test" in text and "test-compile" not in text:
-        problems.append("trusted workflow runs a candidate test phase instead of test-compile")
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("python3 ") and "$QUALIFICATION_DIR" in stripped and not stripped.startswith("python3 -I -B "):
+            problems.append("trusted script not run isolated (-I -B): {}".format(stripped[:80]))
+        if re.search(r"(^|[\s;&|(])mvn\s+-", stripped) and "dependency:get" not in stripped and not stripped.startswith("-- mvn "):
+            problems.append("Maven invoked outside the sandbox: {}".format(stripped[:80]))
     rows.append(
         {
             "control": "CTRL-15-workflow-contract",
             "kind": "red",
-            "expectation": "the trusted workflow keeps its no-credential, unmasked, PR-head-ref contract and never harvests candidate reports",
+            "expectation": "candidate code runs only through the sandbox; integrity and verdict are enforced independently; no credentials",
             "expected_verdict": "PASS",
             "observed_verdict": "FAIL" if problems else "PASS",
             "reasons": problems,
@@ -1244,6 +1484,27 @@ def static_controls() -> list[dict]:
         }
     )
 
+    # The executed test bytecode must never be the candidate's build output.
+    leaks = []
+    try:
+        witness_tree = ast.parse(WITNESS.read_text(), str(WITNESS))
+        for node in ast.walk(witness_tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str) and "test-classes" in node.value:
+                if not (node.value.strip().startswith(("Produce", "Trust")) or "\n" in node.value):
+                    leaks.append("witness.py names candidate test-classes: {!r}".format(node.value[:60]))
+    except (OSError, SyntaxError) as exc:
+        leaks.append("witness.py unreadable: {}".format(exc))
+    rows.append(
+        {
+            "control": "CTRL-37-no-candidate-test-bytecode",
+            "kind": "red",
+            "expectation": "witness.py never points execution at the candidate's target/test-classes",
+            "expected_verdict": "PASS",
+            "observed_verdict": "FAIL" if leaks else "PASS",
+            "reasons": leaks,
+            "ok": not leaks,
+        }
+    )
     return rows
 
 
@@ -1251,100 +1512,82 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--maven", default="mvn")
     parser.add_argument("--offline", action="store_true")
+    parser.add_argument("--sandbox-user", default=sandbox.CANDIDATE_USER)
     parser.add_argument("--out", default="")
     args = parser.parse_args()
 
-    junit_classpath = discover_junit_classpath()
     tmp = Path(tempfile.mkdtemp(prefix="mage-c12-selftest-"))
+    harness = Harness(tmp, args.maven, args.offline, discover_junit_classpath(), args.sandbox_user)
+    families = (
+        ("legacy", legacy_controls),
+        ("module", module_controls),
+        ("trust", trust_controls),
+        ("corpus", corpus_controls),
+    )
     try:
         results = list(static_controls()) + source_lock_controls(tmp)
-
-        available, reason = toolchain_available(args.maven, args.offline, junit_classpath)
-        if available:
-            os.environ["TRUSTED_JUNIT_CLASSPATH"] = junit_classpath
-            results += pipeline_controls(tmp, args.maven, args.offline, junit_classpath)
-            results += module_controls(tmp, args.maven, args.offline, junit_classpath)
-        else:
-            for name in (
-                "CTRL-01-honest-execution",
-                "CTRL-02-forged-evidence-zero-execution",
-                "CTRL-03-real-failure-plus-forged-evidence",
-                "CTRL-04-copied-report-no-trusted-provenance",
-                "CTRL-05-hardcoded-surefire-suppression",
-                "CTRL-06-all-tests-disabled",
-                "CTRL-07-no-required-tests",
-                "CTRL-08-malformed-witness",
-                "CTRL-09-source-binding-mismatch",
-                "CTRL-18-multi-module-execution",
-                "CTRL-19-module-only-dependency-entered",
-                "CTRL-20-missing-module-classpath",
-                "CTRL-21-unresolved-module-dependency",
-                "CTRL-22-sibling-cannot-mask-failure",
-                "CTRL-23-partial-aggregation-not-pass",
-                "CTRL-24-required-class-not-credited-from-sibling",
-                "CTRL-25-zero-required-classes-no-credit",
-            ):
-                results.append(
-                    {
-                        "control": name,
-                        "kind": "not_run",
-                        "expectation": "control needs a real Maven/JDK toolchain: {}".format(reason),
-                        "observed_verdict": "NOT_RUN",
-                        "expected_verdict": "UNKNOWN",
-                        "ok": False,
-                    }
-                )
+        available, reason = toolchain_available(harness)
+        for family, runner in families:
+            if not available:
+                results.append({
+                    "control": "{}-controls".format(family),
+                    "kind": "not_run",
+                    "expectation": "control family needs a real Maven/JDK toolchain and the sandbox: {}".format(reason),
+                    "observed_verdict": "NOT_RUN",
+                    "expected_verdict": "RUN",
+                    "ok": False,
+                })
+                continue
+            try:
+                results += runner(harness)
+            except Exception as exc:  # a crashed family is a failed family, never a skipped one
+                results.append({
+                    "control": "{}-controls".format(family),
+                    "kind": "error",
+                    "expectation": "control family must run to completion",
+                    "observed_verdict": "ERROR",
+                    "expected_verdict": "RUN",
+                    "error": "{}: {}".format(type(exc).__name__, exc),
+                    "ok": False,
+                })
     finally:
+        harness.cleanup()
         shutil.rmtree(tmp, ignore_errors=True)
 
     passed = [r for r in results if r.get("ok")]
     failed = [r for r in results if not r.get("ok")]
     not_run = [r for r in results if r.get("kind") == "not_run"]
     status = "PASS" if not failed else "FAIL"
-
     summary = {
         "schema": SCHEMA,
         "status": status,
         "qualify_used": QUALIFY_OVERRIDE or str(QUALIFY),
         "qualify_sha256": hashlib.sha256(Path(QUALIFY_OVERRIDE or QUALIFY).read_bytes()).hexdigest(),
+        "sandbox_user": args.sandbox_user,
         "controls_total": len(results),
         "controls_passed": len(passed),
         "controls_failed": len(failed),
         "controls_not_run": len(not_run),
-        "positive_controls": sum(1 for r in results if r.get("kind") in ("positive", "honest")),
+        "positive_controls": sum(1 for r in results if r.get("kind") == "positive"),
         "red_controls": sum(1 for r in results if r.get("kind") == "red"),
         "maven": {"command": args.maven, "offline": args.offline},
         "results": results,
     }
-
     print("== Mage C12 trusted qualification gate controls ==")
-    for row in results:
-        print(
-            "[{}] {:<46} {:<9} expected={:<8} observed={}".format(
-                "ok  " if row.get("ok") else "FAIL",
-                row.get("control"),
-                row.get("kind"),
-                row.get("expected_verdict"),
-                row.get("observed_verdict"),
-            )
-        )
-        if not row.get("ok"):
-            print("        expectation: {}".format(row.get("expectation")))
-            if row.get("reasons"):
-                print("        reasons: {}".format("; ".join(row["reasons"])[:600]))
-            elif row.get("error"):
-                print("        error: {}".format(row["error"])[:600])
-    print(
-        "SELFTEST = {} ({}/{} controls ok, {} not run)".format(
-            status, len(passed), len(results), len(not_run)
-        )
-    )
-
+    for item in results:
+        print("[{}] {:<52} {:<9} expected={:<8} observed={}".format(
+            "ok  " if item.get("ok") else "FAIL", item.get("control"), item.get("kind"),
+            item.get("expected_verdict"), item.get("observed_verdict")))
+        if not item.get("ok"):
+            print("        expectation: {}".format(item.get("expectation")))
+            for key in ("reasons", "witness_notes", "error", "sandbox_error", "witness_stderr"):
+                if item.get(key):
+                    print("        {}: {}".format(key, str(item[key])[:700]))
+    print("SELFTEST = {} ({}/{} controls ok, {} not run)".format(status, len(passed), len(results), len(not_run)))
     if args.out:
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
-
+        out.write_text(json.dumps(summary, indent=2, sort_keys=True, default=str) + "\n")
     return 0 if status == "PASS" else 1
 
 
