@@ -196,3 +196,90 @@ New Coordinator transition at Lab255 comment5968556784 (2026-10-03T11:05:55Z)
 reserves further pre-Freeze campaign work to Claude and forbids new OpenCode
 workstreams. The already-started Lab507 repair is handed over as an unmerged
 draft; no C13/C14 or foreign implementation is taken over.
+
+## 8. CI follow-up: MonarchTest.test_MonarchByDies fixture adaptation
+
+Coordinator CI run 37119753436, job 111193455619, on exact head
+`b0ebd84a52eb465fafced33db108ceeee16330ee` executed Mage.Tests with 6821 tests,
+1 failure, 0 errors, 125 skips. The single failure was
+`MonarchTest.test_MonarchByDies` at line 120:
+`PlayerA must have 0 actions but found 1`. Mage.Verify was SKIPPED on that run,
+so it carries no FAIL/PASS result.
+
+Cause, derived from source and confirmed by a local reproduction on the exact
+head: the fixture activated a custom 100 damage ability targeting PlayerA and
+then called the global `waitStackResolved(1, PRECOMBAT_MAIN)` overload, which
+queues a wait command for every seated player including PlayerA. After the
+damage resolved, the real 704.5a state-based action eliminated PlayerA, and under
+117.5 the repaired engine performs that state-based action before handing
+priority over, so PlayerA is never asked for priority again and cannot consume
+its queued wait command. The old engine consumed it through the very post-mortem
+priority defect that section 1 describes. The monarch transfer to PlayerD and
+`assertLostTheGame(playerA)` are unaffected and were kept unchanged.
+
+Adaptation: observation ownership for the post-elimination wait moved to the
+surviving players, using the existing per-player
+`waitStackResolved(int, PhaseStep, TestPlayer)` overload. Nothing else in the
+fixture changed, and no harness file was touched:
+
+- `waitStackResolved(1, PRECOMBAT_MAIN)` after the lethal activation replaced by
+  the same wait queued for playerB, playerC and playerD only.
+- Added `checkStackSize("lethal damage ability pending", 1, PRECOMBAT_MAIN,
+  playerA, 1)`, which observes the lethal damage ability pending on the stack
+  while PlayerA still holds priority and is still in the game. This is an
+  additional positive assertion, not a removal.
+- Unchanged: the Thorn of the Black Rose cast, the "monarch to A" check, the
+  "monarch to D" check on turn 2, `setStrictChooseMode(true)`, the stop point and
+  `assertLostTheGame(playerA)`.
+
+All three MonarchTest methods are the ordinary fixture control for this change.
+
+### Local evidence for the fixture
+
+| run | tests | fail | err | skip |
+| --- | --- | --- | --- | --- |
+| exact head b0ebd84, focused `MonarchTest#test_MonarchByDies` | 1 | 1 | 0 | 0 |
+| adapted fixture, all `MonarchTest` methods | 3 | 0 | 0 | 0 |
+| adapted fixture, designations + multiplayer + sba | 93 | 0 | 0 | 0 |
+
+The focused red failure is exactly the CI failure:
+`java.lang.AssertionError: Player PlayerA must have 0 actions but found 1` at
+`MonarchTest.test_MonarchByDies(MonarchTest.java:120)`.
+
+### Complete Mage.Tests reactor run after the fixture adaptation
+
+Command (no `-Dtest`, so no case is selected away):
+
+```
+JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=$TMPDIR" MAVEN_OPTS="-Djava.io.tmpdir=$TMPDIR" \
+  mvn -o -pl Mage.Tests -am test
+```
+
+| run | tests | fail | err | skip |
+| --- | --- | --- | --- | --- |
+| first complete run | 6822 | 1 | 3 | 125 |
+| same run with `JAVA_TOOL_OPTIONS` | 6822 | 0 | 0 | 125 |
+
+The first complete run's 1 failure and 3 errors were all sandbox artifacts, not
+code defects: `LoadCheatsTest.testCommands`, `DatabaseCompatibleTest.test_AuthUsers`,
+`ZipFilesReadWriteTest.test_Read` and `ZipFilesReadWriteTest.test_write` all call
+`File.createTempFile` / JUnit temp files, which resolve to `/tmp`, and `/tmp` is
+read-only under the launcher sandbox. `MAVEN_OPTS` only reaches the Maven
+launcher JVM, not the forked surefire JVM, so the fork also needs
+`JAVA_TOOL_OPTIONS`. Re-running just those four cases with both variables set
+passes them (5 tests, 0 failures, 1 pre-existing skip), and the complete run then
+passes. None of these four cases touches priority, elimination or the stack.
+
+Final aggregated counters, summed from all 1973 surefire XML files of that run:
+**tests 6822, failures 0, errors 0, skipped 125**. The 125 skips are pre-existing
+and spread over 69 classes (largest: `LoadTest` 10,
+`DamageMultiLifelinkTriggerTest` 7, `SimulationPerformanceAITest` 7,
+`AttackBlockRestrictionsTest` 5, `BecomeBlockTriggersMonteCarloAITest` 5). They
+are recorded, not claimed as coverage.
+
+Note on the count: local runs report 6822 tests where CI reported 6821. The
+difference is not investigated further here and is left explicitly UNKNOWN; the
+per-class XML manifest in the seal is the authoritative local breakdown.
+
+Seal for this section: `evidence/monarch-fixture-evidence-20261003.zip` with
+`EVIDENCE_SEAL_MONARCH.json` and `SHA256SUMS_MONARCH`.

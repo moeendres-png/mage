@@ -4,7 +4,7 @@ worktree: /home/moeen/work/simulator-priority-20261003
 branch: simulator/sba-elimination-priority-20261003
 audit_base_sha: 103a1e0001ec7fb900ea03eddf345432b3ac31fe
 audit_base_tree: f6a53692d1b7bf44feded88081049bd4f5776c1d
-state_written_against_head: 99cb9edbc621cc10f9372fc4ca45a499ffd52ec1
+state_written_against_head: b0ebd84a52eb465fafced33db108ceeee16330ee
 validated_head: null
 objective: 'Repair systemic priority after SBA elimination, including active-player-absent
   turn progression; Lab #507.'
@@ -15,6 +15,8 @@ in_scope:
 - Mage.Tests focused engine regressions
 - research/priority-elimination documentation
 - .foundry/sba-priority-20261003.yaml
+- Mage.Tests/src/test/java/org/mage/test/cards/designations/MonarchTest.java attributable
+  fixture adaptation
 out_of_scope:
 - C12 qualification/workflows
 - Mage.Verify and card data
@@ -45,69 +47,51 @@ authority_gates:
 execution_profile: space-bunny
 executor_model: opencode-go/space-bunny-free
 native_variant: max
-exact_next_action: Publish owned draft Mage PR and sealed evidence; await exact-head
-  independent review and complete Mage.Tests CI. Incoming Claude Coordinator owns
-  merge/pin impact adjudication and remaining pre-Freeze campaign.
+exact_next_action: 'Coordinator: independent exact-head review of the MonarchTest
+  fixture adaptation commit on simulator/sba-elimination-priority-20261003, then followup
+  publication and CI recheck on that head. validated_head stays null until that review.
+  No push/merge/pin change by the worker. Campaign beyond this bounded repair remains
+  reserved to Claude per Lab255 transition5968556784.'
 executor_handoff_from: deepseek
 executor_handoff_reason: 'Coordinator explicit rerouting: DeepSeek run 2ea732bd session
   ses_efeb36419ffeC4XWHfG3MHfz4B at 2026-10-03T10:26:02.847Z reported Go usage limit
   exceeded; interrupted without changes and writer released. No automatic fallback.'
 technical_decisions:
-- 'Turn order was derived empirically, not assumed: XMage builds its player list in
-  reverse insertion order and the cycle starts at the starting player, so turn order
-  is A,B / A,C,B / A,D,C,B / A,E,D,C,B for 2/3/4/5 seats with the standard A,B,C,D,E
-  insertion. Every scenario asserts the active player per turn at runtime via runCode,
-  and asserts the real seat count.'
-- Test instrumentation is observational only. A TestPlayer subclass records every
-  engine-driven Player.priority(game) call with the recorded player game status at
-  that moment. No win/loss or other outcome is injected, no priority loop is bypassed,
-  and no shared harness file was modified. All eliminations come from a real life-payment
-  cost (CR 118.3b) driving the life total to 0 plus the engine own 704.5a check.
-- 'The non-active-player elimination case is a second manifestation of the same defect,
-  not an expected-green control: it fails on the original GameImpl and passes after
-  the repair. The only controls are the all-players-in-game case and the non-lethal
-  life payment case, and both are green on original and repaired source.'
-- Repair is one eligibility re-check in GameImpl.playPriority after the state-based
-  action pass and before Player.priority(), leaving the innermost per-player loop
-  so the existing player-list iteration hands the window to the next player in turn
-  order (CR 800.4a, 800.4j). No new rules core, no adapter, no pom or card-data change,
-  no card or deck data touched.
-- 'Finding: at two seats the defect is unreachable, because the elimination makes
-  checkIfGameIsOver() true inside the same state-based pass and the existing game-over
-  return happens before Player.priority(). test_twoPlayers_departedPlayerGetsNoPriority
-  is therefore green on original and repaired source and is retained as behaviour
-  coverage only, not as fail-before evidence. This is why fail-before is 5 of 8 cases,
-  not 6 of 8.'
-- 'Finding: the engine already removes a departed player stack objects when it removes
-  the player (CR 800.4a). Regression 3 asserts this precisely instead of only asserting
-  a finally-empty stack: the departed player spell is observed pending on the stack
-  in the departing player own priority window before the lethal payment, no stack
-  object controlled or owned by the departed player remains, the departed player owns
-  no battlefield object (CR 800.4b), and a surviving player different stack object
-  really resolves with an observable power/toughness change.'
-- 'Turn-order note for reviewers: a departing active player already lost the turn
-  correctly before this repair (priority passes via state.getPlayerList().getNext()).
-  The repair adds no turn-progression logic; the new tests assert 800.4j behaviour
-  that the fix must not regress.'
-- 'Build/validation environment: the launcher sandbox has a read-only /tmp, so protoc-jar-maven-plugin
-  fails with "Read-only file system" unless Maven gets -Djava.io.tmpdir=$TMPDIR via
-  MAVEN_OPTS. All runs used -pl Mage.Tests -am so engine classes come from this reactor
-  rather than the shared 1.4.61 cache jar, with explicitly selected tests and Maven
-  exit status reported outside any pipe.'
-- 'Executor continuity: this session runs the Coordinator-authorized space-bunny MAX
-  secondary profile recorded in executor_handoff_from/executor_handoff_reason; no
-  silent executor switch occurred in this session.'
-- 'Coordinator source/XML readback: minimal systemic repair and all8 cases verified;5
-  intended failures on original source. No P1/P2 found in bounded code review. Fresh-context
-  PR review pending.'
-- 'Manual Mage impact override: Lab mapper pytest default is inapplicable; complete
-  Mage.Tests reactor CI and exact-head independent review required before unqualified
-  component validation. Clear validated_head while these gates remain pending.'
-- No code/test changes since b6fa03aee2083e56f3f83ffbaa4efa00dc71c9fb; only evidence
-  persistence and state adjudication. No repeat of unchanged passing subsets.
-- New Lab255 transition5968556784 reserves remaining campaign to Claude; no new OpenCode
-  workstream. Preserve existing bounded engine repair for review/integration; no takeover
-  of C12/C13/C14/Forge surfaces.
+- 'Attribution confirmed on exact head b0ebd84a52eb465fafced33db108ceeee16330ee (tree
+  7fd283c453940fca986eaa6c4eada6b015f24952): the CI failure MonarchTest.test_MonarchByDies
+  reproduced locally as "Player PlayerA must have 0 actions but found 1" at MonarchTest.java:120,
+  1 test 1 failure 0 errors 0 skipped. No fixture edit was made before this reproduction.'
+- 'Root cause is the fixture depending on the very defect the repair removed: the
+  global waitStackResolved(turn, step) overload queues a wait command for every seated
+  player, including the player the engine must no longer ask for priority after CR
+  117.5 state-based actions eliminated them. Observation ownership moved to surviving
+  players B/C/D via the existing per-player waitStackResolved(int, PhaseStep, TestPlayer)
+  overload. Semantic assertions, denominators, assertLostTheGame(playerA), the monarch
+  checks, the harness assertAllCommandsUsed and the GameImpl recheck are all unchanged;
+  no card, pom, workflow, qualification or candidate pin touched.'
+- 'The fixture gained an assertion rather than losing one: checkStackSize("lethal
+  damage ability pending", 1, PRECOMBAT_MAIN, playerA, 1) observes the lethal damage
+  ability pending on the stack while PlayerA still holds priority and is still in
+  the game. All three MonarchTest methods are the ordinary fixture control and are
+  green after the adaptation.'
+- 'Complete Mage.Tests reactor run with no -Dtest selection, so no case is selected
+  away: first run 6822 tests 1 failure 3 errors 125 skipped. All four non-passing
+  cases were read-only-/tmp sandbox artifacts of the forked surefire JVM (LoadCheatsTest.testCommands,
+  DatabaseCompatibleTest.test_AuthUsers, ZipFilesReadWriteTest.test_Read, ZipFilesReadWriteTest.test_write),
+  none touching priority, elimination or the stack. MAVEN_OPTS only reaches the Maven
+  launcher JVM, so the fork also needs JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=$TMPDIR".'
+- 'Final complete reactor run: tests 6822, failures 0, errors 0, skipped 125, aggregated
+  from all 1973 surefire XML files. The 125 skips are pre-existing and spread over
+  69 classes; they are recorded in the evidence manifest and are NOT claimed as coverage.'
+- 'Honest unknown: local runs report 6822 tests where Coordinator CI reported 6821
+  on the same head family. Cause not investigated and left UNKNOWN; the per-class
+  XML manifest is the authoritative local breakdown.'
+- Mage.Verify was SKIPPED on Coordinator CI run 37119753436 job 111193455619. It carries
+  no FAIL/PASS result and none is claimed here.
+- 'Executor continuity: this session continues the same workstream on the same owned
+  branch under the Coordinator-authorized space-bunny MAX profile already recorded
+  in executor_handoff_from/executor_handoff_reason; no silent executor switch and
+  no new workstream.'
 technical_decisions_append: true
 validation_evidence:
   source_lock_sha: 103a1e0001ec7fb900ea03eddf345432b3ac31fe
@@ -215,3 +199,65 @@ evidence_archive_sha256: 03c0a5c58260589707c301fafdec637ba84d45aad60ca3cb641dc94
 full107_af06_af08: NOT_RUN against new candidate pin; no transferred qualification
   credit
 pr_url: https://github.com/moeendres-png/mage/pull/40
+monarch_fixture_evidence:
+  coordinator_ci_run: 37119753436 job 111193455619
+  reproduced_on_head: b0ebd84a52eb465fafced33db108ceeee16330ee
+  reproduced_on_tree: 7fd283c453940fca986eaa6c4eada6b015f24952
+  file_changed: Mage.Tests/src/test/java/org/mage/test/cards/designations/MonarchTest.java
+  file_changed_sha256: e116d060feedefb9e953f9c2b25eaa2fd9c6393787e34cee6525dbb70abde1d3
+  change: post-elimination waitStackResolved retargeted from the global all-players
+    overload to surviving players B/C/D; added a pre-resolution pending-stack check;
+    no semantic assertion, denominator or harness change
+  results:
+    focused_red_before_edit:
+      tests: 1
+      failures: 1
+      errors: 0
+      skipped: 0
+      cause: 'java.lang.AssertionError: Player PlayerA must have 0 actions but found
+        1 at MonarchTest.test_MonarchByDies(MonarchTest.java:120)'
+    all_monarch_methods_after:
+      tests: 3
+      failures: 0
+      errors: 0
+      skipped: 0
+    designations_multiplayer_sba_after:
+      tests: 3 * 0 + 93
+      failures: 0
+      errors: 0
+      skipped: 0
+    whole_suite_first:
+      tests: 6822
+      failures: 1
+      errors: 3
+      skipped: 125
+      note: read-only-/tmp sandbox artifacts in the forked surefire JVM only
+    tmpdir_control:
+      tests: 5
+      failures: 0
+      errors: 0
+      skipped: 1
+    whole_suite_final:
+      command: JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=$TMPDIR" MAVEN_OPTS="-Djava.io.tmpdir=$TMPDIR"
+        mvn -o -pl Mage.Tests -am test
+      tests: 6822
+      failures: 0
+      errors: 0
+      skipped: 125
+      surefire_xml_files: 1973
+  evidence:
+    seal: research/priority-elimination/evidence/EVIDENCE_SEAL_MONARCH.json
+    archive_sha256: bc27a4dcc7145917bacb148816c74693b78d0048aa67dbcb2bc987766cbf202d
+    archive: research/priority-elimination/evidence/monarch-fixture-evidence-20261003.zip
+    checksums: research/priority-elimination/evidence/SHA256SUMS_MONARCH
+    raw_run_copy: $FOUNDRY_RUN_DIR/tmp/opencode/monarch/seal
+    prior_archive_untouched: 03c0a5c58260589707c301fafdec637ba84d45aad60ca3cb641dc946cd5f2018
+  limits:
+  - Ordinary engine-test fixture adaptation only; not a Full107, AF06 or AF08 obligation
+    change and no such credit.
+  - Mage.Verify is SKIPPED, not PASS or FAIL.
+  - No real-game, client or server-session behaviour exercised; server-side Mage.Tests
+    engine harness only.
+  - Local 6822 vs CI 6821 test-count difference left UNKNOWN.
+external_actions: none. No push, no merge, no PR, no pin change, no provider or freeze
+  action.

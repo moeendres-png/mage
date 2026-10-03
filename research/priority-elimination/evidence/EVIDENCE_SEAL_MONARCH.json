@@ -1,0 +1,136 @@
+{
+ "schema": "commander.campaign.priority-evidence.monarch-fixture/1",
+ "repository": "moeendres-png/mage",
+ "branch": "simulator/sba-elimination-priority-20261003",
+ "source_lock_sha": "103a1e0001ec7fb900ea03eddf345432b3ac31fe",
+ "exact_head_reproduced_on": "b0ebd84a52eb465fafced33db108ceeee16330ee",
+ "exact_head_reproduced_on_tree": "7fd283c453940fca986eaa6c4eada6b015f24952",
+ "coordinator_ci_run": "37119753436 job 111193455619",
+ "change": "Mage.Tests MonarchTest.test_MonarchByDies fixture: post-elimination waitStackResolved retargeted from the global all-players overload to surviving players B/C/D only; added a pre-resolution pending-stack check; all semantic assertions and denominators unchanged",
+ "files_changed": [
+  "Mage.Tests/src/test/java/org/mage/test/cards/designations/MonarchTest.java"
+ ],
+ "not_changed": [
+  "Mage/src/main/java/mage/game/GameImpl.java engine recheck",
+  "harness assertAllCommandsUsed",
+  "monarch expectations",
+  "assertLostTheGame(playerA)",
+  "denominators",
+  "any pom, card, workflow or candidate pin"
+ ],
+ "source_hashes": {
+  "Mage.Tests/src/test/java/org/mage/test/cards/designations/MonarchTest.java": "e116d060feedefb9e953f9c2b25eaa2fd9c6393787e34cee6525dbb70abde1d3",
+  "Mage/src/main/java/mage/game/GameImpl.java": "dd2d16a1d0795d6c41ca5b88e79bb5bbea4758af20fe47d707b4a91d72e8a8da"
+ },
+ "results": {
+  "focused_red_before_fixture_edit": {
+   "tests": 1,
+   "failures": 1,
+   "errors": 0,
+   "skipped": 0,
+   "cause": "java.lang.AssertionError: Player PlayerA must have 0 actions but found 1 at MonarchTest.test_MonarchByDies(MonarchTest.java:120), identical to the CI failure"
+  },
+  "all_monarch_methods_after": {
+   "tests": 3,
+   "failures": 0,
+   "errors": 0,
+   "skipped": 0,
+   "cases": [
+    "test_MonarchByDies",
+    "test_MonarchByDamage",
+    "test_MonarchByCards"
+   ]
+  },
+  "designations_multiplayer_sba_after": {
+   "tests": 93,
+   "failures": 0,
+   "errors": 0,
+   "skipped": 0
+  },
+  "whole_suite_first": {
+   "tests": 6822,
+   "failures": 1,
+   "errors": 3,
+   "skipped": 125,
+   "note": "all 4 non-passing cases were read-only-/tmp sandbox artifacts in the forked surefire JVM, not code defects"
+  },
+  "tmpdir_control": {
+   "tests": 5,
+   "failures": 0,
+   "errors": 0,
+   "skipped": 1,
+   "cases": [
+    "LoadCheatsTest.testCommands",
+    "DatabaseCompatibleTest.test_AuthUsers",
+    "DatabaseCompatibleTest.test_Records (pre-existing skip)",
+    "ZipFilesReadWriteTest.test_Read",
+    "ZipFilesReadWriteTest.test_write"
+   ]
+  },
+  "whole_suite_final": {
+   "tests": 6822,
+   "failures": 0,
+   "errors": 0,
+   "skipped": 125,
+   "command": "JAVA_TOOL_OPTIONS=\"-Djava.io.tmpdir=$TMPDIR\" MAVEN_OPTS=\"-Djava.io.tmpdir=$TMPDIR\" mvn -o -pl Mage.Tests -am test",
+   "aggregated_from_surefire_xml_files": 1973,
+   "skip_distribution": "125 pre-existing skips across 69 classes; recorded, not claimed as coverage",
+   "local_vs_ci_count": "local 6822 vs CI 6821, cause not investigated, explicitly UNKNOWN"
+  }
+ },
+ "magel_verify": "SKIPPED on the coordinator CI run; no FAIL/PASS result exists for it here",
+ "classification": "DIRECTLY_VERIFIED bounded ordinary engine-test fixture adaptation",
+ "full107_af06_af08": "NOT_RUN; no transferred credit",
+ "raw_files": [
+  {
+   "path": "FULL-suite.log",
+   "bytes": 807980,
+   "sha256": "d1378ef4f7a3c1e47f7e548631c4b14a6a60879bd10697a8103bc56950d06151"
+  },
+  {
+   "path": "FULL-suite2.log",
+   "bytes": 789191,
+   "sha256": "476bc294338d05c6df31b3290ec7f6aef85d034bd6f5904465ac17ef016ed602"
+  },
+  {
+   "path": "GREEN-designations.log",
+   "bytes": 86702,
+   "sha256": "dabde1abba1067667e5a7af8b50858c09c59e2edd869af9e8149f134775e2026"
+  },
+  {
+   "path": "GREEN-monarch-all2.log",
+   "bytes": 78307,
+   "sha256": "fe6890621cb6533415469b087c9fd588f50cb0f9a813a838d041d16e1e04b3fc"
+  },
+  {
+   "path": "MonarchTest-fullsuite.xml",
+   "bytes": 53183,
+   "sha256": "4aba2530caca8de14eaf248a1f13e8a71ea5dab8dd84018233910a730dd7bc2b"
+  },
+  {
+   "path": "PriorityEliminationTest-fullsuite.xml",
+   "bytes": 58717,
+   "sha256": "756639d95ec16d257c2d05599eef37ff69e0b62206280cfd8f0628912a1463c6"
+  },
+  {
+   "path": "RED-monarch.log",
+   "bytes": 90140,
+   "sha256": "8b10b7ebd4f557040ec9fecd1807bb2a33d49bdd58ebac8920d27bc982f98356"
+  },
+  {
+   "path": "SHA256SUMS",
+   "bytes": 800,
+   "sha256": "4423ec5c9cdc5af45f32ef4473726ff49f461f364ba820960f2f563e0e3fd0e7"
+  },
+  {
+   "path": "tmpdir-control.log",
+   "bytes": 78159,
+   "sha256": "98c71937347d7ffea760bdd80ff8b5008569d0c423092c8dc2f02577244224b6"
+  },
+  {
+   "path": "whole-suite-xml-manifest.json",
+   "bytes": 438104,
+   "sha256": "3003ef0603754e7bedf58aae4066162cd836cc076770a26b101e7cf7968ab76e"
+  }
+ ]
+}
