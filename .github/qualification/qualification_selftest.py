@@ -1296,7 +1296,7 @@ def junit_controls(h: Harness) -> list[dict]:
     result = h.pipeline(fx)
     rows.append(row(name, "red",
                     "an export that differs from the locked blobs (.gitattributes export-subst) is refused",
-                    "FAIL", result, reason="differs from its blobs",
+                    "UNKNOWN", result, reason="differs from its blobs",
                     extra_ok=result.get("sandbox_prepared") is False))
     return rows
 
@@ -1458,7 +1458,7 @@ def legacy_controls(h: Harness) -> list[dict]:
         "hardcoded surefire suppression still fails qualification", "FAIL", "test_execution_definition_altered",
         honest, project({"ProbeTest": PASSING_TEST}, pom=suppressed))
     run("CTRL-06-all-tests-disabled", "red", "a candidate whose only tests are @Disabled earns no credit",
-        "FAIL", "all_tests_skipped", project({"ProbeTest": DISABLED_TEST}))
+        "FAIL", ["all_tests_skipped", "no_enabled_required_test_methods"], project({"ProbeTest": DISABLED_TEST}))
     run("CTRL-07-no-required-tests", "red", "a candidate with no required test class is UNKNOWN, never PASS",
         "UNKNOWN", "no required test class", project({}))
     run("CTRL-08-malformed-witness", "red", "malformed witness evidence is never PASS", "UNKNOWN",

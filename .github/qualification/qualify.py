@@ -225,7 +225,17 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
             unknown(reason)
         if corpus.get("status") not in ("OK", "VIOLATION", "UNKNOWN"):
             unknown("corpus_policy_unusable: status={}".format(corpus.get("status")))
-        required_from_policy = sorted(corpus.get("required_pairs") or [])
+        # The witness runs exactly the policy's classes that own a required test
+        # method (witness.py); a class without one owes no observation.
+        required_methods_bound = corpus.get("required_methods") or []
+        owning = {str(m).rpartition("#")[0] for m in required_methods_bound if isinstance(m, str)}
+        policy_pairs = corpus.get("required_pairs") or []
+        required_from_policy = sorted(p for p in policy_pairs if p in owning)
+        if policy_pairs and not owning:
+            fail(
+                "no_enabled_required_test_methods: the corpus enumerates {} test class(es) "
+                "but none has an enabled test method".format(len(policy_pairs))
+            )
         required_in_witness = sorted(
             "{}::{}".format(e.get("module"), e.get("class_name")) for e in (witness.get("required_test_classes") or [])
         )
