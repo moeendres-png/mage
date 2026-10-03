@@ -123,16 +123,38 @@ FAIL (CTRL-30). Dependency declarations remain free.
 
 ## Required corpus (P1-2): the trusted baseline decides what must run
 
-`test_corpus_baseline.json` lists every required `(module, class)` pair. The policy reads
-it **at the trusted validator commit** (`corpus_policy.py`, Git data only):
+`test_corpus_baseline.json` lists every required `(module, class)` pair and every enabled
+test method of those classes (`module::Class#method`). The policy reads it **at the
+trusted validator commit** (`corpus_policy.py`, Git data only):
 
 | situation | result |
 | --- | --- |
 | baseline missing / malformed / stale (≠ trusted enumeration, or a different rule) | UNKNOWN |
 | a baseline test is no longer enumerated in the candidate (deleted, renamed out of the regex, moved out of a test root or to another module) with no default-branch approval | FAIL `baseline_test_removed` |
 | a baseline test was added on the default branch after the candidate's merge base | FAIL `candidate_behind_default_branch` |
+| a baseline method of a retained class is deleted, renamed, loses its test annotation or gains a disabling one (`@Ignore`, `@Disabled*`, `@Enabled*`, on itself or an enclosing type) with no default-branch approval | FAIL `baseline_test_method_removed` |
+| a required method (every candidate-enabled method plus every baseline method still owed) is not reported started by the trusted driver | FAIL `required_test_methods_not_started` |
 | the candidate's own baseline file does not describe the candidate | FAIL `candidate_corpus_baseline_not_updated` |
-| additions | required as well, and must run |
+| additions (classes or methods) | required as well, and must run |
+
+### Method identities
+
+A method is a required test when it carries `@Test`, `@ParameterizedTest`, `@RepeatedTest`,
+`@TestFactory` or `@TestTemplate`, or when it is a public no-argument `test*` method of a JUnit 3
+`TestCase` subclass. Comments and literals are ignored. The identity is the class of the
+source file that declares it plus the method name, so an inherited test counts for the class
+that declares it, and a parameterized or repeated method counts once.
+
+The static reading is not the authority. The trusted driver records every method the launcher
+started (`observed_methods`, attributed to the declaring class), and `qualify.py` requires every
+required method to appear there. If the static reading is fooled, for example by a candidate
+annotation named `Test` (CTRL-59), the method never starts and the verdict is FAIL.
+
+Coverage was measured on Mage master `6a2422d7`. Inside the 1997 baseline classes, every
+`@Test`-family annotation outside comments and literals maps to exactly one enumerated
+method: 6974 annotated methods plus one JUnit 3 method, 6975 in total. Of these, 6835 are
+enabled and 140 are disabled. A method the reading could not see (a custom meta-annotation,
+none in Mage today) would be protected only at class level.
 
 The approved path for a removal or rename takes **two reviewed changes**:
 
@@ -150,8 +172,8 @@ python3 -I -B .github/qualification/corpus_policy.py generate --repo . --rev HEA
   --out .github/qualification/test_corpus_baseline.json
 ```
 
-The current baseline has 1996 entries over 7 modules, and is identical to the
-default-branch enumeration.
+The current baseline has 1997 classes over 7 modules and 6835 enabled methods. It is identical
+to the enumeration of this branch.
 
 ## Verdict rule
 
@@ -207,12 +229,12 @@ real `c12cand` account.
 | family | controls |
 | --- | --- |
 | P1-1 trust domain | CTRL-26–29: test code overwrites `qualify.py`, `witness.py`, the source lock and evidence (target unchanged, integrity OK, a genuinely failing candidate stays FAIL); CTRL-30: initialize-phase plugin; CTRL-31: test-bytecode mutation; CTRL-32: environment scrubbed (positive); CTRL-33–35: simulated breaches are caught (replaced scorer, rewritten sealed evidence, planted module); CTRL-36: writable trusted path refused; CTRL-38: forged witness rejected |
-| P1-2 corpus | CTRL-40: honest (positive); CTRL-41: mass rename leaving one; CTRL-42: delete; CTRL-43: move out of test roots; CTRL-44: rename out of regex; CTRL-45: green subset; CTRL-46: legitimate addition (positive); CTRL-47: addition without baseline update; CTRL-48: approved removal path (positive); CTRL-49: removal without default-branch approval; CTRL-50: malformed baseline; CTRL-51: missing baseline; CTRL-52: stale baseline; CTRL-53: candidate behind default branch |
+| P1-2 corpus | CTRL-40: honest (positive); CTRL-41: mass rename leaving one; CTRL-42: delete; CTRL-43: move out of test roots; CTRL-44: rename out of regex; CTRL-45: green subset; CTRL-46: legitimate addition (positive); CTRL-47: addition without baseline update; CTRL-48: approved removal path (positive); CTRL-49: removal without default-branch approval; CTRL-50: malformed baseline; CTRL-51: missing baseline; CTRL-52: stale baseline; CTRL-53: candidate behind default branch; CTRL-56: within-class method shrink; CTRL-57: method disabled; CTRL-58: method renamed; CTRL-59: required method never started (static reading fooled); CTRL-64: approved method removal (positive); CTRL-65: method additions (positive) |
 | reports, suppression, binding | CTRL-01–09 |
 | source lock | CTRL-10–14 |
 | static | CTRL-15: workflow contract (Maven only inside the sandbox, `-I -B`, independent integrity enforcement); CTRL-16: no report harvesting; CTRL-17: driver present; CTRL-37: no candidate test bytecode |
 | per-module | CTRL-18–25 |
-| JUnit configuration and PATH (second review) | CTRL-60–62: an auto-detected extension via test resources, main resources or a dependency jar cannot hide a failing test; CTRL-63: a candidate-writable PATH entry refuses the sandbox and fails integrity |
+| JUnit configuration and PATH (second review) | CTRL-60–62: an auto-detected extension via test resources, main resources or a dependency jar cannot hide a failing test; CTRL-63: a candidate-writable PATH entry refuses the sandbox and fails integrity; CTRL-66: a `.class` test resource cannot replace trusted-compiled bytecode |
 
 **Meta-control.** With a scorer that always returns `PASS`, the suite reports
 `SELFTEST = FAIL (19/52)`. CTRL-33–36 stay red even then, because integrity is enforced
@@ -222,7 +244,8 @@ suite fails.
 ## Limits, stated
 
 - **The same JVM is shared.** Candidate test code, and the main or dependency code it reaches, runs in the driver's JVM. Such code can read that process's memory, including the MAC key, so the MAC defeats forgery from outside the run, not deliberate in-process tampering. That code can also tamper with JVM state at runtime. Attach is disabled (`-XX:+DisableAttachMechanism`) and the key is zeroed after use, but nothing in the same process can rule this out. What C12 does guarantee: the candidate cannot write trusted state, cannot change which test bytecode runs, cannot reconfigure the launcher declaratively, and cannot shrink the corpus. Any in-process tampering must therefore come from reviewable candidate source.
-- **Test code is candidate code.** It runs as the sandbox account. A test whose own source is weak (an empty body, a swallowed assertion, a method-level shrink inside a kept class) is a source-review and coverage question for C13/C16. The corpus baseline is class-level.
+- **Test code is candidate code.** It runs as the sandbox account. A test whose own source is weak (an empty body, a swallowed assertion) is a source-review and coverage question for C13/C16. The corpus baseline binds classes and test methods, not test bodies. A `@TestFactory` that returns no dynamic tests still counts as started.
+- **The class regex is narrower than surefire's defaults.** Surefire also runs `Test*` classes, for example `TestPartnerCommanders`. The C12 class regex (`(Test|Tests|TestCase|Spec|IT)$`) does not select those, so 16 Mage test files that contain `@Test` methods are not required. Widening the regex is a separate decision: it would also select helper classes named `Test*`, which can never be entered.
 - **Network egress.** Candidate build code still has the runner's network access. The job is read-only, persists no credentials and references no secret.
 - **Main-class bytecode** comes from the candidate's Maven build under an audited build definition, with annotation processing disabled.
 - **The inherited `Mage.Verify` red** (`VerifyCardDataTest`, external card-data drift) fails every candidate's positive control. It is deliberately not excluded. Which signals belong in the campaign is C13's decision (#494), and the drift is C14's (#495).
