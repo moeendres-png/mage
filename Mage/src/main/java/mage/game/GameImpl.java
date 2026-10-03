@@ -1843,6 +1843,13 @@ public abstract class GameImpl implements Game {
                                 if (isPaused() || checkIfGameIsOver()) {
                                     return;
                                 }
+                                // 117.5. The state-based actions above run before the player receives priority, so the
+                                // player can lose the game (e.g. 704.5a) or leave it in between. A player that left
+                                // the game can't receive priority, so stop here and let the players loop below move
+                                // on to the next player in turn order who is still in the game (800.4a, 800.4j).
+                                if (!player.canRespond()) {
+                                    break;
+                                }
                                 // resetPassed should be called if player performs any action
                                 if (player.priority(this)) {
                                     if (executingRollback()) {
