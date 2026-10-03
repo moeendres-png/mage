@@ -2,29 +2,37 @@ name: Trusted candidate qualification (exact SHA)
 
 # Trust boundary.
 #
-# This workflow is triggered by pull_request_target, so GitHub executes the copy
-# of this file that lives on the default branch. A pull request therefore cannot
-# change the qualification logic that judges it, the Maven invocation that runs
-# it, the guard that scores it, or the name of the check that reports it.
+# Triggered by pull_request_target, so GitHub executes the copy of this file on
+# the default branch. A pull request cannot change the workflow, the audit, the
+# witness driver or the scorer that judge it, nor the name of the reported check.
 #
-# The candidate is qualified as DATA at one exact SHA:
-#   trusted_validator  = default-branch head (github.sha), the executing source
-#   candidate          = pull_request.head.sha, fetched and checked out only as
-#                        the tree under test, never as validator source
-#   comparison_base    = merge base, inspected only, never merged and never built
+#   trusted_validator = default-branch head (github.sha), the executing source
+#   candidate         = pull_request.head.sha, the tree under test
+#   comparison_base   = merge base, inspected as data; never merged or built
 #
-# Maven is a candidate-controlled build tool, so a green Maven exit code is not
-# qualification credit: a candidate POM can suppress its own tests and still exit
-# 0. The guard scores harvested surefire evidence instead, and a build that
-# executed no tests can never earn credit. The guard proves itself with positive
-# and adversarial controls before any candidate result is read.
+# A candidate cannot author its own qualification. Three independent
+# trusted-side controls enforce that, and none of them reads a candidate file:
+#
+#   1. build-definition audit - the candidate's test-execution definition is
+#      compared against the comparison base through Git. Editing how your own
+#      tests are discovered or executed fails the gate.
+#   2. Maven result binding - a non-zero candidate build exit is an
+#      UNCONDITIONAL failure. It cannot be argued away by supplied evidence.
+#   3. trusted execution witness - the trusted JUnit launcher executes the
+#      trusted enumeration of required tests and the trusted code owns the
+#      counts. target/surefire-reports is never read: a candidate POM, plugin,
+#      lifecycle hook or test can create those files, so parsing them proved
+#      nothing.
+#
+# Runtime risk is inherent and stated, not hidden: qualifying a Java candidate
+# executes candidate build code. This job is read-only, persists no credentials
+# and references no secret, so the job token is unreachable from the build.
 
 on:
   pull_request_target:
     branches: [master]
     types: [opened, synchronize, reopened, ready_for_review]
 
-# Read-only. No write scopes, no issue or comment writes, no deployment access.
 permissions:
   contents: read
 
@@ -35,12 +43,15 @@ concurrency:
 env:
   QUALIFICATION_DIR: ${{ github.workspace }}/trusted/.github/qualification
   EVIDENCE_DIR: ${{ github.workspace }}/evidence
+  # Trusted resolution of the JUnit Platform. Pinned to an exact version; the
+  # trusted driver and launcher are compiled and invoked by trusted code.
+  JUNIT_PLATFORM_VERSION: 1.9.3
 
 jobs:
   guard-controls:
     name: guard controls (positive and adversarial)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout trusted validator source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -55,7 +66,16 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: maven
-      - name: Run qualification guard controls
+      - name: Resolve trusted JUnit Platform
+        run: |
+          set -euo pipefail
+          mvn -B -q dependency:get \
+            -Dartifact=org.junit.platform:junit-platform-console-standalone:${JUNIT_PLATFORM_VERSION}
+          jar="$(find "${HOME}/.m2/repository/org/junit/platform/junit-platform-console-standalone" \
+            -name "junit-platform-console-standalone-${JUNIT_PLATFORM_VERSION}.jar" | head -1)"
+          test -f "$jar"
+          echo "TRUSTED_JUNIT_CLASSPATH=$jar" >> "$GITHUB_ENV"
+      - name: Run qualification gate controls
         run: |
           set -euo pipefail
           mkdir -p "$EVIDENCE_DIR"
@@ -90,6 +110,15 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: maven
+      - name: Resolve trusted JUnit Platform
+        run: |
+          set -euo pipefail
+          mvn -B -q dependency:get \
+            -Dartifact=org.junit.platform:junit-platform-console-standalone:${JUNIT_PLATFORM_VERSION}
+          jar="$(find "${HOME}/.m2/repository/org/junit/platform/junit-platform-console-standalone" \
+            -name "junit-platform-console-standalone-${JUNIT_PLATFORM_VERSION}.jar" | head -1)"
+          test -f "$jar"
+          echo "TRUSTED_JUNIT_CLASSPATH=$jar" >> "$GITHUB_ENV"
       - name: Resolve trusted source lock
         env:
           TRUSTED_REPO_ROOT: ${{ github.workspace }}/trusted
@@ -107,6 +136,21 @@ jobs:
             --pr-number "${{ github.event.pull_request.number }}" \
             --run-id "${{ github.run_id }}" \
             --out "$EVIDENCE_DIR/SOURCE_LOCK.json"
+      - name: Audit candidate test-execution build definition
+        id: audit
+        env:
+          TRUSTED_REPO_ROOT: ${{ github.workspace }}/trusted
+        run: |
+          set -uo pipefail
+          base="$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['comparison_base']['sha'])" "$EVIDENCE_DIR/SOURCE_LOCK.json")"
+          python3 "$QUALIFICATION_DIR/build_definition_audit.py" \
+            --repo "$TRUSTED_REPO_ROOT" \
+            --comparison-base "$base" \
+            --candidate "${{ github.event.pull_request.head.sha }}" \
+            --out "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json"
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Checkout candidate at exact SHA as data
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -114,47 +158,62 @@ jobs:
           path: candidate
           fetch-depth: 1
           persist-credentials: false
-      - name: Run candidate tests under trusted control
+      - name: Build candidate test classes
         id: build
         working-directory: ${{ github.workspace }}/candidate
         run: |
           set -uo pipefail
-          # The goal and the xmage/log4j properties match the existing build workflow.
-          # The log4j file is taken from the TRUSTED tree so a candidate cannot shape its
-          # own CI log output. The trusted skip overrides below are necessary but not
-          # sufficient: the guard independently requires real test execution, because a
-          # POM can defeat these flags by hardcoding surefire configuration.
-          mvn test -B \
-            -DskipTests=false \
-            -Dmaven.test.skip=false \
-            -Dsurefire.skip=false \
+          # Compilation only. The candidate's own test execution and its reports
+          # are not evidence: the trusted witness executes the required tests with
+          # trusted configuration. The skip overrides keep the candidate build from
+          # doing redundant work and do not decide the verdict.
+          mvn -B test-compile \
+            -DskipTests=true \
+            -Dmaven.test.skip.exec=true \
             -Dxmage.dataCollectors.printGameLogs=false \
             -Dlog4j.configuration=file:${{ github.workspace }}/trusted/.travis/log4j.properties
           rc=$?
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           exit "$rc"
-      - name: Score qualification evidence from the trusted guard
-        id: verdict
+      - name: Produce trusted execution witness
+        id: witness
         if: always()
         working-directory: ${{ github.workspace }}/candidate
         run: |
           set -uo pipefail
           observed="$(git rev-parse HEAD)"
-          python3 "$QUALIFICATION_DIR/qualify.py" \
+          python3 "$QUALIFICATION_DIR/witness.py" \
             --source-lock "$EVIDENCE_DIR/SOURCE_LOCK.json" \
             --candidate-root "${{ github.workspace }}/candidate" \
             --observed-candidate-sha "$observed" \
             --trusted-root "$QUALIFICATION_DIR" \
+            --work-dir "${{ runner.temp }}/c12-witness" \
+            --build-exit-code "${{ steps.build.outputs.exit_code }}" \
+            --build-definition-audit "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" \
+            --out "$EVIDENCE_DIR/TRUSTED_WITNESS.json"
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+      - name: Score qualification verdict from trusted evidence
+        id: verdict
+        if: always()
+        run: |
+          set -uo pipefail
+          python3 "$QUALIFICATION_DIR/qualify.py" \
+            --source-lock "$EVIDENCE_DIR/SOURCE_LOCK.json" \
+            --witness "$EVIDENCE_DIR/TRUSTED_WITNESS.json" \
+            --trusted-root "$QUALIFICATION_DIR" \
             --out "$EVIDENCE_DIR/QUALIFICATION_EVIDENCE.json"
           rc=$?
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
-      - name: Upload source lock and qualification evidence
+      - name: Upload source-bound qualification evidence
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: mage-c12-qualification-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
           path: |
             ${{ env.EVIDENCE_DIR }}/SOURCE_LOCK.json
+            ${{ env.EVIDENCE_DIR }}/BUILD_DEFINITION_AUDIT.json
+            ${{ env.EVIDENCE_DIR }}/TRUSTED_WITNESS.json
             ${{ env.EVIDENCE_DIR }}/QUALIFICATION_EVIDENCE.json
           if-no-files-found: error
           retention-days: 30
@@ -165,6 +224,8 @@ jobs:
           python3 "$QUALIFICATION_DIR/summarize.py" \
             --source-lock "$EVIDENCE_DIR/SOURCE_LOCK.json" \
             --evidence "$EVIDENCE_DIR/QUALIFICATION_EVIDENCE.json" \
+            --witness "$EVIDENCE_DIR/TRUSTED_WITNESS.json" \
+            --audit "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" \
             --build-exit-code "${{ steps.build.outputs.exit_code }}" \
             --run-id "${{ github.run_id }}"
       - name: Enforce qualification verdict
@@ -181,9 +242,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      # Deliberately independent of qualify-candidate and never read by the verdict:
-      # a synthetic merge result is Git data about the pull request, not evidence that
-      # the candidate is qualified.
+      # Deliberately independent of qualify-candidate and never read by the
+      # verdict: a synthetic merge result is Git data about the pull request, not
+      # evidence that the candidate is qualified.
       - name: Record mergeability as data only
         env:
           MERGEABLE: ${{ github.event.pull_request.mergeable }}
@@ -191,7 +252,7 @@ jobs:
           MERGE_COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          DEFAULT_BRANCH_SHA: ${{ github.event.pull_request.base.repo.default_branch }}
+          DEFAULT_BRANCH: ${{ github.event.pull_request.base.repo.default_branch }}
         run: |
           set -euo pipefail
           mkdir -p "$EVIDENCE_DIR"
