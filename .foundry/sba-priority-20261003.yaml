@@ -1,0 +1,58 @@
+schema_version: '2.0'
+repository: moeendres-png/mage
+worktree: /home/moeen/work/simulator-priority-20261003
+branch: simulator/sba-elimination-priority-20261003
+audit_base_sha: 103a1e0001ec7fb900ea03eddf345432b3ac31fe
+audit_base_tree: f6a53692d1b7bf44feded88081049bd4f5776c1d
+state_written_against_head: 103a1e0001ec7fb900ea03eddf345432b3ac31fe
+validated_head: null
+objective: 'Repair systemic priority after SBA elimination, including active-player-absent
+  turn progression; Lab #507.'
+ownership: XMAGE-SBA-ELIMINATION-PRIORITY-20261003
+status: ACTIVE
+in_scope:
+- Mage/src/main/java/mage/game/GameImpl.java priority/turn progression
+- Mage.Tests focused engine regressions
+- research/priority-elimination documentation
+- .foundry/sba-priority-20261003.yaml
+out_of_scope:
+- C12 qualification/workflows
+- Mage.Verify and card data
+- pom/dependency changes
+- Lab/Forge modifications
+- candidate pins
+- provider/freeze/production repository
+dependencies:
+- 'Lab #507, #456 terminal handoff and #255'
+- official CR 20260925
+- existing engine test harness
+hard_gates:
+- fail-before runtime test
+- successful survivor priority, stack and continued turn tests
+- wrong-reason/surviving-player controls
+- independent review before merge
+- fresh source/ownership check
+forbidden_shortcuts:
+- manual outcome injection
+- weakened expectations
+- qualification PASS from CI alone
+- changes outside owned surface
+- automatic model fallback
+technical_decision_authority: AUTONOMOUS_WITHIN_CONTRACT
+authority_gates:
+- candidate pin changes and Full107 impact adjudication are reserved to Coordinator;
+  no credit transfer
+execution_profile: space-bunny
+executor_model: opencode-go/space-bunny-free
+native_variant: max
+exact_next_action: Address Coordinator test-construction review; obtain failure caused
+  specifically by departed-player priority, repair systemic source and validate controls
+  before commit.
+executor_handoff_from: deepseek
+executor_handoff_reason: 'Coordinator explicit rerouting: DeepSeek run 2ea732bd session
+  ses_efeb36419ffeC4XWHfG3MHfz4B at 2026-10-03T10:26:02.847Z reported Go usage limit
+  exceeded; interrupted without changes and writer released. No automatic fallback.'
+technical_decisions:
+- Coordinator read-only pre-validation review found seatsFor prefixes do not match
+  test_ method names; no validation credit. Interrupted worker130 at clean boundary
+  with no Maven/Java children, resume explicit same session after instruction.
