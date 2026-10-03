@@ -44,6 +44,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Trusted code never resolves tools from the inherited PATH (see sandbox.TOOL_PATH).
+GIT = shutil.which("git", path="/usr/sbin:/usr/bin:/sbin:/bin") or "/usr/bin/git"
+
 sys.path.append(str(Path(__file__).resolve().parent))
 import corpus_policy  # noqa: E402
 import sandbox  # noqa: E402
@@ -72,6 +75,18 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(65536), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def jdk_tool(name: str) -> str:
+    """java/javac from the staged trusted JDK (JAVA_HOME), never a PATH lookup."""
+    home = os.environ.get("JAVA_HOME", "")
+    candidate = Path(home) / "bin" / name if home else None
+    if candidate and candidate.is_file():
+        return str(candidate)
+    found = shutil.which(name, path="/usr/sbin:/usr/bin:/sbin:/bin")
+    if not found:
+        raise RuntimeError("{} not found in JAVA_HOME or system directories".format(name))
+    return found
 
 
 def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
@@ -137,7 +152,7 @@ def compile_driver(trusted_root: Path, out: Path, junit_classpath: str) -> str:
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
-    proc = run(["javac", "-proc:none", "-nowarn", "-cp", junit_classpath, "-d", str(out), str(source)], trusted_root)
+    proc = run([jdk_tool("javac"), "-proc:none", "-nowarn", "-cp", junit_classpath, "-d", str(out), str(source)], trusted_root)
     if proc.returncode != 0:
         raise RuntimeError("javac failed: {}".format(proc.stderr.strip()[:2000]))
     return sha256_file(source)
@@ -165,17 +180,31 @@ def trusted_compile_module(export_root: Path, module: str, classpath: list[str],
     argfile = out.parent / "{}.sources".format(out.name)
     argfile.write_text("\n".join('"{}"'.format(s.replace("\\", "\\\\")) for s in sources) + "\n")
     proc = run(
-        ["javac", "-proc:none", "-nowarn", "-encoding", "UTF-8", "-d", str(out),
+        [jdk_tool("javac"), "-proc:none", "-nowarn", "-encoding", "UTF-8", "-d", str(out),
          "-cp", os.pathsep.join(classpath), "@{}".format(argfile)],
         module_dir,
     )
     record["exit_code"] = proc.returncode
     record["stderr_tail"] = proc.stderr.strip()[-2000:]
+    record["dropped_test_resources"] = []
     for rel in TEST_RESOURCE_DIRS:
         resources = module_dir / rel
         if resources.is_dir():
-            shutil.copytree(resources, out, dirs_exist_ok=True, symlinks=False,
-                            ignore=lambda d, names: [n for n in names if (Path(d) / n).is_symlink()])
+            def ignore(directory, names, root=resources):
+                dropped = []
+                for name in names:
+                    path = Path(directory) / name
+                    rel_path = path.relative_to(root).as_posix()
+                    # JUnit registration and configuration never come from the
+                    # candidate (the driver also disables auto-registration and
+                    # implicit configuration; this is defence in depth).
+                    if path.is_symlink() or name == "junit-platform.properties" or (
+                        rel_path.startswith("META-INF/services/org.junit")
+                    ):
+                        dropped.append(name)
+                        record["dropped_test_resources"].append(rel_path)
+                return dropped
+            shutil.copytree(resources, out, dirs_exist_ok=True, symlinks=False, ignore=ignore)
     return record
 
 
@@ -211,7 +240,8 @@ def module_witnesses(user, sandbox_dir, candidate_root, modules, bundle, outputs
             [str(bundle / "driver"), *[str(bundle / "junit" / Path(j).name) for j in entry["junit"]],
              str(test_output), *entry["classpath"]]
         )
-        cmd = ["java", "-cp", classpath, "TrustedTestDriver",
+        # No attach: another candidate process must not attach to this JVM.
+        cmd = [jdk_tool("java"), "-XX:+DisableAttachMechanism", "-cp", classpath, "TrustedTestDriver",
                "--evidence", str(witness_path), "--class-path", classpath,
                "--bind-sha", locked_sha, "--bind-tree", locked_tree,
                "--module-id", module, "--module-output", str(test_output)]
@@ -316,7 +346,7 @@ def main() -> int:
         if observed != locked_sha:
             raise ValueError("sandbox candidate {} != locked {}".format(observed, locked_sha))
         repo_tree = subprocess.run(
-            ["git", "-C", args.git_repo, "rev-parse", "{}^{{tree}}".format(locked_sha)],
+            [GIT, "-C", args.git_repo, "rev-parse", "{}^{{tree}}".format(locked_sha)],
             capture_output=True, text=True, check=False,
         ).stdout.strip()
         if not locked_tree or repo_tree != locked_tree:

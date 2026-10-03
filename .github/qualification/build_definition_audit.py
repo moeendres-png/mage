@@ -32,10 +32,14 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+# Trusted code never resolves tools from the inherited PATH (see sandbox.TOOL_PATH).
+GIT = shutil.which("git", path="/usr/sbin:/usr/bin:/sbin:/bin") or "/usr/bin/git"
 
 SCHEMA = "mage.candidate-qualification.build-definition-audit/1"
 
@@ -217,7 +221,7 @@ def fingerprint(pom_bytes: bytes) -> dict:
 
 def git(repo: Path, *args: str) -> str:
     proc = subprocess.run(
-        ["git", *args], cwd=str(repo), capture_output=True, text=True, check=False
+        [GIT, *args], cwd=str(repo), capture_output=True, text=True, check=False
     )
     if proc.returncode != 0:
         raise RuntimeError("git {} failed: {}".format(" ".join(args), proc.stderr.strip()))
@@ -231,7 +235,7 @@ def changed_poms(repo: Path, base_rev: str, candidate_rev: str) -> list[str]:
 
 def read_blob(repo: Path, rev: str, path: str) -> bytes | None:
     proc = subprocess.run(
-        ["git", "show", "{}:{}".format(rev, path)],
+        [GIT, "show", "{}:{}".format(rev, path)],
         cwd=str(repo),
         capture_output=True,
         check=False,

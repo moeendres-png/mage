@@ -50,6 +50,10 @@ env:
   C12_BUNDLE_DIR: /var/lib/c12-trusted/bundle
   C12_RUNTIME_DIR: /var/lib/c12-trusted/runtime
   C12_TRUSTED_JDK: /var/lib/c12-trusted/jdk
+  C12_TRUSTED_MAVEN: /var/lib/c12-trusted/maven
+  # After prepare, every step resolves tools only from root-owned locations; the
+  # inherited PATH lists world-writable /opt entries on hosted runners.
+  C12_TRUSTED_PATH: /var/lib/c12-trusted/jdk/bin:/var/lib/c12-trusted/maven/bin:/usr/sbin:/usr/bin:/sbin:/bin
   PYTHONDONTWRITEBYTECODE: "1"
   # Trusted resolution of the JUnit Platform, pinned to an exact version.
   JUNIT_PLATFORM_VERSION: 1.9.3
@@ -85,9 +89,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$EVIDENCE_DIR"
-          python3 -I -B "$QUALIFICATION_DIR/qualification_selftest.py" \
+          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/qualification_selftest.py" \
             --maven mvn \
             --sandbox-user "$C12_SANDBOX_USER" \
+            --harden-world-writable \
             --out "$EVIDENCE_DIR/GUARD_CONTROLS.json"
       - name: Upload guard control report
         if: always()
@@ -103,6 +108,10 @@ jobs:
     needs: guard-controls
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    defaults:
+      run:
+        # Absolute shell: the step shell is never resolved from PATH.
+        shell: /usr/bin/bash --noprofile --norc {0}
     steps:
       - name: Checkout trusted validator source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -116,7 +125,7 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: maven
+          cache: ''  # no cache save: nothing from this job may persist to later runs
       - name: Resolve trusted JUnit Platform
         run: |
           set -euo pipefail
@@ -133,7 +142,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$EVIDENCE_DIR"
-          python3 -I -B "$QUALIFICATION_DIR/source_lock.py" \
+          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/source_lock.py" \
             --repo "${{ github.repository }}" \
             --default-branch master \
             --trusted-sha "${{ github.sha }}" \
@@ -145,8 +154,8 @@ jobs:
       - name: Audit candidate build definition
         run: |
           set -uo pipefail
-          base="$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['comparison_base']['sha'])" "$EVIDENCE_DIR/SOURCE_LOCK.json")"
-          python3 -I -B "$QUALIFICATION_DIR/build_definition_audit.py" \
+          base="$(/usr/bin/python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['comparison_base']['sha'])" "$EVIDENCE_DIR/SOURCE_LOCK.json")"
+          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/build_definition_audit.py" \
             --repo "$TRUSTED_ROOT" \
             --comparison-base "$base" \
             --candidate "${{ github.event.pull_request.head.sha }}" \
@@ -158,7 +167,7 @@ jobs:
         run: |
           set -euo pipefail
           command_files="$(dirname "$GITHUB_ENV")"
-          python3 -I -B "$QUALIFICATION_DIR/sandbox.py" prepare \
+          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/sandbox.py" prepare \
             --user "$C12_SANDBOX_USER" \
             --repo "$TRUSTED_ROOT" \
             --candidate-sha "$CANDIDATE_SHA" \
@@ -173,12 +182,14 @@ jobs:
             --probe "$command_files" \
             --stage-jdk "$JAVA_HOME" \
             --jdk-dest "$C12_TRUSTED_JDK" \
+            --stage-maven "$(dirname "$(dirname "$(readlink -f "$(command -v mvn)")")")" \
+            --maven-dest "$C12_TRUSTED_MAVEN" \
+            --harden-world-writable \
             --out "$EVIDENCE_DIR/SANDBOX_PREPARE.json"
           # Every later step, trusted or sandboxed, uses the staged read-only JDK.
           echo "JAVA_HOME=$C12_TRUSTED_JDK" >> "$GITHUB_ENV"
-          echo "$C12_TRUSTED_JDK/bin" >> "$GITHUB_PATH"
           mkdir -p "$RUNNER_TEMP/c12-seals"
-          python3 -I -B "$QUALIFICATION_DIR/sandbox.py" seal \
+          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/sandbox.py" seal \
             --out "$RUNNER_TEMP/c12-seals/before-candidate.json" \
             "$EVIDENCE_DIR/SOURCE_LOCK.json" \
             "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" \
@@ -186,19 +197,20 @@ jobs:
             "$TRUSTED_JUNIT_CLASSPATH"
       - name: Build candidate as the sandbox account
         run: |
+          export PATH="$C12_TRUSTED_PATH"
           set -euo pipefail
           # Compilation plus per-module test classpaths in ONE reactor session, so
           # sibling modules resolve to the candidate's own reactor output. The
           # candidate's own test execution and reports are not evidence. The exit
           # code is recorded by trusted code around the sandboxed process.
-          python3 -I -B "$QUALIFICATION_DIR/sandbox.py" run \
+          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/sandbox.py" run \
             --user "$C12_SANDBOX_USER" \
             --label candidate-build \
             --sandbox-dir "$C12_SANDBOX_DIR" \
             --cwd "$C12_SANDBOX_DIR/candidate" \
             --timeout 18000 \
             --out "$EVIDENCE_DIR/BUILD_RESULT.json" \
-            -- mvn -B test-compile dependency:build-classpath \
+            -- "$C12_TRUSTED_MAVEN/bin/mvn" -B test-compile dependency:build-classpath \
               -DincludeScope=test \
               -Dmdep.outputFile=target/c12-test-classpath.txt \
               -DskipTests=true \
@@ -209,8 +221,9 @@ jobs:
       - name: Collect per-module test classpaths
         if: always()
         run: |
+          export PATH="$C12_TRUSTED_PATH"
           set -uo pipefail
-          python3 -I -B "$QUALIFICATION_DIR/resolve_classpaths.py" \
+          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/resolve_classpaths.py" \
             --git-repo "$TRUSTED_ROOT" \
             --candidate-sha "${{ github.event.pull_request.head.sha }}" \
             --candidate-root "$C12_SANDBOX_DIR/candidate" \
@@ -219,8 +232,9 @@ jobs:
       - name: Produce trusted execution witness
         if: always()
         run: |
+          export PATH="$C12_TRUSTED_PATH"
           set -uo pipefail
-          python3 -I -B "$QUALIFICATION_DIR/witness.py" \
+          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/witness.py" \
             --source-lock "$EVIDENCE_DIR/SOURCE_LOCK.json" \
             --git-repo "$TRUSTED_ROOT" \
             --trusted-root "$QUALIFICATION_DIR" \
@@ -233,7 +247,7 @@ jobs:
             --build-definition-audit "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" \
             --module-classpaths "$EVIDENCE_DIR/MODULE_CLASSPATHS.json" \
             --out "$EVIDENCE_DIR/TRUSTED_WITNESS.json" || true
-          python3 -I -B "$QUALIFICATION_DIR/sandbox.py" seal \
+          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/sandbox.py" seal \
             --out "$RUNNER_TEMP/c12-seals/after-witness.json" \
             "$EVIDENCE_DIR/BUILD_RESULT.json" \
             "$EVIDENCE_DIR/MODULE_CLASSPATHS.json" \
@@ -242,9 +256,10 @@ jobs:
         id: integrity
         if: always()
         run: |
+          export PATH="$C12_TRUSTED_PATH"
           set -uo pipefail
           command_files="$(dirname "$GITHUB_ENV")"
-          python3 -I -B "$QUALIFICATION_DIR/sandbox.py" verify \
+          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/sandbox.py" verify \
             --user "$C12_SANDBOX_USER" \
             --repo "$TRUSTED_ROOT" \
             --trusted-sha "${{ github.sha }}" \
@@ -263,8 +278,9 @@ jobs:
         id: verdict
         if: always()
         run: |
+          export PATH="$C12_TRUSTED_PATH"
           set -uo pipefail
-          python3 -I -B "$QUALIFICATION_DIR/qualify.py" \
+          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/qualify.py" \
             --source-lock "$EVIDENCE_DIR/SOURCE_LOCK.json" \
             --witness "$EVIDENCE_DIR/TRUSTED_WITNESS.json" \
             --integrity "$EVIDENCE_DIR/INTEGRITY.json" \
@@ -291,9 +307,10 @@ jobs:
       - name: Publish source-bound qualification summary
         if: always()
         run: |
+          export PATH="$C12_TRUSTED_PATH"
           set -uo pipefail
-          exit_code="$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('exit_code'))" "$EVIDENCE_DIR/BUILD_RESULT.json" 2>/dev/null || echo unrecorded)"
-          python3 -I -B "$QUALIFICATION_DIR/summarize.py" \
+          exit_code="$(/usr/bin/python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('exit_code'))" "$EVIDENCE_DIR/BUILD_RESULT.json" 2>/dev/null || echo unrecorded)"
+          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/summarize.py" \
             --source-lock "$EVIDENCE_DIR/SOURCE_LOCK.json" \
             --evidence "$EVIDENCE_DIR/QUALIFICATION_EVIDENCE.json" \
             --witness "$EVIDENCE_DIR/TRUSTED_WITNESS.json" \
@@ -306,6 +323,7 @@ jobs:
           INTEGRITY_EXIT: ${{ steps.integrity.outputs.exit_code }}
           VERDICT_EXIT: ${{ steps.verdict.outputs.exit_code }}
         run: |
+          export PATH="$C12_TRUSTED_PATH"
           set -uo pipefail
           # Both independently: a scorer replaced by candidate code could not
           # also make the integrity check (a separate process, re-derived from
@@ -339,7 +357,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$EVIDENCE_DIR"
-          python3 -I -B "$QUALIFICATION_DIR/record_mergeability.py" \
+          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/record_mergeability.py" \
             --out "$EVIDENCE_DIR/MERGEABILITY.json"
       - name: Upload mergeability record
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

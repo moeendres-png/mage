@@ -59,6 +59,17 @@ PRIVILEGED_GROUPS = ("sudo", "admin", "wheel", "docker", "adm", "lxd", "root")
 # Variables a candidate process may see. Nothing else crosses the boundary.
 ENV_ALLOWLIST = ("LANG", "LC_ALL", "TZ", "MAVEN_OPTS", "JAVA_HOME")
 REAP_TIMEOUT_SECONDS = 15
+# Trusted code resolves its tools only from root-owned system directories, never
+# from the inherited PATH (hosted runners put world-writable /opt entries first).
+TOOL_PATH = "/usr/sbin:/usr/bin:/sbin:/bin"
+OUTPUT_CAP_BYTES = 4 * 1024 * 1024
+
+
+def tool(name: str) -> str:
+    found = shutil.which(name, path=TOOL_PATH)
+    if not found:
+        raise SandboxError("required tool {} not found under {}".format(name, TOOL_PATH))
+    return found
 
 
 class SandboxError(RuntimeError):
@@ -66,7 +77,8 @@ class SandboxError(RuntimeError):
 
 
 def _priv(cmd: list[str]) -> list[str]:
-    return list(cmd) if os.geteuid() == 0 else ["sudo", "-n", *cmd]
+    cmd = [tool(cmd[0])] + list(cmd[1:]) if cmd and "/" not in cmd[0] else list(cmd)
+    return cmd if os.geteuid() == 0 else [tool("sudo"), "-n", *cmd]
 
 
 def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
@@ -149,14 +161,14 @@ def candidate_command(user: str, home: Path, cwd: Path, cmd: list[str], extra_en
     # env -i: the candidate starts from an empty environment. sh only changes
     # directory; the candidate command is exec'd with its own argv.
     return [
-        "sudo", "-n", "-u", user, "--",
+        tool("sudo"), "-n", "-u", user, "--",
         "/usr/bin/env", "-i", *candidate_environment(home, extra_env),
         "/bin/sh", "-c", 'cd -- "$1" && shift && exec "$@"', "c12-sandbox", str(cwd), *cmd,
     ]
 
 
 def alive(user: str) -> list[str]:
-    proc = _run(["pgrep", "-u", user, "-a"])
+    proc = _run([tool("pgrep"), "-u", user, "-a"])
     return [line for line in proc.stdout.splitlines() if line.strip()]
 
 
@@ -194,15 +206,40 @@ def run_candidate(user: str, home: Path, cwd: Path, cmd: list[str], timeout: int
             child.wait()
             raise SandboxError("candidate execution timed out after {}s".format(timeout))
         reap(user)
-        out.seek(0)
-        err.seek(0)
-        stdout = out.read().decode("utf-8", errors="replace")
-        stderr = err.read().decode("utf-8", errors="replace")
+        stdout = _tail(out)
+        stderr = _tail(err)
     return subprocess.CompletedProcess(child.args, returncode, stdout, stderr)
 
 
 # ---------------------------------------------------------------------------
 # staging
+
+
+def _tail(handle) -> str:
+    """At most OUTPUT_CAP_BYTES of candidate output: the end is what matters."""
+    size = handle.seek(0, os.SEEK_END)
+    handle.seek(max(0, size - OUTPUT_CAP_BYTES))
+    return handle.read().decode("utf-8", errors="replace")
+
+
+def path_entries() -> list[Path]:
+    """Every directory on the inherited PATH: a trusted step may resolve a tool there."""
+    return [Path(p) for p in os.environ.get("PATH", "").split(os.pathsep) if p and Path(p).is_absolute()]
+
+
+def harden_world_writable() -> list[str]:
+    """Remove o+w from every non-sticky world-writable directory on the root filesystem.
+
+    On hosted runners /opt (tool cache, pipx) is world-writable and not sticky, so
+    the candidate account could rename and replace directories that trusted steps
+    and post-job actions later execute from. Sticky directories (/tmp) are left alone.
+    """
+    found = _run(_priv(["find", "/", "-xdev", "-type", "d", "-perm", "-0002", "!", "-perm", "-1000",
+                        "-not", "-path", "/proc/*", "-print"]))
+    changed = [line for line in found.stdout.splitlines() if line.strip()]
+    for directory in changed:
+        _must(_priv(["chmod", "o-w", directory]), "harden {}".format(directory))
+    return changed
 
 
 def stage_readonly(src: Path, dest: Path) -> None:
@@ -230,10 +267,10 @@ def export_commit(repo: Path, sha: str, dest: Path) -> None:
     if dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
-    archive = subprocess.run(["git", "-C", str(repo), "archive", "--format=tar", sha], capture_output=True, check=False)
+    archive = subprocess.run([tool("git"), "-C", str(repo), "archive", "--format=tar", sha], capture_output=True, check=False)
     if archive.returncode != 0:
         raise SandboxError("git archive {} failed: {}".format(sha, archive.stderr.decode(errors="replace")[:400]))
-    untar = subprocess.run(["tar", "-x", "-C", str(dest)], input=archive.stdout, capture_output=True, check=False)
+    untar = subprocess.run([tool("tar"), "-x", "-C", str(dest)], input=archive.stdout, capture_output=True, check=False)
     if untar.returncode != 0:
         raise SandboxError("untar failed: {}".format(untar.stderr.decode(errors="replace")[:400]))
 
@@ -301,7 +338,7 @@ def writable_by(user: str, paths: list[Path]) -> list[dict]:
 
 
 def git_tracked_digests(repo: Path, sha: str, rel_dir: str) -> dict:
-    out = _must(["git", "-C", str(repo), "ls-tree", "-r", "-z", sha, "--", rel_dir], "git ls-tree").stdout
+    out = _must([tool("git"), "-C", str(repo), "ls-tree", "-r", "-z", sha, "--", rel_dir], "git ls-tree").stdout
     tracked = {}
     for record in out.split("\0"):
         if not record:
@@ -315,7 +352,7 @@ def git_tracked_digests(repo: Path, sha: str, rel_dir: str) -> dict:
 
 def verify_trusted_tree(repo: Path, sha: str, rel_dir: str) -> dict:
     """Every trusted qualification file must hash to the trusted commit's blob."""
-    head = _must(["git", "-C", str(repo), "rev-parse", "HEAD"], "git rev-parse").stdout.strip()
+    head = _must([tool("git"), "-C", str(repo), "rev-parse", "HEAD"], "git rev-parse").stdout.strip()
     tracked = git_tracked_digests(repo, sha, rel_dir)
     mismatched, missing = [], []
     for path, blob in sorted(tracked.items()):
@@ -323,7 +360,7 @@ def verify_trusted_tree(repo: Path, sha: str, rel_dir: str) -> dict:
         if not full.is_file() or full.is_symlink():
             missing.append(path)
             continue
-        actual = _must(["git", "-C", str(repo), "hash-object", "--no-filters", "--", path], "git hash-object").stdout.strip()
+        actual = _must([tool("git"), "-C", str(repo), "hash-object", "--no-filters", "--", path], "git hash-object").stdout.strip()
         if actual != blob:
             mismatched.append(path)
     present = {
@@ -413,6 +450,8 @@ def _write(path: str, document: dict) -> None:
 def cmd_prepare(args) -> int:
     doc = {"schema": SCHEMA_PREPARE, "status": "UNKNOWN", "user": args.user, "candidate_sha": args.candidate_sha}
     try:
+        if args.harden_world_writable:
+            doc["hardened_world_writable_dirs"] = harden_world_writable()
         sandbox = Path(args.sandbox_dir)
         home = prepare_sandbox(args.user, sandbox)
         doc["candidate_home"] = str(home)
@@ -430,7 +469,9 @@ def cmd_prepare(args) -> int:
                 shutil.copy2(item, staging / Path(item).name)
             stage_readonly(staging, bundle)
         doc["bundle_dir"] = str(bundle)
-        probes = [Path(p) for p in args.probe] + [bundle]
+        # Every PATH entry is probed too: a trusted step resolving a tool from a
+        # candidate-writable directory would run candidate code as the runner.
+        probes = [Path(p) for p in args.probe] + [bundle] + path_entries()
         if args.stage_jdk:
             # The toolchain the trusted steps use AFTER candidate code has run must
             # not sit under a candidate-writable ancestor (on hosted runners /opt,
@@ -442,6 +483,13 @@ def cmd_prepare(args) -> int:
                 raise SandboxError("staged JDK at {} has no java/javac".format(jdk))
             doc["trusted_jdk"] = str(jdk)
             probes.append(jdk)
+        if args.stage_maven:
+            maven = Path(args.maven_dest)
+            stage_readonly(Path(args.stage_maven).resolve(), maven)
+            if not (maven / "bin" / "mvn").is_file():
+                raise SandboxError("staged Maven at {} has no bin/mvn".format(maven))
+            doc["trusted_maven"] = str(maven)
+            probes.append(maven)
         writable = writable_by(args.user, probes)
         doc["probed_paths"] = [str(p) for p in probes]
         doc["candidate_writable_trusted_paths"] = writable
@@ -494,7 +542,7 @@ def cmd_seal(args) -> int:
 
 def cmd_verify(args) -> int:
     doc = integrity(Path(args.repo), args.trusted_sha, args.rel_dir, [Path(s) for s in args.seal],
-                    args.user, [Path(p) for p in args.probe])
+                    args.user, [Path(p) for p in args.probe] + path_entries())
     _write(args.out, doc)
     print("INTEGRITY = {}{}".format(doc["status"], " ({})".format("; ".join(doc["violations"])[:400]) if doc["violations"] else ""))
     return {"OK": 0, "VIOLATION": 1}.get(doc["status"], 2)
@@ -515,7 +563,11 @@ def main() -> int:
     p.add_argument("--work-dir", required=True)
     p.add_argument("--probe", action="append", default=[])
     p.add_argument("--stage-jdk", default="", help="JAVA_HOME to copy into a root-owned read-only location")
+    p.add_argument("--harden-world-writable", action="store_true",
+                   help="remove o+w from non-sticky world-writable directories (hosted runners: /opt)")
     p.add_argument("--jdk-dest", default="/var/lib/c12-trusted/jdk")
+    p.add_argument("--stage-maven", default="", help="MAVEN_HOME to copy into a root-owned read-only location")
+    p.add_argument("--maven-dest", default="/var/lib/c12-trusted/maven")
     p.add_argument("--out", required=True)
 
     r = sub.add_parser("run")

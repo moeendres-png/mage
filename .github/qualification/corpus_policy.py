@@ -48,9 +48,13 @@ import argparse
 import hashlib
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import PurePosixPath
+
+# Trusted code never resolves tools from the inherited PATH (see sandbox.TOOL_PATH).
+GIT = shutil.which("git", path="/usr/sbin:/usr/bin:/sbin:/bin") or "/usr/bin/git"
 
 BASELINE_SCHEMA = "mage.candidate-qualification.test-corpus-baseline/1"
 POLICY_SCHEMA = "mage.candidate-qualification.corpus-policy/1"
@@ -78,7 +82,7 @@ class CorpusError(RuntimeError):
 
 def git(repo: str, *args: str) -> str:
     proc = subprocess.run(
-        ["git", "-C", str(repo), *args], capture_output=True, text=True, check=False
+        [GIT, "-C", str(repo), *args], capture_output=True, text=True, check=False
     )
     if proc.returncode != 0:
         raise CorpusError("git {} failed: {}".format(" ".join(args), proc.stderr.strip()))
@@ -92,7 +96,7 @@ def tree_paths(repo: str, rev: str) -> list[str]:
 
 def read_blob(repo: str, rev: str, path: str) -> bytes | None:
     proc = subprocess.run(
-        ["git", "-C", str(repo), "show", "{}:{}".format(rev, path)],
+        [GIT, "-C", str(repo), "show", "{}:{}".format(rev, path)],
         capture_output=True,
         check=False,
     )

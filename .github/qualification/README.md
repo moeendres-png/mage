@@ -79,6 +79,32 @@ Before scoring, `sandbox.py verify`:
 The workflow fails unless **both** the integrity check and the verdict pass. They are
 separate processes, so replacing the scorer cannot also pass the integrity check (CTRL-33).
 
+**Tool resolution (second review).** The inherited PATH on hosted runners lists
+world-writable `/opt` entries, such as the tool cache and `pipx_bin`, ahead of `/usr/bin`. Before
+any candidate code runs, `prepare --harden-world-writable` removes `o+w` from every
+non-sticky world-writable directory. Every trusted step after `prepare` then:
+
+- runs under an absolute `/usr/bin/bash` shell, never one looked up on PATH;
+- exports a root-only PATH: staged JDK, staged Maven, `/usr/sbin:/usr/bin:/sbin:/bin`;
+- runs Python as `/usr/bin/python3 -I -B`.
+
+The trusted scripts resolve `git`, `sudo`, `find`, `tar` and the JDK tools by absolute path.
+`prepare` and `verify` also probe every PATH entry (CTRL-63). The qualify job saves no
+Maven cache.
+
+**JUnit configuration (second review).** The driver builds its launcher with every
+auto-registration switched off: test engines, post-discovery filters, session, discovery
+and execution listeners. It adds only the Jupiter and Vintage engines, and checks that
+their code source is the trusted JUnit jar. It disables implicit configuration parameters
+(`junit-platform.properties`, system properties) and sets extension autodetection off
+explicitly. It credits only identifiers from those two engines. JUnit service files and
+`junit-platform.properties` in candidate test resources are not copied into the trusted
+output.
+
+Without these measures, a candidate could hide a failing test method behind an
+auto-detected extension, shipped in test resources, main resources or a new dependency jar
+(CTRL-60, 61, 62). Every count would have stayed green.
+
 The driver authenticates its witness with HMAC-SHA256. The key is delivered on stdin from
 an unlinked trusted file. The driver reads it and closes stdin before any candidate class
 loads, and keeps it only in a local of `main()`. Candidate test code can write into the
@@ -173,8 +199,8 @@ The executed scripts are the copies committed in the fixture's trusted commit, s
 candidate able to overwrite them would be overwriting the scorer that actually runs. Red
 controls must also show their **intended reason**.
 
-`SELFTEST = PASS (52/52 controls ok, 0 not run)`. This was run locally as a separate
-unprivileged account (`nobody`, offline) in about 4 minutes. The PR-time workflow
+`SELFTEST = PASS (56/56 controls ok, 0 not run)`. This was run locally as a separate
+unprivileged account (`nobody`, offline) in about 5 minutes. With the previous driver, CTRL-60 to 62 gave a false PASS: candidate configuration hid a failing test. The PR-time workflow
 `candidate-qualification-selftest.yml` runs the same suite on GitHub-hosted runners with the
 real `c12cand` account.
 
@@ -186,6 +212,7 @@ real `c12cand` account.
 | source lock | CTRL-10–14 |
 | static | CTRL-15: workflow contract (Maven only inside the sandbox, `-I -B`, independent integrity enforcement); CTRL-16: no report harvesting; CTRL-17: driver present; CTRL-37: no candidate test bytecode |
 | per-module | CTRL-18–25 |
+| JUnit configuration and PATH (second review) | CTRL-60–62: an auto-detected extension via test resources, main resources or a dependency jar cannot hide a failing test; CTRL-63: a candidate-writable PATH entry refuses the sandbox and fails integrity |
 
 **Meta-control.** With a scorer that always returns `PASS`, the suite reports
 `SELFTEST = FAIL (19/52)`. CTRL-33–36 stay red even then, because integrity is enforced
@@ -194,7 +221,8 @@ suite fails.
 
 ## Limits, stated
 
-- **Test code is candidate code.** It runs as the sandbox account and cannot write trusted state, forge the authenticated witness, or change which bytecode runs. A test whose own source is weak (an empty body, a swallowed assertion, a method-level shrink inside a kept class) is a source-review and coverage question for C13/C16. The corpus baseline is class-level.
+- **The same JVM is shared.** Candidate test code, and the main or dependency code it reaches, runs in the driver's JVM. Such code can read that process's memory, including the MAC key, so the MAC defeats forgery from outside the run, not deliberate in-process tampering. That code can also tamper with JVM state at runtime. Attach is disabled (`-XX:+DisableAttachMechanism`) and the key is zeroed after use, but nothing in the same process can rule this out. What C12 does guarantee: the candidate cannot write trusted state, cannot change which test bytecode runs, cannot reconfigure the launcher declaratively, and cannot shrink the corpus. Any in-process tampering must therefore come from reviewable candidate source.
+- **Test code is candidate code.** It runs as the sandbox account. A test whose own source is weak (an empty body, a swallowed assertion, a method-level shrink inside a kept class) is a source-review and coverage question for C13/C16. The corpus baseline is class-level.
 - **Network egress.** Candidate build code still has the runner's network access. The job is read-only, persists no credentials and references no secret.
 - **Main-class bytecode** comes from the candidate's Maven build under an audited build definition, with annotation processing disabled.
 - **The inherited `Mage.Verify` red** (`VerifyCardDataTest`, external card-data drift) fails every candidate's positive control. It is deliberately not excluded. Which signals belong in the campaign is C13's decision (#494), and the drift is C14's (#495).

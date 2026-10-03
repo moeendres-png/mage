@@ -375,6 +375,22 @@ class Harness:
     def mvn(self, *goals: str) -> list[str]:
         return [self.maven, "-B"] + (["-o"] if self.offline else []) + list(goals)
 
+    def install_artifact(self, jar: Path, group: str, artifact: str, version: str) -> None:
+        """Place a jar and a minimal POM in the candidate's local Maven repository, as the candidate.
+
+        Done directly in the repository layout rather than through install:install-file,
+        so the control does not depend on the install plugin being resolvable offline.
+        """
+        target = sandbox.sandbox_home(self.sandbox_dir) / ".m2" / "repository" / Path(*group.split(".")) / artifact / version
+        pom = ('<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion>'
+               "<groupId>{}</groupId><artifactId>{}</artifactId><version>{}</version></project>").format(group, artifact, version)
+        stem = "{}-{}".format(artifact, version)
+        proc = self.as_candidate(self.sandbox_dir, [
+            "/bin/sh", "-c", 'mkdir -p "$1" && cp "$2" "$1/$3.jar" && printf "%s" "$4" > "$1/$3.pom"',
+            "c12", str(target), str(jar), stem, pom])
+        if proc.returncode != 0:
+            raise RuntimeError("could not install {}:{}:{}: {}".format(group, artifact, version, proc.stderr[-300:]))
+
     def stage_readonly(self, src: Path, name: str) -> Path:
         dest = Path("/var/lib/c12-selftest") / name
         sandbox.stage_readonly(src, dest)
@@ -391,7 +407,8 @@ class Harness:
     # -- the production pipeline -------------------------------------------
 
     def pipeline(self, fx: dict, *, build_modules=None, classpath_override=None, after_build=None,
-                 after_seal=None, corrupt_witness=False, lock_candidate_sha=None, before_prepare=None) -> dict:
+                 after_seal=None, corrupt_witness=False, lock_candidate_sha=None, before_prepare=None,
+                 trusted_path_prefix=None) -> dict:
         evidence = fx["evidence"]
         evidence.mkdir(parents=True, exist_ok=True)
         py = [sys.executable, "-I", "-B"]
@@ -416,12 +433,15 @@ class Harness:
             before_prepare(self, fx)
         prepare_path = evidence / "SANDBOX_PREPARE.json"
         probes = ["--probe", str(fx["work"]), "--probe", str(fx["repo"])]
+        trusted_env = dict(os.environ)
+        if trusted_path_prefix:
+            trusted_env["PATH"] = os.pathsep.join([str(trusted_path_prefix), trusted_env.get("PATH", "")])
         prep = subprocess.run(py + [str(qual / "sandbox.py"), "prepare", "--user", self.user,
                                     "--repo", str(fx["repo"]), "--candidate-sha", fx["cand_sha"],
                                     "--sandbox-dir", str(self.sandbox_dir), "--bundle-dir", str(self.runtime_dir),
                                     "--seed-maven-repo", self.seed, "--work-dir", str(fx["work"]),
                                     "--out", str(prepare_path)] + probes,
-                              capture_output=True, text=True, check=False)
+                              capture_output=True, text=True, check=False, env=trusted_env)
         seal1 = fx["work"] / "seal-before.json"
         sandbox_ok = prep.returncode == 0
         subprocess.run(py + [str(qual / "sandbox.py"), "seal", "--out", str(seal1),
@@ -482,7 +502,7 @@ class Harness:
                   "--trusted-sha", fx["trusted_sha"], "--seal", str(seal1), "--seal", str(seal2),
                   "--probe", str(fx["work"]), "--probe", str(fx["repo"]),
                   "--probe", str(self.bundle_dir), "--probe", str(self.runtime_dir), "--out", str(integrity_path)],
-            capture_output=True, text=True, check=False)
+            capture_output=True, text=True, check=False, env=trusted_env)
 
         evidence_path = evidence / "QUALIFICATION_EVIDENCE.json"
         qualify_cmd = py + [QUALIFY_OVERRIDE or str(qual / "qualify.py"), "--source-lock", str(lock_path),
@@ -1086,6 +1106,138 @@ def trust_controls(h: Harness) -> list[dict]:
     return rows
 
 
+SKIP_FAILING_EXTENSION = """package probe;
+
+import org.junit.jupiter.api.extension.ConditionEvaluationResult;
+import org.junit.jupiter.api.extension.ExecutionCondition;
+import org.junit.jupiter.api.extension.ExtensionContext;
+
+public class SkipFailing implements ExecutionCondition {
+
+    @Override
+    public ConditionEvaluationResult evaluateExecutionCondition(ExtensionContext context) {
+        if (context.getTestMethod().isPresent() && context.getTestMethod().get().getName().startsWith("fails")) {
+            return ConditionEvaluationResult.disabled("hidden by candidate configuration");
+        }
+        return ConditionEvaluationResult.enabled("visible");
+    }
+}
+"""
+
+MIXED_TEST = """package probe;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import org.junit.jupiter.api.Test;
+
+class MixedTest {
+
+    @Test
+    void passesOne() {
+        assertEquals(2, 1 + 1);
+    }
+
+    @Test
+    void failsOnPurpose() {
+        assertEquals(3, 1 + 1);
+    }
+}
+"""
+
+AUTODETECT = "junit.jupiter.extensions.autodetection.enabled=true\n"
+EXTENSION_SERVICE = "META-INF/services/org.junit.jupiter.api.extension.Extension"
+MAIN_JUPITER_DEPENDENCY = """    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+      <version>5.8.1</version>
+    </dependency>
+  </dependencies>"""
+EVIL_DEPENDENCY = """    <dependency>
+      <groupId>c12.evil</groupId>
+      <artifactId>skip-failing</artifactId>
+      <version>1.0</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>"""
+
+
+def junit_controls(h: Harness) -> list[dict]:
+    """P1-A: candidate code cannot reconfigure the trusted JUnit launcher.
+
+    Each route registers an auto-detected Jupiter extension (via
+    META-INF/services and junit-platform.properties) that disables the failing
+    test method, so a launcher honouring candidate configuration would report
+    one passing test and no failure. The driver disables every auto-registration
+    and all implicit configuration, so the failing method runs and fails.
+    """
+    rows: list[dict] = []
+    honest = project({"MixedTest": MIXED_TEST})
+
+    def run(control, expectation, candidate):
+        fx = h.fixture(control, honest, candidate)
+        rows.append(row(control, "red", expectation, "FAIL", h.pipeline(fx), reason="test_failures"))
+
+    via_test_resources = project({"MixedTest": MIXED_TEST}, extra={
+        "src/test/java/probe/SkipFailing.java": SKIP_FAILING_EXTENSION,
+        "src/test/resources/junit-platform.properties": AUTODETECT,
+        "src/test/resources/" + EXTENSION_SERVICE: "probe.SkipFailing\n",
+    })
+    run("CTRL-60-junit-config-via-test-resources",
+        "an extension and configuration shipped in test resources cannot hide a failing test", via_test_resources)
+
+    via_main = project({"MixedTest": MIXED_TEST}, pom=build_pom().replace("  </dependencies>", MAIN_JUPITER_DEPENDENCY, 1),
+                       extra={
+                           "src/main/java/probe/SkipFailing.java": SKIP_FAILING_EXTENSION,
+                           "src/main/resources/junit-platform.properties": AUTODETECT,
+                           "src/main/resources/" + EXTENSION_SERVICE: "probe.SkipFailing\n",
+                       })
+    run("CTRL-61-junit-config-via-main-resources",
+        "an extension and configuration shipped in main classes cannot hide a failing test", via_main)
+
+    # Route 3: a newly declared dependency jar (dependency changes pass the audit).
+    work = h.tmp / "evil-jar"
+    src = work / "src" / "probe"
+    src.mkdir(parents=True)
+    (src / "SkipFailing.java").write_text(SKIP_FAILING_EXTENSION)
+    classes = work / "classes"
+    (classes / "META-INF" / "services").mkdir(parents=True)
+    (classes / EXTENSION_SERVICE).write_text("probe.SkipFailing\n")
+    (classes / "junit-platform.properties").write_text(AUTODETECT)
+    m2 = Path(h.seed)
+    api = sorted(m2.glob("org/junit/jupiter/junit-jupiter-api/*/junit-jupiter-api-*.jar"))
+    extra_cp = sorted(m2.glob("org/apiguardian/apiguardian-api/*/*.jar")) + sorted(m2.glob("org/opentest4j/opentest4j/*/*.jar"))
+    compiled = subprocess.run(["javac", "-proc:none", "-nowarn", "-cp", os.pathsep.join(str(p) for p in api + extra_cp),
+                               "-d", str(classes), str(src / "SkipFailing.java")], capture_output=True, text=True, check=False)
+    jar = work / "jar" / "skip-failing-1.0.jar"
+    jar.parent.mkdir()
+    packed = subprocess.run(["jar", "cf", str(jar), "-C", str(classes), "."], capture_output=True, text=True, check=False)
+    if compiled.returncode != 0 or packed.returncode != 0 or not api:
+        rows.append({"control": "CTRL-62-junit-config-via-dependency-jar", "kind": "not_run",
+                     "expectation": "needs junit-jupiter-api to build the dependency jar",
+                     "observed_verdict": "NOT_RUN", "expected_verdict": "FAIL", "ok": False,
+                     "error": (compiled.stderr or packed.stderr)[-400:]})
+    else:
+        staged = h.stage_readonly(jar.parent, "evil-jar")
+        h.install_artifact(staged / jar.name, "c12.evil", "skip-failing", "1.0")
+        via_dependency = project({"MixedTest": MIXED_TEST},
+                                 pom=build_pom().replace("  </dependencies>", EVIL_DEPENDENCY, 1))
+        run("CTRL-62-junit-config-via-dependency-jar",
+            "an extension and configuration shipped in a dependency jar cannot hide a failing test", via_dependency)
+
+    # P1-B: a trusted step must never resolve tools from a candidate-writable
+    # PATH entry; prepare and verify both probe every PATH entry.
+    name = "CTRL-63-candidate-writable-path-entry-refused"
+    fx = h.fixture(name, project({"ProbeTest": PASSING_TEST}))
+    evil_bin = h.sandbox_dir / "evil-bin"
+    h.as_candidate(h.sandbox_dir, ["/bin/mkdir", "-p", str(evil_bin)])
+    result = h.pipeline(fx, trusted_path_prefix=evil_bin)
+    rows.append(row(name, "red",
+                    "a PATH entry the candidate account can write refuses the sandbox and fails integrity",
+                    "FAIL", result, reason="trusted_path_writable_by_candidate",
+                    extra_ok=result.get("sandbox_prepared") is False))
+    return rows
+
+
 def corpus_controls(h: Harness) -> list[dict]:
     """P1-2: the required corpus is anchored to the trusted baseline."""
     rows: list[dict] = []
@@ -1205,10 +1357,7 @@ def module_controls(h: Harness) -> list[dict]:
     jar_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(helper_jar, jar_dir / helper_jar.name)
     staged = h.stage_readonly(jar_dir, "helper")
-    h.as_candidate(h.sandbox_dir, h.mvn(
-        "install:install-file", "-Dfile={}".format(staged / helper_jar.name),
-        "-DgroupId={}".format(HELPER_GROUP), "-DartifactId={}".format(HELPER_ARTIFACT),
-        "-Dversion={}".format(HELPER_VERSION), "-Dpackaging=jar"))
+    h.install_artifact(staged / helper_jar.name, HELPER_GROUP, HELPER_ARTIFACT, HELPER_VERSION)
 
     multi = {}
     multi.update(project({"ModuleATest": MODULE_A_TEST}, module="modA"))
@@ -1361,8 +1510,13 @@ def static_controls() -> list[dict]:
         'sandbox.py" verify',
         "--integrity",
         "INTEGRITY_EXIT",
-        "-- mvn -B test-compile dependency:build-classpath",
+        'bin/mvn" -B test-compile dependency:build-classpath',
         "-Dmaven.compiler.proc=none",
+        "--harden-world-writable",
+        "--stage-jdk",
+        "--stage-maven",
+        'export PATH="$C12_TRUSTED_PATH"',
+        "shell: /usr/bin/bash --noprofile --norc {0}",
     ):
         if required not in text:
             problems.append("trusted workflow is missing {!r}".format(required))
@@ -1378,8 +1532,8 @@ def static_controls() -> list[dict]:
             problems.append("trusted workflow contains forbidden {!r}".format(forbidden))
     for line in text.splitlines():
         stripped = line.strip()
-        if stripped.startswith("python3 ") and "$QUALIFICATION_DIR" in stripped and not stripped.startswith("python3 -I -B "):
-            problems.append("trusted script not run isolated (-I -B): {}".format(stripped[:80]))
+        if "python3" in stripped and "$QUALIFICATION_DIR" in stripped and not stripped.startswith("/usr/bin/python3 -I -B "):
+            problems.append("trusted script not run as /usr/bin/python3 -I -B: {}".format(stripped[:80]))
         if re.search(r"(^|[\s;&|(])mvn\s+-", stripped) and "dependency:get" not in stripped and not stripped.startswith("-- mvn "):
             problems.append("Maven invoked outside the sandbox: {}".format(stripped[:80]))
     rows.append(
@@ -1514,8 +1668,12 @@ def main() -> int:
     parser.add_argument("--maven", default="mvn")
     parser.add_argument("--offline", action="store_true")
     parser.add_argument("--sandbox-user", default=sandbox.CANDIDATE_USER)
+    parser.add_argument("--harden-world-writable", action="store_true",
+                        help="hosted runners: remove o+w from non-sticky world-writable directories first")
     parser.add_argument("--out", default="")
     args = parser.parse_args()
+    if args.harden_world_writable:
+        print("hardened: {}".format(", ".join(sandbox.harden_world_writable()) or "nothing to harden"))
 
     tmp = Path(tempfile.mkdtemp(prefix="mage-c12-selftest-"))
     harness = Harness(tmp, args.maven, args.offline, discover_junit_classpath(), args.sandbox_user)
@@ -1523,6 +1681,7 @@ def main() -> int:
         ("legacy", legacy_controls),
         ("module", module_controls),
         ("trust", trust_controls),
+        ("junit", junit_controls),
         ("corpus", corpus_controls),
     )
     try:

@@ -58,6 +58,7 @@ jobs:
           python3 -I -B .github/qualification/qualification_selftest.py \
             --maven mvn \
             --sandbox-user c12cand \
+            --harden-world-writable \
             --out evidence/GATE_CONTROLS.json
       - name: Upload gate control report
         if: always()

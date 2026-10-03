@@ -44,6 +44,8 @@ import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.Launcher;
 import org.junit.platform.launcher.LauncherDiscoveryRequest;
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
+import org.junit.platform.engine.TestEngine;
+import org.junit.platform.launcher.core.LauncherConfig;
 import org.junit.platform.launcher.core.LauncherFactory;
 import org.junit.platform.launcher.listeners.SummaryGeneratingListener;
 import org.junit.platform.launcher.listeners.TestExecutionSummary;
@@ -152,6 +154,55 @@ public final class TrustedTestDriver {
             out.append("\"").append(jsonEscape(value)).append("\"");
         }
         return out.append("]").toString();
+    }
+
+    private static final Set<String> ALLOWED_ENGINES =
+            new java.util.HashSet<>(java.util.Arrays.asList("junit-jupiter", "junit-vintage"));
+
+    private static String engineOf(TestIdentifier identifier) {
+        try {
+            return identifier.getUniqueIdObject().getEngineId().orElse("?");
+        } catch (RuntimeException exc) {
+            return "?";
+        }
+    }
+
+    private static Path trustedJunit() {
+        // The JUnit platform itself must load from the trusted bundle jar: it is
+        // first on the classpath, and this check refuses to run otherwise.
+        CodeSourceStub stub = codeSourceOf(LauncherFactory.class);
+        if (stub.location == null) {
+            System.err.println("TrustedTestDriver: JUnit platform origin unknown");
+            System.exit(3);
+        }
+        return Paths.get(stub.location);
+    }
+
+    private static TestEngine[] trustedEngines(Path junitJar) {
+        List<TestEngine> engines = new ArrayList<>();
+        for (String name : new String[] {
+                "org.junit.jupiter.engine.JupiterTestEngine",
+                "org.junit.vintage.engine.VintageTestEngine"}) {
+            try {
+                Class<?> type = Class.forName(name, false, TrustedTestDriver.class.getClassLoader());
+                CodeSourceStub origin = codeSourceOf(type);
+                if (origin.location == null || !Paths.get(origin.location).equals(junitJar)) {
+                    System.err.println("TrustedTestDriver: engine " + name + " not from the trusted JUnit jar: "
+                            + origin.location);
+                    System.exit(3);
+                }
+                engines.add((TestEngine) type.getDeclaredConstructor().newInstance());
+            } catch (ReflectiveOperationException | LinkageError exc) {
+                // An engine the trusted jar cannot provide is simply absent: its
+                // tests are never entered, which fails closed.
+                System.err.println("TrustedTestDriver: engine " + name + " unavailable: " + exc);
+            }
+        }
+        if (engines.isEmpty()) {
+            System.err.println("TrustedTestDriver: no trusted test engine available");
+            System.exit(3);
+        }
+        return engines.toArray(new TestEngine[0]);
     }
 
     private static byte[] readWitnessKey() throws IOException {
@@ -263,6 +314,12 @@ public final class TrustedTestDriver {
                 if (!identifier.isTest()) {
                     return;
                 }
+                String engine = engineOf(identifier);
+                if (!ALLOWED_ENGINES.contains(engine)) {
+                    // Only the trusted engines this driver instantiated may report.
+                    originViolations.add(identifier.getUniqueId() + " reported by foreign engine " + engine);
+                    return;
+                }
                 String className = topLevel(classNameOf(identifier));
                 observedClasses.add(className);
                 if (expectedOutput == null) {
@@ -273,7 +330,7 @@ public final class TrustedTestDriver {
                     Class<?> loaded = Class.forName(className, false, loader);
                     CodeSourceStub stub = codeSourceOf(loaded);
                     classOrigins.put(className, stub.location);
-                    if (stub.location == null || !stub.location.startsWith(expectedOutput.toString())) {
+                    if (stub.location == null || !Paths.get(stub.location).startsWith(expectedOutput)) {
                         originViolations.add(className + " loaded from " + stub.location
                                 + " (expected under " + expectedOutput + ")");
                     }
@@ -300,10 +357,30 @@ public final class TrustedTestDriver {
         LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
                 .selectors(selectors)
                 // The trusted enumeration is the whole world for this campaign. A
-                // candidate cannot widen or narrow it.
+                // candidate cannot widen or narrow it. Implicit configuration
+                // (junit-platform.properties and system properties, which candidate
+                // resources on the classpath could supply) is ignored; the only
+                // parameters are the trusted ones set here.
+                .enableImplicitConfigurationParameters(false)
+                .configurationParameter("junit.jupiter.extensions.autodetection.enabled", "false")
+                .configurationParameter("junit.jupiter.conditions.deactivate", "")
+                .configurationParameter("junit.platform.output.capture.stdout", "false")
                 .build();
 
-        Launcher launcher = LauncherFactory.create();
+        // No auto-registration of any kind: candidate test resources, main
+        // resources or a dependency jar could otherwise register a TestEngine,
+        // PostDiscoveryFilter or listener through META-INF/services and change
+        // what runs or how it is counted. Only the engines instantiated here,
+        // from the trusted JUnit jar, may execute.
+        LauncherConfig config = LauncherConfig.builder()
+                .enableTestEngineAutoRegistration(false)
+                .enablePostDiscoveryFilterAutoRegistration(false)
+                .enableLauncherSessionListenerAutoRegistration(false)
+                .enableLauncherDiscoveryListenerAutoRegistration(false)
+                .enableTestExecutionListenerAutoRegistration(false)
+                .addTestEngines(trustedEngines(trustedJunit()))
+                .build();
+        Launcher launcher = LauncherFactory.create(config);
         launcher.execute(request, witness, summaryListener);
 
         TestExecutionSummary summary = summaryListener.getSummary();
@@ -401,6 +478,7 @@ public final class TrustedTestDriver {
             Mac hmac = Mac.getInstance("HmacSHA256");
             hmac.init(new SecretKeySpec(witnessKey, "HmacSHA256"));
             mac = hex(hmac.doFinal(payload));
+            java.util.Arrays.fill(witnessKey, (byte) 0);
         } catch (GeneralSecurityException exc) {
             System.err.println("TrustedTestDriver: cannot authenticate the witness: " + exc);
             System.exit(3);
