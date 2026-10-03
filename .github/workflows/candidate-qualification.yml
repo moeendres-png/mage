@@ -1,0 +1,206 @@
+name: Trusted candidate qualification (exact SHA)
+
+# Trust boundary.
+#
+# This workflow is triggered by pull_request_target, so GitHub executes the copy
+# of this file that lives on the default branch. A pull request therefore cannot
+# change the qualification logic that judges it, the Maven invocation that runs
+# it, the guard that scores it, or the name of the check that reports it.
+#
+# The candidate is qualified as DATA at one exact SHA:
+#   trusted_validator  = default-branch head (github.sha), the executing source
+#   candidate          = pull_request.head.sha, fetched and checked out only as
+#                        the tree under test, never as validator source
+#   comparison_base    = merge base, inspected only, never merged and never built
+#
+# Maven is a candidate-controlled build tool, so a green Maven exit code is not
+# qualification credit: a candidate POM can suppress its own tests and still exit
+# 0. The guard scores harvested surefire evidence instead, and a build that
+# executed no tests can never earn credit. The guard proves itself with positive
+# and adversarial controls before any candidate result is read.
+
+on:
+  pull_request_target:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# Read-only. No write scopes, no issue or comment writes, no deployment access.
+permissions:
+  contents: read
+
+concurrency:
+  group: trusted-candidate-qualification-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  QUALIFICATION_DIR: ${{ github.workspace }}/trusted/.github/qualification
+  EVIDENCE_DIR: ${{ github.workspace }}/evidence
+
+jobs:
+  guard-controls:
+    name: guard controls (positive and adversarial)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout trusted validator source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Run qualification guard controls
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          python3 "$QUALIFICATION_DIR/qualification_selftest.py" \
+            --mvn mvn \
+            --out "$EVIDENCE_DIR/GUARD_CONTROLS.json"
+      - name: Upload guard control report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: mage-c12-guard-controls-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ env.EVIDENCE_DIR }}/GUARD_CONTROLS.json
+          if-no-files-found: error
+          retention-days: 30
+
+  qualify-candidate:
+    name: qualify exact candidate SHA
+    needs: guard-controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout trusted validator source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Resolve trusted source lock
+        env:
+          TRUSTED_REPO_ROOT: ${{ github.workspace }}/trusted
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          python3 "$QUALIFICATION_DIR/source_lock.py" \
+            --repo "${{ github.repository }}" \
+            --default-branch master \
+            --trusted-sha "${{ github.sha }}" \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --base-ref "$BASE_REF" \
+            --pr-number "${{ github.event.pull_request.number }}" \
+            --run-id "${{ github.run_id }}" \
+            --out "$EVIDENCE_DIR/SOURCE_LOCK.json"
+      - name: Checkout candidate at exact SHA as data
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Run candidate tests under trusted control
+        id: build
+        working-directory: ${{ github.workspace }}/candidate
+        run: |
+          set -uo pipefail
+          # The goal and the xmage/log4j properties match the existing build workflow.
+          # The log4j file is taken from the TRUSTED tree so a candidate cannot shape its
+          # own CI log output. The trusted skip overrides below are necessary but not
+          # sufficient: the guard independently requires real test execution, because a
+          # POM can defeat these flags by hardcoding surefire configuration.
+          mvn test -B \
+            -DskipTests=false \
+            -Dmaven.test.skip=false \
+            -Dsurefire.skip=false \
+            -Dxmage.dataCollectors.printGameLogs=false \
+            -Dlog4j.configuration=file:${{ github.workspace }}/trusted/.travis/log4j.properties
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          exit "$rc"
+      - name: Score qualification evidence from the trusted guard
+        id: verdict
+        if: always()
+        working-directory: ${{ github.workspace }}/candidate
+        run: |
+          set -uo pipefail
+          observed="$(git rev-parse HEAD)"
+          python3 "$QUALIFICATION_DIR/qualify.py" \
+            --source-lock "$EVIDENCE_DIR/SOURCE_LOCK.json" \
+            --candidate-root "${{ github.workspace }}/candidate" \
+            --observed-candidate-sha "$observed" \
+            --trusted-root "$QUALIFICATION_DIR" \
+            --out "$EVIDENCE_DIR/QUALIFICATION_EVIDENCE.json"
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+      - name: Upload source lock and qualification evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: mage-c12-qualification-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: |
+            ${{ env.EVIDENCE_DIR }}/SOURCE_LOCK.json
+            ${{ env.EVIDENCE_DIR }}/QUALIFICATION_EVIDENCE.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish source-bound qualification summary
+        if: always()
+        run: |
+          set -uo pipefail
+          python3 "$QUALIFICATION_DIR/summarize.py" \
+            --source-lock "$EVIDENCE_DIR/SOURCE_LOCK.json" \
+            --evidence "$EVIDENCE_DIR/QUALIFICATION_EVIDENCE.json" \
+            --build-exit-code "${{ steps.build.outputs.exit_code }}" \
+            --run-id "${{ github.run_id }}"
+      - name: Enforce qualification verdict
+        if: always()
+        env:
+          VERDICT_EXIT: ${{ steps.verdict.outputs.exit_code }}
+        run: |
+          set -uo pipefail
+          test -n "$VERDICT_EXIT"
+          exit "$VERDICT_EXIT"
+
+  mergeability:
+    name: mergeability (informational, no qualification credit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Deliberately independent of qualify-candidate and never read by the verdict:
+      # a synthetic merge result is Git data about the pull request, not evidence that
+      # the candidate is qualified.
+      - name: Record mergeability as data only
+        env:
+          MERGEABLE: ${{ github.event.pull_request.mergeable }}
+          MERGEABLE_STATE: ${{ github.event.pull_request.mergeable_state }}
+          MERGE_COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          DEFAULT_BRANCH_SHA: ${{ github.event.pull_request.base.repo.default_branch }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          python3 "$QUALIFICATION_DIR/record_mergeability.py" \
+            --out "$EVIDENCE_DIR/MERGEABILITY.json"
+      - name: Upload mergeability record
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: mage-c12-mergeability-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ env.EVIDENCE_DIR }}/MERGEABILITY.json
+          if-no-files-found: error
+          retention-days: 30
