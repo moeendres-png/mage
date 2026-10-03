@@ -272,6 +272,14 @@ def harden_world_writable() -> list[str]:
     changed = [line for line in found.stdout.splitlines() if line.strip()]
     for directory in changed:
         _must(_priv(["chmod", "o-w", directory]), "harden {}".format(directory))
+    # World-writable files too: trusted code loads more than the tools it runs
+    # (Python site files, shared libraries, git config, action scripts), and the
+    # runner VM is ephemeral, so no file anyone may write is left behind.
+    files = _run(_priv(["find", "/", "-xdev", "-type", "f", "-perm", "-0002",
+                        "-not", "-path", "/proc/*", "-print"]))
+    for path in [line for line in files.stdout.splitlines() if line.strip()]:
+        _must(_priv(["chmod", "o-w", path]), "harden {}".format(path))
+        changed.append(path)
     return changed
 
 
@@ -306,6 +314,50 @@ def export_commit(repo: Path, sha: str, dest: Path) -> None:
     untar = subprocess.run([tool("tar"), "-x", "-C", str(dest)], input=archive.stdout, capture_output=True, check=False)
     if untar.returncode != 0:
         raise SandboxError("untar failed: {}".format(untar.stderr.decode(errors="replace")[:400]))
+    verify_export(repo, sha, dest)
+
+
+def _git_blob_id(data: bytes) -> str:
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+def verify_export(repo: Path, sha: str, dest: Path) -> None:
+    """The export must be byte-identical to the commit's blobs.
+
+    ``git archive`` applies the tree's own ``.gitattributes`` (``export-subst``,
+    ``export-ignore``, ``ident``, ``eol``, filters), so a candidate could build
+    and test bytes that are not its locked blobs. Every exported path is
+    compared with ``ls-tree`` (same set, same mode class) and every file's raw
+    bytes with its blob id; any difference refuses the export.
+    """
+    out = _must([tool("git"), "-C", str(repo), "ls-tree", "-r", "-z", "--full-tree", sha],
+                "git ls-tree").stdout
+    expected: dict = {}
+    for record in out.split("\0"):
+        if not record:
+            continue
+        meta, path = record.split("\t", 1)
+        mode, kind, blob = meta.split()
+        if kind != "blob":
+            continue  # submodule commits are not exported as content
+        expected[path] = (mode, blob)
+    seen: dict = {}
+    for item in dest.rglob("*"):
+        rel = item.relative_to(dest).as_posix()
+        if item.is_symlink():
+            seen[rel] = ("120000", _git_blob_id(os.readlink(item).encode("utf-8", "surrogateescape")))
+        elif item.is_file():
+            mode = "100755" if os.stat(item).st_mode & stat.S_IXUSR else "100644"
+            seen[rel] = (mode, _git_blob_id(item.read_bytes()))
+    missing = sorted(set(expected) - set(seen))
+    extra = sorted(set(seen) - set(expected))
+    changed = sorted(path for path in set(expected) & set(seen) if expected[path] != seen[path])
+    if missing or extra or changed:
+        raise SandboxError(
+            "export of {} differs from its blobs (gitattributes?): missing={} extra={} changed={}".format(
+                sha, missing[:5], extra[:5], changed[:5]
+            )
+        )
 
 
 def sandbox_home(sandbox: Path) -> Path:

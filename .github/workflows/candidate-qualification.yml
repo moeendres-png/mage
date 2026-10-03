@@ -85,12 +85,31 @@ jobs:
           jar="${HOME}/.m2/repository/org/junit/platform/junit-platform-console-standalone/${JUNIT_PLATFORM_VERSION}/junit-platform-console-standalone-${JUNIT_PLATFORM_VERSION}.jar"
           test -f "$jar"
           echo "TRUSTED_JUNIT_CLASSPATH=$jar" >> "$GITHUB_ENV"
+          # CTRL-62 and CTRL-66 compile forged bytecode against the Jupiter API.
+          mvn -B -q dependency:get -Dartifact=org.junit.jupiter:junit-jupiter-api:5.8.1
+      - name: Stage a root-owned read-only JDK and Maven for the controls
+        # As in the self-test workflow: the hosted tool cache is writable by any
+        # account, so the controls' trusted side runs only root-owned copies.
+        run: |
+          set -euo pipefail
+          maven_home="$(dirname "$(dirname "$(readlink -f "$(command -v mvn)")")")"
+          for pair in "$(readlink -f "$JAVA_HOME"):/var/lib/c12-controls/jdk" "$maven_home:/var/lib/c12-controls/maven"; do
+            src="${pair%%:*}"
+            dest="${pair#*:}"
+            sudo rm -rf "$dest"
+            sudo mkdir -p "$dest"
+            sudo cp -a "$src/." "$dest/"
+            sudo chown -R root:root "$dest"
+            sudo chmod -R go-w "$dest"
+          done
+          echo "JAVA_HOME=/var/lib/c12-controls/jdk" >> "$GITHUB_ENV"
       - name: Run qualification gate controls
         run: |
           set -euo pipefail
+          export PATH=/var/lib/c12-controls/jdk/bin:/var/lib/c12-controls/maven/bin:/usr/sbin:/usr/bin:/sbin:/bin
           mkdir -p "$EVIDENCE_DIR"
-          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/qualification_selftest.py" \
-            --maven mvn \
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/qualification_selftest.py" \
+            --maven /var/lib/c12-controls/maven/bin/mvn \
             --sandbox-user "$C12_SANDBOX_USER" \
             --harden-world-writable \
             --out "$EVIDENCE_DIR/GUARD_CONTROLS.json"
@@ -142,7 +161,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$EVIDENCE_DIR"
-          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/source_lock.py" \
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/source_lock.py" \
             --repo "${{ github.repository }}" \
             --default-branch master \
             --trusted-sha "${{ github.sha }}" \
@@ -154,8 +173,8 @@ jobs:
       - name: Audit candidate build definition
         run: |
           set -uo pipefail
-          base="$(/usr/bin/python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['comparison_base']['sha'])" "$EVIDENCE_DIR/SOURCE_LOCK.json")"
-          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/build_definition_audit.py" \
+          base="$(/usr/bin/python3 -I -S -c "import json,sys;print(json.load(open(sys.argv[1]))['comparison_base']['sha'])" "$EVIDENCE_DIR/SOURCE_LOCK.json")"
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/build_definition_audit.py" \
             --repo "$TRUSTED_ROOT" \
             --comparison-base "$base" \
             --candidate "${{ github.event.pull_request.head.sha }}" \
@@ -171,7 +190,7 @@ jobs:
           # From here on the trusted side resolves tools only from the trusted PATH,
           # which is also the PATH prepare probes.
           export PATH="$C12_TRUSTED_PATH"
-          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/sandbox.py" prepare \
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/sandbox.py" prepare \
             --user "$C12_SANDBOX_USER" \
             --repo "$TRUSTED_ROOT" \
             --candidate-sha "$CANDIDATE_SHA" \
@@ -193,7 +212,7 @@ jobs:
           # Every later step, trusted or sandboxed, uses the staged read-only JDK.
           echo "JAVA_HOME=$C12_TRUSTED_JDK" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/c12-seals"
-          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/sandbox.py" seal \
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/sandbox.py" seal \
             --out "$RUNNER_TEMP/c12-seals/before-candidate.json" \
             "$EVIDENCE_DIR/SOURCE_LOCK.json" \
             "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" \
@@ -207,7 +226,7 @@ jobs:
           # sibling modules resolve to the candidate's own reactor output. The
           # candidate's own test execution and reports are not evidence. The exit
           # code is recorded by trusted code around the sandboxed process.
-          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/sandbox.py" run \
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/sandbox.py" run \
             --user "$C12_SANDBOX_USER" \
             --label candidate-build \
             --sandbox-dir "$C12_SANDBOX_DIR" \
@@ -227,7 +246,7 @@ jobs:
         run: |
           export PATH="$C12_TRUSTED_PATH"
           set -uo pipefail
-          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/resolve_classpaths.py" \
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/resolve_classpaths.py" \
             --git-repo "$TRUSTED_ROOT" \
             --candidate-sha "${{ github.event.pull_request.head.sha }}" \
             --candidate-root "$C12_SANDBOX_DIR/candidate" \
@@ -238,7 +257,7 @@ jobs:
         run: |
           export PATH="$C12_TRUSTED_PATH"
           set -uo pipefail
-          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/witness.py" \
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/witness.py" \
             --source-lock "$EVIDENCE_DIR/SOURCE_LOCK.json" \
             --git-repo "$TRUSTED_ROOT" \
             --trusted-root "$QUALIFICATION_DIR" \
@@ -251,7 +270,7 @@ jobs:
             --build-definition-audit "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" \
             --module-classpaths "$EVIDENCE_DIR/MODULE_CLASSPATHS.json" \
             --out "$EVIDENCE_DIR/TRUSTED_WITNESS.json" || true
-          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/sandbox.py" seal \
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/sandbox.py" seal \
             --out "$RUNNER_TEMP/c12-seals/after-witness.json" \
             "$EVIDENCE_DIR/BUILD_RESULT.json" \
             "$EVIDENCE_DIR/MODULE_CLASSPATHS.json" \
@@ -263,7 +282,7 @@ jobs:
           export PATH="$C12_TRUSTED_PATH"
           set -uo pipefail
           command_files="$(dirname "$GITHUB_ENV")"
-          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/sandbox.py" verify \
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/sandbox.py" verify \
             --user "$C12_SANDBOX_USER" \
             --repo "$TRUSTED_ROOT" \
             --trusted-sha "${{ github.sha }}" \
@@ -284,7 +303,7 @@ jobs:
         run: |
           export PATH="$C12_TRUSTED_PATH"
           set -uo pipefail
-          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/qualify.py" \
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/qualify.py" \
             --source-lock "$EVIDENCE_DIR/SOURCE_LOCK.json" \
             --witness "$EVIDENCE_DIR/TRUSTED_WITNESS.json" \
             --integrity "$EVIDENCE_DIR/INTEGRITY.json" \
@@ -313,8 +332,8 @@ jobs:
         run: |
           export PATH="$C12_TRUSTED_PATH"
           set -uo pipefail
-          exit_code="$(/usr/bin/python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('exit_code'))" "$EVIDENCE_DIR/BUILD_RESULT.json" 2>/dev/null || echo unrecorded)"
-          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/summarize.py" \
+          exit_code="$(/usr/bin/python3 -I -S -c "import json,sys;print(json.load(open(sys.argv[1])).get('exit_code'))" "$EVIDENCE_DIR/BUILD_RESULT.json" 2>/dev/null || echo unrecorded)"
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/summarize.py" \
             --source-lock "$EVIDENCE_DIR/SOURCE_LOCK.json" \
             --evidence "$EVIDENCE_DIR/QUALIFICATION_EVIDENCE.json" \
             --witness "$EVIDENCE_DIR/TRUSTED_WITNESS.json" \
@@ -361,7 +380,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$EVIDENCE_DIR"
-          /usr/bin/python3 -I -B "$QUALIFICATION_DIR/record_mergeability.py" \
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/record_mergeability.py" \
             --out "$EVIDENCE_DIR/MERGEABILITY.json"
       - name: Upload mergeability record
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

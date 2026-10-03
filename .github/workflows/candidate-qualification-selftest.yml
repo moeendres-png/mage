@@ -77,7 +77,7 @@ jobs:
           # The trusted side resolves tools only from root-owned directories.
           export PATH=/var/lib/c12-selftest/jdk/bin:/var/lib/c12-selftest/maven/bin:/usr/sbin:/usr/bin:/sbin:/bin
           mkdir -p evidence
-          /usr/bin/python3 -I -B .github/qualification/qualification_selftest.py \
+          /usr/bin/python3 -I -S -B .github/qualification/qualification_selftest.py \
             --maven /var/lib/c12-selftest/maven/bin/mvn \
             --sandbox-user c12cand \
             --harden-world-writable \

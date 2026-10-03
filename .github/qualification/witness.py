@@ -394,11 +394,20 @@ def main() -> int:
 
         corpus = corpus_policy.evaluate(args.git_repo, trusted_sha, base_sha, locked_sha)
         doc["corpus_policy"] = corpus
+        # The driver must observe every class it runs, so it runs only classes
+        # that own at least one required test method. A corpus class with no
+        # statically enumerable enabled method (an abstract base, a class-level
+        # @Ignore, a helper without @Test) owes no observation; it stays protected
+        # by the corpus policy and is recorded, but is not selected.
+        owning = {corpus_policy.class_of_method(m) for m in corpus.get("required_methods") or ()}
         required = [
             {"module": m, "class_name": c}
-            for m, c in (corpus_policy.split_pair(p) for p in corpus["required_pairs"])
+            for m, c in (corpus_policy.split_pair(p) for p in corpus["required_pairs"] if p in owning)
         ]
         doc["required_test_classes"] = required
+        doc["corpus_classes_without_required_methods"] = sorted(
+            p for p in corpus["required_pairs"] if p not in owning
+        )
 
         modules: dict = {}
         for entry in required:

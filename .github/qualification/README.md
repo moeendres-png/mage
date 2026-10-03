@@ -72,7 +72,7 @@ the trusted runner open.
 Before scoring, `sandbox.py verify`:
 
 - re-derives every file under `.github/qualification` from the trusted commit's Git blobs (`git hash-object` against `git ls-tree`);
-- rejects untracked files there. A planted `json.py` would shadow an import (CTRL-35), and every trusted script also runs with `python3 -I -B`;
+- rejects untracked files there. A planted `json.py` would shadow an import (CTRL-35), and every trusted script also runs with `python3 -I -S -B`;
 - re-hashes every sealed evidence file;
 - re-probes writability and checks for surviving processes.
 
@@ -86,7 +86,7 @@ non-sticky world-writable directory. Every trusted step after `prepare` then:
 
 - runs under an absolute `/usr/bin/bash` shell, never one looked up on PATH;
 - exports a root-only PATH: staged JDK, staged Maven, `/usr/sbin:/usr/bin:/sbin:/bin`;
-- runs Python as `/usr/bin/python3 -I -B`.
+- runs Python as `/usr/bin/python3 -I -S -B`.
 
 The trusted scripts resolve `git`, `sudo`, `find`, `tar` and the JDK tools by absolute path.
 `prepare` and `verify` also probe every PATH entry (CTRL-63). The qualify job saves no
@@ -120,6 +120,12 @@ executes (CTRL-31). The candidate build runs with `-Dmaven.compiler.proc=none`.
 every phase, build extensions, profiles, the parent POM, the properties the build
 interpolates, and `.mvn/**`. A plugin bound to `initialize` is a `build_definition_changed`
 FAIL (CTRL-30). Dependency declarations remain free.
+
+### Export integrity, loaded code and tool resolution (review 2026-10-03)
+
+- **The export equals the locked blobs.** `git archive` applies the tree's own `.gitattributes` (`export-subst`, `export-ignore`, `ident`, `eol`, filters). A candidate could therefore build and test bytes that are not its committed blobs. `sandbox.export_commit` now compares every exported path with `ls-tree`: the same set, the same mode, and the same blob id computed from the raw bytes. Any difference refuses the export (CTRL-67).
+- **Nothing world-writable remains.** `--harden-world-writable` strips o+w from files as well as directories. Trusted Python runs as `python3 -I -S -B`, so `site` is not imported and no `.pth` file runs. The runner VM is ephemeral.
+- **PATH.** A PATH directory is probed for shadowing: the candidate writing a new entry into it, or replacing it through a writable ancestor. Every tool a trusted step runs (`TRUSTED_TOOLS`) is probed at its real path (CTRL-63). Trusted steps run with `PATH=$C12_TRUSTED_PATH`. Both the gate's `guard-controls` job and the self-test workflow stage root-owned, read-only copies of the JDK and Maven.
 
 ## Required corpus (P1-2): the trusted baseline decides what must run
 
@@ -167,7 +173,7 @@ An approval that exists only in the candidate's own copy grants that candidate n
 Regenerate the baseline after adding or removing tests:
 
 ```
-python3 -I -B .github/qualification/corpus_policy.py generate --repo . --rev HEAD \
+python3 -I -S -B .github/qualification/corpus_policy.py generate --repo . --rev HEAD \
   --keep-approvals-from .github/qualification/test_corpus_baseline.json \
   --out .github/qualification/test_corpus_baseline.json
 ```
@@ -201,8 +207,8 @@ UNKNOWN. Mergeability is recorded by a separate job that the verdict never reads
 ## Controls
 
 ```
-python3 -I -B .github/qualification/qualification_selftest.py --offline --sandbox-user <account>   # local
-python3 -I -B .github/qualification/qualification_selftest.py --sandbox-user c12cand               # CI
+python3 -I -S -B .github/qualification/qualification_selftest.py --offline --sandbox-user <account>   # local
+python3 -I -S -B .github/qualification/qualification_selftest.py --sandbox-user c12cand               # CI
 ```
 
 Every pipeline control runs the production path against a real Git fixture:
@@ -246,6 +252,8 @@ suite fails.
 - **The same JVM is shared.** Candidate test code, and the main or dependency code it reaches, runs in the driver's JVM. Such code can read that process's memory, including the MAC key, so the MAC defeats forgery from outside the run, not deliberate in-process tampering. That code can also tamper with JVM state at runtime. Attach is disabled (`-XX:+DisableAttachMechanism`) and the key is zeroed after use, but nothing in the same process can rule this out. What C12 does guarantee: the candidate cannot write trusted state, cannot change which test bytecode runs, cannot reconfigure the launcher declaratively, and cannot shrink the corpus. Any in-process tampering must therefore come from reviewable candidate source.
 - **Test code is candidate code.** It runs as the sandbox account. A test whose own source is weak (an empty body, a swallowed assertion) is a source-review and coverage question for C13/C16. The corpus baseline binds classes and test methods, not test bodies. A `@TestFactory` that returns no dynamic tests still counts as started.
 - **The class regex is narrower than surefire's defaults.** Surefire also runs `Test*` classes, for example `TestPartnerCommanders`. The C12 class regex (`(Test|Tests|TestCase|Spec|IT)$`) does not select those, so 16 Mage test files that contain `@Test` methods are not required. Widening the regex is a separate decision: it would also select helper classes named `Test*`, which can never be entered.
+- **Which classes run.** The driver runs only corpus classes that own at least one required test method; it must observe every class it runs. A corpus class with no statically enumerable enabled method stays protected by the class-level policy, but it is not run. It is listed in `corpus_classes_without_required_methods`. Examples are an abstract base, a class-level `@Ignore`, or a helper without `@Test`. Tests a subclass only inherits are not required: the baseline enumerates methods declared in each class.
+- **Method identity is name plus top-level class.** Overloads and same-named methods in `@Nested` classes share one identity. A required `@ParameterizedTest`, `@RepeatedTest` or `@TestFactory` counts as started when its container starts, even if every invocation is skipped. Static enumeration misses composed or meta `@Test` annotations, `@Theory`, and JUnit 3 `final` methods. Such methods are simply not required, so they never yield a false PASS.
 - **Network egress.** Candidate build code still has the runner's network access. The job is read-only, persists no credentials and references no secret.
 - **Main-class bytecode** comes from the candidate's Maven build under an audited build definition, with annotation processing disabled.
 - **The inherited `Mage.Verify` red** (`VerifyCardDataTest`, external card-data drift) fails every candidate's positive control. It is deliberately not excluded. Which signals belong in the campaign is C13's decision (#494), and the drift is C14's (#495).

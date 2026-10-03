@@ -414,7 +414,7 @@ class Harness:
                  trusted_path_prefix=None) -> dict:
         evidence = fx["evidence"]
         evidence.mkdir(parents=True, exist_ok=True)
-        py = [sys.executable, "-I", "-B"]
+        py = [sys.executable, "-I", "-S", "-B"]
         qual = fx["qual"]
         lock_path = evidence / "SOURCE_LOCK.json"
         lock_path.write_text(json.dumps({
@@ -1283,6 +1283,21 @@ def junit_controls(h: Harness) -> list[dict]:
                     "a PATH entry the candidate account can write refuses the sandbox and fails integrity",
                     "FAIL", result, reason="trusted_path_writable_by_candidate",
                     extra_ok=result.get("sandbox_prepared") is False))
+
+    # Review P1: git archive applies the candidate's own .gitattributes. With
+    # export-subst, the committed blob fails (2 != 3) while the exported copy
+    # passes (1 + 1 + 1); the export must equal the blobs or nothing is built.
+    name = "CTRL-67-gitattributes-export-subst-refused"
+    substituted = MIXED_TEST.replace(
+        "assertEquals(3, 1 + 1);", "assertEquals(3, 1 + 1 /*$Format:%x2a%x2f + 1 /*$*/);"
+    )
+    fx = h.fixture(name, project({"MixedTest": MIXED_TEST}),
+                   project({"MixedTest": substituted}, extra={".gitattributes": "*.java export-subst\n"}))
+    result = h.pipeline(fx)
+    rows.append(row(name, "red",
+                    "an export that differs from the locked blobs (.gitattributes export-subst) is refused",
+                    "FAIL", result, reason="differs from its blobs",
+                    extra_ok=result.get("sandbox_prepared") is False))
     return rows
 
 
@@ -1637,8 +1652,8 @@ def static_controls() -> list[dict]:
             problems.append("trusted workflow contains forbidden {!r}".format(forbidden))
     for line in text.splitlines():
         stripped = line.strip()
-        if "python3" in stripped and "$QUALIFICATION_DIR" in stripped and not stripped.startswith("/usr/bin/python3 -I -B "):
-            problems.append("trusted script not run as /usr/bin/python3 -I -B: {}".format(stripped[:80]))
+        if "python3" in stripped and "$QUALIFICATION_DIR" in stripped and not stripped.startswith("/usr/bin/python3 -I -S -B "):
+            problems.append("trusted script not run as /usr/bin/python3 -I -S -B: {}".format(stripped[:80]))
         if re.search(r"(^|[\s;&|(])mvn\s+-", stripped) and "dependency:get" not in stripped and not stripped.startswith("-- mvn "):
             problems.append("Maven invoked outside the sandbox: {}".format(stripped[:80]))
     rows.append(
