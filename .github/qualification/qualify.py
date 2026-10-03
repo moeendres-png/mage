@@ -297,6 +297,31 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
     if not_compiled:
         fail("required_tests_not_compiled: {}".format("; ".join(not_compiled[:5])))
 
+    counter_keys = (
+        "tests_found", "tests_started", "tests_succeeded", "tests_failed",
+        "tests_aborted", "tests_skipped", "containers_failed",
+    )
+    # Authentication proves provenance, not that a buggy trusted producer has
+    # emitted meaningful counts. Missing, boolean, negative or non-integer
+    # counters must never turn into zero/success through coercion or `or 0`.
+    invalid = [key for key in counter_keys
+               if type(execution.get(key)) is not int or execution[key] < 0]
+    if invalid:
+        fail("invalid_execution_counter: {}".format(",".join(invalid)))
+        return status, reasons
+    totals = execution.get("totals")
+    if not isinstance(totals, dict) or any(
+        type(totals.get(key)) is not int or totals[key] != execution[key]
+        for key in counter_keys
+    ):
+        fail("execution_totals_mismatch: duplicate totals differ from witnessed counts")
+    if execution["tests_started"] != (
+        execution["tests_succeeded"] + execution["tests_failed"] + execution["tests_aborted"]
+    ):
+        fail("execution_outcomes_mismatch: started tests lack matching outcomes")
+    if execution["tests_found"] < execution["tests_started"] + execution["tests_skipped"]:
+        fail("execution_discovery_mismatch: outcomes exceed discovered tests")
+
     tests_found = execution.get("tests_found") or 0
     tests_started = execution.get("tests_started") or 0
     tests_failed = execution.get("tests_failed") or 0

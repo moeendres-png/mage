@@ -1934,6 +1934,7 @@
   "Mage.Tests::org.mage.test.multiplayer.PlayerWinsTest",
   "Mage.Tests::org.mage.test.multiplayer.PlayersListAndOrderTest",
   "Mage.Tests::org.mage.test.multiplayer.PrimordialTest",
+  "Mage.Tests::org.mage.test.multiplayer.PriorityEliminationTest",
   "Mage.Tests::org.mage.test.multiplayer.PrivilegedPositionTest",
   "Mage.Tests::org.mage.test.multiplayer.SimpleGameTest",
   "Mage.Tests::org.mage.test.multiplayer.VindictiveLichTest",
@@ -1998,8 +1999,8 @@
   "Mage::mage.counters.CounterTest",
   "Mage::mage.counters.CountersTest"
  ],
- "entries_count": 1996,
- "entries_sha256": "e1d043291a2539d489f228fbb91fdd2111895f0f83dcc717641334967c4f56a0",
+ "entries_count": 1997,
+ "entries_sha256": "75aac4cb819cc91dfe93cf9bb8b11d2108f07b2ed1df02aa8bb265cb44191640",
  "enumeration_rule": {
   "class_regex": "(Test|Tests|TestCase|Spec|IT)$",
   "module_rule": "nearest ancestor directory of the test source root that holds a pom.xml",

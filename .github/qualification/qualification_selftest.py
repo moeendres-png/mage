@@ -1147,6 +1147,22 @@ def corpus_controls(h: Harness) -> list[dict]:
         "a test added to the default branch after the merge base is required; the candidate is told to merge",
         "FAIL", "candidate_behind_default_branch", None,
         trusted_followup=test_file("DeltaTest", passing("DeltaTest")))
+    # A trusted producer fault is still authenticated: this full-path control
+    # proves the scorer validates counts rather than merely provenance.
+    driver = (QUALIFICATION_DIR / "TrustedTestDriver.java").read_text()
+    needle = 'json.append("  \\"tests_failed\\": ").append(failed).append(",\\n");'
+    assert driver.count(needle) == 1
+    driver = driver.replace(needle, needle.replace(".append(failed)", ".append(-1)"))
+    fx = h.fixture(
+        "CTRL-54-authenticated-negative-counter", project({"ProbeTest": passing("ProbeTest")}),
+        trusted_followup={FIXTURE_QUAL + "/TrustedTestDriver.java": driver},
+    )
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-54-authenticated-negative-counter", "red",
+        "an authenticated producer fault cannot grant PASS for a negative execution counter",
+        "FAIL", result, reason="invalid_execution_counter",
+    ))
     return rows
 
 

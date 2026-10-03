@@ -1,0 +1,62 @@
+{
+  "schema_version": "2.0",
+  "repository": "moeendres-png/mage",
+  "branch": "hardening/mage-c12-exact-sha-qualification-20261003",
+  "ownership": "PRE-FREEZE-CAMPAIGN-SINGLE-COORDINATOR-20261003",
+  "audit_base_sha": "2afe121f58c043cc8104e0b9ed6a5b285e81d29a",
+  "audit_base_tree": "f14db82fe9073b2782d8d0fd53732c8a5e373fbe",
+  "state_written_against_head": "37ec2ddb113d3e33be699a7bd7379c47b2cb9e42",
+  "objective": "Close remaining trusted candidate-qualification trust/corpus and malformed-count defects",
+  "inputs": [
+    "Current Mage PR39",
+    "Lab493",
+    "Exact master6a2422d7",
+    "Retained full-pipeline Git fixtures"
+  ],
+  "authority": "Newest direct Owner single-writer takeover; routine bounded repair authorized",
+  "in_scope": [
+    "C12 qualification scripts, controls, baseline, evidence and review"
+  ],
+  "out_of_scope": [
+    "Rules obligations",
+    "Provider/Freeze/Production repo",
+    "Deck/inventory/opponent mutation"
+  ],
+  "dependencies": [
+    "Current default-branch integration",
+    "Independent adversarial review",
+    "C13/C14 Verify data issues remain separate"
+  ],
+  "hard_gates": [
+    "Trusted-state isolation",
+    "Required corpus preservation below class level",
+    "Positive and full-path red controls",
+    "Exact-head hosted runtime/review"
+  ],
+  "evidence_requirements": [
+    "Source locks",
+    "Authenticated execution counts",
+    "Raw before/after records",
+    "Replayable synthetic fixture objects"
+  ],
+  "stop_conditions": [
+    "Unresolved trust/corpus defect prevents merge",
+    "Budget becomes constrained: durable baton handoff"
+  ],
+  "status": "WAITING",
+  "validated_head": null,
+  "execution_profile": null,
+  "gate_status": {
+    "counter_contract": "PASS affected full-pipeline control and scalar/consistency contracts",
+    "class_baseline_family": "PASS15/15 affected controls",
+    "within_class_method_preservation": "FAIL independently reproduced",
+    "hosted_current_head_selftest": "NOT_RUN",
+    "qualification_activation": "UNKNOWN",
+    "overall": "PARTIAL"
+  },
+  "outputs": [
+    "research/c12-independent-review-20261003/SOURCE_EVIDENCE.json",
+    "research/c12-independent-review-20261003/README.md"
+  ],
+  "exact_next_action": "Extend trusted corpus preservation to actual test-method identities, then execute full-path shrink/annotation/rename/addition/approved-removal controls. Do not mergePR39 while within-class shrink earns credit."
+}
