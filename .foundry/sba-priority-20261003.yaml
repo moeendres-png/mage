@@ -4,7 +4,7 @@ worktree: /home/moeen/work/simulator-priority-20261003
 branch: simulator/sba-elimination-priority-20261003
 audit_base_sha: 103a1e0001ec7fb900ea03eddf345432b3ac31fe
 audit_base_tree: f6a53692d1b7bf44feded88081049bd4f5776c1d
-state_written_against_head: 6fbf16fdc029b6b6dff6860003cdbc9d02ab4dca
+state_written_against_head: 99cb9edbc621cc10f9372fc4ca45a499ffd52ec1
 validated_head: null
 objective: 'Repair systemic priority after SBA elimination, including active-player-absent
   turn progression; Lab #507.'
@@ -214,3 +214,4 @@ validation_evidence:
 evidence_archive_sha256: 03c0a5c58260589707c301fafdec637ba84d45aad60ca3cb641dc946cd5f2018
 full107_af06_af08: NOT_RUN against new candidate pin; no transferred qualification
   credit
+pr_url: https://github.com/moeendres-png/mage/pull/40
