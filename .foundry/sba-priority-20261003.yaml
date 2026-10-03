@@ -4,7 +4,7 @@ worktree: /home/moeen/work/simulator-priority-20261003
 branch: simulator/sba-elimination-priority-20261003
 audit_base_sha: 103a1e0001ec7fb900ea03eddf345432b3ac31fe
 audit_base_tree: f6a53692d1b7bf44feded88081049bd4f5776c1d
-state_written_against_head: b0ba5b5b0530975fb3d521c83c959dc726c0719d
+state_written_against_head: 85e44b5fe1faf8f24d4ffa213e1f4ebe478888f1
 validated_head: null
 objective: 'Repair systemic priority after SBA elimination, including active-player-absent
   turn progression; Lab #507.'
@@ -105,8 +105,8 @@ technical_decisions:
 - 'Manual Mage impact override: Lab mapper pytest default is inapplicable; complete
   Mage.Tests reactor CI and exact-head independent review required before unqualified
   component validation. Clear validated_head while these gates remain pending.'
-- No code/test changes since b6fa03aee2083e56f3f83ffbaa4efa00dc71c9fb; only evidence
-  persistence and state adjudication. No repeat of unchanged passing subsets.
+- Historical initial publication checkpoint had no code/test changes since b6fa03a;
+  the subsequent Monarch fixture adaptation is separately bound in monarch_fixture_evidence.
 - New Lab255 transition5968556784 reserves remaining campaign to Claude; no new OpenCode
   workstream. Preserve existing bounded engine repair for review/integration; no takeover
   of C12/C13/C14/Forge surfaces.
@@ -136,9 +136,9 @@ technical_decisions:
 - 'Final complete reactor run: tests 6822, failures 0, errors 0, skipped 125, aggregated
   from all 1973 surefire XML files. The 125 skips are pre-existing and spread over
   69 classes; they are recorded in the evidence manifest and are NOT claimed as coverage.'
-- 'Honest unknown: local runs report 6822 tests where Coordinator CI reported 6821
-  on the same head family. Cause not investigated and left UNKNOWN; the per-class
-  XML manifest is the authoritative local breakdown.'
+- 'Historical executor count uncertainty is now resolved by Coordinator XML readback:
+  local6822 includes one stale compiled temporary ProbeTurnOrderTest; committed source
+  has6821 cases. The probe is not qualification credit.'
 - Mage.Verify was SKIPPED on Coordinator CI run 37119753436 job 111193455619. It carries
   no FAIL/PASS result and none is claimed here.
 - 'Executor continuity: this session continues the same workstream on the same owned
