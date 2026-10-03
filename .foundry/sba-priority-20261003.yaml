@@ -4,12 +4,12 @@ worktree: /home/moeen/work/simulator-priority-20261003
 branch: simulator/sba-elimination-priority-20261003
 audit_base_sha: 103a1e0001ec7fb900ea03eddf345432b3ac31fe
 audit_base_tree: f6a53692d1b7bf44feded88081049bd4f5776c1d
-state_written_against_head: 103a1e0001ec7fb900ea03eddf345432b3ac31fe
-validated_head: null
+state_written_against_head: b6fa03aee2083e56f3f83ffbaa4efa00dc71c9fb
+validated_head: b6fa03aee2083e56f3f83ffbaa4efa00dc71c9fb
 objective: 'Repair systemic priority after SBA elimination, including active-player-absent
   turn progression; Lab #507.'
 ownership: XMAGE-SBA-ELIMINATION-PRIORITY-20261003
-status: ACTIVE
+status: WAITING
 in_scope:
 - Mage/src/main/java/mage/game/GameImpl.java priority/turn progression
 - Mage.Tests focused engine regressions
@@ -45,14 +45,159 @@ authority_gates:
 execution_profile: space-bunny
 executor_model: opencode-go/space-bunny-free
 native_variant: max
-exact_next_action: Address Coordinator test-construction review; obtain failure caused
-  specifically by departed-player priority, repair systemic source and validate controls
-  before commit.
+exact_next_action: 'Coordinator: independent review of commit b6fa03aee2083e56f3f83ffbaa4efa00dc71c9fb
+  (branch simulator/sba-elimination-priority-20261003). Then decide external publication.
+  No push or merge was performed by the worker. Candidate pin and Full107 impact adjudication
+  remain reserved to the Coordinator; no credit transfer.'
 executor_handoff_from: deepseek
 executor_handoff_reason: 'Coordinator explicit rerouting: DeepSeek run 2ea732bd session
   ses_efeb36419ffeC4XWHfG3MHfz4B at 2026-10-03T10:26:02.847Z reported Go usage limit
   exceeded; interrupted without changes and writer released. No automatic fallback.'
 technical_decisions:
-- Coordinator read-only pre-validation review found seatsFor prefixes do not match
-  test_ method names; no validation credit. Interrupted worker130 at clean boundary
-  with no Maven/Java children, resume explicit same session after instruction.
+- 'Turn order was derived empirically, not assumed: XMage builds its player list in
+  reverse insertion order and the cycle starts at the starting player, so turn order
+  is A,B / A,C,B / A,D,C,B / A,E,D,C,B for 2/3/4/5 seats with the standard A,B,C,D,E
+  insertion. Every scenario asserts the active player per turn at runtime via runCode,
+  and asserts the real seat count.'
+- Test instrumentation is observational only. A TestPlayer subclass records every
+  engine-driven Player.priority(game) call with the recorded player game status at
+  that moment. No win/loss or other outcome is injected, no priority loop is bypassed,
+  and no shared harness file was modified. All eliminations come from a real life-payment
+  cost (CR 118.3b) driving the life total to 0 plus the engine own 704.5a check.
+- 'The non-active-player elimination case is a second manifestation of the same defect,
+  not an expected-green control: it fails on the original GameImpl and passes after
+  the repair. The only controls are the all-players-in-game case and the non-lethal
+  life payment case, and both are green on original and repaired source.'
+- Repair is one eligibility re-check in GameImpl.playPriority after the state-based
+  action pass and before Player.priority(), leaving the innermost per-player loop
+  so the existing player-list iteration hands the window to the next player in turn
+  order (CR 800.4a, 800.4j). No new rules core, no adapter, no pom or card-data change,
+  no card or deck data touched.
+- 'Finding: at two seats the defect is unreachable, because the elimination makes
+  checkIfGameIsOver() true inside the same state-based pass and the existing game-over
+  return happens before Player.priority(). test_twoPlayers_departedPlayerGetsNoPriority
+  is therefore green on original and repaired source and is retained as behaviour
+  coverage only, not as fail-before evidence. This is why fail-before is 5 of 8 cases,
+  not 6 of 8.'
+- 'Finding: the engine already removes a departed player stack objects when it removes
+  the player (CR 800.4a). Regression 3 asserts this precisely instead of only asserting
+  a finally-empty stack: the departed player spell is observed pending on the stack
+  in the departing player own priority window before the lethal payment, no stack
+  object controlled or owned by the departed player remains, the departed player owns
+  no battlefield object (CR 800.4b), and a surviving player different stack object
+  really resolves with an observable power/toughness change.'
+- 'Turn-order note for reviewers: a departing active player already lost the turn
+  correctly before this repair (priority passes via state.getPlayerList().getNext()).
+  The repair adds no turn-progression logic; the new tests assert 800.4j behaviour
+  that the fix must not regress.'
+- 'Build/validation environment: the launcher sandbox has a read-only /tmp, so protoc-jar-maven-plugin
+  fails with "Read-only file system" unless Maven gets -Djava.io.tmpdir=$TMPDIR via
+  MAVEN_OPTS. All runs used -pl Mage.Tests -am so engine classes come from this reactor
+  rather than the shared 1.4.61 cache jar, with explicitly selected tests and Maven
+  exit status reported outside any pipe.'
+- 'Executor continuity: this session runs the Coordinator-authorized space-bunny MAX
+  secondary profile recorded in executor_handoff_from/executor_handoff_reason; no
+  silent executor switch occurred in this session.'
+technical_decisions_append: true
+validation_evidence:
+  source_lock_sha: 103a1e0001ec7fb900ea03eddf345432b3ac31fe
+  source_lock_tree: f6a53692d1b7bf44feded88081049bd4f5776c1d
+  repair_commit: b6fa03aee2083e56f3f83ffbaa4efa00dc71c9fb
+  repair_branch: simulator/sba-elimination-priority-20261003
+  files_changed:
+  - Mage/src/main/java/mage/game/GameImpl.java
+  - Mage.Tests/src/test/java/org/mage/test/multiplayer/PriorityEliminationTest.java
+  - research/priority-elimination/README.md
+  - .foundry/sba-priority-20261003.yaml
+  engine_diff: GameImpl.playPriority only, 7 added lines, no deletions and no other
+    hunks
+  commands:
+  - MAVEN_OPTS="-Djava.io.tmpdir=$TMPDIR" mvn -o -pl Mage.Tests -am test -Dtest='PriorityEliminationTest'
+    -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false
+  - MAVEN_OPTS="-Djava.io.tmpdir=$TMPDIR" mvn -o -pl Mage.Tests -am test -Dtest='PriorityEliminationTest#test_fourPlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority'
+    -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false
+  - MAVEN_OPTS="-Djava.io.tmpdir=$TMPDIR" mvn -o -pl Mage.Tests -am test -Dtest='PriorityEliminationTest,org.mage.test.multiplayer.**.*Test,org.mage.test.sba.**.*Test,org.mage.test.rollback.**.*Test,org.mage.test.turnmod.**.*Test,org.mage.test.game.**.*Test,org.mage.test.lki.**.*Test'
+    -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false
+  - MAVEN_OPTS="-Djava.io.tmpdir=$TMPDIR" mvn -o -pl Mage.Tests -am test -Dtest='org.mage.test.commander.**.*Test,org.mage.test.player.**.*Test,org.mage.test.mulligan.**.*Test,org.mage.test.deck.**.*Test,org.mage.test.AI.**.*Test'
+    -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false
+  results:
+    original_source_focused_regression:
+      tests: 1
+      failures: 1
+      errors: 0
+      skipped: 0
+      cause: 'single intended assertion assertNoPriorityForDepartedPlayer, message
+        "117.5/800.4a - engine requested priority from a player that already left
+        the game: PlayerC|T3|PRECOMBAT_MAIN|inGame=false"'
+    original_source_whole_class:
+      tests: 8
+      failures: 5
+      errors: 0
+      skipped: 0
+      green_before_and_after:
+      - test_twoPlayers_departedPlayerGetsNoPriority (game-over return precedes priority
+        at 2 seats)
+      - test_fourPlayers_controlAllPlayersInGameReceivePriority
+      - test_fourPlayers_controlNonLethalLifePaymentKeepsPriorityAndPlayerInGame
+      red_before_green_after:
+      - test_fourPlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority
+      - test_fourPlayers_nonActivePlayerEliminatedDuringPriorityGetsNoPriority
+      - test_fourPlayers_stackOfDepartedActivePlayerIsRemovedAndSurvivorStackObjectResolves
+      - test_threePlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority
+      - test_fivePlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority
+    repaired_source_focused_regression:
+      tests: 1
+      failures: 0
+      errors: 0
+      skipped: 0
+    repaired_source_whole_class:
+      tests: 8
+      failures: 0
+      errors: 0
+      skipped: 0
+    repaired_source_multiplayer_sba_rollback_turnmod_game_lki:
+      tests: 123
+      failures: 0
+      errors: 0
+      skipped: 0
+    repaired_source_commander_player_mulligan_deck_ai:
+      tests: 245
+      failures: 0
+      errors: 0
+      skipped: 22
+      skipped_note: pre-existing skips in that selection, not counted as coverage
+  rules_source:
+    url: https://media.wizards.com/2026/downloads/MagicCompRules%2020260925.txt
+    sha256: 8d860e451f20f38865b725b42d82feb714c725373dd8f3b32b8652b3eeb070ca
+    fetch: read-only curl -sS -L, HTTP 200, 977752 bytes, 9372 lines
+    rules_cited:
+    - 117.5 state-based actions and triggered abilities are performed and repeated
+      before the player about to receive priority receives it
+    - 704.5a a player whose life total is 0 or less loses the game
+    - 118.3b paying life as a cost subtracts that life from the payer life total
+    - 800.4a priority held by a departing player passes to the next player in turn
+      order still in the game
+    - 800.4b an object that would enter the battlefield under a departed player control
+      stays where it is
+    - 800.4j a player leaving during their own turn does not abort that turn, which
+      completes without an active player
+  evidence_artifacts:
+    root: $FOUNDRY_RUN_DIR/tmp/opencode/evidence
+    layout:
+    - RED/ focused fail-before log, surefire XML, SHA256SUMS
+    - RED-class/ whole-class fail-before log and surefire XML
+    - GREEN-focused/ focused pass-after log and surefire XML
+    - GREEN-class/ whole-class pass-after log and surefire XML
+    - GREEN-broad/ both bounded broadening logs, SHA256SUMS, test-source hash
+    note: run-scoped scratch outside the Git worktree, not repository content
+  unknown_and_limits:
+  - The 2/3/4/5-player coverage uses only this hand-built harness; no real full-game
+    qualification, deck data or card-data run is claimed.
+  - This is an ordinary engine repair. It is NOT Full107, AF06 or AF08 PASS and carries
+    no such credit.
+  - No real-game, human-client or server-session behaviour was exercised; only the
+    server-side Mage.Tests engine harness with real GameImpl/Player execution.
+  - 'Mock-only semantics are not overclaimed: every assertion is backed by real engine
+    execution of GameImpl.playPriority, its state-based action pass and its turn loop.'
+  external_actions: none. No push, no merge, no PR, no pin change, no provider or
+    freeze action.
