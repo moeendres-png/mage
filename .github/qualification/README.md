@@ -115,6 +115,35 @@ Two consequences worth being explicit about:
   fully suppressed one, because Maven's own startup dominates. A magnitude threshold
   would have been a heuristic that separates nothing.
 
+## Known production-path gaps (not closed here)
+
+The controls prove the *trust property* on a real Maven/JDK/JUnit toolchain. They do
+**not** prove the production path at Mage's reactor scale. Two gaps, stated rather than
+papered over:
+
+**1. Per-module test classpath resolution.** `witness.py` builds the launcher's classpath
+from module output directories (`**/target/test-classes`, `**/target/classes`). It does
+not resolve each module's third-party dependencies, because that needs Maven resolution.
+Surefire forks per module with a per-module classpath; this driver runs the campaign in
+one JVM. Across Mage's 1996 enumerated classes — which include `mage.verify.VerifyCardDataTest`
+— that will very likely fail on a missing dependency or a cross-module classpath clash.
+Remediation: resolve a per-module test classpath via `dependency:build-classpath` and run
+the trusted driver once per module, then aggregate. Classpath *composition* is
+candidate-influenced; the verdict would still come from the trusted driver, so this does
+not reopen the trust boundary. It is unvalidated here.
+
+**2. Inherited `Mage.Verify` red blocks the positive live control.** On plain master
+(`103a1e0001`, run `37101432319`) `maven.yml` fails with `Mage Verify ... FAILURE` while
+`Mage Tests ... SUCCESS [02:35 min]`. That red predates C12 — it also fails at `6e3db5046`
+and on the #38 merge. Because the trusted enumeration includes
+`mage.verify.VerifyCardDataTest`, the C12 gate will fail that class for **every**
+candidate, including a docs-only one.
+
+It is deliberately **not** excluded from the enumeration. Narrowing the required set to
+make a control go green would be exactly the silent coverage weakening this workstream
+exists to prevent. Which signals belong in the qualification campaign is C13's decision
+(#494); the drift root cause is C14's (#495).
+
 ## Runtime bootstrap
 
 `pull_request_target` executes the default-branch copy, so this workflow cannot prove
