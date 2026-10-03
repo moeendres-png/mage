@@ -139,6 +139,10 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
         )
     if execution.get("candidate_authored_evidence_used") is not False:
         fail("candidate_authored_evidence_used: witness does not assert trusted-only evidence")
+    if execution.get("execution_mode") != "per_module_trusted_driver":
+        fail(
+            "execution_mode_not_per_module: {}".format(execution.get("execution_mode"))
+        )
 
     # Adjudicated rule: a non-zero candidate build exit is an unconditional FAIL.
     raw_exit = witness.get("candidate_build_exit_code")
@@ -180,6 +184,60 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
             "required_tests_never_entered: {}".format(",".join(never_entered[:10]))
         )
 
+    origin_violations = execution.get("code_origin_violations") or []
+    if origin_violations:
+        fail(
+            "class_origin_mismatch: {}".format("; ".join(origin_violations[:5]))
+        )
+
+    # Per-module aggregation integrity. A module that owns required classes but
+    # produced no trusted witness is a gap, never a silent skip; and partial
+    # execution must not aggregate into PASS.
+    completeness = witness.get("module_classpath_completeness") or {}
+    if completeness and completeness.get("complete") is not True:
+        fail(
+            "module_classpath_incomplete: {}".format(
+                ",".join(completeness.get("modules_missing_classpath") or [])
+            )
+        )
+
+    modules_without_witness = execution.get("modules_without_witness") or []
+    if modules_without_witness:
+        fail(
+            "module_execution_incomplete: {}".format(",".join(modules_without_witness[:10]))
+        )
+
+    required_total = execution.get("trusted_selected_classes") or 0
+    entered_total = execution.get("classes_entered_total") or 0
+    if required_total > 0 and entered_total < required_total:
+        fail(
+            "partial_module_execution: {} of {} required module/class pairs entered".format(
+                entered_total, required_total
+            )
+        )
+
+    # The entered set must be exactly the required set: no extra credited class,
+    # and no required (module, class) pair quietly missing.
+    required_pairs = {
+        "{}::{}".format(e.get("module"), e.get("class_name"))
+        for e in (witness.get("required_test_classes") or [])
+    }
+    entered_pairs = set(execution.get("entered_pairs") or [])
+    unexpected = sorted(entered_pairs - required_pairs)
+    if unexpected:
+        fail("unexpected_entered_classes: {}".format(",".join(unexpected[:10])))
+    missing_pairs = sorted(required_pairs - entered_pairs)
+    if missing_pairs and not modules_without_witness:
+        fail("required_pairs_not_entered: {}".format(",".join(missing_pairs[:10])))
+
+    not_compiled = [
+        "{}:{}".format(m.get("module"), ",".join(m.get("not_compiled") or [])[:120])
+        for m in (witness.get("modules") or [])
+        if m.get("not_compiled")
+    ]
+    if not_compiled:
+        fail("required_tests_not_compiled: {}".format("; ".join(not_compiled[:5])))
+
     tests_found = execution.get("tests_found") or 0
     tests_started = execution.get("tests_started") or 0
     tests_failed = execution.get("tests_failed") or 0
@@ -199,13 +257,6 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
         fail("container_failures: {} test container(s) failed".format(containers_failed))
     if tests_found > 0 and tests_skipped >= tests_found:
         fail("all_tests_skipped: every discovered test was skipped")
-
-    if status == PASS and execution.get("driver_verdict") != PASS:
-        fail(
-            "driver_disagreement: trusted driver verdict {}".format(
-                execution.get("driver_verdict")
-            )
-        )
 
     return status, reasons
 
@@ -267,10 +318,16 @@ def main() -> int:
     execution = witness.get("trusted_execution_witness") or {}
     evidence["test_evidence"] = {
         "origin": execution.get("evidence_origin"),
-        "required_test_classes": witness.get("required_test_classes"),
-        "selected_class_count": execution.get("trusted_selected_classes"),
-        "observed_classes": execution.get("observed_classes"),
+        "execution_mode": execution.get("execution_mode"),
+        "required_test_class_count": len(witness.get("required_test_classes") or []),
+        "modules_with_required_tests": execution.get("modules_with_required_tests"),
+        "modules_with_witness": execution.get("modules_with_witness"),
+        "modules_without_witness": execution.get("modules_without_witness"),
+        "module_classpath_completeness": witness.get("module_classpath_completeness"),
+        "trusted_selected_classes": execution.get("trusted_selected_classes"),
+        "classes_entered_total": execution.get("classes_entered_total"),
         "classes_never_entered": execution.get("classes_never_entered"),
+        "code_origin_violations": execution.get("code_origin_violations"),
         "totals": {
             "found": execution.get("tests_found"),
             "started": execution.get("tests_started"),

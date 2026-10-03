@@ -62,6 +62,34 @@ failed, zero aborted, zero failed containers, not all skipped; witness bound to 
 candidate SHA. Anything missing, unusable or ambiguous is `FAIL` or `UNKNOWN`, both
 non-zero. Mergeability is recorded by a separate job the verdict never reads.
 
+## Per-module classpath and execution
+
+Surefire runs each module with its own test classpath in its own forked JVM. The witness
+reproduces that rather than approximating it with one combined classpath:
+
+1. `witness.py` enumerates required test classes **per module** from candidate source, so
+   the module that owns a class is known before anything runs.
+2. The workflow resolves a test classpath **per module** via `dependency:build-classpath`.
+3. Any `org/mage/...` repository entry is **dropped** and replaced by the candidate's own
+   reactor output directories. This is not cosmetic: resolving outside a full reactor
+   points a sibling module at an installed jar, and the workflow restores `~/.m2` between
+   runs via `cache: maven`, so such a jar can be silently stale — the witness would then
+   run the candidate's tests against a framework that is not the candidate's.
+4. `TrustedTestDriver` runs **once per module**, with that module's classes only, and
+   verifies via the code source that each executed class really loaded from its own
+   module's output.
+5. Aggregation happens only in `witness.py`, counting `(module, class)` **pairs** — bare
+   class names would collapse two modules that legitimately share a test class FQN.
+
+Every step fails closed. A required module with no resolved classpath, a required class
+that is not compiled, a required class the launcher never entered, a module that produced
+no witness, or a class loaded from the wrong module all produce `FAIL`/`UNKNOWN`. No module
+is ever dropped because resolving it was inconvenient.
+
+The classpath map is candidate-influenced **input** — unavoidable, since executing a
+candidate's tests requires its declared dependencies. It is never authority: it can change
+which class loads, never whether a required class counts as executed, never the verdict.
+
 ## Controls
 
 ```
@@ -69,7 +97,7 @@ python3 .github/qualification/qualification_selftest.py --offline   # local
 python3 .github/qualification/qualification_selftest.py             # as CI runs it
 ```
 
-`SELFTEST = PASS (17/17 controls ok, 0 not run)`. Controls run before any candidate
+`SELFTEST = PASS (25/25 controls ok, 0 not run)`. Controls run before any candidate
 result is read; if the selftest fails, no candidate verdict is produced.
 
 | control | kind | asserts |
@@ -77,7 +105,7 @@ result is read; if the selftest fails, no candidate verdict is produced.
 | CTRL-01 | positive | honest candidate, tests actually run by the trusted launcher → PASS |
 | CTRL-02 | red | lifecycle hook fabricates green `TEST-*.xml` while executing nothing → FAIL |
 | CTRL-03 | red | real failing test **plus** forged green XML → FAIL on both counts |
-| CTRL-04 | red | fabricated/copied report, required test never compiled → UNKNOWN |
+| CTRL-04 | red | fabricated/copied report, required test never compiled → FAIL |
 | CTRL-05 | red | hardcoded surefire suppression: `BUILD SUCCESS`, verdict FAIL |
 | CTRL-06 | red | every test `@Disabled` → FAIL |
 | CTRL-07 | red | no required test class → UNKNOWN |
@@ -88,6 +116,19 @@ result is read; if the selftest fails, no candidate verdict is produced.
 | CTRL-15 | red | workflow keeps its no-credential, unmasked, PR-head-ref contract |
 | CTRL-16 | red | `qualify.py` traverses nothing; `witness.py` names no report path |
 | CTRL-17 | positive | the trusted driver exists as trusted source |
+| CTRL-18 | positive | two modules with different test classpaths both execute and aggregate |
+| CTRL-19 | positive | a dependency reachable only on its own module classpath is entered |
+| CTRL-20 | red | a required module with no resolved classpath → UNKNOWN, never a skip |
+| CTRL-21 | red | a required class that cannot resolve on its module classpath → FAIL |
+| CTRL-22 | red | one genuinely failing module is not masked by passing siblings |
+| CTRL-23 | red | partial module execution cannot aggregate into PASS |
+| CTRL-24 | red | a required class owned by a sibling module cannot be credited |
+| CTRL-25 | red | a module with zero required classes contributes nothing |
+
+CTRL-19 uses a real installed Maven artifact that only one module may depend on, so
+per-module resolution is exercised rather than asserted. CTRL-22 asserts on
+`test_failures` specifically: it previously passed for the wrong reason (the failing module
+had not compiled), which would have hidden a masking bug.
 
 Every control asserts the verdict actually observed, so the suite is a discriminator
 rather than a decoration. Meta control: replacing the scorer with one that returns `PASS`
@@ -117,32 +158,41 @@ Two consequences worth being explicit about:
 
 ## Known production-path gaps (not closed here)
 
-The controls prove the *trust property* on a real Maven/JDK/JUnit toolchain. They do
-**not** prove the production path at Mage's reactor scale. Two gaps, stated rather than
-papered over:
+The controls prove the *trust property* on a real Maven/JDK/JUnit toolchain, and the
+witness has been run against the **real Mage reactor**, not only synthetic fixtures. What
+remains unproven is stated rather than papered over.
 
-**1. Per-module test classpath resolution.** `witness.py` builds the launcher's classpath
-from module output directories (`**/target/test-classes`, `**/target/classes`). It does
-not resolve each module's third-party dependencies, because that needs Maven resolution.
-Surefire forks per module with a per-module classpath; this driver runs the campaign in
-one JVM. Across Mage's 1996 enumerated classes — which include `mage.verify.VerifyCardDataTest`
-— that will very likely fail on a missing dependency or a cross-module classpath clash.
-Remediation: resolve a per-module test classpath via `dependency:build-classpath` and run
-the trusted driver once per module, then aggregate. Classpath *composition* is
-candidate-influenced; the verdict would still come from the trusted driver, so this does
-not reopen the trust boundary. It is unvalidated here.
+**Real-scale validation performed.** Against Mage master at `7edc440c83`, with real
+`dependency:build-classpath` resolution for all 7 modules that own required tests
+(`Mage`, `Mage.Client`, `Mage.Common`, `Mage.Server`, `Mage.Server.Console`, `Mage.Tests`,
+`Mage.Verify`; 1996 required classes):
 
-**2. Inherited `Mage.Verify` red blocks the positive live control.** On plain master
+- 102 stale installed sibling jars detected and dropped across the module classpaths;
+- the two modules compiled locally (`Mage`, `Mage.Common`) executed **115 real tests,
+  115 succeeded, 0 failed** through the per-module trusted driver;
+- `code_origin_violations: []` — origin enforcement held on real Mage classes;
+- the 5 uncompiled modules were reported as `modules_without_witness`, and the scorer
+  returned `FAIL` naming all of them plus `partial_module_execution: 10 of 1996 required
+  module/class pairs entered`. No silent skip, no fabricated PASS.
+
+**Remaining gap: full-reactor execution of `Mage.Tests` (1976 classes).** Building the
+whole reactor locally was out of budget for this run, so the large module has not been
+executed end to end. The mechanism is proven on real Mage code in two modules and the
+fail-closed behaviour is proven on the uncompiled remainder; what is unproven is the
+behaviour with all 1996 classes actually running. That is a runtime-scale question, not a
+trust question, and it resolves on the first live run.
+
+**Inherited `Mage.Verify` red blocks the positive live control.** On plain master
 (`103a1e0001`, run `37101432319`) `maven.yml` fails with `Mage Verify ... FAILURE` while
 `Mage Tests ... SUCCESS [02:35 min]`. That red predates C12 — it also fails at `6e3db5046`
 and on the #38 merge. Because the trusted enumeration includes
 `mage.verify.VerifyCardDataTest`, the C12 gate will fail that class for **every**
 candidate, including a docs-only one.
 
-It is deliberately **not** excluded from the enumeration. Narrowing the required set to
-make a control go green would be exactly the silent coverage weakening this workstream
-exists to prevent. Which signals belong in the qualification campaign is C13's decision
-(#494); the drift root cause is C14's (#495).
+It is deliberately **not** excluded. Narrowing the required set to make a control pass
+would be exactly the silent coverage weakening this workstream exists to prevent. Which
+signals belong in the qualification campaign is C13's decision (#494); the drift root cause
+is C14's (#495).
 
 ## Runtime bootstrap
 

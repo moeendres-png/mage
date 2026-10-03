@@ -262,15 +262,34 @@ def write_source_lock(path: Path, candidate_sha: str = CANDIDATE_SHA, status: st
     return path
 
 
-def run_build(project: Path, maven: str, offline: bool) -> subprocess.CompletedProcess:
+def run_build(project: Path, maven: str, offline: bool, extra_flags: list | None = None) -> subprocess.CompletedProcess:
     cmd = [maven, "-B"] + (["-o"] if offline else [])
     cmd += [
         "test",
         "-DskipTests=false",
         "-Dmaven.test.skip=false",
         "-Dsurefire.skip=false",
-    ]
+    ] + list(extra_flags or [])
     return subprocess.run(cmd, cwd=str(project), capture_output=True, text=True, check=False)
+
+
+def discover_modules(candidate_root: Path) -> list[str]:
+    """Modules that own test sources, matching the trusted enumeration's rule."""
+    modules = []
+    for pom in sorted(candidate_root.glob("**/pom.xml")):
+        module_dir = pom.parent
+        for marker in ("src/test/java", "src/test/kotlin", "src/test/groovy"):
+            if (module_dir / marker).is_dir():
+                modules.append(module_dir.relative_to(candidate_root).as_posix() or ".")
+                break
+    return modules
+
+
+def default_classpath_map(candidate_root: Path, junit_classpath: str) -> dict:
+    """Every module gets the trusted JUnit platform. Real dependency resolution is
+    the workflow's job; what matters here is that no module is ever silently
+    dropped, which the completeness check enforces independently."""
+    return {module: junit_classpath for module in discover_modules(candidate_root)}
 
 
 def run_pipeline(
@@ -284,8 +303,9 @@ def run_pipeline(
     observed_sha: str = CANDIDATE_SHA,
     audit_enabled: bool = True,
     corrupt_witness: bool = False,
+    module_classpaths: dict | None = None,
 ) -> dict:
-    """Source lock -> audit -> witness -> verdict, all driven by trusted code."""
+    """Source lock -> audit -> per-module witness -> verdict, all trusted-driven."""
     work = tmp / name
     work.mkdir(parents=True, exist_ok=True)
     lock = write_source_lock(work / "SOURCE_LOCK.json")
@@ -297,6 +317,12 @@ def run_pipeline(
         )
         audit_path = work / "BUILD_DEFINITION_AUDIT.json"
         audit_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+
+    classpaths = module_classpaths
+    if classpaths is None:
+        classpaths = default_classpath_map(project, junit_classpath)
+    classpath_path = work / "MODULE_CLASSPATHS.json"
+    classpath_path.write_text(json.dumps(classpaths, indent=2, sort_keys=True) + "\n")
 
     witness_out = work / "TRUSTED_WITNESS.json"
     env = dict(os.environ)
@@ -310,6 +336,7 @@ def run_pipeline(
         "--trusted-root", str(QUALIFICATION_DIR),
         "--work-dir", str(work / "witness-work"),
         "--build-exit-code", str(build.returncode),
+        "--module-classpaths", str(classpath_path),
         "--out", str(witness_out),
     ]
     if audit_path:
@@ -348,6 +375,10 @@ def run_pipeline(
         "authored_evidence_used": evidence.get("candidate_authored_evidence_used"),
         "build_exit": evidence.get("candidate_build_exit_code"),
         "witness_status": witness.get("status"),
+        "modules_with_witness": (evidence.get("test_evidence") or {}).get("modules_with_witness"),
+        "modules_without_witness": (evidence.get("test_evidence") or {}).get("modules_without_witness"),
+        "classes_entered": (evidence.get("test_evidence") or {}).get("classes_entered_total"),
+        "required_selected": (evidence.get("test_evidence") or {}).get("trusted_selected_classes"),
         "qualify_exit": qualify_proc.returncode,
         "witness_exit": witness_proc.returncode,
     }
@@ -455,8 +486,9 @@ def pipeline_controls(tmp: Path, maven: str, offline: bool, junit_classpath: str
         )
     )
 
-    # C: a fabricated report in the expected location, while the required test
-    # class the trusted enumeration demands does not compile.
+    # 4. Copied/renamed fabricated report with the required test never compiled. A
+    #    failed build plus missing execution is a proven FAIL, which is the stronger
+    #    of the two permitted outcomes (FAIL or UNKNOWN), so FAIL is asserted.
     proj = write_project(tmp / "CTRL-04-copied-report", honest_pom, UNCOMPILABLE_TEST, forged_report=True)
     build = run_build(proj, maven, offline)
     fabricated = list(proj.glob("target/surefire-reports/TEST-*.xml")) + list(proj.glob("forged/TEST-*.xml"))
@@ -465,7 +497,7 @@ def pipeline_controls(tmp: Path, maven: str, offline: bool, junit_classpath: str
             "CTRL-04-copied-report-no-trusted-provenance",
             "red",
             "a copied or renamed fabricated report grants nothing without trusted execution provenance",
-            "UNKNOWN",
+            "FAIL",
             lambda: run_pipeline(tmp, "CTRL-04-copied", proj, honest_pom, honest_pom, build, junit_classpath),
             {"fabricated_reports_present": [p.name for p in fabricated]},
         )
@@ -659,6 +691,424 @@ def source_lock_controls(tmp: Path) -> list[dict]:
     return rows
 
 
+HELPER_GROUP = "c12.helper"
+HELPER_ARTIFACT = "only-on-b"
+HELPER_VERSION = "1.0"
+
+POM_WITH_HELPER = """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>probe</groupId>
+  <artifactId>mage-c12-control-module-b</artifactId>
+  <version>1.0</version>
+  <packaging>jar</packaging>
+  <properties>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.8.1</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>c12.helper</groupId>
+      <artifactId>only-on-b</artifactId>
+      <version>1.0</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.8.1</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.1.2</version>
+        <configuration>
+          <printSummary>true</printSummary>
+          <reportFormat>brief</reportFormat>
+          <useFile>false</useFile>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
+"""
+
+HELPER_SOURCE = """package helper;
+
+public final class OnlyOnB {
+
+    private OnlyOnB() {
+    }
+
+    public static int value() {
+        return 42;
+    }
+}
+"""
+
+MODULE_C_TEST = """package probe;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import org.junit.jupiter.api.Test;
+
+class ModuleCTest {
+
+    @Test
+    void failsOnPurpose() {
+        assertEquals(99, 1 + 1);
+    }
+}
+"""
+
+MODULE_A_TEST = """package probe;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import org.junit.jupiter.api.Test;
+
+class ModuleATest {
+
+    @Test
+    void passes() {
+        assertEquals(2, 1 + 1);
+    }
+}
+"""
+
+MODULE_B_TEST = """package probe;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import helper.OnlyOnB;
+
+import org.junit.jupiter.api.Test;
+
+class ModuleBTest {
+
+    @Test
+    void usesModuleBOnlyDependency() {
+        assertEquals(42, OnlyOnB.value());
+    }
+}
+"""
+
+SHARED_TEST = """package probe;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import org.junit.jupiter.api.Test;
+
+class SharedTest {
+
+    @Test
+    void passes() {
+        assertEquals(2, 1 + 1);
+    }
+}
+"""
+
+HELPER_JAR_NAME = "c12-helper-b.jar"
+
+
+def build_helper_jar(workdir: Path) -> str:
+    """Build and install a jar only module B may depend on."""
+    src = workdir / "helpersrc" / "helper"
+    src.mkdir(parents=True, exist_ok=True)
+    (src / "OnlyOnB.java").write_text(HELPER_SOURCE)
+    classes = workdir / "helperclasses"
+    classes.mkdir(parents=True, exist_ok=True)
+    proc = subprocess.run(
+        ["javac", "-nowarn", "-d", str(classes), str(src / "OnlyOnB.java")],
+        capture_output=True, text=True, check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError("helper javac failed: {}".format(proc.stderr[:500]))
+    jar = workdir / HELPER_JAR_NAME
+    jar_proc = subprocess.run(
+        ["jar", "cf", str(jar), "-C", str(classes), "helper"],
+        capture_output=True, text=True, check=False,
+    )
+    if jar_proc.returncode != 0:
+        raise RuntimeError("helper jar failed: {}".format(jar_proc.stderr[:500]))
+    install = subprocess.run(
+        [
+            "mvn", "-B", "-o", "install:install-file",
+            "-Dfile={}".format(jar),
+            "-DgroupId={}".format(HELPER_GROUP),
+            "-DartifactId={}".format(HELPER_ARTIFACT),
+            "-Dversion={}".format(HELPER_VERSION),
+            "-Dpackaging=jar",
+        ],
+        capture_output=True, text=True, check=False,
+    )
+    if install.returncode != 0:
+        raise RuntimeError(
+            "helper install failed (offline install-file unavailable): {}".format(
+                (install.stderr or install.stdout)[-400:]
+            )
+        )
+    return str(jar)
+
+
+def write_module(root: Path, module: str, test_name: str, test_source: str, pom: str | None = None) -> Path:
+    module_dir = root / module if module != "." else root
+    module_dir.mkdir(parents=True, exist_ok=True)
+    (module_dir / "pom.xml").write_text(pom or build_pom())
+    test_file = module_dir / "src" / "test" / "java" / "probe" / (test_name + ".java")
+    test_file.parent.mkdir(parents=True, exist_ok=True)
+    test_file.write_text(test_source)
+    return module_dir
+
+
+def build_multi_module(tmp: Path, name: str) -> dict:
+    root = tmp / name
+    helper_work = tmp / (name + "-helper")
+    helper_jar = build_helper_jar(helper_work)
+
+    write_module(root, "modA", "ModuleATest", MODULE_A_TEST)
+    write_module(root, "modB", "ModuleBTest", MODULE_B_TEST, pom=POM_WITH_HELPER)
+    return {"root": root, "helper_jar": helper_jar}
+
+
+DIVERGENT_SOURCE = """package probe;
+
+/* Filename stem is SharedTest, so the trusted enumeration requires probe.SharedTest
+   for this module, but the compiled class is probe.DivergentTest. The module that
+   legitimately owns probe.SharedTest is the sibling. */
+class DivergentTest {
+
+    int value() {
+        return 7;
+    }
+}
+"""
+
+
+def build_shared_collision(tmp: Path, name: str) -> dict:
+    """modA legitimately owns probe.SharedTest; modB requires it but never defines it."""
+    root = tmp / name
+    write_module(root, "modA", "SharedTest", SHARED_TEST)
+    write_module(root, "modB", "SharedTest", DIVERGENT_SOURCE)
+    return {"root": root}
+
+
+def module_controls(tmp: Path, maven: str, offline: bool, junit_classpath: str) -> list[dict]:
+    rows: list[dict] = []
+    honest_pom = build_pom()
+    multi = build_multi_module(tmp, "CTRL-18-multimodule")
+    root = multi["root"]
+
+    # Build both modules with their own Maven invocations, exactly as surefire would.
+    build_a = run_build(root / "modA", maven, offline)
+    build_b = run_build(root / "modB", maven, offline)
+    helper_cp = os.pathsep.join([multi["helper_jar"], junit_classpath])
+    classpaths = {"modA": junit_classpath, "modB": helper_cp}
+
+    def run(tag, project, base, cand, build, cps, expected, kind, expectation, extra=None):
+        rows.append(
+            control(
+                tag, kind, expectation, expected,
+                lambda: run_pipeline(tmp, tag.replace(" ", "-"), project, base, cand, build,
+                                     junit_classpath, module_classpaths=cps),
+                extra,
+            )
+        )
+
+    # 1. Two modules, different test dependencies, both executed through the witness.
+    run("CTRL-18-multi-module-execution", root, honest_pom, honest_pom,
+        build_a if build_a.returncode == 0 else build_b,
+        classpaths, "PASS", "positive",
+        "two modules with different test classpaths both execute and aggregate honestly",
+        {"module_a_exit": build_a.returncode, "module_b_exit": build_b.returncode})
+
+    # 2. A dependency reachable only on its own module classpath is genuinely entered.
+    entered = None
+    result = run_pipeline(tmp, "CTRL-19-dep-on-own-classpath", root, honest_pom, honest_pom,
+                          build_b, junit_classpath, module_classpaths=classpaths)
+    entered = (result.get("classes_entered"), result.get("required_selected"))
+    ok = result.get("verdict") == "PASS" and entered == (2, 2)
+    rows.append({
+        "control": "CTRL-19-module-only-dependency-entered",
+        "kind": "positive",
+        "expectation": "a required class whose dependency exists only on its own module test classpath is actually entered",
+        "expected_verdict": "PASS",
+        "observed_verdict": result.get("verdict"),
+        "classes_entered": entered[0],
+        "required_selected": entered[1],
+        "ok": bool(ok),
+    })
+
+    # 3. A required module with no resolved classpath is a gap, never a skip.
+    partial = dict(classpaths)
+    partial.pop("modB")
+    result = run_pipeline(tmp, "CTRL-20-missing-module-classpath", root, honest_pom, honest_pom,
+                          build_a, junit_classpath, module_classpaths=partial)
+    reasons = " ".join(result.get("reasons") or [])
+    ok = result.get("verdict") in ("FAIL", "UNKNOWN") and "module_classpath_missing" in reasons
+    rows.append({
+        "control": "CTRL-20-missing-module-classpath",
+        "kind": "red",
+        "expectation": "a required module whose classpath was not resolved cannot be silently skipped",
+        "expected_verdict": "FAIL",
+        "observed_verdict": result.get("verdict"),
+        "reasons": result.get("reasons"),
+        "ok": bool(ok),
+    })
+
+    # 4. Dependency missing from the module's runtime classpath: the required class is
+    #    compiled but cannot run, and must fail rather than be skipped.
+    no_helper = {"modA": junit_classpath, "modB": junit_classpath}
+    result = run_pipeline(tmp, "CTRL-21-unresolved-module-dependency", root, honest_pom, honest_pom,
+                          build_a, junit_classpath, module_classpaths=no_helper)
+    reasons = " ".join(result.get("reasons") or [])
+    ok = result.get("verdict") in ("FAIL", "UNKNOWN") and (
+        "test_failures" in reasons or "tests_aborted" in reasons
+        or "zero_tests_found" in reasons or "required_tests_never_entered" in reasons
+        or "zero_tests_executed" in reasons
+    )
+    rows.append({
+        "control": "CTRL-21-unresolved-module-dependency",
+        "kind": "red",
+        "expectation": "a required class that cannot resolve on its module classpath earns no credit and is not skipped",
+        "expected_verdict": "FAIL",
+        "observed_verdict": result.get("verdict"),
+        "reasons": result.get("reasons"),
+        "ok": bool(ok),
+    })
+
+    # 5. A module that genuinely fails at trusted-execution time must not be masked
+    #    by passing siblings. Asserted on test_failures specifically: this control
+    #    previously passed because the failing module had not compiled, which is a
+    #    different property and would have hidden a masking bug.
+    write_module(root, "modC", "ModuleCTest", MODULE_C_TEST)
+    failing_cp = dict(classpaths)
+    failing_cp["modC"] = junit_classpath
+    build_c = run_build(root / "modC", maven, offline)
+    result = run_pipeline(tmp, "CTRL-22-sibling-cannot-mask-failure", root, honest_pom, honest_pom,
+                          build_a, junit_classpath, module_classpaths=failing_cp)
+    reasons = " ".join(result.get("reasons") or [])
+    ok = (
+        result.get("verdict") == "FAIL"
+        and "test_failures" in reasons
+        and "required_tests_not_compiled" not in reasons
+        and set(result.get("modules_with_witness") or []) >= {"modA", "modB", "modC"}
+    )
+    rows.append({
+        "control": "CTRL-22-sibling-cannot-mask-failure",
+        "kind": "red",
+        "expectation": "one genuinely failing module is not masked by successful sibling modules",
+        "expected_verdict": "FAIL",
+        "observed_verdict": result.get("verdict"),
+        "modules_with_witness": result.get("modules_with_witness"),
+        "reasons": result.get("reasons"),
+        "module_c_build_exit": build_c.returncode,
+        "ok": bool(ok),
+    })
+
+    # 6. Aggregation cannot turn partial execution into PASS.
+    broken_root = tmp / "CTRL-23-partial.root"
+    write_module(broken_root, "modA", "ModuleATest", MODULE_A_TEST)
+    write_module(broken_root, "modB", "ModuleBTest", PASSING_TEST)
+    run_build(broken_root / "modA", maven, offline)
+    # modB is left uncompiled on purpose: it owns required classes but cannot run.
+    result = run_pipeline(tmp, "CTRL-23-partial-aggregation", broken_root, honest_pom, honest_pom,
+                          run_build(broken_root / "modA", maven, offline), junit_classpath,
+                          module_classpaths={"modA": junit_classpath, "modB": junit_classpath})
+    reasons = " ".join(result.get("reasons") or [])
+    ok = result.get("verdict") in ("FAIL", "UNKNOWN") and (
+        "partial_module_execution" in reasons or "module_execution_incomplete" in reasons
+        or "required_tests_not_compiled" in reasons
+    )
+    rows.append({
+        "control": "CTRL-23-partial-aggregation-not-pass",
+        "kind": "red",
+        "expectation": "aggregation cannot convert partial module execution into PASS",
+        "expected_verdict": "FAIL",
+        "observed_verdict": result.get("verdict"),
+        "modules_with_witness": result.get("modules_with_witness"),
+        "reasons": result.get("reasons"),
+        "ok": bool(ok),
+    })
+
+# 7. A required class that only exists in a sibling module's output must not be
+    #    credited to this module. This is the property the driver's code-origin
+    #    check defends, and the classpath sanitiser enforces by dropping stale
+    #    installed sibling jars in favour of the candidate's reactor output.
+    collision = build_shared_collision(tmp, "CTRL-24-origin-collision")
+    collision_root = collision["root"]
+    run_build(collision_root / "modA", maven, offline)
+    run_build(collision_root / "modB", maven, offline)
+    # modB requires probe.SharedTest, but only modA's test output defines it.
+    # Sanitisation puts modB's own output first and adds sibling *main* output
+    # only, so modA's test-classes must not satisfy modB's requirement.
+    colliding = {
+        "modA": junit_classpath,
+        "modB": os.pathsep.join(
+            [str(collision_root / "modA" / "target" / "test-classes"), junit_classpath]
+        ),
+    }
+    result = run_pipeline(tmp, "CTRL-24-required-class-not-credited-from-sibling", collision_root, honest_pom, honest_pom,
+                          run_build(collision_root / "modA", maven, offline), junit_classpath,
+                          module_classpaths=colliding)
+    reasons = " ".join(result.get("reasons") or [])
+    ok = (
+        result.get("verdict") in ("FAIL", "UNKNOWN")
+        and (
+            "required_tests_not_compiled" in reasons
+            or "required_tests_never_entered" in reasons
+            or "class_origin_mismatch" in reasons
+            or "required_pairs_not_entered" in reasons
+        )
+    )
+    rows.append({
+        "control": "CTRL-24-required-class-not-credited-from-sibling",
+        "kind": "red",
+        "expectation": "a required class present only in another module's output cannot be credited",
+        "expected_verdict": "FAIL",
+        "observed_verdict": result.get("verdict"),
+        "reasons": result.get("reasons"),
+        "ok": bool(ok),
+    })
+
+    # 8. A module with zero required classes must not fabricate positive credit.
+    empty_root = tmp / "CTRL-25-empty-module.root"
+    write_module(empty_root, "modA", "ModuleATest", MODULE_A_TEST)
+    write_module(empty_root, "modEmpty", "Helper", """package probe;
+
+public final class Helper {
+}
+""")
+    build_empty = run_build(empty_root / "modA", maven, offline)
+    run_build(empty_root / "modEmpty", maven, offline)
+    result = run_pipeline(tmp, "CTRL-25-empty-module-no-credit", empty_root, honest_pom, honest_pom,
+                          build_empty, junit_classpath,
+                          module_classpaths={"modA": junit_classpath, "modEmpty": junit_classpath})
+    modules_with_witness = result.get("modules_with_witness")
+    ok = result.get("verdict") == "PASS" and modules_with_witness == ["modA"]
+    rows.append({
+        "control": "CTRL-25-zero-required-classes-no-credit",
+        "kind": "red",
+        "expectation": "a module with zero required classes contributes nothing and cannot fabricate credit",
+        "expected_verdict": "PASS",
+        "observed_verdict": result.get("verdict"),
+        "modules_with_witness": modules_with_witness,
+        "ok": bool(ok),
+    })
+
+    return rows
+
+
 def static_controls() -> list[dict]:
     rows: list[dict] = []
 
@@ -673,6 +1123,8 @@ def static_controls() -> list[dict]:
         "QUALIFICATION_EVIDENCE.json",
         "TRUSTED_WITNESS.json",
         "BUILD_DEFINITION_AUDIT.json",
+        "MODULE_CLASSPATHS.json",
+        "dependency:build-classpath",
         "contents: read",
     ):
         if required not in text:
@@ -809,7 +1261,9 @@ def main() -> int:
 
         available, reason = toolchain_available(args.maven, args.offline, junit_classpath)
         if available:
+            os.environ["TRUSTED_JUNIT_CLASSPATH"] = junit_classpath
             results += pipeline_controls(tmp, args.maven, args.offline, junit_classpath)
+            results += module_controls(tmp, args.maven, args.offline, junit_classpath)
         else:
             for name in (
                 "CTRL-01-honest-execution",
@@ -821,6 +1275,14 @@ def main() -> int:
                 "CTRL-07-no-required-tests",
                 "CTRL-08-malformed-witness",
                 "CTRL-09-source-binding-mismatch",
+                "CTRL-18-multi-module-execution",
+                "CTRL-19-module-only-dependency-entered",
+                "CTRL-20-missing-module-classpath",
+                "CTRL-21-unresolved-module-dependency",
+                "CTRL-22-sibling-cannot-mask-failure",
+                "CTRL-23-partial-aggregation-not-pass",
+                "CTRL-24-required-class-not-credited-from-sibling",
+                "CTRL-25-zero-required-classes-no-credit",
             ):
                 results.append(
                     {

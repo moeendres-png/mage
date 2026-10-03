@@ -19,6 +19,7 @@
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -73,6 +74,37 @@ public final class TrustedTestDriver {
         return legacy.substring(0, cut);
     }
 
+    private static final class CodeSourceStub {
+        private final String location;
+
+        private CodeSourceStub(String location) {
+            this.location = location;
+        }
+    }
+
+    private static CodeSourceStub codeSourceOf(Class<?> loaded) {
+        try {
+            java.security.ProtectionDomain domain = loaded.getProtectionDomain();
+            if (domain == null || domain.getCodeSource() == null
+                    || domain.getCodeSource().getLocation() == null) {
+                return new CodeSourceStub(null);
+            }
+            URI uri = domain.getCodeSource().getLocation().toURI();
+            return new CodeSourceStub(Paths.get(uri).toString());
+        } catch (Exception exc) {
+            return new CodeSourceStub(null);
+        }
+    }
+
+    private static String topLevel(String className) {
+        // JUnit 5 @Nested classes report as Outer$Inner. The trusted enumeration is
+        // over source files, so credit must be attributed to the enclosing top-level
+        // class; otherwise a required class containing @Nested tests would look
+        // never-entered purely because its own inner tests ran.
+        int dollar = className.indexOf('$');
+        return dollar > 0 ? className.substring(0, dollar) : className;
+    }
+
     private static String jsonEscape(String value) {
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < value.length(); i++) {
@@ -122,6 +154,8 @@ public final class TrustedTestDriver {
         String classPath = "";
         String bindSha = "";
         String bindTree = "";
+        String moduleId = "";
+        String moduleOutput = "";
         List<String> selected = new ArrayList<>();
 
         for (int i = 0; i < args.length; i++) {
@@ -138,6 +172,12 @@ public final class TrustedTestDriver {
                 case "--bind-tree":
                     bindTree = args[++i];
                     break;
+                case "--module-id":
+                    moduleId = args[++i];
+                    break;
+                case "--module-output":
+                    moduleOutput = args[++i];
+                    break;
                 case "--select":
                     selected.add(args[++i]);
                     break;
@@ -153,24 +193,58 @@ public final class TrustedTestDriver {
             System.exit(3);
         }
 
+        // Per-module execution context. A required class must resolve from its own
+        // module's output directory, never from a sibling module or a jar that
+        // happens to sit earlier on the classpath. Without this check a collision
+        // could credit a required test to the wrong module.
+        Path resolvedOutput = null;
+        if (!moduleOutput.isEmpty()) {
+            try {
+                resolvedOutput = Paths.get(moduleOutput).toRealPath();
+            } catch (IOException exc) {
+                System.err.println("TrustedTestDriver: module output not resolvable: " + exc);
+                System.exit(3);
+            }
+        }
+        final Path expectedOutput = resolvedOutput;
+
         // Record which selected classes the launcher actually reached. A class the
         // trusted side required but the launcher never entered cannot be reported as
         // green by anything, including a file the candidate wrote.
         final Set<String> observedClasses = new TreeSet<>();
         final Map<String, Integer> failuresByClass = new LinkedHashMap<>();
+        final Map<String, String> classOrigins = new LinkedHashMap<>();
+        final Set<String> originViolations = new TreeSet<>();
 
         TestExecutionListener witness = new TestExecutionListener() {
             @Override
             public void executionStarted(TestIdentifier identifier) {
-                if (identifier.isTest()) {
-                    observedClasses.add(classNameOf(identifier));
+                if (!identifier.isTest()) {
+                    return;
+                }
+                String className = topLevel(classNameOf(identifier));
+                observedClasses.add(className);
+                if (expectedOutput == null) {
+                    return;
+                }
+                try {
+                    ClassLoader loader = Thread.currentThread().getContextClassLoader();
+                    Class<?> loaded = Class.forName(className, false, loader);
+                    CodeSourceStub stub = codeSourceOf(loaded);
+                    classOrigins.put(className, stub.location);
+                    if (stub.location == null || !stub.location.startsWith(expectedOutput.toString())) {
+                        originViolations.add(className + " loaded from " + stub.location
+                                + " (expected under " + expectedOutput + ")");
+                    }
+                } catch (ClassNotFoundException | RuntimeException exc) {
+                    originViolations.add(className + " origin could not be verified: " + exc);
                 }
             }
 
             @Override
             public void executionFinished(TestIdentifier identifier, TestExecutionResult result) {
                 if (result.getStatus() != TestExecutionResult.Status.SUCCESSFUL) {
-                    failuresByClass.merge(classNameOf(identifier), 1, Integer::sum);
+                    failuresByClass.merge(topLevel(classNameOf(identifier)), 1, Integer::sum);
                 }
             }
         };
@@ -213,6 +287,7 @@ public final class TrustedTestDriver {
         }
 
         boolean pass = missing.isEmpty()
+                && originViolations.isEmpty()
                 && testsFound > 0
                 && testsRun > 0
                 && failed == 0
@@ -226,12 +301,27 @@ public final class TrustedTestDriver {
         json.append("  \"producer\": \"TrustedTestDriver\",\n");
         json.append("  \"evidence_origin\": \"trusted_side_direct_execution\",\n");
         json.append("  \"candidate_authored_evidence_used\": false,\n");
+        json.append("  \"module_id\": \"").append(jsonEscape(moduleId)).append("\",\n");
+        json.append("  \"module_output\": \"").append(jsonEscape(moduleOutput)).append("\",\n");
+        json.append("  \"code_origin_enforced\": ").append(expectedOutput != null).append(",\n");
         json.append("  \"bound_candidate_sha\": \"").append(jsonEscape(bindSha)).append("\",\n");
         json.append("  \"bound_candidate_tree\": \"").append(jsonEscape(bindTree)).append("\",\n");
         json.append("  \"trusted_selected_classes\": ").append(selected.size()).append(",\n");
         json.append("  \"trusted_selected_class_names\": ").append(quoted(new TreeSet<>(selected))).append(",\n");
         json.append("  \"observed_classes\": ").append(quoted(observedClasses)).append(",\n");
         json.append("  \"classes_never_entered\": ").append(quoted(missing)).append(",\n");
+        json.append("  \"class_code_origins\": {");
+        boolean firstOrigin = true;
+        for (Map.Entry<String, String> entry : classOrigins.entrySet()) {
+            if (!firstOrigin) {
+                json.append(",");
+            }
+            firstOrigin = false;
+            json.append("\"").append(jsonEscape(entry.getKey())).append("\": \"")
+                    .append(jsonEscape(entry.getValue())).append("\"");
+        }
+        json.append("},\n");
+        json.append("  \"code_origin_violations\": ").append(quoted(originViolations)).append(",\n");
         json.append("  \"tests_found\": ").append(testsFound).append(",\n");
         json.append("  \"tests_started\": ").append(testsRun).append(",\n");
         json.append("  \"tests_succeeded\": ").append(succeeded).append(",\n");
@@ -268,9 +358,11 @@ public final class TrustedTestDriver {
         }
 
         System.out.println(
-                "TRUSTED_EXECUTION selected=" + selected.size()
+                "TRUSTED_EXECUTION module=" + (moduleId.isEmpty() ? "-" : moduleId)
+                        + " selected=" + selected.size()
                         + " observed=" + observedClasses.size()
                         + " never_entered=" + missing.size()
+                        + " origin_violations=" + originViolations.size()
                         + " found=" + testsFound
                         + " started=" + testsRun
                         + " succeeded=" + succeeded

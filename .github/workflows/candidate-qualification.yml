@@ -175,6 +175,48 @@ jobs:
           rc=$?
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           exit "$rc"
+      - name: Resolve per-module test classpaths
+        id: classpaths
+        if: always()
+        working-directory: ${{ github.workspace }}/candidate
+        run: |
+          set -uo pipefail
+          # Surefire runs each module with its own test classpath in its own fork.
+          # The witness reproduces that, so every module that owns required tests
+          # needs its own resolved classpath. A module is never dropped for being
+          # inconvenient: witness.py fails closed when one is missing.
+          #
+          # Candidate-influenced input, never authority: it can change which class
+          # loads, never whether a required class counts as executed, never the
+          # verdict. Any org/mage repository entry is dropped inside witness.py and
+          # replaced by the candidate's own reactor output, so a stale installed
+          # sibling jar restored from the Maven cache cannot be executed.
+          mkdir -p "${{ runner.temp }}/c12-classpaths"
+          map="${{ runner.temp }}/c12-classpaths/MODULE_CLASSPATHS.json"
+          printf '{' > "$map"
+          first=1
+          while read -r module; do
+            [ -n "$module" ] || continue
+            out="${{ runner.temp }}/c12-classpaths/$module.txt"
+            if ! mvn -B -q dependency:build-classpath \
+                 -pl "$module" \
+                 -Dmdep.outputFile="$out" \
+                 -DincludeScope=test >/dev/null 2>&1; then
+              echo "CLASS_PATH_RESOLUTION_FAILED=$module" >> "$GITHUB_OUTPUT"
+              echo "module $module: dependency:build-classpath failed" >&2
+              continue
+            fi
+            printf '%s' "$(tr -d '\n' < "$out")" > "$out.single"
+            [ "$first" -eq 1 ] || printf ',' >> "$map"
+            first=0
+            printf '"%s":"%s"' "$module" "$(cat "$out.single")" >> "$map"
+          done <<'MODULES'
+          $(python3 "$QUALIFICATION_DIR/list_required_modules.py" \
+              --candidate-root "${{ github.workspace }}/candidate")
+          MODULES
+          printf '}' >> "$map"
+          python3 -c "import json,sys;json.load(open(sys.argv[1]));print('module classpath map OK')" "$map"
+          cp "$map" "$EVIDENCE_DIR/MODULE_CLASSPATHS.json"
       - name: Produce trusted execution witness
         id: witness
         if: always()
@@ -190,6 +232,7 @@ jobs:
             --work-dir "${{ runner.temp }}/c12-witness" \
             --build-exit-code "${{ steps.build.outputs.exit_code }}" \
             --build-definition-audit "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" \
+            --module-classpaths "$EVIDENCE_DIR/MODULE_CLASSPATHS.json" \
             --out "$EVIDENCE_DIR/TRUSTED_WITNESS.json"
           rc=$?
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
