@@ -277,9 +277,10 @@ and spread over 69 classes (largest: `LoadTest` 10,
 `AttackBlockRestrictionsTest` 5, `BecomeBlockTriggersMonteCarloAITest` 5). They
 are recorded, not claimed as coverage.
 
-Note on the count: local runs report 6822 tests where CI reported 6821. The
-difference is not investigated further here and is left explicitly UNKNOWN; the
-per-class XML manifest in the seal is the authoritative local breakdown.
+Note on the count: local runs report 6822 tests where CI reported 6821. Coordinator readback resolves the difference: the local run includes one stale
+compiled `ProbeTurnOrderTest` from the earlier removed throwaway source. It is
+listed as one passing case in the XML manifest and receives no qualification
+credit. The committed-source corpus has6821 cases; fresh CI rechecks that corpus.
 
 Seal for this section: `evidence/monarch-fixture-evidence-20261003.zip` with
 `EVIDENCE_SEAL_MONARCH.json` and `SHA256SUMS_MONARCH`.
