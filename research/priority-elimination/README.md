@@ -172,3 +172,27 @@ kept outside the repository under
 This is an ordinary engine repair. It is **not** Full107, AF06 or AF08 evidence,
 and no full-game, deck, card-data or qualification claim is made or implied here.
 Candidate pin and freeze decisions remain with the Coordinator.
+## 7. Coordinator evidence persistence and impact adjudication
+
+The exact raw logs and XML described above are also preserved in
+`evidence/regression-evidence-20261003.zip`, alongside `EVIDENCE_SEAL.json` and
+`SHA256SUMS`. The seal binds the unchanged engine/test sources to checkpoint
+6fbf16fdc029b6b6dff6860003cdbc9d02ab4dca and lists all15 raw-file byte hashes.
+Coordinator readback independently matched all8 test names between red and green,
+confirmed the5 red failures have the intended departed-priority assertion, and
+confirmed all8 repaired cases pass without skips. No contemporaneous original
+compiled-bytecode hash was captured; that field remains explicitly UNKNOWN.
+
+The Lab test-impact mapper flags this external Mage source surface as uncertain;
+its default pytest commands apply to Lab and cannot validate this Java reactor.
+Manual impact adjudication therefore requires the complete existing Mage.Tests
+reactor signal on the published head plus exact-head independent review before
+unqualified component validation. Existing focused evidence remains valid; broad
+unrun coverage is UNKNOWN. Mage.Verify retains its separate semantic obligations
+and inherited external-reference failures. Full107/AF06/AF08 credit remains
+NOT_RUN until candidate-pin impact adjudication and affected requalification.
+
+New Coordinator transition at Lab255 comment5968556784 (2026-10-03T11:05:55Z)
+reserves further pre-Freeze campaign work to Claude and forbids new OpenCode
+workstreams. The already-started Lab507 repair is handed over as an unmerged
+draft; no C13/C14 or foreign implementation is taken over.

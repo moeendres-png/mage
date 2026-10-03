@@ -4,8 +4,8 @@ worktree: /home/moeen/work/simulator-priority-20261003
 branch: simulator/sba-elimination-priority-20261003
 audit_base_sha: 103a1e0001ec7fb900ea03eddf345432b3ac31fe
 audit_base_tree: f6a53692d1b7bf44feded88081049bd4f5776c1d
-state_written_against_head: b6fa03aee2083e56f3f83ffbaa4efa00dc71c9fb
-validated_head: b6fa03aee2083e56f3f83ffbaa4efa00dc71c9fb
+state_written_against_head: 6fbf16fdc029b6b6dff6860003cdbc9d02ab4dca
+validated_head: null
 objective: 'Repair systemic priority after SBA elimination, including active-player-absent
   turn progression; Lab #507.'
 ownership: XMAGE-SBA-ELIMINATION-PRIORITY-20261003
@@ -45,10 +45,9 @@ authority_gates:
 execution_profile: space-bunny
 executor_model: opencode-go/space-bunny-free
 native_variant: max
-exact_next_action: 'Coordinator: independent review of commit b6fa03aee2083e56f3f83ffbaa4efa00dc71c9fb
-  (branch simulator/sba-elimination-priority-20261003). Then decide external publication.
-  No push or merge was performed by the worker. Candidate pin and Full107 impact adjudication
-  remain reserved to the Coordinator; no credit transfer.'
+exact_next_action: Publish owned draft Mage PR and sealed evidence; await exact-head
+  independent review and complete Mage.Tests CI. Incoming Claude Coordinator owns
+  merge/pin impact adjudication and remaining pre-Freeze campaign.
 executor_handoff_from: deepseek
 executor_handoff_reason: 'Coordinator explicit rerouting: DeepSeek run 2ea732bd session
   ses_efeb36419ffeC4XWHfG3MHfz4B at 2026-10-03T10:26:02.847Z reported Go usage limit
@@ -98,6 +97,17 @@ technical_decisions:
 - 'Executor continuity: this session runs the Coordinator-authorized space-bunny MAX
   secondary profile recorded in executor_handoff_from/executor_handoff_reason; no
   silent executor switch occurred in this session.'
+- 'Coordinator source/XML readback: minimal systemic repair and all8 cases verified;5
+  intended failures on original source. No P1/P2 found in bounded code review. Fresh-context
+  PR review pending.'
+- 'Manual Mage impact override: Lab mapper pytest default is inapplicable; complete
+  Mage.Tests reactor CI and exact-head independent review required before unqualified
+  component validation. Clear validated_head while these gates remain pending.'
+- No code/test changes since b6fa03aee2083e56f3f83ffbaa4efa00dc71c9fb; only evidence
+  persistence and state adjudication. No repeat of unchanged passing subsets.
+- New Lab255 transition5968556784 reserves remaining campaign to Claude; no new OpenCode
+  workstream. Preserve existing bounded engine repair for review/integration; no takeover
+  of C12/C13/C14/Forge surfaces.
 technical_decisions_append: true
 validation_evidence:
   source_lock_sha: 103a1e0001ec7fb900ea03eddf345432b3ac31fe
@@ -201,3 +211,6 @@ validation_evidence:
     execution of GameImpl.playPriority, its state-based action pass and its turn loop.'
   external_actions: none. No push, no merge, no PR, no pin change, no provider or
     freeze action.
+evidence_archive_sha256: 03c0a5c58260589707c301fafdec637ba84d45aad60ca3cb641dc946cd5f2018
+full107_af06_af08: NOT_RUN against new candidate pin; no transferred qualification
+  credit

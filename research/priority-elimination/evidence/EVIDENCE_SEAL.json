@@ -1,0 +1,225 @@
+{
+  "schema": "commander.campaign.priority-evidence/1",
+  "repository": "moeendres-png/mage",
+  "base": "103a1e0001ec7fb900ea03eddf345432b3ac31fe",
+  "base_tree": "f6a53692d1b7bf44feded88081049bd4f5776c1d",
+  "head": "6fbf16fdc029b6b6dff6860003cdbc9d02ab4dca",
+  "tree": "ab77bf5da4c05a0fb74d4098e77ffbc6be756e79",
+  "branch": "simulator/sba-elimination-priority-20261003",
+  "source_hashes": {
+    "Mage/src/main/java/mage/game/GameImpl.java": "dd2d16a1d0795d6c41ca5b88e79bb5bbea4758af20fe47d707b4a91d72e8a8da",
+    "Mage.Tests/src/test/java/org/mage/test/multiplayer/PriorityEliminationTest.java": "d0db25fe09782606607fcfc75e01542d5faa062de62074a72e71550c0a6a5996"
+  },
+  "base_gameimpl_sha256": "4e721a1e5c0bd8853ca9970639a147ef5d79d7adb8ac9c00eeb65ffc2a7275f9",
+  "xml_counts": {
+    "GREEN-class/surefire.xml": {
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "GREEN-focused/surefire.xml": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "RED/RED-focused-surefire.xml": {
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "RED-class/surefire.xml": {
+      "tests": 8,
+      "failures": 5,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "cases": {
+    "GREEN-class/surefire.xml": [
+      {
+        "name": "test_fourPlayers_controlNonLethalLifePaymentKeepsPriorityAndPlayerInGame",
+        "outcome": "PASS",
+        "failure_text": ""
+      },
+      {
+        "name": "test_fourPlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority",
+        "outcome": "PASS",
+        "failure_text": ""
+      },
+      {
+        "name": "test_twoPlayers_departedPlayerGetsNoPriority",
+        "outcome": "PASS",
+        "failure_text": ""
+      },
+      {
+        "name": "test_fourPlayers_nonActivePlayerEliminatedDuringPriorityGetsNoPriority",
+        "outcome": "PASS",
+        "failure_text": ""
+      },
+      {
+        "name": "test_threePlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority",
+        "outcome": "PASS",
+        "failure_text": ""
+      },
+      {
+        "name": "test_fivePlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority",
+        "outcome": "PASS",
+        "failure_text": ""
+      },
+      {
+        "name": "test_fourPlayers_controlAllPlayersInGameReceivePriority",
+        "outcome": "PASS",
+        "failure_text": ""
+      },
+      {
+        "name": "test_fourPlayers_stackOfDepartedActivePlayerIsRemovedAndSurvivorStackObjectResolves",
+        "outcome": "PASS",
+        "failure_text": ""
+      }
+    ],
+    "GREEN-focused/surefire.xml": [
+      {
+        "name": "test_fourPlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority",
+        "outcome": "PASS",
+        "failure_text": ""
+      }
+    ],
+    "RED/RED-focused-surefire.xml": [
+      {
+        "name": "test_fourPlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority",
+        "outcome": "FAIL",
+        "failure_text": "java.lang.AssertionError: \n117.5/800.4a - engine requested priority from a player that already left the game:\n    PlayerC|T3|PRECOMBAT_MAIN|inGame=false\n\tat org.junit.Assert.fail(Assert.java:89)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.mage.test.multiplayer.PriorityEliminationTest.assertNoPriorityForDepartedPlayer(PriorityEliminationTest.java:470)\n\tat org.mage.test.multiplayer.PriorityEliminationTest.test_fourPlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority(PriorityEliminationTest.java:180)\n\tat java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat org"
+      }
+    ],
+    "RED-class/surefire.xml": [
+      {
+        "name": "test_fourPlayers_controlNonLethalLifePaymentKeepsPriorityAndPlayerInGame",
+        "outcome": "PASS",
+        "failure_text": ""
+      },
+      {
+        "name": "test_fourPlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority",
+        "outcome": "FAIL",
+        "failure_text": "java.lang.AssertionError: \n117.5/800.4a - engine requested priority from a player that already left the game:\n    PlayerC|T3|PRECOMBAT_MAIN|inGame=false\n\tat org.junit.Assert.fail(Assert.java:89)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.mage.test.multiplayer.PriorityEliminationTest.assertNoPriorityForDepartedPlayer(PriorityEliminationTest.java:490)\n\tat org.mage.test.multiplayer.PriorityEliminationTest.test_fourPlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority(PriorityEliminationTest.java:182)\n\tat java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat org"
+      },
+      {
+        "name": "test_twoPlayers_departedPlayerGetsNoPriority",
+        "outcome": "PASS",
+        "failure_text": ""
+      },
+      {
+        "name": "test_fourPlayers_nonActivePlayerEliminatedDuringPriorityGetsNoPriority",
+        "outcome": "FAIL",
+        "failure_text": "java.lang.AssertionError: \n117.5/800.4a - engine requested priority from a player that already left the game:\n    PlayerB|T1|PRECOMBAT_MAIN|inGame=false\n\tat org.junit.Assert.fail(Assert.java:89)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.mage.test.multiplayer.PriorityEliminationTest.assertNoPriorityForDepartedPlayer(PriorityEliminationTest.java:490)\n\tat org.mage.test.multiplayer.PriorityEliminationTest.test_fourPlayers_nonActivePlayerEliminatedDuringPriorityGetsNoPriority(PriorityEliminationTest.java:220)\n\tat java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat org"
+      },
+      {
+        "name": "test_threePlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority",
+        "outcome": "FAIL",
+        "failure_text": "java.lang.AssertionError: \n117.5/800.4a - engine requested priority from a player that already left the game:\n    PlayerC|T2|PRECOMBAT_MAIN|inGame=false\n\tat org.junit.Assert.fail(Assert.java:89)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.mage.test.multiplayer.PriorityEliminationTest.assertNoPriorityForDepartedPlayer(PriorityEliminationTest.java:490)\n\tat org.mage.test.multiplayer.PriorityEliminationTest.test_threePlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority(PriorityEliminationTest.java:393)\n\tat java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat or"
+      },
+      {
+        "name": "test_fivePlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority",
+        "outcome": "FAIL",
+        "failure_text": "java.lang.AssertionError: \n117.5/800.4a - engine requested priority from a player that already left the game:\n    PlayerC|T4|PRECOMBAT_MAIN|inGame=false\n\tat org.junit.Assert.fail(Assert.java:89)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.mage.test.multiplayer.PriorityEliminationTest.assertNoPriorityForDepartedPlayer(PriorityEliminationTest.java:490)\n\tat org.mage.test.multiplayer.PriorityEliminationTest.test_fivePlayers_activePlayerEliminatedDuringOwnPriorityGetsNoPriority(PriorityEliminationTest.java:425)\n\tat java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:580)\n\tat org"
+      },
+      {
+        "name": "test_fourPlayers_controlAllPlayersInGameReceivePriority",
+        "outcome": "PASS",
+        "failure_text": ""
+      },
+      {
+        "name": "test_fourPlayers_stackOfDepartedActivePlayerIsRemovedAndSurvivorStackObjectResolves",
+        "outcome": "FAIL",
+        "failure_text": "java.lang.AssertionError: \n117.5/800.4a - engine requested priority from a player that already left the game:\n    PlayerC|T3|PRECOMBAT_MAIN|inGame=false\n\tat org.junit.Assert.fail(Assert.java:89)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.mage.test.multiplayer.PriorityEliminationTest.assertNoPriorityForDepartedPlayer(PriorityEliminationTest.java:490)\n\tat org.mage.test.multiplayer.PriorityEliminationTest.test_fourPlayers_stackOfDepartedActivePlayerIsRemovedAndSurvivorStackObjectResolves(PriorityEliminationTest.java:289)\n\tat java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java"
+      }
+    ]
+  },
+  "independent_readback": {
+    "same_red_green_test_set": true,
+    "five_failures_have_intended_assertion": true,
+    "eight_after_cases_pass_without_skip": true
+  },
+  "classification": "DIRECTLY_VERIFIED runtime and evidence readback, bounded engine regression only",
+  "full107_af06_af08": "NOT_RUN against a new candidate pin; no transferred credit",
+  "raw_files": [
+    {
+      "path": "GREEN-broad/SHA256SUMS",
+      "bytes": 1154,
+      "sha256": "daecfb7c624a0f00b1ab51c85babb14bd5c908f226657ab31f8bea9cfeffedd2"
+    },
+    {
+      "path": "GREEN-broad/mvn-commander-player-mulligan-deck-ai.log",
+      "bytes": 102419,
+      "sha256": "94008ed9bd82cfea178da7bd10c1be1c3206dc15b97112af2defed2aee5a032c"
+    },
+    {
+      "path": "GREEN-broad/mvn-multiplayer-sba-rollback-turnmod-game-lki.log",
+      "bytes": 91416,
+      "sha256": "c174a94258d4dcd9b62528ae63c5dfa6ff87054bc5cb8c37cc7351f81e5e6b1a"
+    },
+    {
+      "path": "GREEN-broad/test-source.sha256",
+      "bytes": 146,
+      "sha256": "d4769691e0e778df584f3a734f4f45761e5f7b2e84cdb2aa98f1e421da0d441a"
+    },
+    {
+      "path": "GREEN-class/mvn.log",
+      "bytes": 78266,
+      "sha256": "3e06fbd19719fa4214eec2c5acc7204c58f5144955be995e7c35e4a2580f04bf"
+    },
+    {
+      "path": "GREEN-class/surefire.xml",
+      "bytes": 59126,
+      "sha256": "41924021f15a5e4bcde70e075b7abbb30723715f6eabe4b4e0344bf74f9e38f2"
+    },
+    {
+      "path": "GREEN-focused/mvn.log",
+      "bytes": 77444,
+      "sha256": "b75635cee961a3b21b1b5038d45a7470d060d3478c1e9e8875c255135d1f99ea"
+    },
+    {
+      "path": "GREEN-focused/surefire.xml",
+      "bytes": 33345,
+      "sha256": "c83ecbfba84309b3c75d2e509df301ef71ef693e67b44db276ecbacde8cd7096"
+    },
+    {
+      "path": "RED/RED-focused-mvn.log",
+      "bytes": 89165,
+      "sha256": "50cb578493ad6e9f3ade65d4220a0fcb0d45db7816ecc40896ef5094cf0865ed"
+    },
+    {
+      "path": "RED/RED-focused-surefire.xml",
+      "bytes": 37669,
+      "sha256": "1dfa9de54818c0b50fee026378315f52ccbb0d9be6449c5f68a037cd717879b2"
+    },
+    {
+      "path": "RED/SHA256SUMS",
+      "bytes": 481,
+      "sha256": "23db4173112a21b16bfccc475a4fea1780b69578cec27b74a21f53400b6f3c93"
+    },
+    {
+      "path": "RED-class/mvn.log",
+      "bytes": 124173,
+      "sha256": "6b4782fcba06f33733a976584b0c0a59467f7c1e6b04e05ba9c9056fc8e9954e"
+    },
+    {
+      "path": "RED-class/surefire.xml",
+      "bytes": 80756,
+      "sha256": "e5976f5a7149ff762dd3690343203f0901850262a1134c8c34175f47f4d223a3"
+    },
+    {
+      "path": "SHA256SUMS",
+      "bytes": 1154,
+      "sha256": "daecfb7c624a0f00b1ab51c85babb14bd5c908f226657ab31f8bea9cfeffedd2"
+    },
+    {
+      "path": "test-source.sha256",
+      "bytes": 146,
+      "sha256": "d4769691e0e778df584f3a734f4f45761e5f7b2e84cdb2aa98f1e421da0d441a"
+    }
+  ],
+  "compiled_class_hashes_for_original_run": "UNKNOWN: no contemporaneous compiled-bytecode digest captured; original source identity was checked while running"
+}
