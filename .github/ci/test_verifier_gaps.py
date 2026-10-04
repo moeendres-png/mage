@@ -32,6 +32,20 @@ class GapInventory(unittest.TestCase):
     def test_unknown_spelling_source_drift_requires_review(self):
         self.p.write_text(self.p.read_text()+' // \\u0040Ignore suppression spelling');self.commit()
         self.assertEqual(self.observe()['status'],'REVIEW_REQUIRED')
+
+    def test_class_level_and_qualified_disables_are_explicit_not_run(self):
+        self.p.write_text(
+            '@org.junit.Ignore class ProbeTest { '
+            '@org.junit.Test public void inheritedDisabled() {} '
+            '@org.junit.Test @org.junit.jupiter.api.Disabled public void methodDisabled() {} '
+            '}'
+        )
+        self.commit()
+        doc=gaps.inventory(self.root,'HEAD')
+        disabled={r['method']:r for r in doc['records'] if r['kind']=='DISABLED_TEST'}
+        self.assertEqual(set(disabled),{'inheritedDisabled','methodDisabled'})
+        self.assertTrue(all(r['status']=='NOT_RUN' for r in disabled.values()))
+        self.assertTrue(all(r['evidence_class']=='CODE_DERIVED' for r in disabled.values()))
     def test_missing_and_symlinked_source_are_unknown(self):
         p=self.root/gaps.BASELINE;p.unlink();self.commit();self.assertEqual(self.observe()['status'],'UNKNOWN')
         self.p.unlink();self.p.symlink_to('/etc/passwd');self.commit();self.assertEqual(self.observe()['status'],'UNKNOWN')
