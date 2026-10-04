@@ -435,7 +435,7 @@ class Harness:
             "comparison_base": {"sha": fx["base_sha"], "tree": fx["base_tree"]},
             "candidate_code_executed_as_validator": False,
         }, indent=2, sort_keys=True) + "\n")
-        audit = build_definition_audit.audit(fx["repo"], fx["base_sha"], fx["cand_sha"])
+        audit = build_definition_audit.audit(fx["repo"], fx["trusted_sha"], fx["cand_sha"], fx["base_sha"])
         audit_path = evidence / "BUILD_DEFINITION_AUDIT.json"
         audit_path.write_text(json.dumps(audit, indent=2, sort_keys=True) + "\n")
 
