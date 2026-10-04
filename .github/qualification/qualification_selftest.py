@@ -55,10 +55,12 @@ QUALIFY = QUALIFICATION_DIR / "qualify.py"
 WITNESS = QUALIFICATION_DIR / "witness.py"
 SOURCE_LOCK = QUALIFICATION_DIR / "source_lock.py"
 DRIVER = QUALIFICATION_DIR / "TrustedTestDriver.java"
+OBSERVER = QUALIFICATION_DIR / "TrustedTestObserver.java"
 WORKFLOW = QUALIFICATION_DIR.parent / "workflows" / "candidate-qualification.yml"
 FIXTURE_QUAL = ".github/qualification"
 TRUSTED_FILES = (
     "TrustedTestDriver.java",
+    "TrustedTestObserver.java",
     "build_definition_audit.py",
     "corpus_policy.py",
     "qualify.py",
@@ -1390,30 +1392,29 @@ def corpus_controls(h: Harness) -> list[dict]:
         trusted_followup=test_file("DeltaTest", passing("DeltaTest")))
     # A trusted producer fault is still authenticated: this full-path control
     # proves the scorer validates counts rather than merely provenance.
-    driver = (QUALIFICATION_DIR / "TrustedTestDriver.java").read_text()
-    needle = 'json.append("  \\"tests_failed\\": ").append(failed).append(",\\n");'
-    assert driver.count(needle) == 1
-    driver = driver.replace(needle, needle.replace(".append(failed)", ".append(-1)"))
+    observer = OBSERVER.read_text()
+    needle = 'out.append("  \\"tests_failed\\": ").append(testsFailed).append(",\\n");'
+    assert observer.count(needle) == 1
+    malformed = observer.replace(needle, needle.replace(".append(testsFailed)", ".append(-1)"))
     fx = h.fixture(
-        "CTRL-54-authenticated-negative-counter", project({"ProbeTest": passing("ProbeTest")}),
-        trusted_followup={FIXTURE_QUAL + "/TrustedTestDriver.java": driver},
+        "CTRL-54-parent-negative-counter", project({"ProbeTest": passing("ProbeTest")}),
+        trusted_followup={FIXTURE_QUAL + "/TrustedTestObserver.java": malformed},
     )
     result = h.pipeline(fx)
     rows.append(row(
-        "CTRL-54-authenticated-negative-counter", "red",
-        "an authenticated producer fault cannot grant PASS for a negative execution counter",
+        "CTRL-54-parent-negative-counter", "red",
+        "a trusted parent observer fault cannot grant PASS for a negative execution counter",
         "FAIL", result, reason="invalid_execution_counter",
     ))
-    driver = (QUALIFICATION_DIR / "TrustedTestDriver.java").read_text()
-    driver = driver.replace(needle, needle.replace(".append(failed)", ".append(-1.0)"))
+    malformed = observer.replace(needle, needle.replace(".append(testsFailed)", ".append(-1.0)"))
     fx = h.fixture(
-        "CTRL-55-authenticated-noninteger-module-counter", project({"ProbeTest": passing("ProbeTest")}),
-        trusted_followup={FIXTURE_QUAL + "/TrustedTestDriver.java": driver},
+        "CTRL-55-parent-noninteger-module-counter", project({"ProbeTest": passing("ProbeTest")}),
+        trusted_followup={FIXTURE_QUAL + "/TrustedTestObserver.java": malformed},
     )
     result = h.pipeline(fx)
     rows.append(row(
-        "CTRL-55-authenticated-noninteger-module-counter", "red",
-        "a malformed module count must not disappear into a coerced-zero aggregate",
+        "CTRL-55-parent-noninteger-module-counter", "red",
+        "a malformed parent-observed module count must not disappear into a coerced-zero aggregate",
         "FAIL", result, reason="invalid_module_counter",
     ))
     # Codex P1 on corpus_policy.py:132: a class can stay while its methods go.
