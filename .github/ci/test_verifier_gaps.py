@@ -56,6 +56,13 @@ class GapInventory(unittest.TestCase):
     def test_missing_or_invalid_anchor_is_unknown(self):
         self.assertEqual(gaps.observe(self.root,'HEAD',self.root,None)['status'],'UNKNOWN')
         self.assertEqual(gaps.observe(self.root,'HEAD',self.root,'deadbeef')['status'],'UNKNOWN')
+    def test_existing_non_ancestor_anchor_is_unknown(self):
+        tree=subprocess.check_output(['git','-C',str(self.root),'write-tree'],text=True).strip()
+        other=subprocess.check_output(
+            ['git','-C',str(self.root),'-c','user.name=Control','-c','user.email=control@example.invalid',
+             'commit-tree',tree,'-m','unrelated'],text=True
+        ).strip()
+        self.assertEqual(gaps.observe(self.root,'HEAD',self.root,other)['status'],'UNKNOWN')
 
     def test_class_level_and_qualified_disables_are_explicit_not_run(self):
         self.p.write_text(
