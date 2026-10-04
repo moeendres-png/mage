@@ -174,7 +174,7 @@ def compile_runtime(trusted_root: Path, staging: Path, junit_classpath: str) -> 
 
     with tempfile.TemporaryDirectory(dir=str(staging)) as tmp:
         module_info = Path(tmp) / "module-info.java"
-        module_info.write_text("module c12.trusted {}\\n")
+        module_info.write_text("module c12.trusted {}\n")
         proc = run([
             jdk_tool("javac"), "--add-reads", "c12.trusted=ALL-UNNAMED",
             "-proc:none", "-nowarn", "-cp", junit_classpath,
