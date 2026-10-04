@@ -1,0 +1,77 @@
+{
+  "audit_base_sha": "2afe121f58c043cc8104e0b9ed6a5b285e81d29a",
+  "audit_base_tree": "f14db82fe9073b2782d8d0fd53732c8a5e373fbe",
+  "tested_parent_after_master_merge": "37ec2ddb113d3e33be699a7bd7379c47b2cb9e42",
+  "qualification_patch_sha256": "7cf7bd6f23d9b1a2cff0ed3850b682d7359d7d3f8c696e001a89de91f711a3d3",
+  "integrated_master": "6a2422d77ac9ab598703fe26fc9af963baba3388",
+  "records": {
+    "within-class-shrink/SOURCE_LOCK.json.gz": {
+      "gzip_sha256": "1273d60a78d28d2944f024a7d774277adae6087f30dcd3e50e6fccdb59955a9f",
+      "raw_sha256": "a17dfe3e7bcb25fc7675e6a2595562bd5c9ea0d4cceb4cb48eb46243ade51a2d"
+    },
+    "within-class-shrink/QUALIFICATION_EVIDENCE.json.gz": {
+      "gzip_sha256": "2835e4578289632e692d03b696436e46796017f6e697697a285c6aa221e32d1f",
+      "raw_sha256": "3016bb463fff6dcfd0a865fe14a8ca94143bd74b95bff81adda0132779e2cfab"
+    },
+    "within-class-shrink/TRUSTED_WITNESS.json.gz": {
+      "gzip_sha256": "09c62f43b87d35de62f2f37b88debd6599d5291a03e932ab6f4deddce2e9db76",
+      "raw_sha256": "4b82888c5032dc49dd0b097b68aecedc9f7e747f121288fcf2680c62e292b0b2"
+    },
+    "within-class-shrink/INTEGRITY.json.gz": {
+      "gzip_sha256": "b0394167345d5399171e9871cc4a23e99003a0d86637d553660e90b19607a2ed",
+      "raw_sha256": "44198bd1f668b234211e14fb8138c7a2177abcd7e045f0bf7796ba55fab5331e"
+    },
+    "within-class-shrink/fixture.bundle": {
+      "sha256": "9fb2aa6cb4c05f53816b7ea89647ae7d8b5a7c9b9b1bbedf3a692e86c6f44b26"
+    },
+    "negative-counter-red/SOURCE_LOCK.json.gz": {
+      "gzip_sha256": "7c076486baf65c9466d8d68dd18212c306ba6e96343713260b0bb4b1d1de1bd5",
+      "raw_sha256": "73c3baf2006c8b33ecf738f5bd11bd97d1480962601e261d403720ba490198d5"
+    },
+    "negative-counter-red/QUALIFICATION_EVIDENCE.json.gz": {
+      "gzip_sha256": "1e70a425326383bae2c24f117c127fc411712d375a3e655bb16d18f54cdc7d31",
+      "raw_sha256": "0df0dc5b33fcdb2d5e45fed8687734cafc8c6e172463f5d66d035855df8f6426"
+    },
+    "negative-counter-red/TRUSTED_WITNESS.json.gz": {
+      "gzip_sha256": "6f7c4f1835898f4430b986ed04422116a5f7745b6cbf6d940371588ce21b1815",
+      "raw_sha256": "6448c2529851db80da3392b74623a7eb0f5107c2b3491475a934cd4708048b40"
+    },
+    "negative-counter-red/INTEGRITY.json.gz": {
+      "gzip_sha256": "ad1948eb50b36f499062179e4b3dda664730940f60821163ffec384db473d3f0",
+      "raw_sha256": "4196f528e422e86217e5e1ce384229210d7011392c176de420759915d2ce33d7"
+    },
+    "negative-counter-red/fixture.bundle": {
+      "sha256": "36fc4c285f3b698671f70612a247cea80be7bf98b9c60d994950a54f815a250e"
+    },
+    "negative-counter-green/SOURCE_LOCK.json.gz": {
+      "gzip_sha256": "fe9cb46fd12eb685ccb24dfc441d2634230ee6fdbee0ac439a2d0876c75099c4",
+      "raw_sha256": "a8b92c703371ddd0fe152496655573d91fae4b0ab2c4a49b76398f470c7d5655"
+    },
+    "negative-counter-green/QUALIFICATION_EVIDENCE.json.gz": {
+      "gzip_sha256": "0d468a5793b5bd217f70b124172c52586ef3ac6bebc53a8d6992ea777095d98d",
+      "raw_sha256": "3be6f7ebb08316eaa3669997a122f65166201dded8f8ee1708b150a4b4e51bb8"
+    },
+    "negative-counter-green/TRUSTED_WITNESS.json.gz": {
+      "gzip_sha256": "d52b3a2d99c9dd07675309aab4a5d58eb9a9c88a1f1c715cea0945a50bcd2909",
+      "raw_sha256": "dee4c73153af0f29f54497e97bf097cefe2a2b92423245467c3dddf09e17c636"
+    },
+    "negative-counter-green/INTEGRITY.json.gz": {
+      "gzip_sha256": "2a4d9dd93f7e1f3b7a204ae7432f588c70f0fad56741197c1e960cffc77d4bfc",
+      "raw_sha256": "ddd742e90be17db321ac5e7cd60ca087969753849ce85ea2ae45ddc97621410d"
+    },
+    "negative-counter-green/fixture.bundle": {
+      "sha256": "eeeb06d8e4601eede327db78477b1ac9456c0f4127d86a10db78426bf13bce67"
+    },
+    "C12-corpus-family-GREEN.json.gz": {
+      "gzip_sha256": "fdc38a3e35f72bd0bb19d0d5849375fefe6ac55e5ed11c22ca36d1afe7ecb8f6",
+      "raw_sha256": "03324679f87efe3aadd9e7543f508cae40a1e5c11cf6305e9b1f020af022308d"
+    }
+  },
+  "results": {
+    "within_class_shrink": "FAIL: policy grants PASS and qualification_credit=true after10methods become1 in the same required class. Unresolved blocking corpus defect.",
+    "negative_counter_before": "FAIL: authenticated trusted-producer fault tests_failed=-1 receives PASS. Synthetic parser robustness control, not an authentication bypass.",
+    "negative_counter_after": "PASS control: same full execution path returns FAIL invalid_execution_counter and qualification_credit=false; integrityOK and actual positive JUnit execution retained."
+  },
+  "runtime": "Hosted qualification activation UNKNOWN;53-control full suite and current-head review pending. OverallC12 PARTIAL, not mergeable.",
+  "passing_affected_controls": 15
+}

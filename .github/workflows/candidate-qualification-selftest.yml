@@ -1,0 +1,92 @@
+name: C12 gate controls (self-test, no qualification credit)
+
+# Runs the C12 gate's own positive and adversarial controls on the pull request's
+# copy of the gate code, on GitHub-hosted infrastructure with the real separate
+# sandbox account. This exercises a change to the gate BEFORE it reaches the
+# default branch, which pull_request_target (trusted-candidate qualification)
+# cannot do by construction.
+#
+# It is a test of the gate, never a qualification of a candidate: it grants no
+# credit, reads no candidate result and is not the trusted verdict.
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - '.github/qualification/**'
+      - '.github/workflows/candidate-qualification.yml'
+      - '.github/workflows/candidate-qualification-selftest.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: c12-gate-selftest-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  gate-controls:
+    name: C12 gate controls on the proposed gate code
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      JUNIT_PLATFORM_VERSION: 1.9.3
+    steps:
+      - name: Checkout proposed gate code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Resolve JUnit Platform
+        run: |
+          set -euo pipefail
+          mvn -B -q dependency:get \
+            -Dartifact=org.junit.platform:junit-platform-console-standalone:${JUNIT_PLATFORM_VERSION}
+          # CTRL-62 and CTRL-66 compile their forged bytecode against the Jupiter
+          # API (with opentest4j and apiguardian) from the seeded repository; a
+          # cold Maven cache would leave them NOT_RUN.
+          mvn -B -q dependency:get -Dartifact=org.junit.jupiter:junit-jupiter-api:5.8.1
+          jar="${HOME}/.m2/repository/org/junit/platform/junit-platform-console-standalone/${JUNIT_PLATFORM_VERSION}/junit-platform-console-standalone-${JUNIT_PLATFORM_VERSION}.jar"
+          test -f "$jar"
+          echo "TRUSTED_JUNIT_CLASSPATH=$jar" >> "$GITHUB_ENV"
+      - name: Stage a root-owned read-only JDK and Maven for the trusted side
+        # The hosted tool cache is writable by any account, so the trusted side
+        # runs java, javac and mvn only from root-owned copies (as the gate does).
+        run: |
+          set -euo pipefail
+          maven_home="$(dirname "$(dirname "$(readlink -f "$(command -v mvn)")")")"
+          for pair in "$(readlink -f "$JAVA_HOME"):/var/lib/c12-selftest/jdk" "$maven_home:/var/lib/c12-selftest/maven"; do
+            src="${pair%%:*}"
+            dest="${pair#*:}"
+            sudo rm -rf "$dest"
+            sudo mkdir -p "$dest"
+            sudo cp -a "$src/." "$dest/"
+            sudo chown -R root:root "$dest"
+            sudo chmod -R go-w "$dest"
+          done
+          echo "JAVA_HOME=/var/lib/c12-selftest/jdk" >> "$GITHUB_ENV"
+      - name: Run gate controls with the separate sandbox account
+        run: |
+          set -euo pipefail
+          # The trusted side resolves tools only from root-owned directories.
+          export PATH=/var/lib/c12-selftest/jdk/bin:/var/lib/c12-selftest/maven/bin:/usr/sbin:/usr/bin:/sbin:/bin
+          mkdir -p evidence
+          /usr/bin/python3 -I -S -B .github/qualification/qualification_selftest.py \
+            --maven /var/lib/c12-selftest/maven/bin/mvn \
+            --sandbox-user c12cand \
+            --harden-world-writable \
+            --out evidence/GATE_CONTROLS.json
+      - name: Upload gate control report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: mage-c12-gate-controls-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: evidence/GATE_CONTROLS.json
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,10 @@
+[
+ {
+  "control": "CTRL-66-test-resource-class-overwrite",
+  "observed_verdict": "PASS",
+  "expected_verdict": "FAIL",
+  "ok": false,
+  "reasons": []
+ }
+]
+

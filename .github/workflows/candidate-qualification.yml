@@ -1,0 +1,391 @@
+name: Trusted candidate qualification (exact SHA)
+
+# Trust boundary.
+#
+# Triggered by pull_request_target, so GitHub executes the copy of this file on
+# the default branch. A pull request cannot change the workflow, the audit, the
+# corpus policy, the sandbox, the witness driver or the scorer that judge it.
+#
+#   trusted_validator = default-branch head (github.sha), the executing source
+#   candidate         = pull_request.head.sha, the tree under test
+#   comparison_base   = merge base, inspected as data; never merged or built
+#
+# Candidate code (Maven build, classpath resolution, test bytecode) executes ONLY
+# as the separate unprivileged account created below, from a `git archive` export
+# of the locked SHA, with an allowlisted environment (no GITHUB_ENV/GITHUB_PATH/
+# GITHUB_OUTPUT/ACTIONS_* handle), after a probe run AS that account proved it
+# cannot write any trusted path, and with every candidate process killed after
+# each execution. Before scoring, every trusted qualification file is re-derived
+# from the trusted commit's Git blobs and every sealed evidence file is re-hashed;
+# the job fails unless that integrity check and the verdict both pass.
+#
+# The verdict reads no candidate-authored report. The required corpus comes from
+# the trusted baseline (corpus_policy.py) and the executed test bytecode is
+# compiled by trusted code from the locked commit (witness.py).
+#
+# Runtime risk, stated: candidate build code runs (as the sandbox account) with
+# runner network egress. The job is read-only, persists no credentials and
+# references no secret.
+
+on:
+  pull_request_target:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trusted-candidate-qualification-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  TRUSTED_ROOT: ${{ github.workspace }}/trusted
+  QUALIFICATION_DIR: ${{ github.workspace }}/trusted/.github/qualification
+  EVIDENCE_DIR: ${{ github.workspace }}/evidence
+  C12_SANDBOX_USER: c12cand
+  C12_SANDBOX_DIR: /srv/c12-sandbox
+  # Root-owned parents only: on hosted runners /opt is writable by every user,
+  # so nothing trusted may live under it once candidate code has run.
+  C12_BUNDLE_DIR: /var/lib/c12-trusted/bundle
+  C12_RUNTIME_DIR: /var/lib/c12-trusted/runtime
+  C12_TRUSTED_JDK: /var/lib/c12-trusted/jdk
+  C12_TRUSTED_MAVEN: /var/lib/c12-trusted/maven
+  # After prepare, every step resolves tools only from root-owned locations; the
+  # inherited PATH lists world-writable /opt entries on hosted runners.
+  C12_TRUSTED_PATH: /var/lib/c12-trusted/jdk/bin:/var/lib/c12-trusted/maven/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  PYTHONDONTWRITEBYTECODE: "1"
+  # Trusted resolution of the JUnit Platform, pinned to an exact version.
+  JUNIT_PLATFORM_VERSION: 1.9.3
+
+jobs:
+  guard-controls:
+    name: guard controls (positive and adversarial)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout trusted validator source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Resolve trusted JUnit Platform
+        run: |
+          set -euo pipefail
+          mvn -B -q dependency:get \
+            -Dartifact=org.junit.platform:junit-platform-console-standalone:${JUNIT_PLATFORM_VERSION}
+          jar="${HOME}/.m2/repository/org/junit/platform/junit-platform-console-standalone/${JUNIT_PLATFORM_VERSION}/junit-platform-console-standalone-${JUNIT_PLATFORM_VERSION}.jar"
+          test -f "$jar"
+          echo "TRUSTED_JUNIT_CLASSPATH=$jar" >> "$GITHUB_ENV"
+          # CTRL-62 and CTRL-66 compile forged bytecode against the Jupiter API.
+          mvn -B -q dependency:get -Dartifact=org.junit.jupiter:junit-jupiter-api:5.8.1
+      - name: Stage a root-owned read-only JDK and Maven for the controls
+        # As in the self-test workflow: the hosted tool cache is writable by any
+        # account, so the controls' trusted side runs only root-owned copies.
+        run: |
+          set -euo pipefail
+          maven_home="$(dirname "$(dirname "$(readlink -f "$(command -v mvn)")")")"
+          for pair in "$(readlink -f "$JAVA_HOME"):/var/lib/c12-controls/jdk" "$maven_home:/var/lib/c12-controls/maven"; do
+            src="${pair%%:*}"
+            dest="${pair#*:}"
+            sudo rm -rf "$dest"
+            sudo mkdir -p "$dest"
+            sudo cp -a "$src/." "$dest/"
+            sudo chown -R root:root "$dest"
+            sudo chmod -R go-w "$dest"
+          done
+          echo "JAVA_HOME=/var/lib/c12-controls/jdk" >> "$GITHUB_ENV"
+      - name: Run qualification gate controls
+        run: |
+          set -euo pipefail
+          export PATH=/var/lib/c12-controls/jdk/bin:/var/lib/c12-controls/maven/bin:/usr/sbin:/usr/bin:/sbin:/bin
+          mkdir -p "$EVIDENCE_DIR"
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/qualification_selftest.py" \
+            --maven /var/lib/c12-controls/maven/bin/mvn \
+            --sandbox-user "$C12_SANDBOX_USER" \
+            --harden-world-writable \
+            --out "$EVIDENCE_DIR/GUARD_CONTROLS.json"
+      - name: Upload guard control report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: mage-c12-guard-controls-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ env.EVIDENCE_DIR }}/GUARD_CONTROLS.json
+          if-no-files-found: error
+          retention-days: 30
+
+  qualify-candidate:
+    name: qualify exact candidate SHA
+    needs: guard-controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    defaults:
+      run:
+        # Absolute shell: the step shell is never resolved from PATH.
+        shell: /usr/bin/bash --noprofile --norc {0}
+    steps:
+      - name: Checkout trusted validator source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: ''  # no cache save: nothing from this job may persist to later runs
+      - name: Resolve trusted JUnit Platform
+        run: |
+          set -euo pipefail
+          mvn -B -q dependency:get \
+            -Dartifact=org.junit.platform:junit-platform-console-standalone:${JUNIT_PLATFORM_VERSION}
+          jar="${HOME}/.m2/repository/org/junit/platform/junit-platform-console-standalone/${JUNIT_PLATFORM_VERSION}/junit-platform-console-standalone-${JUNIT_PLATFORM_VERSION}.jar"
+          test -f "$jar"
+          echo "TRUSTED_JUNIT_CLASSPATH=$jar" >> "$GITHUB_ENV"
+      - name: Resolve trusted source lock
+        env:
+          TRUSTED_REPO_ROOT: ${{ github.workspace }}/trusted
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/source_lock.py" \
+            --repo "${{ github.repository }}" \
+            --default-branch master \
+            --trusted-sha "${{ github.sha }}" \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --base-ref "$BASE_REF" \
+            --pr-number "${{ github.event.pull_request.number }}" \
+            --run-id "${{ github.run_id }}" \
+            --out "$EVIDENCE_DIR/SOURCE_LOCK.json"
+      - name: Audit candidate build definition
+        run: |
+          set -uo pipefail
+          base="$(/usr/bin/python3 -I -S -c "import json,sys;print(json.load(open(sys.argv[1]))['comparison_base']['sha'])" "$EVIDENCE_DIR/SOURCE_LOCK.json")"
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/build_definition_audit.py" \
+            --repo "$TRUSTED_ROOT" \
+            --comparison-base "$base" \
+            --candidate "${{ github.event.pull_request.head.sha }}" \
+            --out "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" || true
+          test -s "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json"
+      - name: Prepare candidate sandbox (separate OS identity)
+        env:
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          command_files="$(dirname "$GITHUB_ENV")"
+          maven_home="$(dirname "$(dirname "$(readlink -f "$(command -v mvn)")")")"
+          # From here on the trusted side resolves tools only from the trusted PATH,
+          # which is also the PATH prepare probes.
+          export PATH="$C12_TRUSTED_PATH"
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/sandbox.py" prepare \
+            --user "$C12_SANDBOX_USER" \
+            --repo "$TRUSTED_ROOT" \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --sandbox-dir "$C12_SANDBOX_DIR" \
+            --bundle-dir "$C12_RUNTIME_DIR" \
+            --bundle-file "$TRUSTED_ROOT/.travis/log4j.properties" \
+            --seed-maven-repo "$HOME/.m2/repository" \
+            --work-dir "$RUNNER_TEMP" \
+            --probe "$GITHUB_WORKSPACE" \
+            --probe "$RUNNER_TEMP" \
+            --probe "$HOME/.m2" \
+            --probe "$command_files" \
+            --stage-jdk "$JAVA_HOME" \
+            --jdk-dest "$C12_TRUSTED_JDK" \
+            --stage-maven "$maven_home" \
+            --maven-dest "$C12_TRUSTED_MAVEN" \
+            --harden-world-writable \
+            --out "$EVIDENCE_DIR/SANDBOX_PREPARE.json"
+          # Every later step, trusted or sandboxed, uses the staged read-only JDK.
+          echo "JAVA_HOME=$C12_TRUSTED_JDK" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/c12-seals"
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/sandbox.py" seal \
+            --out "$RUNNER_TEMP/c12-seals/before-candidate.json" \
+            "$EVIDENCE_DIR/SOURCE_LOCK.json" \
+            "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" \
+            "$EVIDENCE_DIR/SANDBOX_PREPARE.json" \
+            "$TRUSTED_JUNIT_CLASSPATH"
+      - name: Build candidate as the sandbox account
+        run: |
+          export PATH="$C12_TRUSTED_PATH"
+          set -euo pipefail
+          # Compilation plus per-module test classpaths in ONE reactor session, so
+          # sibling modules resolve to the candidate's own reactor output. The
+          # candidate's own test execution and reports are not evidence. The exit
+          # code is recorded by trusted code around the sandboxed process.
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/sandbox.py" run \
+            --user "$C12_SANDBOX_USER" \
+            --label candidate-build \
+            --sandbox-dir "$C12_SANDBOX_DIR" \
+            --cwd "$C12_SANDBOX_DIR/candidate" \
+            --timeout 18000 \
+            --out "$EVIDENCE_DIR/BUILD_RESULT.json" \
+            -- "$C12_TRUSTED_MAVEN/bin/mvn" -B test-compile dependency:build-classpath \
+              -DincludeScope=test \
+              -Dmdep.outputFile=target/c12-test-classpath.txt \
+              -DskipTests=true \
+              -Dmaven.test.skip.exec=true \
+              -Dmaven.compiler.proc=none \
+              -Dxmage.dataCollectors.printGameLogs=false \
+              -Dlog4j.configuration=file:${C12_RUNTIME_DIR}/log4j.properties
+      - name: Collect per-module test classpaths
+        if: always()
+        run: |
+          export PATH="$C12_TRUSTED_PATH"
+          set -uo pipefail
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/resolve_classpaths.py" \
+            --git-repo "$TRUSTED_ROOT" \
+            --candidate-sha "${{ github.event.pull_request.head.sha }}" \
+            --candidate-root "$C12_SANDBOX_DIR/candidate" \
+            --out "$EVIDENCE_DIR/MODULE_CLASSPATHS.json" \
+            --record "$EVIDENCE_DIR/MODULE_CLASSPATHS_RECORD.json" || true
+      - name: Produce trusted execution witness
+        if: always()
+        run: |
+          export PATH="$C12_TRUSTED_PATH"
+          set -uo pipefail
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/witness.py" \
+            --source-lock "$EVIDENCE_DIR/SOURCE_LOCK.json" \
+            --git-repo "$TRUSTED_ROOT" \
+            --trusted-root "$QUALIFICATION_DIR" \
+            --sandbox-dir "$C12_SANDBOX_DIR" \
+            --sandbox-user "$C12_SANDBOX_USER" \
+            --sandbox-prepare "$EVIDENCE_DIR/SANDBOX_PREPARE.json" \
+            --bundle-dir "$C12_BUNDLE_DIR" \
+            --work-dir "$RUNNER_TEMP/c12-witness" \
+            --build-result "$EVIDENCE_DIR/BUILD_RESULT.json" \
+            --build-definition-audit "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" \
+            --module-classpaths "$EVIDENCE_DIR/MODULE_CLASSPATHS.json" \
+            --out "$EVIDENCE_DIR/TRUSTED_WITNESS.json" || true
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/sandbox.py" seal \
+            --out "$RUNNER_TEMP/c12-seals/after-witness.json" \
+            "$EVIDENCE_DIR/BUILD_RESULT.json" \
+            "$EVIDENCE_DIR/MODULE_CLASSPATHS.json" \
+            "$EVIDENCE_DIR/TRUSTED_WITNESS.json"
+      - name: Verify trusted state integrity
+        id: integrity
+        if: always()
+        run: |
+          export PATH="$C12_TRUSTED_PATH"
+          set -uo pipefail
+          command_files="$(dirname "$GITHUB_ENV")"
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/sandbox.py" verify \
+            --user "$C12_SANDBOX_USER" \
+            --repo "$TRUSTED_ROOT" \
+            --trusted-sha "${{ github.sha }}" \
+            --seal "$RUNNER_TEMP/c12-seals/before-candidate.json" \
+            --seal "$RUNNER_TEMP/c12-seals/after-witness.json" \
+            --probe "$GITHUB_WORKSPACE" \
+            --probe "$RUNNER_TEMP" \
+            --probe "$HOME/.m2" \
+            --probe "$command_files" \
+            --probe "$C12_BUNDLE_DIR" \
+            --probe "$C12_RUNTIME_DIR" \
+            --probe "$C12_TRUSTED_JDK" \
+            --out "$EVIDENCE_DIR/INTEGRITY.json"
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+      - name: Score qualification verdict from trusted evidence
+        id: verdict
+        if: always()
+        run: |
+          export PATH="$C12_TRUSTED_PATH"
+          set -uo pipefail
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/qualify.py" \
+            --source-lock "$EVIDENCE_DIR/SOURCE_LOCK.json" \
+            --witness "$EVIDENCE_DIR/TRUSTED_WITNESS.json" \
+            --integrity "$EVIDENCE_DIR/INTEGRITY.json" \
+            --trusted-root "$QUALIFICATION_DIR" \
+            --out "$EVIDENCE_DIR/QUALIFICATION_EVIDENCE.json"
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+      - name: Upload source-bound qualification evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: mage-c12-qualification-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: |
+            ${{ env.EVIDENCE_DIR }}/SOURCE_LOCK.json
+            ${{ env.EVIDENCE_DIR }}/BUILD_DEFINITION_AUDIT.json
+            ${{ env.EVIDENCE_DIR }}/SANDBOX_PREPARE.json
+            ${{ env.EVIDENCE_DIR }}/BUILD_RESULT.json
+            ${{ env.EVIDENCE_DIR }}/MODULE_CLASSPATHS.json
+            ${{ env.EVIDENCE_DIR }}/MODULE_CLASSPATHS_RECORD.json
+            ${{ env.EVIDENCE_DIR }}/TRUSTED_WITNESS.json
+            ${{ env.EVIDENCE_DIR }}/INTEGRITY.json
+            ${{ env.EVIDENCE_DIR }}/QUALIFICATION_EVIDENCE.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish source-bound qualification summary
+        if: always()
+        run: |
+          export PATH="$C12_TRUSTED_PATH"
+          set -uo pipefail
+          exit_code="$(/usr/bin/python3 -I -S -c "import json,sys;print(json.load(open(sys.argv[1])).get('exit_code'))" "$EVIDENCE_DIR/BUILD_RESULT.json" 2>/dev/null || echo unrecorded)"
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/summarize.py" \
+            --source-lock "$EVIDENCE_DIR/SOURCE_LOCK.json" \
+            --evidence "$EVIDENCE_DIR/QUALIFICATION_EVIDENCE.json" \
+            --witness "$EVIDENCE_DIR/TRUSTED_WITNESS.json" \
+            --audit "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" \
+            --build-exit-code "$exit_code" \
+            --run-id "${{ github.run_id }}"
+      - name: Enforce qualification verdict
+        if: always()
+        env:
+          INTEGRITY_EXIT: ${{ steps.integrity.outputs.exit_code }}
+          VERDICT_EXIT: ${{ steps.verdict.outputs.exit_code }}
+        run: |
+          export PATH="$C12_TRUSTED_PATH"
+          set -uo pipefail
+          # Both independently: a scorer replaced by candidate code could not
+          # also make the integrity check (a separate process, re-derived from
+          # Git blobs) pass.
+          test "$INTEGRITY_EXIT" = "0" || { echo "trusted state integrity: exit ${INTEGRITY_EXIT:-unrecorded}"; exit 1; }
+          test -n "$VERDICT_EXIT" || { echo "verdict unrecorded"; exit 2; }
+          exit "$VERDICT_EXIT"
+
+  mergeability:
+    name: mergeability (informational, no qualification credit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Deliberately independent of qualify-candidate and never read by the
+      # verdict: a synthetic merge result is Git data about the pull request, not
+      # evidence that the candidate is qualified.
+      - name: Checkout trusted validator source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          persist-credentials: false
+      - name: Record mergeability as data only
+        env:
+          MERGEABLE: ${{ github.event.pull_request.mergeable }}
+          MERGEABLE_STATE: ${{ github.event.pull_request.mergeable_state }}
+          MERGE_COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          DEFAULT_BRANCH: ${{ github.event.pull_request.base.repo.default_branch }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/record_mergeability.py" \
+            --out "$EVIDENCE_DIR/MERGEABILITY.json"
+      - name: Upload mergeability record
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: mage-c12-mergeability-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ env.EVIDENCE_DIR }}/MERGEABILITY.json
+          if-no-files-found: error
+          retention-days: 30
