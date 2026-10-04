@@ -354,7 +354,12 @@ def java_test_methods(source: str) -> tuple[set, set]:
                 pending.append(name)
             i, prev = max(j, i + 1), None
             continue
-        if tok in ("class", "interface", "enum", "record") and prev != ".":
+        # `record` is a contextual keyword: it declares a type only when a name
+        # and a record header follow (`record R(` or `record R<T>(`); elsewhere
+        # it is an ordinary identifier (`record.get()`, `for (X record : xs)`).
+        declares_record = (tok == "record" and i + 2 < n and _IDENT.match(tokens[i + 1])
+                           and tokens[i + 2] in ("(", "<"))
+        if (tok in ("class", "interface", "enum") or declares_record) and prev != ".":
             if i + 1 >= n or not _IDENT.match(tokens[i + 1]):
                 raise CorpusError("unsupported type declaration")
             type_pending = (scopes[-1][0] or any(disabling.match(a) for a in pending),

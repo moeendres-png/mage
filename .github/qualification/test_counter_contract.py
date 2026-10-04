@@ -123,5 +123,36 @@ class RetainedSchema(unittest.TestCase):
         self.assertTrue(any("selected_set_not_policy_derived" in r for r in reasons))
 
 
+class RecordIdentifier(unittest.TestCase):
+    """Review P3 on 02c8af1a: `record` as an ordinary identifier must not make the corpus UNKNOWN."""
+
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location("corpus_policy", QUAL / "corpus_policy.py")
+        self.policy = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.policy)
+
+    def test_record_as_identifier_is_not_a_declaration(self):
+        source = """package p;
+import org.junit.Test;
+public class ATest {
+    @Test public void reads() { Object record = null; record.hashCode(); for (Object record : java.util.List.of()) { } }
+    @Test public void writes() { }
+}
+"""
+        enabled, disabled = self.policy.java_test_methods(source)
+        self.assertEqual(sorted(enabled), ["ATest#reads()", "ATest#writes()"])
+
+    def test_a_real_record_still_scopes_its_tests(self):
+        source = """package p;
+import org.junit.jupiter.api.Test;
+public class BTest {
+    record Pair<T>(T a, T b) { }
+    @Test void outer() { }
+}
+"""
+        enabled, _ = self.policy.java_test_methods(source)
+        self.assertEqual(sorted(enabled), ["BTest#outer()"])
+
+
 if __name__ == "__main__":
     unittest.main()
