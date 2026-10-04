@@ -371,7 +371,7 @@ def main() -> int:
             "error": str(exc),
         }
         out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
-        print("BUILD_DEFINITION_AUDIT = UNKNOWN ({})".format(exc), file=sys.stderr)
+        print("BUILD_DEFINITION_AUDIT = UNKNOWN ({})".format(json.dumps(str(exc), ensure_ascii=True)), file=sys.stderr)
         return 2
 
     out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")

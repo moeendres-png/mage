@@ -141,7 +141,7 @@ def main() -> int:
         with open(summary_path, "a", encoding="utf-8") as handle:
             handle.write(text)
     else:
-        print(text)
+        print("QUALIFICATION_SUMMARY = " + json.dumps(text, ensure_ascii=True))
     return 0
 
 

@@ -70,7 +70,7 @@ def emit(evidence: dict, out: Path, code: int) -> int:
     print(
         "QUALIFICATION = {}{}".format(
             evidence.get("verdict"),
-            " ({})".format("; ".join(evidence.get("reasons") or [])) if evidence.get("reasons") else "",
+            " ({})".format(json.dumps(evidence.get("reasons"), ensure_ascii=True)) if evidence.get("reasons") else "",
         )
     )
     return code

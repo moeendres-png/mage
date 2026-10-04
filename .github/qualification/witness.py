@@ -495,7 +495,7 @@ def main() -> int:
             corpus_policy.CorpusError, sandbox.SandboxError) as exc:
         doc["notes"].append("witness_unavailable: {}".format(exc))
         out.write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n")
-        print("TRUSTED_WITNESS = UNKNOWN ({})".format(exc), file=sys.stderr)
+        print("TRUSTED_WITNESS = UNKNOWN ({})".format(json.dumps(str(exc), ensure_ascii=True)), file=sys.stderr)
         return 2
 
     out.write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n")
@@ -504,10 +504,14 @@ def main() -> int:
         doc["status"], len(doc["module_execution"]), len(doc["required_test_classes"]),
         agg.get("classes_entered_total"), agg.get("tests_started"), agg.get("tests_failed"),
         (doc["corpus_policy"] or {}).get("status")))
-    # Class names only (never candidate messages), each line behind a fixed
-    # prefix, so a failure is diagnosable from the log without the artifact.
+    # Legacy reporting names can be arbitrary candidate-controlled text.
+    # JSON escaping keeps each diagnostic on one prefixed ASCII line, including
+    # newlines, CR, terminal escapes and Unicode separators. The complete raw
+    # name remains in the artifact; a diagnostic never becomes a workflow command.
     for name, count in list((agg.get("non_successful_by_class") or {}).items())[:20]:
-        print("TRUSTED_WITNESS non-successful: {} x{}".format(name, count))
+        print("TRUSTED_WITNESS non-successful: {} x{}".format(
+            json.dumps(str(name)[:300], ensure_ascii=True),
+            json.dumps(count, ensure_ascii=True)))
     return 0
 
 

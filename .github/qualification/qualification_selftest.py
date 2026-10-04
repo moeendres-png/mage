@@ -543,6 +543,8 @@ class Harness:
             "required_selected": test_evidence.get("trusted_selected_classes"),
             "qualify_exit": 0 if verdict == "PASS" else 1,
             "witness_exit": witness_proc.returncode,
+            "witness_stdout": witness_proc.stdout,
+            "qualify_stdout": qualify_proc.stdout,
             "witness_stderr": witness_proc.stderr.strip()[-400:],
         }
 
@@ -1552,6 +1554,54 @@ public class ProbeTest extends ProbeBase {
         project({"ProbeBase": helper, "ProbeTest": overloaded.replace("  @Test public void attack() {}\n", "")},
                 pom=junit4_pom),
         base=overloaded_base)
+
+    # Vintage can report arbitrary runner descriptions without a typed source.
+    # Exercise the complete build/compile/launch/aggregate/enforce path, rather
+    # than constructing a diagnostic mapping in Python.
+    log_probe = """package probe;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+@RunWith(ProbeRunner.class)
+public class ProbeTest { @Test public void proof() {} }
+"""
+    log_runner = r"""package probe;
+import org.junit.runner.Runner;
+import org.junit.runner.Description;
+import org.junit.runner.notification.RunNotifier;
+import org.junit.runner.notification.Failure;
+public class ProbeRunner extends Runner {
+ public ProbeRunner(Class<?> cls) {}
+ private Description bad() { return Description.createSuiteDescription("candidate\n::notice::FORGED-C12-LOG"); }
+ public Description getDescription() {
+  Description root = Description.createSuiteDescription(ProbeTest.class);
+  root.addChild(bad()); return root;
+ }
+ public void run(RunNotifier n) {
+  Description d = bad(); n.fireTestStarted(d);
+  n.fireTestFailure(new Failure(d, new AssertionError("failed")));
+  n.fireTestFinished(d);
+ }
+}
+"""
+    fx = h.fixture("CTRL-81-candidate-log-command-refused",
+                   project({"ProbeTest": log_probe, "ProbeRunner": log_runner}, pom=junit4_pom))
+    result = h.pipeline(fx)
+    output = result.get("witness_stdout", "")
+    safe = ("FORGED-C12-LOG" in output and "\\n::notice::" in output
+            and all(line.startswith("TRUSTED_WITNESS ") for line in output.splitlines())
+            and all(line.startswith("QUALIFICATION = ") for line in result.get("qualify_stdout", "").splitlines()))
+    rows.append(row("CTRL-81-candidate-log-command-refused", "red",
+                    "a real malicious runner failure stays FAIL and cannot inject workflow commands",
+                    "FAIL", result, reason="required_test_methods_not_started", extra_ok=safe))
+    fx = h.fixture("CTRL-82-ordinary-failure-diagnostic", project({"ProbeTest": FAILING_TEST}))
+    result = h.pipeline(fx)
+    output = result.get("witness_stdout", "")
+    safe = ('non-successful: ".::probe.ProbeTest" x1' in output
+            and all(line.startswith("TRUSTED_WITNESS ") for line in output.splitlines())
+            and all(line.startswith("QUALIFICATION = ") for line in result.get("qualify_stdout", "").splitlines()))
+    rows.append(row("CTRL-82-ordinary-failure-diagnostic", "red",
+                    "an ordinary real failing test keeps a useful single-line diagnostic",
+                    "FAIL", result, reason="test_failures", extra_ok=safe))
     return rows
 
 
@@ -1995,7 +2045,7 @@ def main() -> int:
             print("        expectation: {}".format(item.get("expectation")))
             for key in ("reasons", "witness_notes", "error", "sandbox_error", "witness_stderr"):
                 if item.get(key):
-                    print("        {}: {}".format(key, str(item[key])[:700]))
+                    print("        {}: {}".format(key, json.dumps(item[key], ensure_ascii=True)[:700]))
     print("SELFTEST = {} ({}/{} controls ok, {} not run)".format(status, len(passed), len(results), len(not_run)))
     if args.out:
         out = Path(args.out)

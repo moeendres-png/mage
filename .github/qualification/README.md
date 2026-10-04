@@ -243,7 +243,7 @@ The executed scripts are the copies committed in the fixture's trusted commit, s
 candidate able to overwrite them would be overwriting the scorer that actually runs. Red
 controls must also show their **intended reason**.
 
-`SELFTEST = PASS (56/56 controls ok, 0 not run)`. This was run locally as a separate
+Historical first-epoch `SELFTEST = PASS (56/56 controls ok, 0 not run)` was run locally as a separate
 unprivileged account (`nobody`, offline) in about 5 minutes. With the previous driver, CTRL-60 to 62 gave a false PASS: candidate configuration hid a failing test. The PR-time workflow
 `candidate-qualification-selftest.yml` runs the same suite on GitHub-hosted runners with the
 real `c12cand` account.
@@ -259,7 +259,7 @@ real `c12cand` account.
 | JUnit configuration and PATH (second review) | CTRL-60–62: an auto-detected extension via test resources, main resources or a dependency jar cannot hide a failing test; CTRL-63: a candidate-writable PATH entry refuses the sandbox and fails integrity; CTRL-66: a `.class` test resource cannot replace trusted-compiled bytecode |
 
 **Meta-control.** With a scorer that always returns `PASS`, the suite reports
-`SELFTEST = FAIL (19/52)`. CTRL-33–36 stay red even then, because integrity is enforced
+Historical first-epoch `SELFTEST = FAIL (19/52)` (not a current-suite denominator). CTRL-33–36 stay red even then, because integrity is enforced
 independently of the scorer. A missing toolchain or sandbox reports `NOT_RUN`, and the
 suite fails.
 
@@ -297,3 +297,5 @@ The regenerated baseline still protects all 1997 classes and 6835 enabled method
 changed. The current qualification engine pin is unaffected. Same-JVM deliberate
 tampering remains outside the proved containment boundary; this repair does not
 accept that residual or assert adversarial trust PASS.
+
+Current diagnostic repair: `research/c12-log-safety-20261004/` binds 83/83 full-path controls and the executed workflow-command attack before/after. Candidate diagnostic text is ASCII JSON-escaped; raw JSON artifacts retain the original values. This does not change the same-JVM limitations above.

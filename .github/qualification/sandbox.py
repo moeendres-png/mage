@@ -607,7 +607,7 @@ def cmd_prepare(args) -> int:
     except (SandboxError, OSError) as exc:
         doc["error"] = str(exc)
         _write(args.out, doc)
-        print("SANDBOX = UNKNOWN ({})".format(exc), file=sys.stderr)
+        print("SANDBOX = UNKNOWN ({})".format(json.dumps(str(exc), ensure_ascii=True)), file=sys.stderr)
         return 2
     _write(args.out, doc)
     print("SANDBOX = READY user={} candidate={}".format(args.user, args.candidate_sha))
@@ -634,7 +634,7 @@ def cmd_run(args) -> int:
     except (SandboxError, KeyError, OSError) as exc:
         doc["error"] = str(exc)
         _write(args.out, doc)
-        print("SANDBOX_RUN {} = UNKNOWN ({})".format(args.label, exc), file=sys.stderr)
+        print("SANDBOX_RUN {} = UNKNOWN ({})".format(json.dumps(args.label), json.dumps(str(exc), ensure_ascii=True)), file=sys.stderr)
         return 2
     _write(args.out, doc)
     print("SANDBOX_RUN {} exit={} (recorded by trusted code)".format(args.label, doc["exit_code"]))
@@ -652,7 +652,7 @@ def cmd_verify(args) -> int:
     doc = integrity(Path(args.repo), args.trusted_sha, args.rel_dir, [Path(s) for s in args.seal],
                     args.user, [Path(p) for p in args.probe])
     _write(args.out, doc)
-    print("INTEGRITY = {}{}".format(doc["status"], " ({})".format("; ".join(doc["violations"])[:400]) if doc["violations"] else ""))
+    print("INTEGRITY = {}{}".format(doc["status"], " ({})".format(json.dumps(doc["violations"], ensure_ascii=True)[:400]) if doc["violations"] else ""))
     return {"OK": 0, "VIOLATION": 1}.get(doc["status"], 2)
 
 

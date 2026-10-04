@@ -66,7 +66,7 @@ def main() -> int:
     mapping, record = collect(args.git_repo, args.candidate_sha, Path(args.candidate_root))
     Path(args.out).write_text(json.dumps(mapping, indent=2, sort_keys=True) + "\n")
     Path(args.record).write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
-    print("MODULE_CLASSPATHS resolved={} unresolved={}".format(len(mapping), ",".join(record["unresolved"]) or "-"))
+    print("MODULE_CLASSPATHS resolved={} unresolved={}".format(len(mapping), json.dumps(record["unresolved"], ensure_ascii=True)))
     return 0 if not record["unresolved"] else 1
 
 
