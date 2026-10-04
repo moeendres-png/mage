@@ -408,11 +408,13 @@ def main() -> int:
         "modules": [],
         "module_execution": [],
         "module_classpath_completeness": None,
-        "execution_mode": "per_module_trusted_driver",
-        "test_bytecode_origin": "trusted_compile_of_locked_git_export",
+        "execution_mode": "per_module_external_observer",
+        "test_bytecode_origin": "trusted_compile_of_trusted_validator_export",
         "candidate_execution_identity": args.sandbox_user,
         "trusted_execution_witness": None,
         "driver": {"name": DRIVER, "sha256": None},
+        "observer": {"name": OBSERVER, "sha256": None},
+        "candidate_witness_authority": False,
         "candidate_authored_evidence_used": False,
         "candidate_reports_parsed": False,
         "candidate_test_classes_used": False,
@@ -464,25 +466,24 @@ def main() -> int:
 
         corpus = corpus_policy.evaluate(args.git_repo, trusted_sha, base_sha, locked_sha)
         doc["corpus_policy"] = corpus
+        # Only the trusted default-branch corpus can earn C12 credit.
+        # Candidate-added tests remain visible to the delta policy/native CI but
+        # are not loaded into the authoritative JVM.
+        trusted_pairs = corpus.get("trusted_required_pairs") or []
+        trusted_methods = corpus.get("trusted_required_methods") or []
+        trusted_inheriting = corpus.get("trusted_required_inheriting_classes") or []
         required = [
             {"module": m, "class_name": c}
-            for m, c in (corpus_policy.split_pair(p) for p in corpus["required_pairs"])
+            for m, c in (corpus_policy.split_pair(p) for p in trusted_pairs)
         ]
         doc["required_test_classes"] = required
-        # Every required class must still compile from its own module. The
-        # driver, which must observe every class it runs, is given the classes
-        # that own at least one required test method plus the concrete classes
-        # that only inherit enabled tests (required_inheriting_classes): those
-        # run their inherited tests and must be entered. A corpus class with
-        # neither (an abstract base, a class-level @Ignore, a helper without
-        # @Test) owes no observation.
-        owning = {corpus_policy.class_of_method(m) for m in corpus.get("required_methods") or ()}
-        owning |= set(corpus.get("required_inheriting_classes") or ())
+        owning = {corpus_policy.class_of_method(m) for m in trusted_methods}
+        owning |= set(trusted_inheriting)
         doc["selected_test_classes"] = [
             e for e in required if corpus_policy.pair(e["module"], e["class_name"]) in owning
         ]
         doc["corpus_classes_without_required_methods"] = sorted(
-            p for p in corpus["required_pairs"] if p not in owning
+            p for p in trusted_pairs if p not in owning
         )
 
         modules: dict = {}
@@ -504,8 +505,10 @@ def main() -> int:
         if not modules:
             raise ValueError("no required test class was enumerated from the locked candidate")
 
-        export = workdir / "export"
-        sandbox.export_commit(Path(args.git_repo), locked_sha, export)
+        export = workdir / "trusted-test-export"
+        # Test source is authority-bearing and therefore comes from the trusted
+        # validator commit, never from candidate-authored test source.
+        sandbox.export_commit(Path(args.git_repo), trusted_sha, export)
 
         staging = workdir / "bundle"
         if staging.exists():
@@ -514,7 +517,9 @@ def main() -> int:
         junit_jars = [j for j in junit_classpath.split(os.pathsep) if j]
         for jar in junit_jars:
             shutil.copy2(jar, staging / "junit" / Path(jar).name)
-        doc["driver"]["sha256"] = compile_driver(trusted_root, staging / "driver", junit_classpath)
+        runtime_hashes = compile_runtime(trusted_root, staging, junit_classpath)
+        doc["driver"]["sha256"] = runtime_hashes["driver_sha256"]
+        doc["observer"]["sha256"] = runtime_hashes["observer_sha256"]
 
         resolved = {}
         all_modules = sorted(modules)
@@ -553,9 +558,12 @@ def main() -> int:
         ]
 
         sandbox.stage_readonly(staging, bundle)
-        outputs = sandbox_dir / "witness-out"
-        sandbox.run_candidate(args.sandbox_user, sandbox.sandbox_home(sandbox_dir), sandbox_dir,
-                              ["/bin/sh", "-c", 'rm -rf "$1" && mkdir -p "$1"', "c12", str(outputs)])
+        # Receipts live only in the trusted work directory. Candidate code never
+        # receives this path and its OS identity cannot write it.
+        outputs = workdir / "observer-receipts"
+        if outputs.exists():
+            shutil.rmtree(outputs)
+        outputs.mkdir(parents=True)
         execution = module_witnesses(args.sandbox_user, sandbox_dir, candidate_root, resolved, bundle, outputs,
                                      locked_sha, locked_tree)
         doc["module_execution"] = execution
@@ -628,9 +636,10 @@ def aggregate(execution: list[dict]) -> dict:
     return {
         "schema": WITNESS_SCHEMA,
         "producer": "witness.py per-module aggregation",
-        "evidence_origin": "trusted_side_direct_execution",
+        "evidence_origin": "trusted_parent_jdi_observation",
         "candidate_authored_evidence_used": False,
-        "execution_mode": "per_module_trusted_driver",
+        "candidate_witness_authority": False,
+        "execution_mode": "per_module_external_observer",
         "bound_candidate_sha": bound[0].get("bound_candidate_sha") if bound else None,
         "bound_candidate_shas": sorted({str(w.get("bound_candidate_sha")) for w in bound}),
         "bound_candidate_tree": bound[0].get("bound_candidate_tree") if bound else None,
