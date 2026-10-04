@@ -113,6 +113,7 @@ jobs:
             --sandbox-user "$C12_SANDBOX_USER" \
             --harden-world-writable \
             --out "$EVIDENCE_DIR/GUARD_CONTROLS.json"
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/test_counter_contract.py"
       - name: Upload guard control report
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
