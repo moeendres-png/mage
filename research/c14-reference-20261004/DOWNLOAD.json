@@ -1,0 +1,25 @@
+{
+  "source": "MTGJSON official HTTPS and published SHA256",
+  "files": {
+    "AllPrintings.json.zip": {
+      "sha256": "ca452425efc7cf5f61a0dd28bb82b9d32448b843f207377c0b63f05bbf0c2fe8",
+      "bytes": 181769420,
+      "meta": {
+        "date": "2026-10-04",
+        "version": "5.3.0+20261004"
+      },
+      "url": "https://mtgjson.com/api/v5/AllPrintings.json.zip",
+      "upstream_checksum_url": "https://mtgjson.com/api/v5/AllPrintings.json.zip.sha256"
+    },
+    "AtomicCards.json.zip": {
+      "sha256": "0a60de51a9f768563a4c9094be2fd2ccb88f4e8d0bd0c2dd5fc3001e5e8b5f8c",
+      "bytes": 51959008,
+      "meta": {
+        "date": "2026-10-04",
+        "version": "5.3.0+20261004"
+      },
+      "url": "https://mtgjson.com/api/v5/AtomicCards.json.zip",
+      "upstream_checksum_url": "https://mtgjson.com/api/v5/AtomicCards.json.zip.sha256"
+    }
+  }
+}

@@ -28,6 +28,7 @@ Mage.Server/extensions
 # downloadable files
 Mage.Verify/*.zip
 Mage.Verify/*.json
+!Mage.Verify/mtgjson-reference.json
 
 # Utils
 __pycache__

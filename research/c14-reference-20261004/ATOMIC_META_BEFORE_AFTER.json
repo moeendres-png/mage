@@ -1,0 +1,39 @@
+{
+  "evidence_class": "SYNTHETIC",
+  "before_source": "2ae9df6f9b1326f61f06b9a22dac5c050f8cd041",
+  "observation": "Real fetch/verify/receipt code with synthetic ZIPs and HTTPS response substituted by exact declared bytes. No Rules/card-behavior credit.",
+  "results": {
+    "before": {
+      "exit": 0,
+      "receipt": {
+        "files": {
+          "AllPrintings.json.zip": {
+            "bytes": 205,
+            "sha256": "329258225194b3227d226c7eede76442664424be0bcd372832f06a58e0252855"
+          },
+          "AtomicCards.json.zip": {
+            "bytes": 194,
+            "sha256": "a24210317240063ceb75e5ca02bbe85ad0ab20087b454af45f01fab42093a5aa"
+          }
+        },
+        "meta": {
+          "date": "2026-10-04",
+          "version": "5.3.0+20261004"
+        },
+        "pin_sha256": "c94dbef9ff012fa72e6df74959d42f74c74e92155b7676bdf9474c2ca234d208",
+        "release": "mtgjson-reference-5.3.0-20261004",
+        "repository": "moeendres-png/mage",
+        "schema": "mage.verify.mtgjson-reference/1#receipt"
+      }
+    },
+    "after": {
+      "exit": 1,
+      "receipt": {
+        "schema": "mage.verify.mtgjson-reference/1#receipt",
+        "status": "FAIL",
+        "error": "reference meta differs from pin: AtomicCards.json.zip",
+        "qualification_credit": false
+      }
+    }
+  }
+}

@@ -2,7 +2,7 @@ name: MTGJSON reference refresh
 
 # C14 (commander-playtest-lab#495): refreshing Mage.Verify's MTGJSON reference
 # is a separate, manual operation. This downloads the current MTGJSON files
-# once, publishes them as immutable release assets, and prints the pin. A
+# once, publishes them as content-addressed release assets, and prints the pin. A
 # reviewed change to Mage.Verify/mtgjson-reference.json then makes CI verify
 # against exactly that reference. Qualification runs never contact mtgjson.com.
 
@@ -28,6 +28,10 @@ jobs:
           # mtgjson.com answers 403 without a user agent
           curl -fsSL --retry 3 -A "xmage-verify-reference-refresh" \
             -o "$RUNNER_TEMP/mtgjson/$name" "https://mtgjson.com/api/v5/$name"
+          curl -fsSL --retry 3 -A "xmage-verify-reference-refresh" \
+            -o "$RUNNER_TEMP/mtgjson/$name.sha256" "https://mtgjson.com/api/v5/$name.sha256"
+          expected=$(cat "$RUNNER_TEMP/mtgjson/$name.sha256")
+          printf '%s  %s\n' "$expected" "$RUNNER_TEMP/mtgjson/$name" | sha256sum -c -
         done
     - name: Pin and publish the reference
       env:
@@ -38,10 +42,14 @@ jobs:
         tag=$(python3 .github/ci/mtgjson_reference.py pin --dir "$RUNNER_TEMP/mtgjson" \
           --repo "$REPO" --out "$RUNNER_TEMP/mtgjson-reference.json")
         if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then
-          echo "release $tag already exists; its assets are immutable and are not replaced"
+          # Existing assets are not presumed immutable: re-download and prove
+          # they match the proposed content-addressed pin. Never clobber them.
+          mkdir -p "$RUNNER_TEMP/existing-reference"
+          python3 .github/ci/mtgjson_reference.py fetch --pin "$RUNNER_TEMP/mtgjson-reference.json" \
+            --dir "$RUNNER_TEMP/existing-reference" --receipt "$RUNNER_TEMP/existing-reference-receipt.json"
         else
           gh release create "$tag" --repo "$REPO" --title "$tag" --latest=false \
-            --notes "Immutable MTGJSON reference for Mage.Verify qualification (C14)." \
+            --notes "Content-addressed MTGJSON reference for Mage.Verify (C14); consumers verify exact byte hashes." \
             "$RUNNER_TEMP/mtgjson/AllPrintings.json.zip" "$RUNNER_TEMP/mtgjson/AtomicCards.json.zip"
         fi
         {

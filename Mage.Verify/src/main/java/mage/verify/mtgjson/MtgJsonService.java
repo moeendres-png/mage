@@ -140,6 +140,10 @@ public final class MtgJsonService {
 
     private static Map<String, MtgJsonCard> loadAllCards() throws IOException {
         AtomicCardsModel json = readFromZip("AtomicCards.json.zip", AtomicCardsModel.class);
+        Reference reference = boundReference();
+        if (reference != null) {
+            requirePinnedMeta(reference, json.meta);
+        }
         return json.prepareIndex();
     }
 
@@ -291,6 +295,7 @@ public final class MtgJsonService {
     }
 
     private static final class AtomicCardsModel {
+        public MtgJsonMetadata meta;
 
         // list by card names, each name can have multiple cards (two faces, different cards with same name from un-sets)
         public Map<String, ArrayList<MtgJsonCard>> data;
