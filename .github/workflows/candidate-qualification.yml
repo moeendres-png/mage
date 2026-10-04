@@ -23,9 +23,9 @@ name: Trusted candidate qualification (exact SHA)
 # the trusted baseline (corpus_policy.py) and the executed test bytecode is
 # compiled by trusted code from the locked commit (witness.py).
 #
-# Runtime risk, stated: candidate build code runs (as the sandbox account) with
-# runner network egress. The job is read-only, persists no credentials and
-# references no secret.
+# Runtime boundary: candidate build code runs as the sandbox account. Authoritative
+# test execution is a separate contained JVM with no witness key/state; a trusted
+# parent JDI observer writes the receipt. The job is read-only and persists no credentials.
 
 on:
   pull_request_target:
@@ -269,6 +269,7 @@ jobs:
             --build-result "$EVIDENCE_DIR/BUILD_RESULT.json" \
             --build-definition-audit "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" \
             --module-classpaths "$EVIDENCE_DIR/MODULE_CLASSPATHS.json" \
+            --trusted-maven-repo "$HOME/.m2/repository" \
             --out "$EVIDENCE_DIR/TRUSTED_WITNESS.json" || true
           /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/sandbox.py" seal \
             --out "$RUNNER_TEMP/c12-seals/after-witness.json" \
