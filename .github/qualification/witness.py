@@ -41,8 +41,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import hmac
 import json
+import select
+import tempfile
 import os
 import shutil
 import subprocess
@@ -56,9 +57,9 @@ sys.path.append(str(Path(__file__).resolve().parent))
 import corpus_policy  # noqa: E402
 import sandbox  # noqa: E402
 
-SCHEMA = "mage.candidate-qualification.witness/5"
-WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/3"
-DRIVER = "TrustedTestDriver.java"
+SCHEMA = "mage.candidate-qualification.witness/6"
+WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/4"
+DRIVER = "TrustedTestDriver.java"\nOBSERVER = "TrustedTestObserver.java"
 MAIN_CLASSES_DIR = "target/classes"
 TEST_SOURCE_DIRS = ("src/test/java",)
 TEST_RESOURCE_DIRS = ("src/test/resources",)
@@ -98,35 +99,19 @@ def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True, check=False)
 
 
-def read_candidate_bytes(path: Path) -> bytes | None:
-    """Read a file the candidate account could have written, refusing symlinks."""
-    try:
-        fd = os.open(str(path), os.O_RDONLY | os.O_NOFOLLOW)
-    except OSError:
-        return None
-    with os.fdopen(fd, "rb") as handle:
-        return handle.read(16 * 1024 * 1024)
+def read_parent_receipt(path: Path):
+    """Read the receipt written by the trusted parent observer.
 
-
-def authenticated_witness(path: Path, key: bytes):
-    """The driver's witness, only if it carries the MAC for this run's key.
-
-    The output directory is writable by the candidate account, so candidate test
-    code could write a file there. Only the driver holds the key (delivered on
-    stdin before any candidate class loaded), so a forged file fails here.
+    The path is under the trusted witness work directory, not the candidate
+    sandbox. The candidate OS identity cannot write it and the candidate JVM
+    receives neither the path nor any receipt authority.
     """
-    payload = read_candidate_bytes(path)
-    mac = read_candidate_bytes(Path(str(path) + ".mac"))
-    if payload is None or mac is None:
-        return None, "trusted_driver_produced_no_witness"
-    expected = hmac.new(key, payload, hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(expected.encode("ascii"), mac.strip()):
-        return None, "witness_authentication_failed"
     try:
-        return json.loads(payload.decode("utf-8")), None
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        return None, "witness_unparseable"
-
+        if path.is_symlink() or not path.is_file():
+            return None, "trusted_parent_produced_no_receipt"
+        return json.loads(path.read_text()), None
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None, "trusted_parent_receipt_unparseable"
 
 def sanitize_classpath(module: str, resolved: str, candidate_root: Path, all_modules: list[str]):
     """Drop stale installed sibling jars; put the candidate's reactor main output first."""
@@ -148,20 +133,44 @@ def sanitize_classpath(module: str, resolved: str, candidate_root: Path, all_mod
     return prefixes + kept, dropped, prefixes
 
 
-def compile_driver(trusted_root: Path, out: Path, junit_classpath: str) -> str:
-    source = trusted_root / DRIVER
-    if not source.is_file():
-        raise FileNotFoundError("trusted driver source is missing: {}".format(source))
+def compile_runtime(trusted_root: Path, staging: Path, junit_classpath: str) -> dict:
+    """Compile the closed driver module and the parent-side JDI observer."""
+    driver_source = trusted_root / DRIVER
+    observer_source = trusted_root / OBSERVER
+    if not driver_source.is_file() or not observer_source.is_file():
+        raise FileNotFoundError("trusted driver/observer source is missing")
     if not junit_classpath:
-        raise ValueError("trusted junit classpath is required to compile and run the driver")
-    if out.exists():
-        shutil.rmtree(out)
-    out.mkdir(parents=True)
-    proc = run([jdk_tool("javac"), "-proc:none", "-nowarn", "-cp", junit_classpath, "-d", str(out), str(source)], trusted_root)
-    if proc.returncode != 0:
-        raise RuntimeError("javac failed: {}".format(proc.stderr.strip()[:2000]))
-    return sha256_file(source)
+        raise ValueError("trusted junit classpath is required")
 
+    driver_out = staging / "driver"
+    observer_out = staging / "observer"
+    for out in (driver_out, observer_out):
+        if out.exists():
+            shutil.rmtree(out)
+        out.mkdir(parents=True)
+
+    with tempfile.TemporaryDirectory(dir=str(staging)) as tmp:
+        module_info = Path(tmp) / "module-info.java"
+        module_info.write_text("module c12.trusted {}\\n")
+        proc = run([
+            jdk_tool("javac"), "--add-reads", "c12.trusted=ALL-UNNAMED",
+            "-proc:none", "-nowarn", "-cp", junit_classpath,
+            "-d", str(driver_out), str(module_info), str(driver_source)
+        ], trusted_root)
+        if proc.returncode != 0:
+            raise RuntimeError("driver javac failed: {}".format(proc.stderr.strip()[:4000]))
+
+    proc = run([
+        jdk_tool("javac"), "--add-modules", "jdk.jdi", "-proc:none", "-nowarn",
+        "-d", str(observer_out), str(observer_source)
+    ], trusted_root)
+    if proc.returncode != 0:
+        raise RuntimeError("observer javac failed: {}".format(proc.stderr.strip()[:4000]))
+
+    return {
+        "driver_sha256": sha256_file(driver_source),
+        "observer_sha256": sha256_file(observer_source),
+    }
 
 def trusted_compile_module(export_root: Path, module: str, classpath: list[str], out: Path) -> dict:
     """Compile a module's test sources from the exact-SHA Git export, in trusted code.
@@ -243,55 +252,116 @@ def compiled_classes(root: Path) -> set:
     return names
 
 
+def _observer_address(proc: subprocess.Popen, timeout: float = 30.0) -> str:
+    ready, _, _ = select.select([proc.stdout], [], [], timeout)
+    if not ready:
+        raise RuntimeError("trusted observer did not publish a listen address")
+    line = proc.stdout.readline().strip()
+    prefix = "TRUSTED_OBSERVER_LISTENING "
+    if not line.startswith(prefix):
+        raise RuntimeError("trusted observer startup failed: {}".format(line[:500]))
+    address = line[len(prefix):].strip()
+    if not address:
+        raise RuntimeError("trusted observer published an empty address")
+    return address
+
+
 def module_witnesses(user, sandbox_dir, candidate_root, modules, bundle, outputs, locked_sha, locked_tree):
-    """Run the trusted driver once per module, as the sandbox account."""
+    """Run each module in a candidate JVM observed by a trusted parent JVM."""
     results = []
     home = sandbox.sandbox_home(sandbox_dir)
+    outputs.mkdir(parents=True, exist_ok=True)
     for module in sorted(modules):
         entry = modules[module]
         classes = entry["selected_classes"]
         if not classes:
             results.append({"module": module, "required_classes": 0, "executed": False,
-                            "reason": "no_required_classes_in_module", "witness": None})
+                            "reason": "no_trusted_required_classes_in_module", "witness": None})
             continue
         if set(classes) <= set(entry["not_compiled"]):
             results.append({"module": module, "required_classes": len(classes), "executed": False,
                             "reason": "module_test_classes_not_compiled", "witness": None})
             continue
+
         test_output = bundle / "tests" / entry["bundle_name"]
-        witness_path = outputs / "module-{}.json".format(entry["bundle_name"])
-        classpath = os.pathsep.join(
-            [str(bundle / "driver"), *[str(bundle / "junit" / Path(j).name) for j in entry["junit"]],
-             str(test_output), *entry["classpath"]]
-        )
-        # No attach: another candidate process must not attach to this JVM.
-        cmd = [jdk_tool("java"), "-XX:+DisableAttachMechanism", "-cp", classpath, "TrustedTestDriver",
-               "--evidence", str(witness_path), "--class-path", classpath,
-               "--bind-sha", locked_sha, "--bind-tree", locked_tree,
-               "--module-id", module, "--module-output", str(test_output)]
+        receipt = outputs / "module-{}.json".format(entry["bundle_name"])
+        if receipt.exists():
+            receipt.unlink()
+        junit = [str(bundle / "junit" / Path(j).name) for j in entry["junit"]]
+        classpath = os.pathsep.join([*junit, str(test_output), *entry["classpath"]])
+
+        observer_cmd = [
+            jdk_tool("java"), "--add-modules", "jdk.jdi",
+            "-cp", str(bundle / "observer"), "TrustedTestObserver",
+            "--module-id", module, "--bind-sha", locked_sha, "--bind-tree", locked_tree,
+            "--module-output", str(test_output), "--receipt", str(receipt),
+        ]
         for name in classes:
-            cmd += ["--select", name]
-        module_dir = candidate_root / module if (candidate_root / module).is_dir() else candidate_root
-        key = os.urandom(32)
+            observer_cmd += ["--select", name]
+
+        observer = subprocess.Popen(
+            observer_cmd, cwd=str(outputs), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, bufsize=1,
+        )
+        proc = None
+        failure = None
         try:
-            proc = sandbox.run_candidate(user, home, module_dir, cmd, stdin_bytes=key.hex().encode("ascii") + b"\n")
-        except sandbox.SandboxError as exc:
-            results.append({"module": module, "required_classes": len(classes), "executed": False,
-                            "reason": "sandbox_failure: {}".format(exc), "witness": None})
-            continue
-        witness, failure = authenticated_witness(witness_path, key)
+            address = _observer_address(observer)
+            cmd = [
+                jdk_tool("java"),
+                "-XX:+DisableAttachMechanism",
+                "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address={}".format(address),
+                "--add-reads", "c12.trusted=ALL-UNNAMED",
+                "--module-path", str(bundle / "driver"),
+                "-cp", classpath,
+                "-m", "c12.trusted/c12.trusted.TrustedTestDriver",
+                "--module-output", str(test_output),
+                "--untrusted-prefix", str(candidate_root),
+                "--untrusted-prefix", str(home),
+            ]
+            for name in classes:
+                cmd += ["--select", name]
+            module_dir = candidate_root / module if (candidate_root / module).is_dir() else candidate_root
+            proc = sandbox.run_candidate(user, home, module_dir, cmd, timeout=18000)
+            try:
+                observer.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                observer.kill()
+                observer.wait()
+                failure = "trusted_observer_did_not_terminate"
+        except (sandbox.SandboxError, OSError, RuntimeError) as exc:
+            failure = "contained_execution_failure: {}".format(exc)
+            try:
+                observer.kill()
+                observer.wait(timeout=5)
+            except Exception:
+                pass
+
+        witness, receipt_failure = read_parent_receipt(receipt)
+        if receipt_failure:
+            failure = failure or receipt_failure
+        observer_stdout = ""
+        observer_stderr = ""
+        try:
+            tail_out, tail_err = observer.communicate(timeout=1)
+            observer_stdout = (tail_out or "")[-2000:]
+            observer_stderr = (tail_err or "")[-2000:]
+        except Exception:
+            pass
         results.append({
             "module": module,
             "required_classes": len(classes),
             "executed": witness is not None,
-            "driver_exit_code": proc.returncode,
-            "driver_stdout": proc.stdout.strip()[-2000:],
-            "driver_stderr": proc.stderr.strip()[-2000:],
+            "driver_exit_code": proc.returncode if proc is not None else None,
+            "driver_stdout": (proc.stdout if proc is not None else "").strip()[-2000:],
+            "driver_stderr": (proc.stderr if proc is not None else "").strip()[-2000:],
+            "observer_exit_code": observer.returncode,
+            "observer_stdout": observer_stdout,
+            "observer_stderr": observer_stderr,
             "reason": failure,
             "witness": witness,
         })
     return results
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
