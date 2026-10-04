@@ -82,7 +82,8 @@ def observe(repo, rev, runtime_root):
                     (skipped if case.find('skipped') is not None else executed).append(entry)
             except (OSError, ValueError, ET.ParseError) as exc:
                 invalid.append(path.name+':'+str(exc))
-        return {'status': compare(actual, baseline), 'inventory': actual,
+        return {'status': compare(actual, baseline), 'source_sha':git(repo,'rev-parse',rev).decode().strip(),
+                'source_tree':git(repo,'rev-parse',rev+'^{tree}').decode().strip(), 'inventory': actual,
                 'disabled_tests': disabled, 'runtime_skipped': skipped,
                 'runtime_executed_count': len(executed), 'runtime_reports_present': bool(reports),
                 'runtime_problems': invalid, 'qualification_credit': False,

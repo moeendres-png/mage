@@ -2937,5 +2937,7 @@
   "runtime_reports_present": false,
   "runtime_skipped": [],
   "scope": "Source omissions are CODE_DERIVED. XML names are candidate-controlled observations. No full branch or hostile-code authority claim.",
+  "source_sha": "e637c5084057795a60beedc53294645bbe1f846c",
+  "source_tree": "19add233b0db7317b2b0c6dd5e35f1d3a8d1ecb7",
   "status": "SOURCE_INVENTORY_MATCH"
 }
