@@ -54,17 +54,42 @@ def inventory(repo, rev):
     return {'schema': SCHEMA, 'source_files': files, 'records': records,
             'qualification_credit': False, 'complete_semantic_coverage_claimed': False}
 
-def compare(actual, baseline):
-    # Full source bytes are bound, so an unrecognized suppression spelling,
-    # removal, rename, comment trick or new source file also requires adjudication.
-    if baseline != actual:
+def read_baseline(repo, rev):
+    return json.loads(git(repo, 'show', rev + ':' + BASELINE))
+
+def is_ancestor(repo, older, newer):
+    return subprocess.run(
+        ['git', '-C', str(repo), 'merge-base', '--is-ancestor', older, newer],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    ).returncode == 0
+
+def compare(actual, candidate_baseline, anchor_inventory, anchor_baseline):
+    # The reviewed anchor must be self-consistent before it can ratchet anything.
+    if anchor_baseline != anchor_inventory:
+        return 'UNKNOWN'
+    # Candidate baseline edits cannot authorize themselves.
+    if candidate_baseline != actual:
+        return 'REVIEW_REQUIRED'
+    # Even coordinated candidate source+baseline drift requires explicit adjudication.
+    if actual != anchor_inventory:
         return 'REVIEW_REQUIRED'
     return 'SOURCE_INVENTORY_MATCH'
 
-def observe(repo, rev, runtime_root):
+def observe(repo, rev, runtime_root, baseline_rev):
     try:
-        actual = inventory(repo, rev)
-        baseline = json.loads(git(repo, 'show', rev+':'+BASELINE))
+        if not baseline_rev:
+            raise ValueError('baseline revision is required')
+        source_sha = git(repo, 'rev-parse', rev).decode().strip()
+        anchor_sha = git(repo, 'rev-parse', baseline_rev).decode().strip()
+        if not is_ancestor(repo, anchor_sha, source_sha):
+            raise ValueError('baseline revision is not an ancestor of candidate revision')
+
+        actual = inventory(repo, source_sha)
+        candidate_baseline = read_baseline(repo, source_sha)
+        anchor_inventory = inventory(repo, anchor_sha)
+        anchor_baseline = read_baseline(repo, anchor_sha)
+        status = compare(actual, candidate_baseline, anchor_inventory, anchor_baseline)
+
         disabled = [r for r in actual['records'] if r['kind']=='DISABLED_TEST']
         skipped, executed, invalid = [], [], []
         reports = sorted((runtime_root/'Mage.Verify/target/surefire-reports').glob('TEST-*.xml'))
@@ -82,19 +107,34 @@ def observe(repo, rev, runtime_root):
                     (skipped if case.find('skipped') is not None else executed).append(entry)
             except (OSError, ValueError, ET.ParseError) as exc:
                 invalid.append(path.name+':'+str(exc))
-        return {'status': compare(actual, baseline), 'source_sha':git(repo,'rev-parse',rev).decode().strip(),
-                'source_tree':git(repo,'rev-parse',rev+'^{tree}').decode().strip(), 'inventory': actual,
-                'disabled_tests': disabled, 'runtime_skipped': skipped,
+        return {'status': status, 'source_sha': source_sha,
+                'source_tree':git(repo,'rev-parse',source_sha+'^{tree}').decode().strip(),
+                'baseline_anchor_sha': anchor_sha,
+                'baseline_anchor_tree':git(repo,'rev-parse',anchor_sha+'^{tree}').decode().strip(),
+                'baseline_anchor_relation':'ANCESTOR_OR_SELF',
+                'anchor_baseline_matches_source': anchor_baseline == anchor_inventory,
+                'candidate_baseline_matches_source': candidate_baseline == actual,
+                'source_changed_from_anchor': actual != anchor_inventory,
+                'baseline_changed_from_anchor': candidate_baseline != anchor_baseline,
+                'inventory': actual, 'disabled_tests': disabled, 'runtime_skipped': skipped,
                 'runtime_executed_count': len(executed), 'runtime_reports_present': bool(reports),
                 'runtime_problems': invalid, 'qualification_credit': False,
-                'scope': 'Source omissions are CODE_DERIVED. XML names are candidate-controlled observations. No full branch or hostile-code authority claim.'}
-    except (subprocess.CalledProcessError, ValueError, OSError, KeyError, TypeError) as exc:
-        return {'status': 'UNKNOWN', 'reason':'Verifier source or baseline unavailable/invalid at declared revision', 'qualification_credit':False}
+                'scope': 'Source omissions are CODE_DERIVED. XML names are candidate-controlled observations. The base revision is a review/ratchet anchor only; no full branch or hostile-code authority claim.'}
+    except (subprocess.CalledProcessError, json.JSONDecodeError, ValueError, OSError, KeyError, TypeError) as exc:
+        return {'status': 'UNKNOWN',
+                'reason':'Verifier source or baseline unavailable/invalid at candidate or declared base revision',
+                'qualification_credit':False}
 
 def render(doc):
     lines=['# Mage.Verify execution and omission inventory', '',
            'Inventory status: '+doc['status'], '',
            'Source inventory does not prove runtime coverage. Disabled checks are NOT_RUN; branch review surfaces remain UNKNOWN.', '']
+    if doc.get('baseline_anchor_sha'):
+        lines += ['Review anchor: `'+doc['baseline_anchor_sha']+'` ('+doc.get('baseline_anchor_relation','UNKNOWN')+')',
+                  'Anchor baseline/source match: '+str(doc.get('anchor_baseline_matches_source'))+
+                  '; candidate baseline/source match: '+str(doc.get('candidate_baseline_matches_source'))+
+                  '; source drift: '+str(doc.get('source_changed_from_anchor'))+
+                  '; baseline drift: '+str(doc.get('baseline_changed_from_anchor')), '']
     for record in doc.get('disabled_tests', []):
         lines.append('- '+record['method']+' — '+record['role']+' / NOT_RUN (`'+record['path']+'`)')
     lines += ['', 'Runtime XML: executed='+str(doc.get('runtime_executed_count',0))+
@@ -109,13 +149,14 @@ def main():
     parser.add_argument('mode',choices=['check','generate'])
     parser.add_argument('--repo',type=Path,default=Path('.'))
     parser.add_argument('--rev',default='HEAD')
+    parser.add_argument('--baseline-rev')
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--markdown',type=Path)
     args=parser.parse_args()
     if args.mode=='generate':
         doc=inventory(args.repo,args.rev)
     else:
-        doc=observe(args.repo,args.rev,args.repo)
+        doc=observe(args.repo,args.rev,args.repo,args.baseline_rev)
     args.out.parent.mkdir(parents=True,exist_ok=True)
     args.out.write_text(json.dumps(doc,indent=2,sort_keys=True)+'\n')
     if args.markdown:

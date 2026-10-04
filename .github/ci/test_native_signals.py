@@ -14,7 +14,7 @@ class NativeSignals(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
-        self.identity = {'checkout_sha': 'source', 'run_id': 'run', 'checkout_tree': 'tree', 'producer_sha256': signals.digest(Path(signals.__file__)), 'event_head_sha':'event', 'run_attempt':'1', 'workflow':'.github/workflows/maven.yml','execution_workspace':'/workspace','reference_directory':'/reference'}
+        self.identity = {'checkout_sha': 'source', 'run_id': 'run', 'checkout_tree': 'tree', 'producer_sha256': signals.digest(Path(signals.__file__)), 'event_head_sha':'event', 'run_attempt':'1', 'workflow':'.github/workflows/maven.yml','execution_workspace':'/workspace','reference_directory':'/reference','verifier_baseline_sha':'baseline'}
         self.log=self.root/'evidence/reactor.log'
         self.log.parent.mkdir()
         self.log.write_text('[INFO] Mage Tests .......... SUCCESS [1 s]\n[INFO] Mage Verify .......... SUCCESS [1 s]\n')
@@ -95,6 +95,8 @@ class NativeSignals(unittest.TestCase):
         # Collection and the module checks run after a failure, never after a cancellation.
         self.assertNotIn('always()',workflow)
         self.assertEqual(workflow.count('${{ !cancelled() }}'),4)
+        self.assertEqual(workflow.count('VERIFIER_BASELINE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}'),2)
+        self.assertEqual(workflow.count('fetch-depth: 2'),2)
     def test_entity_refused(self):
         self.report('Mage.Tests', '<!DOCTYPE x [<!ENTITY y "z">]>'+PASS)
         self.assertEqual(self.result('Mage.Tests'),'UNKNOWN')
@@ -136,7 +138,7 @@ class NativeSignals(unittest.TestCase):
 
     def test_identity_provenance_fields_are_not_artifact_authority(self):
         self.report('Mage.Tests', PASS); doc=signals.collect(self.root,self.identity)
-        for field in ('checkout_tree','event_head_sha','run_attempt','workflow','execution_workspace','reference_directory'):
+        for field in ('checkout_tree','event_head_sha','run_attempt','workflow','execution_workspace','reference_directory','verifier_baseline_sha'):
             altered=copy.deepcopy(doc); altered['identity'][field]='forged'
             self.assertEqual(signals.consume(altered,'Mage.Tests','source','run',self.root,self.identity),'UNKNOWN',field)
 

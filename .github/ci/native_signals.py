@@ -13,7 +13,7 @@ import mtgjson_reference as reference
 import verifier_gaps
 
 MODULES = ("Mage.Tests", "Mage.Verify")
-SCHEMA = "mage.native-module-signals/3"
+SCHEMA = "mage.native-module-signals/4"
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -127,7 +127,7 @@ def collect(root, identity, source_root=None):
             outcome = 'UNKNOWN'
         results[module] = {"native_outcome": outcome, "reactor_completion": completion, "reactor_log_sha256": reactor_digest, "counts": totals, "reports": suites, "problems": problems,
                            "qualification_credit": False, "complete_coverage_claimed": False,
-                           "disabled_coverage": verifier_gaps.observe(source_root, identity['checkout_sha'], root) if module == 'Mage.Verify' else {'status': 'NOT_APPLICABLE'},
+                           "disabled_coverage": verifier_gaps.observe(source_root, identity['checkout_sha'], root, identity.get('verifier_baseline_sha')) if module == 'Mage.Verify' else {'status': 'NOT_APPLICABLE'},
                            "reference_binding": binding}
     return {"schema": SCHEMA, "identity": identity, "producer": "native Maven reports, candidate-controlled",
             "evidence_class": "NATIVE_REPORT_OBSERVED", "trusted_qualification": False, "modules": results}
@@ -170,7 +170,8 @@ def main():
                     'workflow': '.github/workflows/maven.yml',
                     'producer_sha256': digest(Path(__file__)),
                     'execution_workspace': os.environ.get('GITHUB_WORKSPACE'),
-                    'reference_directory': str(Path(os.environ['RUNNER_TEMP'])/'mtgjson-reference') if os.environ.get('RUNNER_TEMP') else None}
+                    'reference_directory': str(Path(os.environ['RUNNER_TEMP'])/'mtgjson-reference') if os.environ.get('RUNNER_TEMP') else None,
+                    'verifier_baseline_sha': os.environ.get('VERIFIER_BASELINE_SHA')}
         doc = collect(args.root, identity)
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(doc, indent=2, sort_keys=True) + '\n')
@@ -187,6 +188,7 @@ def main():
             'producer_sha256': digest(Path(__file__)),
             'execution_workspace': os.environ.get('GITHUB_WORKSPACE'),
             'reference_directory': str(Path(os.environ['RUNNER_TEMP'])/'mtgjson-reference') if os.environ.get('RUNNER_TEMP') else None,
+            'verifier_baseline_sha': os.environ.get('VERIFIER_BASELINE_SHA'),
         }
         outcome = consume(doc, args.module, args.expected_sha, args.expected_run,
                           args.input.parent.parent, context)

@@ -25,6 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      with:
+        fetch-depth: 2
     - name: Setup JDK 17
       uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
       with:
@@ -37,8 +39,11 @@ jobs:
         python3 .github/ci/test_mtgjson_reference.py
         python3 .github/ci/test_verifier_gaps.py
     - name: Require source-bound verifier omission inventory
+      env:
+        BASELINE_REV: ${{ github.event.pull_request.base.sha || github.sha }}
       run: >-
         python3 .github/ci/verifier_gaps.py check
+        --baseline-rev "$BASELINE_REV"
         --out evidence/VERIFIER_GAPS.json
         --markdown evidence/VERIFIER_GAPS.md
     - name: Fetch and verify exact committed MTGJSON reference
@@ -55,14 +60,18 @@ jobs:
         mvn test -fae -B -Dxmage.verify.mtgjson.reference="${GITHUB_WORKSPACE}/Mage.Verify/mtgjson-reference.json" -Dxmage.verify.mtgjson.dir="${RUNNER_TEMP}/mtgjson-reference" -Dstyle.color=never -Dxmage.dataCollectors.printGameLogs=false -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/.travis/log4j.properties | tee evidence/reactor.log
     - name: Regenerate verifier omission evidence after Maven
       if: ${{ !cancelled() }}
+      env:
+        BASELINE_REV: ${{ github.event.pull_request.base.sha || github.sha }}
       run: >-
         python3 .github/ci/verifier_gaps.py check
+        --baseline-rev "$BASELINE_REV"
         --out evidence/VERIFIER_GAPS.json
         --markdown evidence/VERIFIER_GAPS.md
     - name: Record distinct native module signals
       if: ${{ !cancelled() }}
       env:
         EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        VERIFIER_BASELINE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
       run: python3 .github/ci/native_signals.py collect --out evidence/NATIVE_MODULE_SIGNALS.json
     - name: Upload native source-bound module evidence
       if: ${{ !cancelled() }}
@@ -91,6 +100,8 @@ jobs:
         module: [Mage.Tests, Mage.Verify]
     steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      with:
+        fetch-depth: 2
     - name: Read same-run module evidence
       uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
       with:
@@ -99,6 +110,7 @@ jobs:
     - name: Expose independent native outcome
       env:
         EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        VERIFIER_BASELINE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
       run: >-
         python3 .github/ci/native_signals.py signal
         --input native-evidence/evidence/NATIVE_MODULE_SIGNALS.json
