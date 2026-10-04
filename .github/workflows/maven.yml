@@ -37,8 +37,11 @@ jobs:
         python3 .github/ci/test_mtgjson_reference.py
         python3 .github/ci/test_verifier_gaps.py
     - name: Require source-bound verifier omission inventory
+      env:
+        BASELINE_REV: ${{ github.event.pull_request.base.sha || github.sha }}
       run: >-
         python3 .github/ci/verifier_gaps.py check
+        --baseline-rev "$BASELINE_REV"
         --out evidence/VERIFIER_GAPS.json
         --markdown evidence/VERIFIER_GAPS.md
     - name: Fetch and verify exact committed MTGJSON reference
@@ -55,8 +58,11 @@ jobs:
         mvn test -fae -B -Dxmage.verify.mtgjson.reference="${GITHUB_WORKSPACE}/Mage.Verify/mtgjson-reference.json" -Dxmage.verify.mtgjson.dir="${RUNNER_TEMP}/mtgjson-reference" -Dstyle.color=never -Dxmage.dataCollectors.printGameLogs=false -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/.travis/log4j.properties | tee evidence/reactor.log
     - name: Regenerate verifier omission evidence after Maven
       if: ${{ !cancelled() }}
+      env:
+        BASELINE_REV: ${{ github.event.pull_request.base.sha || github.sha }}
       run: >-
         python3 .github/ci/verifier_gaps.py check
+        --baseline-rev "$BASELINE_REV"
         --out evidence/VERIFIER_GAPS.json
         --markdown evidence/VERIFIER_GAPS.md
     - name: Record distinct native module signals
