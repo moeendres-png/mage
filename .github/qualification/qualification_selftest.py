@@ -386,7 +386,9 @@ class Harness:
         Done directly in the repository layout rather than through install:install-file,
         so the control does not depend on the install plugin being resolvable offline.
         """
-        target = sandbox.sandbox_home(self.sandbox_dir) / ".m2" / "repository" / Path(*group.split(".")) / artifact / version
+        relative = Path(*group.split(".")) / artifact / version
+        target = sandbox.sandbox_home(self.sandbox_dir) / ".m2" / "repository" / relative
+        trusted_target = Path(self.seed) / relative
         pom = ('<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion>'
                "<groupId>{}</groupId><artifactId>{}</artifactId><version>{}</version></project>").format(group, artifact, version)
         stem = "{}-{}".format(artifact, version)
@@ -395,6 +397,9 @@ class Harness:
             "c12", str(target), str(jar), stem, pom])
         if proc.returncode != 0:
             raise RuntimeError("could not install {}:{}:{}: {}".format(group, artifact, version, proc.stderr[-300:]))
+        trusted_target.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(jar, trusted_target / (stem + ".jar"))
+        (trusted_target / (stem + ".pom")).write_text(pom)
 
     def stage_readonly(self, src: Path, name: str) -> Path:
         dest = Path("/var/lib/c12-selftest") / name
@@ -489,7 +494,8 @@ class Harness:
                   "--sandbox-user", self.user, "--sandbox-prepare", str(prepare_path),
                   "--bundle-dir", str(self.bundle_dir), "--work-dir", str(fx["work"] / "witness"),
                   "--build-result", str(build_path), "--build-definition-audit", str(audit_path),
-                  "--module-classpaths", str(classpaths_path), "--out", str(witness_path)],
+                  "--module-classpaths", str(classpaths_path), "--trusted-maven-repo", self.seed,
+                  "--out", str(witness_path)],
             capture_output=True, text=True, check=False, env=env)
         if corrupt_witness and witness_path.is_file():
             witness_path.write_text("{ this is not valid json")
