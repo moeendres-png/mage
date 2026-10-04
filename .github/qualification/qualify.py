@@ -226,7 +226,11 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
         if corpus.get("status") not in ("OK", "VIOLATION", "UNKNOWN"):
             unknown("corpus_policy_unusable: status={}".format(corpus.get("status")))
         required_methods_bound = corpus.get("required_methods") or []
-        owning = {str(m).rpartition("#")[0].partition("$")[0] for m in required_methods_bound if isinstance(m, str)}
+        try:
+            owning = {corpus_policy.class_of_method(str(m)) for m in required_methods_bound if isinstance(m, str)}
+        except corpus_policy.CorpusError as exc:
+            fail("required_method_identity_malformed: {}".format(exc))
+            owning = set()
         inheriting = corpus.get("required_inheriting_classes")
         if not isinstance(inheriting, list) or not all(isinstance(c, str) for c in inheriting):
             unknown("required_inheriting_classes_missing: the corpus policy bound no inheriting-class list")
