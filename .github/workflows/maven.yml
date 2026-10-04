@@ -71,6 +71,7 @@ jobs:
       if: ${{ !cancelled() }}
       env:
         EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        VERIFIER_BASELINE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
       run: python3 .github/ci/native_signals.py collect --out evidence/NATIVE_MODULE_SIGNALS.json
     - name: Upload native source-bound module evidence
       if: ${{ !cancelled() }}
