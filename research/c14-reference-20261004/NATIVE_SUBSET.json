@@ -1,0 +1,59 @@
+{
+  "source_sha": "33b000e60a4e0dcf12bc216aebbbc0f93bd7a30c",
+  "source_tree": "be3d81639893fbd35748be06c3a198cca772e734",
+  "head_after": "33b000e60a4e0dcf12bc216aebbbc0f93bd7a30c",
+  "command": [
+    "mvn",
+    "-B",
+    "-pl",
+    "Mage.Verify",
+    "-am",
+    "-Dtest=VerifyCardDataTest",
+    "-Dsurefire.failIfNoSpecifiedTests=false",
+    "-Dxmage.verify.mtgjson.reference=/home/moeen/work/ci479-mage-c14-20261004/Mage.Verify/mtgjson-reference.json",
+    "-Dxmage.verify.mtgjson.dir=/home/moeen/work/c14-reference-20261004",
+    "test"
+  ],
+  "exit": 1,
+  "counts": {
+    "tests": 28,
+    "failures": 2,
+    "errors": 0,
+    "skipped": 8
+  },
+  "reports": {
+    "TEST-mage.verify.VerifyCardDataTest.xml": {
+      "sha256": "20cdb62f2cf470d8270a1cfe7060c0450b9a5a91f3f3cceb5e7a8844de10360d",
+      "tests": 28,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 8
+    }
+  },
+  "log_sha256": "4c9033f1862b18bff1dd61e9111d08c03354a5e60bbfb848c1102030281f4480",
+  "selected_log": [
+    "[ERROR] Failures: ",
+    "[ERROR]   VerifyCardDataTest.test_checkMissingSetData:1230 Found set errors: 3",
+    "[ERROR]   VerifyCardDataTest.test_verifyCards:361 found 15 errors in 91131 cards verify (see errors list above)",
+    "[ERROR] Tests run: 28, Failures: 2, Errors: 0, Skipped: 8",
+    "[INFO] BUILD FAILURE",
+    "[INFO] Total time:  01:13 min",
+    "[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.1.2:test (default-test) on project mage-verify: There are test failures.",
+    "[ERROR] ",
+    "[ERROR] Please refer to /home/moeen/work/ci479-mage-c14-20261004/Mage.Verify/target/surefire-reports for the individual test results.",
+    "[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.",
+    "[ERROR] -> [Help 1]",
+    "[ERROR] ",
+    "[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.",
+    "[ERROR] Re-run Maven using the -X switch to enable full debug logging.",
+    "[ERROR] ",
+    "[ERROR] For more information about the errors and possible solutions, please read the following articles:",
+    "[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException",
+    "[ERROR] ",
+    "[ERROR] After correcting the problems, you can resume the build with the command",
+    "[ERROR]   mvn <args> -rf :mage-verify"
+  ],
+  "evidence_class": "DIRECTLY_VERIFIED_NATIVE_SUBSET",
+  "qualification_credit": false,
+  "scope": "VerifyCardDataTest only; other engine tests NOT_RUN in this local run"
+}
