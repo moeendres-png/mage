@@ -1,6 +1,6 @@
 {
   "source_before": "19837eff7a2b9f41c4e415172141124102d9fef7",
-  "fixed_producer_sha256": "b031837ad61e6f4f6ddd238551aa36b8d5160a7f4efc52baefde1a48f75b7545",
+  "fixed_producer_sha256": "738e4dc9b296f6b979672ba97cdded986acf9ec19dc75f00234d34d0b4f2ad45",
   "artifact_id": 11301146989,
   "run_id": 37195645027,
   "classification": "DIRECTLY_VERIFIED reprocessing of native observations; not new native execution or qualification",
@@ -23,7 +23,7 @@
     }
   },
   "controls": {
-    "passed": 20,
+    "passed": 21,
     "failed": 0,
     "command": "python3 .github/ci/test_native_signals.py"
   }

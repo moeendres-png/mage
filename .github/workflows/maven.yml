@@ -73,6 +73,8 @@ jobs:
         name: native-module-signals-${{ github.run_id }}-${{ github.run_attempt }}
         path: native-evidence
     - name: Expose independent native outcome
+      env:
+        EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       run: >-
         python3 .github/ci/native_signals.py signal
         --input native-evidence/evidence/NATIVE_MODULE_SIGNALS.json

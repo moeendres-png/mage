@@ -14,7 +14,7 @@ class NativeSignals(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
-        self.identity = {'checkout_sha': 'source', 'run_id': 'run', 'checkout_tree': 'tree', 'producer_sha256': signals.digest(Path(signals.__file__))}
+        self.identity = {'checkout_sha': 'source', 'run_id': 'run', 'checkout_tree': 'tree', 'producer_sha256': signals.digest(Path(signals.__file__)), 'event_head_sha':'event', 'run_attempt':'1', 'workflow':'.github/workflows/maven.yml'}
         self.log=self.root/'evidence/reactor.log'
         self.log.parent.mkdir()
         self.log.write_text('[INFO] Mage Tests .......... SUCCESS [1 s]\n[INFO] Mage Verify .......... SUCCESS [1 s]\n')
@@ -24,7 +24,7 @@ class NativeSignals(unittest.TestCase):
         path.write_text(xml)
         return path
     def result(self, module):
-        return signals.consume(signals.collect(self.root, self.identity), module, 'source', 'run', self.root)
+        return signals.consume(signals.collect(self.root, self.identity), module, 'source', 'run', self.root,self.identity)
     def test_mixed_outcomes_stay_mixed(self):
         self.report('Mage.Tests', PASS)
         self.report('Mage.Verify', FAIL)
@@ -47,13 +47,13 @@ class NativeSignals(unittest.TestCase):
     def test_source_and_run_mismatch(self):
         self.report('Mage.Tests', PASS)
         doc=signals.collect(self.root,self.identity)
-        self.assertEqual(signals.consume(doc,'Mage.Tests','other','run',self.root),'UNKNOWN')
-        self.assertEqual(signals.consume(doc,'Mage.Tests','source','other',self.root),'UNKNOWN')
+        self.assertEqual(signals.consume(doc,'Mage.Tests','other','run',self.root,self.identity),'UNKNOWN')
+        self.assertEqual(signals.consume(doc,'Mage.Tests','source','other',self.root,self.identity),'UNKNOWN')
     def test_forged_pass_rejected(self):
         self.report('Mage.Tests', FAIL)
         doc=signals.collect(self.root,self.identity)
         doc['modules']['Mage.Tests']['native_outcome']='PASS'
-        self.assertEqual(signals.consume(doc,'Mage.Tests','source','run',self.root),'UNKNOWN')
+        self.assertEqual(signals.consume(doc,'Mage.Tests','source','run',self.root,self.identity),'UNKNOWN')
     def test_interrupted_partial_run_is_unknown(self):
         self.report('Mage.Tests', PASS)
         self.log.write_text('[INFO] compiling...')
@@ -110,21 +110,27 @@ class NativeSignals(unittest.TestCase):
                 elif change=='hash': record['reports'][0]['sha256']='0'*64
                 elif change=='duplicate': record['reports']*=2
                 else: record['qualification_credit']=True
-                self.assertEqual(signals.consume(altered,'Mage.Tests','source','run',self.root),'UNKNOWN')
+                self.assertEqual(signals.consume(altered,'Mage.Tests','source','run',self.root,self.identity),'UNKNOWN')
     def test_changed_or_missing_xml_is_unknown(self):
         path=self.report('Mage.Tests', PASS); doc=signals.collect(self.root,self.identity)
         path.write_text(FAIL)
-        self.assertEqual(signals.consume(doc,'Mage.Tests','source','run',self.root),'UNKNOWN')
+        self.assertEqual(signals.consume(doc,'Mage.Tests','source','run',self.root,self.identity),'UNKNOWN')
         path.unlink()
-        self.assertEqual(signals.consume(doc,'Mage.Tests','source','run',self.root),'UNKNOWN')
+        self.assertEqual(signals.consume(doc,'Mage.Tests','source','run',self.root,self.identity),'UNKNOWN')
     def test_changed_reactor_log_is_unknown(self):
         self.report('Mage.Tests', PASS); doc=signals.collect(self.root,self.identity)
         self.log.write_text('[INFO] Mage Tests 1.4.61 .... FAILURE\n')
-        self.assertEqual(signals.consume(doc,'Mage.Tests','source','run',self.root),'UNKNOWN')
+        self.assertEqual(signals.consume(doc,'Mage.Tests','source','run',self.root,self.identity),'UNKNOWN')
     def test_producer_mismatch_is_unknown(self):
         self.report('Mage.Tests', PASS); doc=signals.collect(self.root,self.identity)
         doc['identity']['producer_sha256']='other'
-        self.assertEqual(signals.consume(doc,'Mage.Tests','source','run',self.root),'UNKNOWN')
+        self.assertEqual(signals.consume(doc,'Mage.Tests','source','run',self.root,self.identity),'UNKNOWN')
+
+    def test_identity_provenance_fields_are_not_artifact_authority(self):
+        self.report('Mage.Tests', PASS); doc=signals.collect(self.root,self.identity)
+        for field in ('checkout_tree','event_head_sha','run_attempt','workflow'):
+            altered=copy.deepcopy(doc); altered['identity'][field]='forged'
+            self.assertEqual(signals.consume(altered,'Mage.Tests','source','run',self.root,self.identity),'UNKNOWN',field)
 
 if __name__=='__main__':
     unittest.main()

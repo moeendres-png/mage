@@ -78,7 +78,7 @@ def collect(root, identity):
     return {"schema": SCHEMA, "identity": identity, "producer": "native Maven reports, candidate-controlled",
             "evidence_class": "NATIVE_REPORT_OBSERVED", "trusted_qualification": False, "modules": results}
 
-def consume(doc, module, expected_sha, expected_run, root):
+def consume(doc, module, expected_sha, expected_run, root, expected_context):
     # The artifact JSON is a declaration, not authority over the raw observations.
     # Re-read the actual XML and reactor log in the extracted same-run artifact.
     if (not isinstance(doc, dict) or doc.get('schema') != SCHEMA
@@ -86,9 +86,10 @@ def consume(doc, module, expected_sha, expected_run, root):
             or not isinstance(doc.get('identity'), dict)
             or doc['identity'].get('checkout_sha') != expected_sha
             or str(doc['identity'].get('run_id')) != str(expected_run)
-            or doc['identity'].get('producer_sha256') != digest(Path(__file__))):
+            or doc['identity'] != expected_context
+            or expected_context.get('producer_sha256') != digest(Path(__file__))):
         return "UNKNOWN"
-    fresh = collect(root, doc['identity'])
+    fresh = collect(root, expected_context)
     if doc != fresh:
         return "UNKNOWN"
     return fresh['modules'][module]['native_outcome']
@@ -120,8 +121,18 @@ def main():
         return 0
     try:
         doc = json.loads(args.input.read_text())
-        outcome = consume(doc, args.module, args.expected_sha, args.expected_run, args.input.parent.parent)
-    except (OSError, ValueError, AttributeError, TypeError) as exc:
+        context = {
+            'checkout_sha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+            'checkout_tree': subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip(),
+            'event_head_sha': os.environ['EVENT_HEAD_SHA'],
+            'run_id': args.expected_run,
+            'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+            'workflow': '.github/workflows/maven.yml',
+            'producer_sha256': digest(Path(__file__)),
+        }
+        outcome = consume(doc, args.module, args.expected_sha, args.expected_run,
+                          args.input.parent.parent, context)
+    except (OSError, ValueError, AttributeError, TypeError, KeyError, subprocess.CalledProcessError) as exc:
         print('Native signal unavailable:', exc)
         return 2
     record = doc.get('modules', {}).get(args.module, {})

@@ -13,7 +13,7 @@ totals. This is retained in malformed-consumer-BEFORE.json. The consumer now
 re-collects the extracted same-run XML/logs and compares the entire record,
 including counts, paths, hashes, source/run and producer digest. 20 controls
 pass, including component alterations, deleted/changed XML, changed log,
-producer mismatch and actual versioned Maven lines. Reprocessing the unchanged
+ producer mismatch and actual versioned Maven lines. Reprocessing the unchanged
 hosted bytes gives TestsPASS/VerifyFAIL; it is not a fresh build. New exact-head
 hosted execution and independent review still required before merge.
 
@@ -23,3 +23,10 @@ Commands: python3 .github/ci/test_native_signals.py; collect --root ARTIFACT_ROO
 --expected-run37195645027. To reproduce repaired reprocessing, use current
 collector and record its actual producer digest; old JSON remains historical.
 No native observation is trusted qualification evidence.
+
+Follow-up P2 source697fe2bd allowed four altered provenance fields to remain
+PASS, because artifact identity was copied into the comparator. IDENTITY_BEFORE
+retains the synthetic proof. Identity now derives independently from checked-out
+SHA/TREE, GitHub event head/run/attempt, fixed workflow and actual producer bytes.
+All21 local controls pass. This does not authenticate candidate-native outputs
+against adversarial test bytecode and is not C12 qualification credit.
