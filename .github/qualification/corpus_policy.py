@@ -713,6 +713,9 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
         "required_pairs": [],
         "required_methods": [],
         "required_inheriting_classes": [],
+        "trusted_required_pairs": [],
+        "trusted_required_methods": [],
+        "trusted_required_inheriting_classes": [],
         "additions": [],
         "removed_without_approval": [],
         "behind_default_branch": [],
@@ -813,6 +816,24 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
     # silently stop it from running (it then never enters, which fails).
     result["required_inheriting_classes"] = sorted(
         set(candidate["inheriting"]) | (set(trusted["inheriting"]) & candidate_set)
+    )
+
+    # Qualification authority is the trusted default-branch corpus, never test
+    # source supplied by the candidate. Candidate additions remain visible in
+    # the delta policy/native CI but cannot manufacture trusted credit. A
+    # default-branch approval only removes the exact class/method it names.
+    applied = {r["entry"] for r in result["approved_removals_applied"]}
+    approved_classes = {e for e in applied if METHOD_SEPARATOR not in e}
+    result["trusted_required_pairs"] = sorted(
+        e for e in entries if e not in approved_classes
+    )
+    result["trusted_required_methods"] = sorted(
+        m for m in methods
+        if m not in applied and class_of_method(m) not in approved_classes
+    )
+    trusted_pair_set = set(result["trusted_required_pairs"])
+    result["trusted_required_inheriting_classes"] = sorted(
+        e for e in trusted["inheriting"] if e in trusted_pair_set
     )
 
     if result["removed_without_approval"]:
