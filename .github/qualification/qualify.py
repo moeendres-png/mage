@@ -45,9 +45,9 @@ import os
 import sys
 from pathlib import Path
 
-SCHEMA = "mage.candidate-qualification.evidence/4"
-WITNESS_SCHEMA = "mage.candidate-qualification.witness/4"
-EXEC_WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/2"
+SCHEMA = "mage.candidate-qualification.evidence/5"
+WITNESS_SCHEMA = "mage.candidate-qualification.witness/5"
+EXEC_WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/3"
 INTEGRITY_SCHEMA = "mage.candidate-qualification.integrity/1"
 
 PASS = "PASS"

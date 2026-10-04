@@ -1,0 +1,53 @@
+{
+  "evidence_class": "DIRECTLY_VERIFIED synthetic corpus and counter controls; no full native corpus or hostile-JVM claim",
+  "controls": {
+    "passed": 79,
+    "failed": 0,
+    "not_run": 0
+  },
+  "counter_contract": {
+    "before_source": "363b70afdc3eca17d4ef8f4883da02ff5a4ad37d",
+    "before_failures": 84,
+    "after_tests_passed": 10,
+    "after_failures": 0,
+    "command": "python3 -I -S -B .github/qualification/test_counter_contract.py"
+  },
+  "baseline": {
+    "classes": 1997,
+    "enabled_methods": 6835,
+    "removed_obligations": 0,
+    "approvals_changed": false
+  },
+  "producer_hashes": {
+    "qualification_selftest.py": "0e74ff8f9b023cf32c5a11f26a135437d847e2af7b1f6216b65256337b2132b9",
+    "README.md": "52c1ea5059382a1afebb6140bfd40a56acff5f5d7727cd2f33e3535b19278063",
+    "sandbox.py": "3ece206eaab4b8137d8d2e075d7219b88f8a4cbf367268b01b8cb1795d378154",
+    "witness.py": "e53d2c8344b4e70b5ac4af683394b95c11ef9d930c02468bc054c4971680f5c1",
+    "build_definition_audit.py": "c4fb9cffc6c4ee5db65c310fef14a341b048da0ad90228fc3cfa8ab7b6e3cb1f",
+    "test_counter_contract.py": "e6f5b318c79628168321cbf29f9fa9e734fd36494d25da850f633f7656c8392a",
+    "TrustedTestDriver.java": "735f1f48b6af2bcf2be3202c7f7967bf8a6c03530e6ce1f2cdf3ac15023f0e9b",
+    "test_corpus_baseline.json": "b03abc89566d0c1b548e121d9128e3e1b012873b96b5dc3201acbd618d8e2ae2",
+    "resolve_classpaths.py": "85e5843e9ea8d6ba6cf2b249a9e47b19f9789bb499c021ce2d4ebe8b7a59d1b2",
+    "record_mergeability.py": "abe063ef86963d37e75167c397b570d575b22e8185272d4c0f09950bbd5e916e",
+    "corpus_policy.py": "88a77796714a30e3edc5080c0e31c385d484502ae23a8086880aac5c645b8488",
+    "source_lock.py": "6e060803dfad4041d5efa7a1b905a73a1cd1b2ee5eaaa2db77e401e053df7716",
+    "qualify.py": "fa8f359890528e4d9d416776b338c6a9245bd4af7dae93c3f48d9a7e63f1695d",
+    "summarize.py": "f8b991decab50775a73dd8753d60de9cf8673c391d077fb3469294b6b3363432"
+  },
+  "artifact_hashes": {
+    "unchanged-qualified-type-before.bundle": "1c7ff648014d53b9960a8dd1102912dce0f14d6a00f24e0a0b6d774b6641cfc9",
+    "QUALIFIED_PARAMETERS_BEFORE.json": "88842892bedd5e014687ac54768317a734dad56b56cd4334d5acff99ba684051",
+    "run-c12-qualified-controls-20261004.py": "d9f475500ce0bbf7167ecf250b0b24b7f5d6ffa7541d0b70b146390047556bd2",
+    "replaced-qualified-type-before.bundle": "89c57312d7504ed6a474d45b588e2d85a1817d74b66c6f2b82c7c9afe1ac8973",
+    "counter-fixture-INTEGRITY.json": "8eac62ce752bf02e9f36a5770c4bcc83ed22dcc5cb2b395dab8ab27b50769eee",
+    "counter-fixture-SOURCE_LOCK.json": "06412b95c583dbb234925a736208c2ca9a2d119becbe3a04d5a9cb6053d7ff24",
+    "counter-fixture-TRUSTED_WITNESS.json": "ee0c5cb8cdaef85196d2cf69803c3f2e1708e62473d7debe0abc4a1afb4b4487",
+    "COUNTER_REPRODUCTION.json": "a122697c8cb767b1d7142eb70bde6398d2b8fcc8a9bd717841ec51804817a453",
+    "FULL_CONTROLS.json.gz": "f3dae90b8f3b9d51ad9ee4358ab403c92ab7b4ef78c128cb61697e2c43d66403",
+    "counter-fixture-QUALIFICATION_EVIDENCE.json": "e59b0481036fa9c462ec6e0bdf8304fec3ec7f64b1bf11cb4734723af544ed94",
+    "c12-qualified-parameters-before-20261004.py": "a64b93912280383ac49fcde8a21edffa3003ec58a32c3957ea733af5afb64316",
+    "counter-fixture.bundle": "0204306c42dc53ad15367a96eb671572b946a61603af5e8725b097dd4c723375",
+    "regenerate-c12-current-counter-20261004.py": "1947f99808ee6607d18edf1307a8c32f001fda01fe4f92b0e103f4fa99d1e806",
+    "CONTRACT.md": "36e6ed10831da43598bb99f45a503c74b30f9119dd741a92142447d463477c9c"
+  }
+}

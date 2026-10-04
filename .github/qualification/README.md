@@ -147,15 +147,18 @@ trusted validator commit** (`corpus_policy.py`, Git data only):
 
 A method is a required test when it carries `@Test`, `@ParameterizedTest`, `@RepeatedTest`,
 `@TestFactory` or `@TestTemplate`, or when it is a public no-argument `test*` method of a JUnit 3
-`TestCase` subclass. Comments and literals are ignored. The v3 identity binds the binary declaring class (including each nested type) and
-`methodName(erasedSimpleParameterTypes)`, preserving arrays and converting varargs
-to arrays. The driver resolves the actual declaring Java method, with no guessed
-identity on resolution failure. Inherited tests retain declaring-class attribution;
-parameterized and repeated invocations share only their own declaration identity.
-Two declarations that normalize to the same identity (including enabled/disabled
-collisions or different packages with the same simple parameter type) are rejected
-as unsupported, rather than collapsed. Generic type-variable bounds are not guessed;
-unmatched signatures fail the required-runtime-observation gate.
+`TestCase` subclass. Comments and literals are ignored. The v4 identity binds the binary declaring
+class (including each nested type) and `methodName(qualifiedErasedParameterTypes)`.
+Arrays retain their shape; varargs become arrays. Primitive types and explicitly
+qualified reference spellings are supported. Import resolution, type-variable
+bounds and nested parameter type resolution are never guessed: unsupported
+spellings fail closed. The driver uses the declaring Java method and actual
+`Class.getTypeName()` types, with no guessed identity on resolution failure.
+Inherited tests retain declaring-class attribution; parameterized and repeated
+invocations share only their own declaration identity. Different qualified
+types cannot replace each other, even when only one occurs per revision.
+All 6835 enabled native Mage baseline declarations currently have no parameters;
+this restriction does not drop existing required tests.
 
 The static reading is not the authority. The trusted driver records every method the launcher
 started (`observed_methods`, attributed to the declaring class), and `qualify.py` requires every
@@ -264,7 +267,7 @@ suite fails.
   - `qualify.py` re-derives the selection from the policy and fails `selected_set_not_policy_derived` on any difference.
   - A corpus class with neither stays protected by the class-level policy and must still compile, but it is not run. It is listed in `corpus_classes_without_required_methods`. Examples are an abstract base, a class-level `@Ignore`, or a helper without `@Test`.
   - **Limit:** an inherited test is not required by name; it is credited through its class being entered and every failure counting. A superclass outside the test source roots, or named as a nested type, is not resolved, so a class inheriting only from such a superclass is not run.
-- **Method identity is collision-rejecting declaring class plus erased parameter signature (v3).** Nested and overloaded test removal controls CTRL-71–76 protect separate declarations. Ambiguous normalized signatures cannot earn PASS. A required `@ParameterizedTest`, `@RepeatedTest` or `@TestFactory` counts as started when its container starts, even if every invocation is skipped. Static enumeration misses composed or meta `@Test` annotations, `@Theory`, and JUnit 3 `final` methods. Such methods are not required by name: they still run when their class runs, but a regression in a method whose class is never run is not seen.
+- **Method identity binds declaring class and qualified erased parameter signature (v4).** Nested and overloaded test removal controls CTRL-71–78 protect separate declarations. Ambiguous normalized signatures cannot earn PASS. A required `@ParameterizedTest`, `@RepeatedTest` or `@TestFactory` counts as started when its container starts, even if every invocation is skipped. Static enumeration misses composed or meta `@Test` annotations, `@Theory`, and JUnit 3 `final` methods. Such methods are not required by name: they still run when their class runs, but a regression in a method whose class is never run is not seen.
 - **Network egress.** Candidate build code still has the runner's network access. The job is read-only, persists no credentials and references no secret.
 - **Main-class bytecode** comes from the candidate's Maven build under an audited build definition, with annotation processing disabled.
 - **The inherited `Mage.Verify` red** (`VerifyCardDataTest`, external card-data drift) fails every candidate's positive control. It is deliberately not excluded. Which signals belong in the campaign is C13's decision (#494), and the drift is C14's (#495).
@@ -274,7 +277,7 @@ suite fails.
 
 ## Method identity migration (2026-10-04)
 
-Baseline/policy v3, direct execution witness v2 and aggregate witness/evidence v4
+Baseline/policy v4, direct execution witness v3 and aggregate witness/evidence v5
 replace the lossy method-name contracts. Historical v2 baselines and v1 direct
 witnesses are incompatible and receive no credit under this validator. The old
 trusted master validator will also reject the new candidate baseline during this

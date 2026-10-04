@@ -65,8 +65,8 @@ from pathlib import PurePosixPath
 # Trusted code never resolves tools from the inherited PATH (see sandbox.TOOL_PATH).
 GIT = shutil.which("git", path="/usr/sbin:/usr/bin:/sbin:/bin") or "/usr/bin/git"
 
-BASELINE_SCHEMA = "mage.candidate-qualification.test-corpus-baseline/3"
-POLICY_SCHEMA = "mage.candidate-qualification.corpus-policy/3"
+BASELINE_SCHEMA = "mage.candidate-qualification.test-corpus-baseline/4"
+POLICY_SCHEMA = "mage.candidate-qualification.corpus-policy/4"
 BASELINE_PATH = ".github/qualification/test_corpus_baseline.json"
 
 # Selection rule for what must run, never an evidence heuristic: a class that
@@ -91,14 +91,14 @@ ENUMERATION_RULE = {
     "source_suffix": SOURCE_SUFFIX,
     "pair_format": "module" + PAIR_SEPARATOR + "fully.qualified.ClassName",
     "module_rule": "nearest ancestor directory of the test source root that holds a pom.xml",
-    "method_format": "module" + PAIR_SEPARATOR + "fully.qualified.ClassName" + METHOD_SEPARATOR + "methodName(erasedSimpleParameterTypes)",
+    "method_format": "module" + PAIR_SEPARATOR + "fully.qualified.ClassName" + METHOD_SEPARATOR + "methodName(qualifiedErasedParameterTypes)",
     "method_rule": {
         "test_annotations": list(TEST_METHOD_ANNOTATIONS),
         "disabling_annotation_regex": DISABLING_ANNOTATION_RE,
         "junit3_base_regex": JUNIT3_BASE_RE,
         "junit3_method_regex": JUNIT3_METHOD_RE,
         "scope": "binary declaring class, including nested types; comments and literals ignored",
-        "signature": "erased simple parameter types, arrays preserved, varargs as array",
+        "signature": "primitive or explicitly qualified erased types; arrays preserved; unresolved types fail closed",
         "ambiguity": "duplicate normalized declaration identities are unsupported and fail closed",
         "enabled": "a test method with no disabling annotation on itself or an enclosing type",
     },
@@ -261,12 +261,12 @@ def _skip_parens(tokens: list[str], start: int) -> int:
 
 
 def _parameter_signature(tokens: list[str]) -> str:
-    """Collision-rejecting erased parameter signature, also emitted by the driver.
+    """Primitive or explicitly qualified erased parameter identity.
 
-    Simple names avoid guessing Java import/type resolution. A pair of overloads
-    whose erased simple types collide is rejected, never collapsed into one test.
-    Unresolved type variables cannot earn runtime credit: reflection emits their
-    actual erased bound, not a guessed Object fallback.
+    Never guess imports, java.lang names, type-variable bounds or nested type
+    resolution. Unsupported reference spellings refuse the corpus. The witness
+    uses Class.getTypeName(), so even a qualified spelling resolved differently
+    by Java cannot receive credit for the declared identity.
     """
     if not tokens:
         return "()"
@@ -315,7 +315,9 @@ def _parameter_signature(tokens: list[str]) -> str:
         if not re.fullmatch(r"[\w$]+(?:\.[\w$]+)*(?:\[\])*", text):
             raise CorpusError("unsupported parameter type: " + text)
         head, _, arrays = text.partition("[")
-        types.append(head.rpartition(".")[2] + ("[" + arrays if arrays else ""))
+        if head not in ("boolean", "byte", "short", "int", "long", "char", "float", "double") and "." not in head:
+            raise CorpusError("unresolved parameter type (explicit qualification required): " + head)
+        types.append(head + ("[" + arrays if arrays else ""))
     return "(" + ",".join(types) + ")"
 
 
@@ -645,7 +647,7 @@ def validate_baseline(doc) -> list[str]:
     known_methods = set(methods)
     for method in methods:
         owner, _, name = method.rpartition(METHOD_SEPARATOR)
-        if class_of_method(method) not in known or not re.fullmatch(r"[\w$]+\((?:[\w$]+(?:\[\])*(?:,[\w$]+(?:\[\])*)*)?\)", name):
+        if class_of_method(method) not in known or not re.fullmatch(r"[\w$]+\((?:[\w$]+(?:\.[\w$]+)*(?:\[\])*(?:,[\w$]+(?:\.[\w$]+)*(?:\[\])*)*)?\)", name):
             problems.append("malformed method {!r}".format(method))
             break
     if doc.get("methods_count") != len(methods):

@@ -1484,7 +1484,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 public class ProbeTest {
   @ParameterizedTest @ValueSource(ints={1}) void proof(int value) {}
-  @ParameterizedTest @ValueSource(strings={"one"}) void proof(String value) {}
+  @ParameterizedTest @ValueSource(strings={"one"}) void proof(java.lang.String value) {}
 }
 """
     run("CTRL-74-overloaded-signature-positive", "positive",
@@ -1493,25 +1493,36 @@ public class ProbeTest {
     run("CTRL-75-overloaded-signature-removal", "red",
         "one surviving overloaded test cannot replace a removed signature",
         "FAIL", "baseline_test_method_removed",
-        project({"ProbeTest": overloads.replace('  @ParameterizedTest @ValueSource(strings={"one"}) void proof(String value) {}\n', '')}),
+        project({"ProbeTest": overloads.replace('  @ParameterizedTest @ValueSource(strings={"one"}) void proof(java.lang.String value) {}\n', '')}),
         base=project({"ProbeTest": overloads}))
-    # Simple erasure deliberately avoids guessing imports. A collision must be
-    # rejected before a baseline can ever be issued, including disabled methods.
-    ambiguous = """package probe;
-class ProbeTest {
-  @org.junit.jupiter.api.Test void proof(one.Foo value) {}
-  @org.junit.jupiter.api.Disabled @org.junit.jupiter.api.Test void proof(two.Foo value) {}
+    qualified = """package probe;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+public class ProbeTest {
+ @ParameterizedTest @MethodSource("arguments") void proof(one.Foo value) {}
+ static java.util.stream.Stream<one.Foo> arguments() { return java.util.stream.Stream.of(new one.Foo()); }
 }
 """
-    try:
-        corpus_policy.java_test_methods(ambiguous)
-        ambiguity_refused = False
-    except corpus_policy.CorpusError as exc:
-        ambiguity_refused = "ambiguous test method identity" in str(exc)
-    rows.append({"control": "CTRL-76-ambiguous-signature-refused", "kind": "red",
-                 "expectation": "ambiguous erased signatures cannot issue a baseline or shrink into a set",
-                 "expected_verdict": "REFUSED", "observed_verdict": "REFUSED" if ambiguity_refused else "ACCEPTED",
-                 "ok": ambiguity_refused})
+    extra = {"src/main/java/one/Foo.java": "package one; public class Foo {}",
+             "src/main/java/two/Foo.java": "package two; public class Foo {}"}
+    qualified_base = project({"ProbeTest": qualified}, extra=extra)
+    run("CTRL-76-qualified-parameter-positive", "positive",
+        "the exact qualified parameter declaration is required and actually started",
+        "PASS", None, qualified_base, base=qualified_base)
+    run("CTRL-77-qualified-parameter-replacement", "red",
+        "replacing one.Foo with two.Foo cannot supply the previous test's identity",
+        "FAIL", "baseline_test_method_removed",
+        project({"ProbeTest": qualified.replace("one.Foo", "two.Foo")}, extra=extra), base=qualified_base)
+    for spelling in ("Foo", "T", "String"):
+        try:
+            corpus_policy.java_test_methods("class ProbeTest { @Test void proof(" + spelling + " value) {} }")
+            refused = False
+        except corpus_policy.CorpusError as exc:
+            refused = "unresolved parameter type" in str(exc)
+        rows.append({"control": "CTRL-78-unresolved-parameter-refused-" + spelling, "kind": "red",
+                     "expectation": "import or bound resolution is never guessed",
+                     "expected_verdict": "REFUSED", "observed_verdict": "REFUSED" if refused else "ACCEPTED",
+                     "ok": refused})
     return rows
 
 

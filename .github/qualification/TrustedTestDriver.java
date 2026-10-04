@@ -95,7 +95,7 @@ public final class TrustedTestDriver {
             if (i > 0) {
                 identity.append(",");
             }
-            identity.append(parameters[i].getSimpleName());
+            identity.append(parameters[i].getTypeName());
         }
         return identity.append(")").toString();
     }
@@ -447,7 +447,7 @@ public final class TrustedTestDriver {
 
         StringBuilder json = new StringBuilder();
         json.append("{\n");
-        json.append("  \"schema\": \"mage.candidate-qualification.trusted-execution-witness/2\",\n");
+        json.append("  \"schema\": \"mage.candidate-qualification.trusted-execution-witness/3\",\n");
         json.append("  \"producer\": \"TrustedTestDriver\",\n");
         json.append("  \"evidence_origin\": \"trusted_side_direct_execution\",\n");
         json.append("  \"candidate_authored_evidence_used\": false,\n");

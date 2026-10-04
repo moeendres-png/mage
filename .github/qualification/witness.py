@@ -56,8 +56,8 @@ sys.path.append(str(Path(__file__).resolve().parent))
 import corpus_policy  # noqa: E402
 import sandbox  # noqa: E402
 
-SCHEMA = "mage.candidate-qualification.witness/4"
-WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/2"
+SCHEMA = "mage.candidate-qualification.witness/5"
+WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/3"
 DRIVER = "TrustedTestDriver.java"
 MAIN_CLASSES_DIR = "target/classes"
 TEST_SOURCE_DIRS = ("src/test/java",)

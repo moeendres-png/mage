@@ -2003,7 +2003,7 @@
  "entries_sha256": "75aac4cb819cc91dfe93cf9bb8b11d2108f07b2ed1df02aa8bb265cb44191640",
  "enumeration_rule": {
   "class_regex": "(Test|Tests|TestCase|Spec|IT)$",
-  "method_format": "module::fully.qualified.ClassName#methodName(erasedSimpleParameterTypes)",
+  "method_format": "module::fully.qualified.ClassName#methodName(qualifiedErasedParameterTypes)",
   "method_rule": {
    "ambiguity": "duplicate normalized declaration identities are unsupported and fail closed",
    "disabling_annotation_regex": "^(Ignore|Disabled\\w*|Enabled\\w*)$",
@@ -2011,7 +2011,7 @@
    "junit3_base_regex": "\\bextends\\s+(?:junit\\.framework\\.)?TestCase\\b",
    "junit3_method_regex": "\\bpublic\\s+void\\s+(test[\\w$]*)\\s*\\(\\s*\\)",
    "scope": "binary declaring class, including nested types; comments and literals ignored",
-   "signature": "erased simple parameter types, arrays preserved, varargs as array",
+   "signature": "primitive or explicitly qualified erased types; arrays preserved; unresolved types fail closed",
    "test_annotations": [
     "Test",
     "ParameterizedTest",
@@ -8868,5 +8868,5 @@
  ],
  "methods_count": 6835,
  "methods_sha256": "060bd88080739cbbc5ac341f7ee19d749896bc11e8c9175a39b041166b49b0b7",
- "schema": "mage.candidate-qualification.test-corpus-baseline/3"
+ "schema": "mage.candidate-qualification.test-corpus-baseline/4"
 }
