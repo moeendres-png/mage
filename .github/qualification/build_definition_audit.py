@@ -44,7 +44,7 @@ from pathlib import Path
 # Trusted code never resolves tools from the inherited PATH (see sandbox.TOOL_PATH).
 GIT = shutil.which("git", path="/usr/sbin:/usr/bin:/sbin:/bin") or "/usr/bin/git"
 
-SCHEMA = "mage.candidate-qualification.build-definition-audit/1"
+SCHEMA = "mage.candidate-qualification.build-definition-audit/2"
 
 # Plugins that decide whether or how tests run.
 TEST_EXECUTION_PLUGINS = {
@@ -340,20 +340,26 @@ def changed_maven_config(repo: Path, base_rev: str, candidate_rev: str) -> list[
     return [line for line in out.splitlines() if line.strip()]
 
 
-def audit(repo: Path, base_rev: str, candidate_rev: str) -> dict:
+def audit(repo: Path, authority_rev: str, candidate_rev: str, comparison_base_rev: str | None = None) -> dict:
+    """Compare all runtime-authority inputs to the trusted validator commit.
+
+    The merge base is provenance metadata only. It is not an authority source:
+    a candidate that is merely unchanged from an old base must still fail if
+    current trusted master changed dependencies, modules, Maven config or other
+    runtime-definition inputs.
+    """
     pairs = []
-    for path in changed_poms(repo, base_rev, candidate_rev):
-        pairs.append((path, read_blob(repo, base_rev, path), read_blob(repo, candidate_rev, path)))
+    for path in changed_poms(repo, authority_rev, candidate_rev):
+        pairs.append((path, read_blob(repo, authority_rev, path), read_blob(repo, candidate_rev, path)))
     result = audit_pom_pairs(pairs)
-    config = changed_maven_config(repo, base_rev, candidate_rev)
+    config = changed_maven_config(repo, authority_rev, candidate_rev)
     result["maven_config_changes"] = config
     for path in config:
-        # .mvn/extensions.xml loads build extensions and maven.config/jvm.config
-        # inject arguments before any POM is read: always a build-code change.
         result["violations"].append({"path": path, "kind": "maven_config_changed", "detail": path})
     if result["violations"]:
         result["status"] = "VIOLATION"
-    result["comparison_base_rev"] = base_rev
+    result["trusted_authority_rev"] = authority_rev
+    result["comparison_base_rev"] = comparison_base_rev
     result["candidate_rev"] = candidate_rev
     return result
 
@@ -361,7 +367,8 @@ def audit(repo: Path, base_rev: str, candidate_rev: str) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", required=True)
-    parser.add_argument("--comparison-base", required=True)
+    parser.add_argument("--trusted", required=True, help="trusted validator commit whose runtime definition is authority")
+    parser.add_argument("--comparison-base", required=True, help="recorded merge base; provenance only")
     parser.add_argument("--candidate", required=True)
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
@@ -371,11 +378,12 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        result = audit(repo, args.comparison_base, args.candidate)
+        result = audit(repo, args.trusted, args.candidate, args.comparison_base)
     except (RuntimeError, OSError) as exc:
         result = {
             "schema": SCHEMA,
             "status": "UNKNOWN",
+            "trusted_authority_rev": args.trusted,
             "comparison_base_rev": args.comparison_base,
             "candidate_rev": args.candidate,
             "audited_poms": [],
