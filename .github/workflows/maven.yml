@@ -31,5 +31,53 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         cache: maven
+    - name: Native signal controls
+      run: python3 .github/ci/test_native_signals.py
     - name: Build and test
-      run: mvn test -B -Dxmage.dataCollectors.printGameLogs=false -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/.travis/log4j.properties
+      shell: bash
+      run: |
+        set -o pipefail
+        mkdir -p evidence
+        mvn test -fae -B -Dstyle.color=never -Dxmage.dataCollectors.printGameLogs=false -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/.travis/log4j.properties | tee evidence/reactor.log
+    - name: Record distinct native module signals
+      if: ${{ !cancelled() }}
+      env:
+        EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: python3 .github/ci/native_signals.py collect --out evidence/NATIVE_MODULE_SIGNALS.json
+    - name: Upload native source-bound module evidence
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      with:
+        name: native-module-signals-${{ github.run_id }}-${{ github.run_attempt }}
+        if-no-files-found: error
+        path: |
+          evidence/NATIVE_MODULE_SIGNALS.json
+          evidence/reactor.log
+          Mage.Tests/target/surefire-reports/TEST-*.xml
+          Mage.Verify/target/surefire-reports/TEST-*.xml
+
+  native-module-signal:
+    name: ${{ matrix.module }}
+    needs: build
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [Mage.Tests, Mage.Verify]
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+    - name: Read same-run module evidence
+      uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+      with:
+        name: native-module-signals-${{ github.run_id }}-${{ github.run_attempt }}
+        path: native-evidence
+    - name: Expose independent native outcome
+      env:
+        EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: >-
+        python3 .github/ci/native_signals.py signal
+        --input native-evidence/evidence/NATIVE_MODULE_SIGNALS.json
+        --module '${{ matrix.module }}'
+        --expected-sha '${{ github.sha }}'
+        --expected-run '${{ github.run_id }}'

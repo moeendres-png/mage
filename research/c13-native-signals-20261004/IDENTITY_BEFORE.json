@@ -1,0 +1,10 @@
+{
+  "source": "697fe2bdcb6",
+  "observed_forged_identity": {
+    "checkout_tree": "PASS",
+    "event_head_sha": "PASS",
+    "run_attempt": "PASS",
+    "workflow": "PASS"
+  },
+  "class": "DIRECTLY_VERIFIED synthetic native-consumer controls"
+}

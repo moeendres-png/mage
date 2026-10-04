@@ -1,0 +1,49 @@
+{
+  "artifact_id": 11301146989,
+  "run_id": 37195645027,
+  "zip_sha256": "e725d0a81d3602dc1d607380fe60b263ece858556f74e99004f5ea3edcab26d6",
+  "native_record_sha256": "f34ba0421fcc09abcd0fde5fc2ec14348d4f8d9492e08b34ba6835cfe718431d",
+  "identity": {
+    "checkout_sha": "596c105956811dab0a622fac4223f96312a90097",
+    "checkout_tree": "12d9360a339190b40371312b0d1deb444e3c7b1d",
+    "event_head_sha": "19837eff7a2b9f41c4e415172141124102d9fef7",
+    "producer_sha256": "e49c2e29daa199f3d2dec57ca241cf870ab88d5891f7e9e6e73fc983f22a36e0",
+    "run_attempt": "1",
+    "run_id": "37195645027",
+    "workflow": ".github/workflows/maven.yml"
+  },
+  "modules": {
+    "Mage.Tests": {
+      "native_outcome": "UNKNOWN",
+      "counts": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 125,
+        "tests": 6821
+      },
+      "problems": [],
+      "reactor_completion": "UNKNOWN",
+      "reactor_log_sha256": "3399e262dacac08ebf718c8a2fba4c0eefc6db7d62a53f0bdb9ca8214d94dea5"
+    },
+    "Mage.Verify": {
+      "native_outcome": "UNKNOWN",
+      "counts": {
+        "errors": 0,
+        "failures": 2,
+        "skipped": 8,
+        "tests": 28
+      },
+      "problems": [],
+      "reactor_completion": "UNKNOWN",
+      "reactor_log_sha256": "3399e262dacac08ebf718c8a2fba4c0eefc6db7d62a53f0bdb9ca8214d94dea5"
+    }
+  },
+  "actual_reactor_lines": [
+    "[INFO] Mage Tests                                                         [jar]",
+    "[INFO] Mage Verify                                                        [jar]",
+    "[INFO] Building Mage Tests 1.4.61                                       [38/40]",
+    "[INFO] Building Mage Verify 1.4.61                                      [39/40]",
+    "[INFO] Mage Tests 1.4.61 .................................. SUCCESS [02:47 min]",
+    "[INFO] Mage Verify 1.4.61 ................................. FAILURE [01:45 min]"
+  ]
+}
