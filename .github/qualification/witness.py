@@ -504,6 +504,10 @@ def main() -> int:
         doc["status"], len(doc["module_execution"]), len(doc["required_test_classes"]),
         agg.get("classes_entered_total"), agg.get("tests_started"), agg.get("tests_failed"),
         (doc["corpus_policy"] or {}).get("status")))
+    # Class names only (never candidate messages), each line behind a fixed
+    # prefix, so a failure is diagnosable from the log without the artifact.
+    for name, count in list((agg.get("non_successful_by_class") or {}).items())[:20]:
+        print("TRUSTED_WITNESS non-successful: {} x{}".format(name, count))
     return 0
 
 
@@ -518,6 +522,7 @@ def aggregate(execution: list[dict]) -> dict:
     entered_modules: list = []
     modules_without_witness: list = []
     origin_paths: dict = {}
+    non_successful: dict = {}
     for entry in execution:
         module = entry.get("module")
         if entry.get("required_classes", 0) > 0 and not entry.get("executed"):
@@ -541,6 +546,10 @@ def aggregate(execution: list[dict]) -> dict:
             origin_violations.add("{}: {}".format(module, violation))
         for name, location in (witness.get("class_code_origins") or {}).items():
             origin_paths[corpus_policy.pair(module, name)] = location
+        for name, count in (witness.get("non_successful_by_class") or {}).items():
+            if isinstance(count, int):
+                key = corpus_policy.pair(module, name)
+                non_successful[key] = non_successful.get(key, 0) + count
     bound = [e["witness"] for e in execution if isinstance(e.get("witness"), dict)]
     return {
         "schema": WITNESS_SCHEMA,
@@ -561,6 +570,7 @@ def aggregate(execution: list[dict]) -> dict:
         "observed_methods": sorted(observed_methods),
         "code_origin_violations": sorted(origin_violations),
         "class_code_origins": origin_paths,
+        "non_successful_by_class": dict(sorted(non_successful.items())),
         "driver_verdict": "PENDING",
         "totals": totals,
         **totals,

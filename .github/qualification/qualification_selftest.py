@@ -1523,6 +1523,35 @@ public class ProbeTest {
                      "expectation": "import or bound resolution is never guessed",
                      "expected_verdict": "REFUSED", "observed_verdict": "REFUSED" if refused else "ACCEPTED",
                      "ok": refused})
+    # A JUnit 4 test named like an inherited public helper (Mage's
+    # AlpineHoundmasterTest#attack() next to CardTestPlayerAPIImpl's
+    # attack(int, TestPlayer, String)): JUnit Vintage reports it without a
+    # MethodSource, and it must still count as started under its own identity.
+    junit4_pom = build_pom().replace(
+        "<groupId>org.junit.jupiter</groupId>\n      <artifactId>junit-jupiter</artifactId>\n      <version>5.8.1</version>",
+        "<groupId>junit</groupId>\n      <artifactId>junit</artifactId>\n      <version>4.13.2</version>", 1)
+    helper = """package probe;
+public class ProbeBase {
+  public void attack(int turn, String attacker) {}
+}
+"""
+    overloaded = """package probe;
+import org.junit.Test;
+public class ProbeTest extends ProbeBase {
+  @Test public void attack() {}
+  @Test public void proof() {}
+}
+"""
+    overloaded_base = project({"ProbeBase": helper, "ProbeTest": overloaded}, pom=junit4_pom)
+    run("CTRL-79-junit4-overloaded-name-positive", "positive",
+        "a JUnit 4 test overloaded by an inherited helper is identified and actually started",
+        "PASS", None, overloaded_base, base=overloaded_base)
+    run("CTRL-80-junit4-overloaded-name-removal", "red",
+        "the inherited helper of the same name cannot stand in for a removed test",
+        "FAIL", "baseline_test_method_removed",
+        project({"ProbeBase": helper, "ProbeTest": overloaded.replace("  @Test public void attack() {}\n", "")},
+                pom=junit4_pom),
+        base=overloaded_base)
     return rows
 
 

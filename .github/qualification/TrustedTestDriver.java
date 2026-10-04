@@ -87,7 +87,45 @@ public final class TrustedTestDriver {
         // under its subclass but is the declaring class's required method. A
         // JUnit 4 Parameterized invocation is reported as name[index]: the
         // identity is the method, not the invocation.
-        java.lang.reflect.Method method = source.getJavaMethod();
+        return identityOf(source.getJavaMethod());
+    }
+
+    /**
+     * JUnit Vintage attaches no MethodSource to a JUnit 4 test whose name is
+     * overloaded in its class hierarchy: a test {@code attack()} next to an
+     * inherited {@code attack(int, ...)} helper is reported with a ClassSource
+     * only. Its unique id still names it as {@code name(class)}, optionally with
+     * a {@code [index]} invocation suffix. A JUnit 4 test method is public and
+     * takes no arguments, so that names exactly one method. Anything else is not
+     * resolved and earns no credit.
+     */
+    private static String vintageMethodIdentityOf(TestIdentifier identifier) throws ReflectiveOperationException {
+        List<org.junit.platform.engine.UniqueId.Segment> segments = identifier.getUniqueIdObject().getSegments();
+        org.junit.platform.engine.UniqueId.Segment last = segments.get(segments.size() - 1);
+        String value = last.getValue();
+        int open = value.indexOf('(');
+        if (!"test".equals(last.getType()) || open <= 0 || !value.endsWith(")")) {
+            throw new IllegalStateException("not a vintage test id: " + identifier.getUniqueId());
+        }
+        String name = value.substring(0, open);
+        int invocation = name.indexOf('[');
+        if (invocation >= 0) {
+            name = name.substring(0, invocation);
+        }
+        String className = value.substring(open + 1, value.length() - 1);
+        Class<?> owner = Class.forName(className, false, Thread.currentThread().getContextClassLoader());
+        java.lang.reflect.Method method = owner.getMethod(name);
+        boolean junit4Test = false;
+        for (java.lang.annotation.Annotation annotation : method.getAnnotations()) {
+            junit4Test |= "org.junit.Test".equals(annotation.annotationType().getName());
+        }
+        if (!junit4Test) {
+            throw new IllegalStateException("not a JUnit 4 test method: " + identifier.getUniqueId());
+        }
+        return identityOf(method);
+    }
+
+    private static String identityOf(java.lang.reflect.Method method) {
         StringBuilder identity = new StringBuilder(method.getDeclaringClass().getName());
         identity.append("#").append(method.getName()).append("(");
         Class<?>[] parameters = method.getParameterTypes();
@@ -342,6 +380,15 @@ public final class TrustedTestDriver {
                         observedMethods.add(methodIdentityOf((MethodSource) identifier.getSource().get()));
                     } catch (RuntimeException exc) {
                         originViolations.add("unresolved_method_identity:" + identifier.getUniqueId());
+                    }
+                } else if (trustedEngine && identifier.isTest() && "junit-vintage".equals(engine)) {
+                    // An overloaded JUnit 4 name: identified from its unique id. If
+                    // that fails the method simply is not observed, so a required
+                    // one fails closed as not started.
+                    try {
+                        observedMethods.add(vintageMethodIdentityOf(identifier));
+                    } catch (ReflectiveOperationException | RuntimeException exc) {
+                        // not observed
                     }
                 }
                 if (!identifier.isTest()) {

@@ -154,6 +154,13 @@ qualified reference spellings are supported. Import resolution, type-variable
 bounds and nested parameter type resolution are never guessed: unsupported
 spellings fail closed. The driver uses the declaring Java method and actual
 `Class.getTypeName()` types, with no guessed identity on resolution failure.
+JUnit Vintage reports a JUnit 4 test without a `MethodSource` when its name is overloaded
+by a method of the same name in the class hierarchy. Mage has two today:
+`AlpineHoundmasterTest#attack()` and `BasriKetTest#attack()`, next to the
+inherited `attack(int, TestPlayer, String)` helper. For such a test the driver
+reads `name(class)` from the vintage unique id. It then resolves the public no-argument
+method that carries `org.junit.Test`. If that resolution fails, the method is
+simply not observed, so a required method fails closed as not started (CTRL-79/80).
 Inherited tests retain declaring-class attribution; parameterized and repeated
 invocations share only their own declaration identity. Different qualified
 types cannot replace each other, even when only one occurs per revision.
