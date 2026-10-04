@@ -41,6 +41,8 @@ def collect(root, identity):
     results = {}
     log = root/'evidence/reactor.log'
     try:
+        if log.is_symlink() or not log.is_file():
+            raise OSError("non-regular reactor log")
         text = log.read_text()
         reactor_digest = digest(log)
     except OSError:
@@ -57,7 +59,7 @@ def collect(root, identity):
                 problems.append(path.name + ": " + str(exc))
         totals = {key: sum(s[key] for s in suites) for key in ("tests", "failures", "errors", "skipped")}
         reactor_name = module.replace('.', ' ')
-        summaries = re.findall(r"^\[INFO\] " + re.escape(reactor_name) + r" \.+ (SUCCESS|FAILURE|SKIPPED)\b", text, re.M)
+        summaries = re.findall(r"^\[INFO\] " + re.escape(reactor_name) + r"(?: [0-9][A-Za-z0-9.+_-]*)? \.+ (SUCCESS|FAILURE|SKIPPED)\b", text, re.M)
         completion = summaries[0] if len(summaries) == 1 else 'UNKNOWN'
         if problems or completion == 'UNKNOWN':
             outcome = "UNKNOWN"
@@ -76,22 +78,21 @@ def collect(root, identity):
     return {"schema": SCHEMA, "identity": identity, "producer": "native Maven reports, candidate-controlled",
             "evidence_class": "NATIVE_REPORT_OBSERVED", "trusted_qualification": False, "modules": results}
 
-def consume(doc, module, expected_sha, expected_run):
-    if (doc.get('schema') != SCHEMA or doc.get('trusted_qualification') is not False
-            or doc.get('identity', {}).get('checkout_sha') != expected_sha
-            or str(doc.get('identity', {}).get('run_id')) != str(expected_run)):
+def consume(doc, module, expected_sha, expected_run, root):
+    # The artifact JSON is a declaration, not authority over the raw observations.
+    # Re-read the actual XML and reactor log in the extracted same-run artifact.
+    if (not isinstance(doc, dict) or doc.get('schema') != SCHEMA
+            or doc.get('trusted_qualification') is not False
+            or not isinstance(doc.get('identity'), dict)
+            or doc['identity'].get('checkout_sha') != expected_sha
+            or str(doc['identity'].get('run_id')) != str(expected_run)
+            or doc['identity'].get('producer_sha256') != digest(Path(__file__))):
         return "UNKNOWN"
-    record = doc.get('modules', {}).get(module, {})
-    outcome = record.get('native_outcome')
-    counts = record.get('counts', {})
-    if not all(type(counts.get(k)) is int and counts[k] >= 0 for k in ('tests', 'failures', 'errors', 'skipped')):
+    fresh = collect(root, doc['identity'])
+    if doc != fresh:
         return "UNKNOWN"
-    completion = record.get('reactor_completion')
-    derived = ('UNKNOWN' if record.get('problems') or completion not in ('SUCCESS', 'FAILURE', 'SKIPPED') else
-               'FAIL' if completion == 'FAILURE' else
-               'NOT_RUN' if completion == 'SKIPPED' or not record.get('reports') else
-               'FAIL' if counts['failures'] or counts['errors'] or counts['tests'] == counts['skipped'] else 'PASS')
-    return outcome if outcome == derived else "UNKNOWN"
+    return fresh['modules'][module]['native_outcome']
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -119,7 +120,7 @@ def main():
         return 0
     try:
         doc = json.loads(args.input.read_text())
-        outcome = consume(doc, args.module, args.expected_sha, args.expected_run)
+        outcome = consume(doc, args.module, args.expected_sha, args.expected_run, args.input.parent.parent)
     except (OSError, ValueError, AttributeError, TypeError) as exc:
         print('Native signal unavailable:', exc)
         return 2

@@ -1,0 +1,30 @@
+{
+  "source_before": "19837eff7a2b9f41c4e415172141124102d9fef7",
+  "fixed_producer_sha256": "b031837ad61e6f4f6ddd238551aa36b8d5160a7f4efc52baefde1a48f75b7545",
+  "artifact_id": 11301146989,
+  "run_id": 37195645027,
+  "classification": "DIRECTLY_VERIFIED reprocessing of native observations; not new native execution or qualification",
+  "observed": {
+    "Mage.Tests": "PASS",
+    "Mage.Verify": "FAIL"
+  },
+  "counts": {
+    "Mage.Tests": {
+      "tests": 6821,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 125
+    },
+    "Mage.Verify": {
+      "tests": 28,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 8
+    }
+  },
+  "controls": {
+    "passed": 20,
+    "failed": 0,
+    "command": "python3 .github/ci/test_native_signals.py"
+  }
+}

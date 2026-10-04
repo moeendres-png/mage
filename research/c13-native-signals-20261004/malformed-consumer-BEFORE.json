@@ -1,0 +1,7 @@
+{
+  "source": "19837eff7a2b9f41c4e415172141124102d9fef7",
+  "observed": {
+    "invalid_skip_totals": "PASS",
+    "empty_report_record": "PASS"
+  }
+}
