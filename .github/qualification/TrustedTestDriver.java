@@ -84,6 +84,168 @@ public final class TrustedTestDriver {
         }
     }
 
+    private static boolean underAny(Path source, List<Path> prefixes) {
+        Path normalized = source.toAbsolutePath().normalize();
+        for (Path prefix : prefixes) {
+            if (normalized.startsWith(prefix.toAbsolutePath().normalize())) return true;
+        }
+        return false;
+    }
+
+    private static boolean untrustedControlType(Class<?> type, List<Path> untrustedPrefixes) {
+        CodeSourceStub stub = codeSourceOf(type);
+        if (stub.location == null) {
+            return type.getClassLoader() != null;
+        }
+        try {
+            return underAny(Paths.get(stub.location), untrustedPrefixes);
+        } catch (RuntimeException exc) {
+            return true;
+        }
+    }
+
+    private static String rejectControlType(
+            String kind, Class<?> type, List<Path> untrustedPrefixes, String where) {
+        if (!untrustedControlType(type, untrustedPrefixes)) return null;
+        CodeSourceStub stub = codeSourceOf(type);
+        return "candidate_junit_control_code:" + kind + ":" + type.getName()
+                + ":" + where + ":origin=" + (stub.location == null ? "UNKNOWN" : stub.location);
+    }
+
+    private static String inspectControlAnnotation(
+            java.lang.annotation.Annotation annotation,
+            List<Path> untrustedPrefixes,
+            String where,
+            Set<Class<?>> seenAnnotations) {
+        Class<?> annotationType = annotation.annotationType();
+        if (!seenAnnotations.add(annotationType)) return null;
+        String name = annotationType.getName();
+        try {
+            if (name.equals("org.junit.runner.RunWith")
+                    || name.equals("org.junit.jupiter.api.extension.ExtendWith")
+                    || name.equals("org.junit.jupiter.params.provider.ArgumentsSource")
+                    || name.equals("org.junit.jupiter.params.converter.ConvertWith")
+                    || name.equals("org.junit.jupiter.params.aggregator.AggregateWith")) {
+                Object value = annotationType.getMethod("value").invoke(annotation);
+                if (value instanceof Class<?>) {
+                    String violation = rejectControlType(
+                            name, (Class<?>) value, untrustedPrefixes, where);
+                    if (violation != null) return violation;
+                } else if (value instanceof Class<?>[]) {
+                    for (Class<?> type : (Class<?>[]) value) {
+                        String violation = rejectControlType(
+                                name, type, untrustedPrefixes, where);
+                        if (violation != null) return violation;
+                    }
+                } else {
+                    return "candidate_junit_control_code:malformed_control_annotation:"
+                            + name + ":" + where;
+                }
+            } else if (name.equals("org.junit.jupiter.params.provider.MethodSource")) {
+                Object value = annotationType.getMethod("value").invoke(annotation);
+                if (!(value instanceof String[])) {
+                    return "candidate_junit_control_code:malformed_method_source:" + where;
+                }
+                for (String ref : (String[]) value) {
+                    int hash = ref.indexOf('#');
+                    if (hash <= 0) continue;
+                    String owner = ref.substring(0, hash);
+                    Class<?> source = Class.forName(
+                            owner, false, Thread.currentThread().getContextClassLoader());
+                    String violation = rejectControlType(
+                            name, source, untrustedPrefixes, where);
+                    if (violation != null) return violation;
+                }
+            }
+
+            for (java.lang.annotation.Annotation meta : annotationType.getDeclaredAnnotations()) {
+                if (meta.annotationType().getName().startsWith("java.lang.annotation.")) continue;
+                String violation = inspectControlAnnotation(
+                        meta, untrustedPrefixes, where + "->@" + name, seenAnnotations);
+                if (violation != null) return violation;
+            }
+            return null;
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException exc) {
+            return "candidate_junit_control_code:unresolved_control_annotation:"
+                    + name + ":" + where + ":" + exc.getClass().getName();
+        }
+    }
+
+    private static String inspectAnnotatedElement(
+            java.lang.reflect.AnnotatedElement element,
+            List<Path> untrustedPrefixes,
+            String where) {
+        try {
+            for (java.lang.annotation.Annotation annotation : element.getDeclaredAnnotations()) {
+                String violation = inspectControlAnnotation(
+                        annotation, untrustedPrefixes, where, new HashSet<Class<?>>());
+                if (violation != null) return violation;
+            }
+            return null;
+        } catch (LinkageError | RuntimeException exc) {
+            return "candidate_junit_control_code:unresolved_annotations:"
+                    + where + ":" + exc.getClass().getName();
+        }
+    }
+
+    private static boolean hasDirectAnnotation(
+            java.lang.reflect.AnnotatedElement element, String annotationName) {
+        for (java.lang.annotation.Annotation annotation : element.getDeclaredAnnotations()) {
+            if (annotationName.equals(annotation.annotationType().getName())) return true;
+        }
+        return false;
+    }
+
+    private static String inspectExecutionControls(
+            Class<?> type, List<Path> untrustedPrefixes, Set<Class<?>> seenTypes) {
+        if (type == null || type == Object.class || !seenTypes.add(type)) return null;
+        String violation = inspectAnnotatedElement(
+                type, untrustedPrefixes, "class:" + type.getName());
+        if (violation != null) return violation;
+        try {
+            for (java.lang.reflect.Field field : type.getDeclaredFields()) {
+                String where = "field:" + type.getName() + "#" + field.getName();
+                violation = inspectAnnotatedElement(field, untrustedPrefixes, where);
+                if (violation != null) return violation;
+                if (hasDirectAnnotation(field, "org.junit.Rule")
+                        || hasDirectAnnotation(field, "org.junit.ClassRule")
+                        || hasDirectAnnotation(field, "org.junit.jupiter.api.extension.RegisterExtension")) {
+                    return "candidate_junit_control_code:registered_member:" + where;
+                }
+            }
+            for (java.lang.reflect.Method method : type.getDeclaredMethods()) {
+                String where = "method:" + type.getName() + "#" + method.getName();
+                violation = inspectAnnotatedElement(method, untrustedPrefixes, where);
+                if (violation != null) return violation;
+                if (hasDirectAnnotation(method, "org.junit.Rule")
+                        || hasDirectAnnotation(method, "org.junit.ClassRule")
+                        || hasDirectAnnotation(method, "org.junit.jupiter.api.extension.RegisterExtension")) {
+                    return "candidate_junit_control_code:registered_member:" + where;
+                }
+            }
+            for (Class<?> iface : type.getInterfaces()) {
+                violation = inspectExecutionControls(iface, untrustedPrefixes, seenTypes);
+                if (violation != null) return violation;
+            }
+            return inspectExecutionControls(type.getSuperclass(), untrustedPrefixes, seenTypes);
+        } catch (LinkageError | RuntimeException exc) {
+            return "candidate_junit_control_code:preflight_unresolved:"
+                    + type.getName() + ":" + exc.getClass().getName();
+        }
+    }
+
+    private static String executionControlViolation(
+            String className, List<Path> untrustedPrefixes) {
+        try {
+            Class<?> type = Class.forName(
+                    className, false, Thread.currentThread().getContextClassLoader());
+            return inspectExecutionControls(type, untrustedPrefixes, new HashSet<Class<?>>());
+        } catch (ClassNotFoundException | LinkageError | RuntimeException exc) {
+            return "candidate_junit_control_code:preflight_unresolved:"
+                    + className + ":" + exc.getClass().getName();
+        }
+    }
+
     private static String topLevel(String className) {
         int dollar = className.indexOf('$');
         return dollar > 0 ? className.substring(0, dollar) : className;
@@ -355,6 +517,20 @@ public final class TrustedTestDriver {
         final Path expectedOutput = Paths.get(moduleOutput).toRealPath();
         installContainment(untrustedPrefixes);
         observerStart();
+
+        // A trusted JUnit engine can report SUCCESSFUL without invoking the
+        // trusted test body when candidate-built code supplies a runner,
+        // extension or provider. Refuse that execution authority before
+        // discovery; lifecycle events alone are not qualification proof.
+        for (String className : selected) {
+            String violation = executionControlViolation(className, untrustedPrefixes);
+            if (violation != null) {
+                observerEvent("VIOLATION", "junit-jupiter", "c12-preflight:" + className,
+                        false, className, "", "", "", violation);
+                observerComplete();
+                return;
+            }
+        }
 
         TestExecutionListener witness = new TestExecutionListener() {
             @Override

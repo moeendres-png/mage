@@ -105,11 +105,12 @@ Without these measures, a candidate could hide a failing test method behind an
 auto-detected extension, shipped in test resources, main resources or a new dependency jar
 (CTRL-60, 61, 62). Every count would have stayed green.
 
-The driver authenticates its witness with HMAC-SHA256. The key is delivered on stdin from
-an unlinked trusted file. The driver reads it and closes stdin before any candidate class
-loads, and keeps it only in a local of `main()`. Candidate test code can write into the
-driver's (candidate-writable) output directory, but a forged witness carries no valid MAC
-(CTRL-38).
+The candidate JVM is **not a witness producer**. It contains no signing key, receipt path
+or qualification verdict authority. A separate trusted parent JVM opens a one-shot JDI
+listener, accepts the exact sandboxed child, closes the listener, and observes only entries
+into the private `observer*` hooks of the non-exported `c12.trusted` driver module. The
+parent writes the only receipt into trusted-owned storage. Candidate code can write
+arbitrary witness-shaped decoys in its own tree; they are never read (CTRL-38).
 
 The executed test bytecode is never the candidate's build output. `witness.py` compiles each
 module's test sources itself, from the `git archive` export, with `javac -proc:none`, so no
@@ -119,7 +120,9 @@ executes (CTRL-31). The candidate build runs with `-Dmaven.compiler.proc=none`.
 `build_definition_audit.py` is defence in depth. It now fingerprints every build plugin in
 every phase, build extensions, profiles, the parent POM, the properties the build
 interpolates, and `.mvn/**`. A plugin bound to `initialize` is a `build_definition_changed`
-FAIL (CTRL-30). Dependency declarations remain free.
+FAIL (CTRL-30). Dependencies, dependency management, repositories, module topology and
+other qualification-runtime inputs are authority-bearing as well; changing them in the
+candidate is a build-definition violation.
 
 ### Export integrity, loaded code and tool resolution (review 2026-10-03)
 
@@ -234,7 +237,7 @@ Every pipeline control runs the production path against a real Git fixture:
 3. sandbox prepare with the probe;
 4. sandboxed build;
 5. classpath collection;
-6. witness (corpus policy, trusted compile, sandboxed and authenticated driver);
+6. witness (corpus policy, trusted compile, sandboxed driver plus trusted parent JDI observer);
 7. seals;
 8. integrity check;
 9. scorer.
@@ -250,7 +253,7 @@ real `c12cand` account.
 
 | family | controls |
 | --- | --- |
-| P1-1 trust domain | CTRL-26–29: test code overwrites `qualify.py`, `witness.py`, the source lock and evidence (target unchanged, integrity OK, a genuinely failing candidate stays FAIL); CTRL-30: initialize-phase plugin; CTRL-31: test-bytecode mutation; CTRL-32: environment scrubbed (positive); CTRL-33–35: simulated breaches are caught (replaced scorer, rewritten sealed evidence, planted module); CTRL-36: writable trusted path refused; CTRL-38: forged witness rejected |
+| P1-1 trust domain | CTRL-26–29: test code overwrites `qualify.py`, `witness.py`, the source lock and evidence (target unchanged, integrity OK, a genuinely failing candidate stays FAIL); CTRL-30: initialize-phase plugin; CTRL-31: test-bytecode mutation; CTRL-32: environment scrubbed (positive); CTRL-33–35: simulated breaches are caught; CTRL-36: writable trusted path refused; CTRL-38: candidate-side witness decoy ignored; CTRL-84: hostile-bytecode containment; CTRL-85/86: candidate test edits/additions earn no authority; CTRL-87/88: candidate Jupiter extension or Vintage runner cannot fabricate green lifecycle credit |
 | P1-2 corpus | CTRL-40: honest (positive); CTRL-41: mass rename leaving one; CTRL-42: delete; CTRL-43: move out of test roots; CTRL-44: rename out of regex; CTRL-45: green subset; CTRL-46: legitimate addition (positive); CTRL-47: addition without baseline update; CTRL-48: approved removal path (positive); CTRL-49: removal without default-branch approval; CTRL-50: malformed baseline; CTRL-51: missing baseline; CTRL-52: stale baseline; CTRL-53: candidate behind default branch; CTRL-56: within-class method shrink; CTRL-57: method disabled; CTRL-58: method renamed; CTRL-59: required method never started (static reading fooled); CTRL-64: approved method removal (positive); CTRL-65: method additions (positive) |
 | reports, suppression, binding | CTRL-01–09 |
 | source lock | CTRL-10–14 |
@@ -265,8 +268,9 @@ suite fails.
 
 ## Limits, stated
 
-- **The same JVM is shared.** Candidate test code, and the main or dependency code it reaches, runs in the driver's JVM. Such code can read that process's memory, including the MAC key, so the MAC defeats forgery from outside the run, not deliberate in-process tampering. That code can also tamper with JVM state at runtime. Attach is disabled (`-XX:+DisableAttachMechanism`) and the key is zeroed after use, but nothing in the same process can rule this out. What C12 does guarantee: the candidate cannot write trusted state, cannot change which test bytecode runs, cannot reconfigure the launcher declaratively, and cannot shrink the corpus. Any in-process tampering must therefore come from reviewable candidate source.
-- **Test code is candidate code.** It runs as the sandbox account. A test whose own source is weak (an empty body, a swallowed assertion) is a source-review and coverage question for C13/C16. The corpus baseline binds classes and test methods, not test bodies. A `@TestFactory` that returns no dynamic tests still counts as started.
+- **Execution JVM versus evidence authority.** Candidate production bytecode still executes inside the sandboxed driver JVM because the trusted tests must exercise the candidate. That JVM has no receipt key/path or evidence-writing authority. The trusted parent observer is a separate process and records the only qualification receipt. The child is additionally contained against deep reflection into the driver, process/socket/native/FD escape paths and trust-channel reuse (CTRL-84).
+- **Candidate JUnit execution control is fail-closed.** A green Jupiter/Vintage lifecycle is insufficient when candidate-built code can control invocation. Before discovery the trusted driver inspects selected trusted test classes and refuses candidate-origin runners/extensions/providers or registered Rule/Extension members. Thus a candidate `InvocationInterceptor` or custom Vintage runner cannot suppress a trusted failing assertion and manufacture PASS (CTRL-87/88). Standard JUnit controls and controls compiled from trusted test source remain eligible.
+- **Authoritative test source is trusted.** Executed test bytecode is compiled from the trusted-validator commit, not the candidate's edited test source. Candidate production code remains the subject under test. Weaknesses already present in trusted test source are a reviewed coverage question; a candidate cannot weaken those bodies in the PR being qualified. A `@TestFactory` that returns no dynamic tests still counts as started.
 - **The class regex is narrower than surefire's defaults.** Surefire also runs `Test*` classes, for example `TestPartnerCommanders`. The C12 class regex (`(Test|Tests|TestCase|Spec|IT)$`) does not select those, so 16 Mage test files that contain `@Test` methods are not required. Widening the regex is a separate decision: it would also select helper classes named `Test*`, which can never be entered.
 - **Which classes run.** Every required class must still compile from its own module (`required_tests_not_compiled`). The driver runs the selected classes (`selected_test_classes`), and each must be entered:
   - the required classes that own at least one required test method;
@@ -284,18 +288,17 @@ suite fails.
 
 ## Method identity migration (2026-10-04)
 
-Baseline/policy v4, direct execution witness v3 and aggregate witness/evidence v5
-replace the lossy method-name contracts. Historical v2 baselines and v1 direct
-witnesses are incompatible and receive no credit under this validator. The old
-trusted master validator will also reject the new candidate baseline during this
-bootstrap PR; that expected fail-closed schema mismatch is not a waiver of the
-new full-path red/green controls. After integration, fresh default-branch execution
+Baseline/policy v4, parent-observed execution witness v4 and aggregate witness/evidence v6
+replace the lossy method-name and same-JVM evidence-authority contracts. Historical
+execution-witness epochs receive no credit under this validator. Exact-head controls
+must pass before integration, and a fresh default-branch `pull_request_target` run
 must qualify a real successor PR before C12 runtime is claimed.
 
 The regenerated baseline still protects all 1997 classes and 6835 enabled methods
 (140 disabled); no removal approvals, test bodies, engine code or denominator were
-changed. The current qualification engine pin is unaffected. Same-JVM deliberate
-tampering remains outside the proved containment boundary; this repair does not
-accept that residual or assert adversarial trust PASS.
+changed. The current qualification engine pin is unaffected. Exact-head hosted
+controls and a post-merge live qualification remain mandatory before runtime PASS.
 
-Current diagnostic repair: `research/c12-log-safety-20261004/` binds 83/83 full-path controls and the executed workflow-command attack before/after. Candidate diagnostic text is ASCII JSON-escaped; raw JSON artifacts retain the original values. This does not change the same-JVM limitations above.
+Historical diagnostic evidence remains under `research/c12-log-safety-20261004/`.
+Candidate diagnostic text is ASCII JSON-escaped and raw JSON artifacts retain the original
+values; that historical evidence is bounded to its own source epoch.

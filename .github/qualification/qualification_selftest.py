@@ -895,8 +895,11 @@ class TamperTest {{
 
 FORGER_TEST = """package probe;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import org.junit.jupiter.api.Test;
@@ -904,14 +907,18 @@ import org.junit.jupiter.api.Test;
 class ForgerTest {{
 
     @Test
-    void forgeTheWitness() throws Exception {{
-        String forged = "{{\\"observed_classes\\": [\\"probe.ForgerTest\\"], \\"tests_found\\": 1, "
-                + "\\"tests_started\\": 1, \\"tests_succeeded\\": 1, \\"tests_failed\\": 0, "
-                + "\\"classes_never_entered\\": [], \\"code_origin_violations\\": [], "
+    void writeCandidateSideDecoy() throws Exception {{
+        Path path = Paths.get("{path}");
+        Files.createDirectories(path.getParent());
+        String forged = "{{\\"observed_classes\\": [\\"probe.ForgerTest\\"], \\"tests_found\\": 999, "
+                + "\\"tests_started\\": 999, \\"tests_succeeded\\": 999, \\"tests_failed\\": 0, "
                 + "\\"driver_verdict\\": \\"PASS\\"}}";
-        Files.write(Paths.get("{path}"), forged.getBytes(StandardCharsets.UTF_8));
-        Files.write(Paths.get("{path}.mac"), "00".getBytes(StandardCharsets.US_ASCII));
-        Runtime.getRuntime().halt(0);
+        Files.write(path, forged.getBytes(StandardCharsets.UTF_8));
+    }}
+
+    @Test
+    void genuinelyFails() {{
+        assertEquals(3, 1 + 1);
     }}
 }}
 """
@@ -1098,8 +1105,8 @@ def trust_controls(h: Harness) -> list[dict]:
         extra={"mutation_applied": mutated.get("applied")},
     ))
 
-    # Candidate test code forges the driver's witness file in the (candidate-
-    # writable) output directory and halts the JVM before the driver writes.
+    # Candidate code can author witness-shaped decoys only in its own storage.
+    # The real receipt path exists only in the trusted parent work directory.
     name = "CTRL-38-test-code-forges-witness"
     forged_path = h.sandbox_dir / "witness-out" / "module-000-_.json"
     forger = FORGER_TEST.format(path=str(forged_path))
@@ -1107,8 +1114,10 @@ def trust_controls(h: Harness) -> list[dict]:
     result = h.pipeline(fx)
     rows.append(row(
         name, "red",
-        "a witness file written by candidate test code carries no valid MAC and earns nothing",
-        "FAIL", result, reason="witness_authentication_failed",
+        "a candidate-side witness-shaped decoy is ignored; the trusted parent observes the real failing test",
+        "FAIL", result, reason="test_failures",
+        extra_ok=forged_path.is_file(),
+        extra={"candidate_decoy_written": forged_path.is_file()},
     ))
 
     # The candidate environment carries no runner handle (GITHUB_ENV etc.).
@@ -1232,8 +1241,8 @@ def junit_controls(h: Harness) -> list[dict]:
     rows: list[dict] = []
     honest = project({"MixedTest": MIXED_TEST})
 
-    def run(control, expectation, candidate):
-        fx = h.fixture(control, honest, candidate)
+    def run(control, expectation, candidate, base=None):
+        fx = h.fixture(control, base or honest, candidate)
         rows.append(row(control, "red", expectation, "FAIL", h.pipeline(fx), reason="test_failures"))
 
     via_test_resources = project({"MixedTest": MIXED_TEST}, extra={
@@ -1244,16 +1253,20 @@ def junit_controls(h: Harness) -> list[dict]:
     run("CTRL-60-junit-config-via-test-resources",
         "an extension and configuration shipped in test resources cannot hide a failing test", via_test_resources)
 
-    via_main = project({"MixedTest": MIXED_TEST}, pom=build_pom().replace("  </dependencies>", MAIN_JUPITER_DEPENDENCY, 1),
+    main_pom = build_pom().replace("  </dependencies>", MAIN_JUPITER_DEPENDENCY, 1)
+    honest_main = project({"MixedTest": MIXED_TEST}, pom=main_pom)
+    via_main = project({"MixedTest": MIXED_TEST}, pom=main_pom,
                        extra={
                            "src/main/java/probe/SkipFailing.java": SKIP_FAILING_EXTENSION,
                            "src/main/resources/junit-platform.properties": AUTODETECT,
                            "src/main/resources/" + EXTENSION_SERVICE: "probe.SkipFailing\n",
                        })
     run("CTRL-61-junit-config-via-main-resources",
-        "an extension and configuration shipped in main classes cannot hide a failing test", via_main)
+        "an extension and configuration shipped in main classes cannot hide a failing test",
+        via_main, base=honest_main)
 
-    # Route 3: a newly declared dependency jar (dependency changes pass the audit).
+    # Route 3: a dependency jar already declared by trusted source. Runtime
+    # dependencies are authority-bearing; this control does not edit the POM.
     work = h.tmp / "evil-jar"
     src = work / "src" / "probe"
     src.mkdir(parents=True)
@@ -1278,10 +1291,12 @@ def junit_controls(h: Harness) -> list[dict]:
     else:
         staged = h.stage_readonly(jar.parent, "evil-jar")
         h.install_artifact(staged / jar.name, "c12.evil", "skip-failing", "1.0")
-        via_dependency = project({"MixedTest": MIXED_TEST},
-                                 pom=build_pom().replace("  </dependencies>", EVIL_DEPENDENCY, 1))
+        dependency_pom = build_pom().replace("  </dependencies>", EVIL_DEPENDENCY, 1)
+        honest_dependency = project({"MixedTest": MIXED_TEST}, pom=dependency_pom)
+        via_dependency = project({"MixedTest": MIXED_TEST}, pom=dependency_pom)
         run("CTRL-62-junit-config-via-dependency-jar",
-            "an extension and configuration shipped in a dependency jar cannot hide a failing test", via_dependency)
+            "an extension and configuration shipped in a dependency jar cannot hide a failing test",
+            via_dependency, base=honest_dependency)
 
     # Codex P1 on witness.py:178: a .class test resource must not replace the
     # failing test that trusted javac compiled from the locked source.
@@ -1823,6 +1838,70 @@ public final class GateExtension implements InvocationInterceptor {
     rows.append(row(
         "CTRL-87-candidate-extension-cannot-forge-pass", "red",
         "candidate production code used as JUnit execution control cannot suppress a trusted failing assertion",
+        "FAIL", result, reason="candidate_junit_control_code",
+    ))
+
+    # Vintage analogue: candidate production code replaces an honest runner
+    # with one that reports proof() green without calling the trusted method.
+    junit4_main_pom = build_pom().replace(
+        """      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.8.1</version>
+      <scope>test</scope>""",
+        """      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.13.2</version>""",
+        1,
+    )
+    vintage_test = """package probe;
+import static org.junit.Assert.assertEquals;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+@RunWith(GateRunner.class)
+public class ProbeTest {
+ @Test public void proof() { assertEquals(3, 1 + 1); }
+}
+"""
+    honest_runner = """package probe;
+public final class GateRunner extends org.junit.runners.BlockJUnit4ClassRunner {
+ public GateRunner(Class<?> type) throws org.junit.runners.model.InitializationError { super(type); }
+}
+"""
+    forged_runner = """package probe;
+import org.junit.runner.Description;
+import org.junit.runner.Runner;
+import org.junit.runner.notification.RunNotifier;
+public final class GateRunner extends Runner {
+ private final Class<?> type;
+ public GateRunner(Class<?> type) { this.type = type; }
+ private Description proof() { return Description.createTestDescription(type, "proof"); }
+ @Override public Description getDescription() {
+  Description root = Description.createSuiteDescription(type);
+  root.addChild(proof());
+  return root;
+ }
+ @Override public void run(RunNotifier notifier) {
+  Description proof = proof();
+  notifier.fireTestStarted(proof);
+  notifier.fireTestFinished(proof);
+ }
+}
+"""
+    base = project(
+        {"ProbeTest": vintage_test},
+        pom=junit4_main_pom,
+        extra={"src/main/java/probe/GateRunner.java": honest_runner},
+    )
+    candidate = project(
+        {"ProbeTest": vintage_test},
+        pom=junit4_main_pom,
+        extra={"src/main/java/probe/GateRunner.java": forged_runner},
+    )
+    fx = h.fixture("CTRL-88-candidate-runner-cannot-forge-pass", base, candidate)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-88-candidate-runner-cannot-forge-pass", "red",
+        "candidate production code used as a Vintage runner cannot fabricate success without invoking the trusted test",
         "FAIL", result, reason="candidate_junit_control_code",
     ))
 
