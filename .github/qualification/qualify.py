@@ -227,13 +227,28 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
             unknown("corpus_policy_unusable: status={}".format(corpus.get("status")))
         required_methods_bound = corpus.get("required_methods") or []
         owning = {str(m).rpartition("#")[0] for m in required_methods_bound if isinstance(m, str)}
+        inheriting = corpus.get("required_inheriting_classes")
+        if not isinstance(inheriting, list) or not all(isinstance(c, str) for c in inheriting):
+            unknown("required_inheriting_classes_missing: the corpus policy bound no inheriting-class list")
+            inheriting = []
         policy_pairs = corpus.get("required_pairs") or []
         required_from_policy = sorted(policy_pairs)
-        if policy_pairs and not owning:
+        if policy_pairs and not (owning or inheriting):
             fail(
                 "no_enabled_required_test_methods: the corpus enumerates {} test class(es) "
                 "but none has an enabled test method".format(len(policy_pairs))
             )
+        # The driver's selection is re-derived here, not trusted from the
+        # witness: the required classes that own a required method or only
+        # inherit enabled tests.
+        expected_selected = sorted(p for p in policy_pairs if p in owning or p in set(inheriting))
+        selected_in_witness = witness.get("selected_test_classes")
+        if not isinstance(selected_in_witness, list) or sorted(
+            "{}::{}".format(e.get("module"), e.get("class_name")) for e in selected_in_witness
+            if isinstance(e, dict)
+        ) != expected_selected:
+            fail("selected_set_not_policy_derived: the witness's selected classes differ from the "
+                 "required classes owning or inheriting a required test")
         required_in_witness = sorted(
             "{}::{}".format(e.get("module"), e.get("class_name")) for e in (witness.get("required_test_classes") or [])
         )

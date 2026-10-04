@@ -281,9 +281,17 @@ def harden_world_writable() -> list[str]:
     files = _run(_priv(["find", "/", "-xdev", *file_test, "-not", "-path", "/proc/*",
                         "-print", "-exec", "chmod", "o-w", "{}", "+"])).stdout
     for test in (dir_test, file_test):
-        left = _run(_priv(["find", "/", "-xdev", *test, "-not", "-path", "/proc/*", "-print", "-quit"])).stdout.strip()
+        check = _run(_priv(["find", "/", "-xdev", *test, "-not", "-path", "/proc/*", "-print", "-quit"]))
+        left = check.stdout.strip()
         if left:
             raise SandboxError("world-writable entry survived hardening: {}".format(left))
+        # An empty re-check proves nothing unless the walk itself ran: only
+        # entries vanishing mid-walk may make it exit non-zero.
+        errors = [line for line in check.stderr.splitlines()
+                  if line.strip() and not line.rstrip().endswith("No such file or directory")]
+        if check.returncode != 0 and (errors or not check.stderr.strip()):
+            raise SandboxError("hardening re-check did not complete ({}): {}".format(
+                check.returncode, "; ".join(errors)[:600]))
     changed = [line for line in dirs.splitlines() if line.strip()]
     count = sum(1 for line in files.splitlines() if line.strip())
     if count:

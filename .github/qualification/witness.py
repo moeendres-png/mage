@@ -400,11 +400,14 @@ def main() -> int:
         ]
         doc["required_test_classes"] = required
         # Every required class must still compile from its own module. The
-        # driver, which must observe every class it runs, is given only the
-        # classes that own at least one required test method: a corpus class
-        # with no statically enumerable enabled method (an abstract base, a
-        # class-level @Ignore, a helper without @Test) owes no observation.
+        # driver, which must observe every class it runs, is given the classes
+        # that own at least one required test method plus the concrete classes
+        # that only inherit enabled tests (required_inheriting_classes): those
+        # run their inherited tests and must be entered. A corpus class with
+        # neither (an abstract base, a class-level @Ignore, a helper without
+        # @Test) owes no observation.
         owning = {corpus_policy.class_of_method(m) for m in corpus.get("required_methods") or ()}
+        owning |= set(corpus.get("required_inheriting_classes") or ())
         doc["selected_test_classes"] = [
             e for e in required if corpus_policy.pair(e["module"], e["class_name"]) in owning
         ]

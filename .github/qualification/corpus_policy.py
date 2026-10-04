@@ -162,9 +162,13 @@ def split_pair(value: str) -> tuple[str, str]:
     return module, class_name
 
 
-def enumerate_paths(paths: list[str]) -> list[dict]:
-    """Enumerate required (module, class) entries from a list of tree paths."""
-    pattern = re.compile(TEST_CLASS_RE)
+def enumerate_paths(paths: list[str], any_class: bool = False) -> list[dict]:
+    """Enumerate required (module, class) entries from a list of tree paths.
+
+    With ``any_class`` every source file under a test source root is listed,
+    whatever its name (the superclass index of ``inheriting_classes``).
+    """
+    pattern = re.compile(r".*" if any_class else TEST_CLASS_RE)
     pom_dirs = {str(PurePosixPath(p).parent) for p in paths if PurePosixPath(p).name == "pom.xml"}
     found: dict[str, set] = {}
     for path in paths:
@@ -336,12 +340,175 @@ def enumerate_methods(entries: list[dict], read) -> tuple[list[str], list[str]]:
     return sorted(enabled), sorted(disabled - enabled)
 
 
+def java_type_header(source: str) -> dict:
+    """Package, imports and the first top-level class declaration of one Java file.
+
+    ``abstract`` and ``disabled`` describe that class; ``extends`` is the
+    superclass name as written (simple or qualified), or None.
+    """
+    tokens = _TOKEN.findall(strip_java(source))
+    disabling = re.compile(DISABLING_ANNOTATION_RE)
+    header = {"package": "", "imports": [], "abstract": False, "disabled": False, "extends": None, "found": False}
+    depth, pending, i, n = 0, [], 0, len(tokens)
+
+    def qualified(start: int) -> tuple[str, int]:
+        parts, j = [], start
+        while j < n and _IDENT.match(tokens[j]):
+            parts.append(tokens[j])
+            if j + 2 < n and tokens[j + 1] == "." and (_IDENT.match(tokens[j + 2]) or tokens[j + 2] == "*"):
+                if tokens[j + 2] == "*":
+                    parts.append("*")
+                    return ".".join(parts), j + 3
+                j += 2
+            else:
+                j += 1
+                break
+        return ".".join(parts), j
+
+    while i < n:
+        tok = tokens[i]
+        if tok == "{":
+            depth += 1
+        elif tok == "}":
+            depth -= 1
+            pending = []
+        elif depth == 0 and tok == "@" and i + 1 < n and tokens[i + 1] != "interface":
+            name, j = qualified(i + 1)
+            if j < n and tokens[j] == "(":
+                j = _skip_parens(tokens, j)
+            pending.append(name.rpartition(".")[2])
+            i = max(j, i + 1)
+            continue
+        elif depth == 0 and tok == ";":
+            pending = []
+        elif depth == 0 and tok == "package":
+            header["package"], i = qualified(i + 1)
+            continue
+        elif depth == 0 and tok == "import":
+            j = i + 1
+            if j < n and tokens[j] == "static":
+                header["imports"].append(None)
+                _, i = qualified(j + 1)
+                continue
+            name, i = qualified(j)
+            header["imports"].append(name)
+            continue
+        elif depth == 0 and tok in ("class", "interface", "enum", "record"):
+            if tok == "class":
+                header["found"] = True
+                header["abstract"] = "abstract" in pending
+                header["disabled"] = any(disabling.match(a) for a in pending)
+                j = i + 2
+                if j < n and tokens[j] == "<":
+                    angle = 0
+                    while j < n:
+                        angle += {"<": 1, ">": -1}.get(tokens[j], 0)
+                        j += 1
+                        if angle == 0:
+                            break
+                if j < n and tokens[j] == "extends":
+                    header["extends"], _ = qualified(j + 1)
+            header["imports"] = [m for m in header["imports"] if m]
+            return header
+        elif depth == 0:
+            pending.append(tok)
+        i += 1
+    header["imports"] = [m for m in header["imports"] if m]
+    return header
+
+
+def _superclass_candidates(header: dict) -> list[str]:
+    """Fully qualified names the declared superclass may resolve to."""
+    name = header.get("extends")
+    if not name:
+        return []
+    if "." in name:
+        return [name]
+    out = []
+    for imported in header["imports"]:
+        if imported.rpartition(".")[2] == name:
+            return [imported]
+        if imported.endswith(".*"):
+            out.append(imported[:-1] + name)
+    package = header["package"]
+    return [(package + "." + name) if package else name] + out
+
+
+def inheriting_classes(entries: list[dict], sources: list[dict], read, enabled_methods: list[str]) -> list[str]:
+    """Required classes that own no test method but inherit enabled tests.
+
+    ``entries`` are the required (module, class) entries; ``sources`` every Java
+    file under a test source root (superclasses need not match the class
+    regex). A class qualifies when it is concrete, not disabled at class level,
+    owns no enabled test method, and its superclass chain (resolved by package,
+    single-type or on-demand imports) reaches a class that declares an enabled
+    test method. Such a class must be run and entered: tests it only inherits
+    are otherwise never executed for it.
+    """
+    by_name: dict = {}
+    headers: dict = {}
+    for source in sources:
+        blob = read(source["path"])
+        if blob is None:
+            raise CorpusError("source of {} is unreadable".format(source["path"]))
+        key = pair(source["module"], source["class_name"])
+        text = blob.decode("utf-8", errors="replace")
+        headers[key] = java_type_header(text)
+        on, _ = java_test_methods(text)
+        headers[key]["declares_tests"] = bool(on)
+        by_name.setdefault(source["class_name"], []).append(key)
+    owning = {class_of_method(m) for m in enabled_methods}
+
+    memo: dict = {}
+
+    def declares_or_inherits(key: str, seen: frozenset) -> bool:
+        if key in memo:
+            return memo[key]
+        header = headers.get(key)
+        if header is None or key in seen:
+            return False
+        result = header["declares_tests"] or key in owning
+        if not result:
+            module = split_pair(key)[0]
+            for fqcn in _superclass_candidates(header):
+                supers = by_name.get(fqcn, [])
+                ordered = sorted(supers, key=lambda k: split_pair(k)[0] != module)
+                if any(declares_or_inherits(s, seen | {key}) for s in ordered):
+                    result = True
+                    break
+        memo[key] = result
+        return result
+
+    out = []
+    for entry in entries:
+        key = pair(entry["module"], entry["class_name"])
+        header = headers.get(key)
+        if header is None:
+            raise CorpusError("required class {} has no indexed source".format(key))
+        if key in owning or not header["found"] or header["abstract"] or header["disabled"]:
+            continue
+        module = entry["module"]
+        for fqcn in _superclass_candidates(header):
+            supers = sorted(by_name.get(fqcn, []), key=lambda k: split_pair(k)[0] != module)
+            if any(declares_or_inherits(s, frozenset({key})) for s in supers):
+                out.append(key)
+                break
+    return sorted(out)
+
+
 def corpus_rev(repo: str, rev: str) -> dict:
     """Classes and test methods of one exact commit, from Git objects only."""
-    entries = enumerate_rev(repo, rev)
-    blobs = read_blobs(repo, rev, [e["path"] for e in entries])
+    paths = tree_paths(repo, rev)
+    entries = enumerate_paths(paths)
+    sources = enumerate_paths(paths, any_class=True)
+    blobs = read_blobs(repo, rev, sorted({e["path"] for e in entries} | {s["path"] for s in sources}))
     enabled, disabled = enumerate_methods(entries, blobs.get)
-    return {"pairs": pairs_of(entries), "methods": enabled, "disabled_methods": disabled}
+    return {
+        "pairs": pairs_of(entries),
+        "methods": enabled,
+        "disabled_methods": disabled,
+        "inheriting": inheriting_classes(entries, sources, blobs.get, enabled),
+    }
 
 
 def pairs_of(entries: list[dict]) -> list[str]:
@@ -457,6 +624,7 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
         "violations": [],
         "required_pairs": [],
         "required_methods": [],
+        "required_inheriting_classes": [],
         "additions": [],
         "removed_without_approval": [],
         "behind_default_branch": [],
@@ -472,6 +640,7 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
     candidate_pairs = candidate["pairs"]
     result["required_pairs"] = candidate_pairs
     result["required_methods"] = candidate["methods"]
+    result["required_inheriting_classes"] = candidate["inheriting"]
 
     doc, problems = load_baseline_blob(read_blob(repo, trusted_rev, BASELINE_PATH))
     trusted = corpus_rev(repo, trusted_rev)
@@ -551,6 +720,12 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
     # Every baseline method still owed, whatever the static reading of the
     # candidate says, must also be seen started by the trusted driver.
     result["required_methods"] = sorted(candidate_methods | retained)
+    # A trusted class that runs only inherited tests stays owed while it exists:
+    # making it abstract or dropping its superclass in the candidate must not
+    # silently stop it from running (it then never enters, which fails).
+    result["required_inheriting_classes"] = sorted(
+        set(candidate["inheriting"]) | (set(trusted["inheriting"]) & candidate_set)
+    )
 
     if result["removed_without_approval"]:
         result["violations"].append(

@@ -963,6 +963,30 @@ def many_methods(count: int, disabled=frozenset()) -> str:
     return "\n".join(lines + ["}", ""])
 
 
+HOOKED_BASE_TEST = """package probe;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import org.junit.jupiter.api.Test;
+
+public class ProbeTest {
+    protected int value() { return 1; }
+
+    @Test public void test0() { assertEquals(1, value()); }
+}
+"""
+
+
+def hooked_subclass(value: int, abstract: bool = False) -> str:
+    """SubProbeTest: declares no test, inherits ProbeTest's, overrides its hook."""
+    return (
+        "package probe;\n\n"
+        "public {}class SubProbeTest extends ProbeTest {{\n"
+        "    @Override protected int value() {{ return {}; }}\n"
+        "}}\n"
+    ).format("abstract " if abstract else "", value)
+
+
 FAKE_TEST_ANNOTATION = """package probe;
 
 import java.lang.annotation.Retention;
@@ -1419,6 +1443,21 @@ def corpus_controls(h: Harness) -> list[dict]:
     run("CTRL-65-method-addition-required", "positive",
         "adding methods to a retained class qualifies when they pass and the baseline lists them",
         "PASS", None, project({"ProbeTest": many_methods(12)}), base=ten)
+    # Review P2 on witness.py:407: a concrete class that only inherits its tests
+    # (Mage's SmoothedLondonMulliganTest) must still run them, and be entered.
+    inherited = project({"ProbeTest": HOOKED_BASE_TEST, "SubProbeTest": hooked_subclass(1)})
+    run("CTRL-68-inherited-tests-run", "positive",
+        "a class that only inherits its tests is run, entered and credited",
+        "PASS", None, inherited, base=inherited)
+    run("CTRL-69-inherited-test-regression", "red",
+        "a regression only an inheriting class exposes fails qualification",
+        "FAIL", "test_failures",
+        project({"ProbeTest": HOOKED_BASE_TEST, "SubProbeTest": hooked_subclass(2)}), base=inherited)
+    run("CTRL-70-inheriting-class-made-abstract", "red",
+        "making a trusted inheriting class abstract does not stop it being owed",
+        "FAIL", ["required_tests_never_entered", "required_pairs_not_entered"],
+        project({"ProbeTest": HOOKED_BASE_TEST, "SubProbeTest": hooked_subclass(1, abstract=True)}),
+        base=inherited)
     return rows
 
 
