@@ -1,0 +1,234 @@
+{
+  "build_definition_audit": {
+    "audited_files": [],
+    "status": "CLEAN",
+    "violations": []
+  },
+  "candidate": {
+    "sha": "c6fab8410990838c0cd82a86290cda5b201f235a",
+    "tree": "46ce678fa1c1ace9ca98ac4270af91a33ee946b7"
+  },
+  "candidate_authored_evidence_used": false,
+  "candidate_build_exit_code": 0,
+  "candidate_build_exit_code_semantics": "recorded by trusted code around the sandboxed build; a non-zero exit is an unconditional qualification failure",
+  "candidate_execution_identity": "nobody",
+  "candidate_reports_parsed": false,
+  "candidate_test_classes_used": false,
+  "comparison_base": {
+    "sha": "f15dfdc9b35cc3f5aa519a65bd57b0ede46067fd",
+    "tree": "46ce678fa1c1ace9ca98ac4270af91a33ee946b7"
+  },
+  "corpus_policy": {
+    "additions": [],
+    "approved_removals_applied": [],
+    "baseline_path": ".github/qualification/test_corpus_baseline.json",
+    "behind_default_branch": [],
+    "candidate_baseline": {
+      "consistent": true,
+      "listed_but_absent": [],
+      "listed_methods_absent": [],
+      "present": true,
+      "problems": [],
+      "unlisted": [],
+      "unlisted_methods": []
+    },
+    "candidate_rev": "c6fab8410990838c0cd82a86290cda5b201f235a",
+    "comparison_base_rev": "f15dfdc9b35cc3f5aa519a65bd57b0ede46067fd",
+    "enumeration_rule": {
+      "class_regex": "(Test|Tests|TestCase|Spec|IT)$",
+      "method_format": "module::fully.qualified.ClassName#methodName",
+      "method_rule": {
+        "disabling_annotation_regex": "^(Ignore|Disabled\\w*|Enabled\\w*)$",
+        "enabled": "a test method with no disabling annotation on itself or an enclosing type",
+        "junit3_base_regex": "\\bextends\\s+(?:junit\\.framework\\.)?TestCase\\b",
+        "junit3_method_regex": "\\bpublic\\s+void\\s+(test[\\w$]*)\\s*\\(\\s*\\)",
+        "scope": "methods declared anywhere in the source file of a baseline class, comments and literals ignored",
+        "test_annotations": [
+          "Test",
+          "ParameterizedTest",
+          "RepeatedTest",
+          "TestFactory",
+          "TestTemplate"
+        ]
+      },
+      "module_rule": "nearest ancestor directory of the test source root that holds a pom.xml",
+      "pair_format": "module::fully.qualified.ClassName",
+      "source_markers": [
+        "src/test/java",
+        "src/test/kotlin",
+        "src/test/groovy"
+      ],
+      "source_suffix": ".java"
+    },
+    "method_additions": [],
+    "methods_behind_default_branch": [],
+    "methods_disabled_without_approval": [],
+    "methods_removed_without_approval": [],
+    "removed_without_approval": [],
+    "required_methods": [
+      ".::probe.ProbeTest#test0"
+    ],
+    "required_pairs": [
+      ".::probe.ProbeTest"
+    ],
+    "schema": "mage.candidate-qualification.corpus-policy/2",
+    "status": "OK",
+    "trusted_baseline": {
+      "entries_count": 1,
+      "entries_sha256": "47185a322908fdc39cf0242c6b02116d1d28cc8a8abe7e96e55b41be96ca6b03",
+      "methods_count": 1,
+      "methods_sha256": "73a8046572187909e5e477c92697bd2db6abfcedfa1f5239bf59cc7dfdbbe159",
+      "present": true,
+      "problems": []
+    },
+    "trusted_rev": "f15dfdc9b35cc3f5aa519a65bd57b0ede46067fd",
+    "unknowns": [],
+    "violations": []
+  },
+  "driver": {
+    "name": "TrustedTestDriver.java",
+    "sha256": "819e44f4b5df42ae56c9cd56824f8cca57997b4409ca0513c44e9386f5b6c4fc"
+  },
+  "execution_mode": "per_module_trusted_driver",
+  "module_classpath_completeness": {
+    "complete": true,
+    "modules_missing_classpath": [],
+    "modules_with_classpath": [
+      "."
+    ],
+    "modules_with_required_tests": [
+      "."
+    ]
+  },
+  "module_classpaths_are_authority": false,
+  "module_execution": [
+    {
+      "driver_exit_code": 0,
+      "driver_stderr": "",
+      "driver_stdout": "TRUSTED_EXECUTION module=. selected=1 observed=1 never_entered=0 origin_violations=0 found=1 started=1 succeeded=1 failed=0 aborted=0 skipped=0 verdict=PASS",
+      "executed": true,
+      "module": ".",
+      "reason": null,
+      "required_classes": 1,
+      "witness": {
+        "bound_candidate_sha": "c6fab8410990838c0cd82a86290cda5b201f235a",
+        "bound_candidate_tree": "46ce678fa1c1ace9ca98ac4270af91a33ee946b7",
+        "candidate_authored_evidence_used": false,
+        "class_code_origins": {
+          "probe.ProbeTest": "/var/lib/c12-selftest/bundle/tests/000-_"
+        },
+        "classes_never_entered": [],
+        "code_origin_enforced": true,
+        "code_origin_violations": [],
+        "containers_failed": 0,
+        "driver_verdict": "PASS",
+        "evidence_origin": "trusted_side_direct_execution",
+        "failures": [],
+        "module_id": ".",
+        "module_output": "/var/lib/c12-selftest/bundle/tests/000-_",
+        "non_successful_by_class": {},
+        "observed_classes": [
+          "probe.ProbeTest"
+        ],
+        "observed_methods": [
+          "probe.ProbeTest#test0"
+        ],
+        "producer": "TrustedTestDriver",
+        "schema": "mage.candidate-qualification.trusted-execution-witness/1",
+        "tests_aborted": 0,
+        "tests_failed": 0,
+        "tests_found": 1,
+        "tests_skipped": 0,
+        "tests_started": 1,
+        "tests_succeeded": 1,
+        "trusted_selected_class_names": [
+          "probe.ProbeTest"
+        ],
+        "trusted_selected_classes": 1
+      }
+    }
+  ],
+  "modules": [
+    {
+      "module": ".",
+      "not_compiled": [],
+      "required_class_count": 1,
+      "stale_sibling_entries_dropped": []
+    }
+  ],
+  "notes": [],
+  "observed_candidate_sha": "c6fab8410990838c0cd82a86290cda5b201f235a",
+  "required_test_classes": [
+    {
+      "class_name": "probe.ProbeTest",
+      "module": "."
+    }
+  ],
+  "schema": "mage.candidate-qualification.witness/3",
+  "source_binding_ok": true,
+  "stale_sibling_artifacts_dropped": [],
+  "status": "WITNESSED",
+  "test_bytecode_origin": "trusted_compile_of_locked_git_export",
+  "trusted_execution_witness": {
+    "bound_candidate_sha": "c6fab8410990838c0cd82a86290cda5b201f235a",
+    "bound_candidate_shas": [
+      "c6fab8410990838c0cd82a86290cda5b201f235a"
+    ],
+    "bound_candidate_tree": "46ce678fa1c1ace9ca98ac4270af91a33ee946b7",
+    "candidate_authored_evidence_used": false,
+    "class_code_origins": {
+      ".::probe.ProbeTest": "/var/lib/c12-selftest/bundle/tests/000-_"
+    },
+    "classes_entered_total": 1,
+    "classes_never_entered": [],
+    "code_origin_violations": [],
+    "containers_failed": 0,
+    "driver_verdict": "PENDING",
+    "entered_pairs": [
+      ".::probe.ProbeTest"
+    ],
+    "evidence_origin": "trusted_side_direct_execution",
+    "execution_mode": "per_module_trusted_driver",
+    "modules_with_required_tests": [
+      "."
+    ],
+    "modules_with_witness": [
+      "."
+    ],
+    "modules_without_witness": [],
+    "observed_methods": [
+      ".::probe.ProbeTest#test0"
+    ],
+    "producer": "witness.py per-module aggregation",
+    "schema": "mage.candidate-qualification.trusted-execution-witness/1",
+    "tests_aborted": 0,
+    "tests_failed": 0,
+    "tests_found": 1,
+    "tests_skipped": 0,
+    "tests_started": 1,
+    "tests_succeeded": 1,
+    "totals": {
+      "containers_failed": 0,
+      "tests_aborted": 0,
+      "tests_failed": 0,
+      "tests_found": 1,
+      "tests_skipped": 0,
+      "tests_started": 1,
+      "tests_succeeded": 1
+    },
+    "trusted_selected_classes": 1
+  },
+  "trusted_test_compilation": [
+    {
+      "dropped_test_resources": [],
+      "exit_code": 0,
+      "module": ".",
+      "sources": 1,
+      "stderr_tail": "Picked up JAVA_TOOL_OPTIONS: -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStoreType=JKS -Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=45501 -Dhttp.nonProxyHosts=localhost|127.0.0.1|::1|127.*|0.*|::|169.254.*|api.anthropic.com|api-staging.anthropic.com|api-pr-preview.anthropic.com|mcp-proxy.anthropic.com|mcp-proxy-staging.anthropic.com|registry.npmjs.org|jsr.io|npm.jsr.io|pypi.org|files.pythonhosted.org|index.crates.io|proxy.golang.org|host.docker.internal|10.*|172.16.*|172.17.*|172.18.*|172.19.*|172.20.*|172.21.*|172.22.*|172.23.*|172.24.*|172.25.*|172.26.*|172.27.*|172.28.*|172.29.*|172.30.*|172.31.*|192.168.*|100.64.0.0/10|*.svc.cluster.local|*.svc.cluster.local -Djdk.http.auth.tunneling.disabledSchemes= -Djdk.http.auth.proxying.disabledSchemes="
+    }
+  ],
+  "trusted_validator": {
+    "sha": "f15dfdc9b35cc3f5aa519a65bd57b0ede46067fd",
+    "tree": "46ce678fa1c1ace9ca98ac4270af91a33ee946b7"
+  }
+}

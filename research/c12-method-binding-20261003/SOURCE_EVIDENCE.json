@@ -1,0 +1,40 @@
+{
+  "fail_before": {
+    "CTRL-56": "reproduced earlier by research/c12-independent-review-20261003/within-class-shrink (ten methods to one received PASS)",
+    "CTRL-66": "witness.py with only the .class drop and post-copy digest check reverted (mutation); CTRL-66 observed PASS (expected FAIL); the fixed code observes FAIL test_failures"
+  },
+  "records": {
+    "CTRL-66-mutation-fail-before.json": {
+      "sha256": "8e6b78097ec07421f9afffe165b4bd99d203d87930c00eccbcff744c52fc3932"
+    },
+    "README.md": {
+      "sha256": "33e85ecb6bbe7c9a275e9c23344aeefcaf3d45e7ea1f0101c645f7280bf24490"
+    },
+    "SELFTEST-65-controls.json.gz": {
+      "sha256": "6bebf1044938c0393556a63160c70d0981b0eed0c9558f889c903b2c2c5affe4"
+    },
+    "counter-fixture-SOURCE_LOCK.json": {
+      "sha256": "f3233aa920d1771ad6e157a089bc93e544b9bca2e90f9273aa51c86415b1cafd"
+    },
+    "counter-fixture-TRUSTED_WITNESS.json": {
+      "sha256": "5941ca21e49278bd49c9e42b3a4c90e3a555d6fcfd172e7f57c18b5dcf2d35c0"
+    },
+    "counter-fixture.bundle": {
+      "sha256": "bca67e1fe21c70a49a2668646632cfac658df3582b61da6dc9ba31636d88b579"
+    },
+    "regenerate_counter_fixture.py": {
+      "sha256": "518ef510d03657aea4708d3b0b33f41bad39402858d2258d1314576bb01d3f8b"
+    }
+  },
+  "schema": "mage.c12.method-binding-evidence/1",
+  "selftest": {
+    "controls_not_run": 0,
+    "controls_passed": 65,
+    "controls_total": 65,
+    "environment": "local container, root trusted side, existing unprivileged account 'nobody' as the candidate account, offline Maven; NOT GitHub Actions",
+    "qualify_sha256": "d270bc6dc3b384b5523c9eb0bace120e928587d2d0be24b258509768421418a9",
+    "ran_on_commit": "8752811b4136227fdaeec29eb22c36f42db71ef9",
+    "sandbox_user": "nobody",
+    "status": "PASS"
+  }
+}
