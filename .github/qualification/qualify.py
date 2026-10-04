@@ -225,12 +225,10 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
             unknown(reason)
         if corpus.get("status") not in ("OK", "VIOLATION", "UNKNOWN"):
             unknown("corpus_policy_unusable: status={}".format(corpus.get("status")))
-        # The witness runs exactly the policy's classes that own a required test
-        # method (witness.py); a class without one owes no observation.
         required_methods_bound = corpus.get("required_methods") or []
         owning = {str(m).rpartition("#")[0] for m in required_methods_bound if isinstance(m, str)}
         policy_pairs = corpus.get("required_pairs") or []
-        required_from_policy = sorted(p for p in policy_pairs if p in owning)
+        required_from_policy = sorted(policy_pairs)
         if policy_pairs and not owning:
             fail(
                 "no_enabled_required_test_methods: the corpus enumerates {} test class(es) "
@@ -303,12 +301,14 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
             )
         )
 
-    # The entered set must be exactly the required set: no extra credited class,
-    # and no required (module, class) pair quietly missing.
-    required_pairs = {
-        "{}::{}".format(e.get("module"), e.get("class_name"))
-        for e in (witness.get("required_test_classes") or [])
-    }
+    # The entered set must be exactly the selected set (the required classes
+    # that own a required test method): no extra credited class, and no selected
+    # (module, class) pair quietly missing. Every required class must still
+    # compile from its own module (required_tests_not_compiled below).
+    selected = witness.get("selected_test_classes")
+    if not isinstance(selected, list):
+        selected = witness.get("required_test_classes") or []
+    required_pairs = {"{}::{}".format(e.get("module"), e.get("class_name")) for e in selected}
     entered_pairs = set(execution.get("entered_pairs") or [])
     unexpected = sorted(entered_pairs - required_pairs)
     if unexpected:

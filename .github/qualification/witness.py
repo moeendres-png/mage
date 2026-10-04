@@ -249,12 +249,12 @@ def module_witnesses(user, sandbox_dir, candidate_root, modules, bundle, outputs
     home = sandbox.sandbox_home(sandbox_dir)
     for module in sorted(modules):
         entry = modules[module]
-        classes = entry["required_classes"]
+        classes = entry["selected_classes"]
         if not classes:
             results.append({"module": module, "required_classes": 0, "executed": False,
                             "reason": "no_required_classes_in_module", "witness": None})
             continue
-        if entry["not_compiled"] == classes:
+        if set(classes) <= set(entry["not_compiled"]):
             results.append({"module": module, "required_classes": len(classes), "executed": False,
                             "reason": "module_test_classes_not_compiled", "witness": None})
             continue
@@ -394,17 +394,20 @@ def main() -> int:
 
         corpus = corpus_policy.evaluate(args.git_repo, trusted_sha, base_sha, locked_sha)
         doc["corpus_policy"] = corpus
-        # The driver must observe every class it runs, so it runs only classes
-        # that own at least one required test method. A corpus class with no
-        # statically enumerable enabled method (an abstract base, a class-level
-        # @Ignore, a helper without @Test) owes no observation; it stays protected
-        # by the corpus policy and is recorded, but is not selected.
-        owning = {corpus_policy.class_of_method(m) for m in corpus.get("required_methods") or ()}
         required = [
             {"module": m, "class_name": c}
-            for m, c in (corpus_policy.split_pair(p) for p in corpus["required_pairs"] if p in owning)
+            for m, c in (corpus_policy.split_pair(p) for p in corpus["required_pairs"])
         ]
         doc["required_test_classes"] = required
+        # Every required class must still compile from its own module. The
+        # driver, which must observe every class it runs, is given only the
+        # classes that own at least one required test method: a corpus class
+        # with no statically enumerable enabled method (an abstract base, a
+        # class-level @Ignore, a helper without @Test) owes no observation.
+        owning = {corpus_policy.class_of_method(m) for m in corpus.get("required_methods") or ()}
+        doc["selected_test_classes"] = [
+            e for e in required if corpus_policy.pair(e["module"], e["class_name"]) in owning
+        ]
         doc["corpus_classes_without_required_methods"] = sorted(
             p for p in corpus["required_pairs"] if p not in owning
         )
@@ -456,6 +459,7 @@ def main() -> int:
             dropped_total += [{"module": module, "dropped": d} for d in dropped]
             resolved[module] = {
                 "required_classes": sorted(classes),
+                "selected_classes": sorted(c for c in classes if corpus_policy.pair(module, c) in owning),
                 "classpath": cp,
                 "junit": junit_jars,
                 "bundle_name": bundle_name,
