@@ -53,6 +53,12 @@ jobs:
         set -o pipefail
         mkdir -p evidence
         mvn test -fae -B -Dxmage.verify.mtgjson.reference="${GITHUB_WORKSPACE}/Mage.Verify/mtgjson-reference.json" -Dxmage.verify.mtgjson.dir="${RUNNER_TEMP}/mtgjson-reference" -Dstyle.color=never -Dxmage.dataCollectors.printGameLogs=false -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/.travis/log4j.properties | tee evidence/reactor.log
+    - name: Regenerate verifier omission evidence after Maven
+      if: ${{ !cancelled() }}
+      run: >-
+        python3 .github/ci/verifier_gaps.py check
+        --out evidence/VERIFIER_GAPS.json
+        --markdown evidence/VERIFIER_GAPS.md
     - name: Record distinct native module signals
       if: ${{ !cancelled() }}
       env:
