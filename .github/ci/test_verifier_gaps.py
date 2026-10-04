@@ -87,6 +87,9 @@ class GapInventory(unittest.TestCase):
 
     def test_workflow_uses_pr_base_anchor_and_regenerates_after_maven(self):
         workflow=(Path(__file__).resolve().parents[1]/'workflows/maven.yml').read_text()
+        checkout=workflow.index('    - uses: actions/checkout@')
+        setup=workflow.index('    - name: Setup JDK 17')
+        self.assertIn('fetch-depth: 2',workflow[checkout:setup])
         build=workflow.index('    - name: Build and test')
         regenerate=workflow.index('    - name: Regenerate verifier omission evidence after Maven')
         collect=workflow.index('    - name: Record distinct native module signals')
