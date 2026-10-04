@@ -1612,6 +1612,167 @@ public class ProbeRunner extends Runner {
     return rows
 
 
+
+def containment_controls(h: Harness) -> list[dict]:
+    """Hostile candidate bytecode executes, but never owns qualification authority."""
+    rows: list[dict] = []
+
+    benign = """package probe;
+public final class Attack {
+ public static boolean reflectionBlocked() { return true; }
+ public static boolean observerHidden() { return true; }
+ public static boolean channelBlocked() { return true; }
+ public static boolean processBlocked() { return true; }
+ public static boolean fdDiscoveryBlocked() { return true; }
+ public static boolean hookBlocked() { return true; }
+ public static boolean nativeLoadBlocked() { return true; }
+ public static boolean managerRemovalBlocked() { return true; }
+ public static boolean exitBlocked() { return true; }
+ public static boolean noAuthoritySecrets() { return true; }
+}
+"""
+    test = """package probe;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+public class ProbeTest {
+ @Test public void reflection() { assertTrue(Attack.reflectionBlocked()); }
+ @Test public void observer() { assertTrue(Attack.observerHidden()); }
+ @Test public void channel() { assertTrue(Attack.channelBlocked()); }
+ @Test public void process() { assertTrue(Attack.processBlocked()); }
+ @Test public void fds() { assertTrue(Attack.fdDiscoveryBlocked()); }
+ @Test public void hook() { assertTrue(Attack.hookBlocked()); }
+ @Test public void nativeLoad() { assertTrue(Attack.nativeLoadBlocked()); }
+ @Test public void manager() { assertTrue(Attack.managerRemovalBlocked()); }
+ @Test public void exit() { assertTrue(Attack.exitBlocked()); }
+ @Test public void secrets() { assertTrue(Attack.noAuthoritySecrets()); }
+}
+"""
+    hostile = r"""package probe;
+import java.lang.management.ManagementFactory;
+import java.lang.reflect.Method;
+import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Map;
+
+public final class Attack {
+ private static boolean blocked(Throwing action) {
+  try { action.run(); return false; }
+  catch (SecurityException | ReflectiveOperationException | java.io.IOException exc) { return true; }
+  catch (RuntimeException exc) { return true; }
+ }
+ @FunctionalInterface private interface Throwing { void run() throws Exception; }
+
+ public static boolean reflectionBlocked() {
+  return blocked(() -> {
+   Class<?> type = Class.forName("c12.trusted.TrustedTestDriver");
+   Method hook = type.getDeclaredMethod("observerComplete");
+   hook.setAccessible(true);
+   hook.invoke(null);
+  });
+ }
+ public static boolean observerHidden() {
+  try { Class.forName("TrustedTestObserver"); return false; }
+  catch (ClassNotFoundException expected) { return true; }
+ }
+ public static boolean channelBlocked() {
+  String address = null;
+  for (String arg : ManagementFactory.getRuntimeMXBean().getInputArguments()) {
+   int p = arg.indexOf("address=");
+   if (p >= 0) {
+    address = arg.substring(p + 8);
+    int comma = address.indexOf(',');
+    if (comma >= 0) address = address.substring(0, comma);
+   }
+  }
+  if (address == null || address.isEmpty()) return false;
+  final String addr = address;
+  return blocked(() -> {
+   String host = "127.0.0.1";
+   String portText = addr;
+   int colon = addr.lastIndexOf(':');
+   if (colon >= 0) { host = addr.substring(0, colon); portText = addr.substring(colon + 1); }
+   try (Socket ignored = new Socket(host, Integer.parseInt(portText))) { }
+  });
+ }
+ public static boolean processBlocked() {
+  return blocked(() -> new ProcessBuilder("/bin/true").start());
+ }
+ public static boolean fdDiscoveryBlocked() {
+  return blocked(() -> { try (java.util.stream.Stream<java.nio.file.Path> ignored =
+      Files.list(Paths.get("/proc/self/fd"))) { ignored.count(); } });
+ }
+ public static boolean hookBlocked() {
+  return blocked(() -> Runtime.getRuntime().addShutdownHook(new Thread(() -> {})));
+ }
+ public static boolean nativeLoadBlocked() {
+  return blocked(() -> System.loadLibrary("c12_candidate_escape_probe"));
+ }
+ @SuppressWarnings("removal")
+ public static boolean managerRemovalBlocked() {
+  return blocked(() -> System.setSecurityManager(null));
+ }
+ public static boolean exitBlocked() {
+  return blocked(() -> System.exit(0));
+ }
+ public static boolean noAuthoritySecrets() {
+  for (Map.Entry<String,String> e : System.getenv().entrySet()) {
+   String k = e.getKey().toUpperCase(java.util.Locale.ROOT);
+   if (k.contains("WITNESS") || k.contains("RECEIPT") || k.contains("SECRET") || k.contains("TOKEN")) return false;
+  }
+  for (String arg : ManagementFactory.getRuntimeMXBean().getInputArguments()) {
+   if (arg.contains("observer-receipts") || arg.contains("TRUSTED_WITNESS")) return false;
+  }
+  return System.getProperty("c12.receipt") == null && System.getProperty("c12.witness.key") == null;
+ }
+}
+"""
+    base = project({"ProbeTest": test}, extra={"src/main/java/probe/Attack.java": benign})
+    candidate = project({"ProbeTest": test}, extra={"src/main/java/probe/Attack.java": hostile})
+    fx = h.fixture("CTRL-84-hostile-bytecode-contained", base, candidate)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-84-hostile-bytecode-contained", "positive",
+        "hostile candidate production bytecode can execute but reflection, authority discovery, channel reuse, process/socket/fd/native/shutdown/exit escape paths are denied",
+        "PASS", result, extra_ok=result.get("credit") is True,
+    ))
+
+    # Candidate test source preserves the method identity but weakens a failing
+    # assertion. C12 must still run the trusted default-branch assertion and fail.
+    trusted_failing = """package probe;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
+public class ProbeTest { @Test public void proof() { assertEquals(3, 1 + 1); } }
+"""
+    candidate_passing = trusted_failing.replace("assertEquals(3, 1 + 1)", "assertEquals(2, 1 + 1)")
+    fx = h.fixture(
+        "CTRL-85-candidate-test-weakening-no-credit",
+        project({"ProbeTest": trusted_failing}),
+        project({"ProbeTest": candidate_passing}),
+    )
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-85-candidate-test-weakening-no-credit", "red",
+        "candidate-edited test assertions never replace the trusted baseline test bytecode",
+        "FAIL", result, reason="test_failures",
+    ))
+
+    # A candidate-added green test is delta-visible, but it cannot increase the
+    # authoritative execution set or manufacture credit.
+    one = project({"ProbeTest": PASSING_TEST})
+    two = project({"ProbeTest": PASSING_TEST, "AddedTest": passing("AddedTest")})
+    fx = h.fixture("CTRL-86-candidate-added-test-no-credit", one, two)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-86-candidate-added-test-no-credit", "positive",
+        "candidate-added test bytecode contributes zero trusted witness credit",
+        "PASS", result,
+        extra_ok=result.get("classes_entered") == 1 and result.get("required_selected") == 1,
+    ))
+
+    return rows
+
+
 def legacy_controls(h: Harness) -> list[dict]:
     """The report-forgery, suppression, binding and witness controls, on the new pipeline."""
     rows: list[dict] = []
@@ -1999,6 +2160,7 @@ def main() -> int:
         ("trust", trust_controls),
         ("junit", junit_controls),
         ("corpus", corpus_controls),
+        ("containment", containment_controls),
     )
     try:
         results = list(static_controls()) + source_lock_controls(tmp)
