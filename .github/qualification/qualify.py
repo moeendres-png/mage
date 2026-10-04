@@ -45,9 +45,9 @@ import os
 import sys
 from pathlib import Path
 
-SCHEMA = "mage.candidate-qualification.evidence/3"
-WITNESS_SCHEMA = "mage.candidate-qualification.witness/3"
-EXEC_WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/1"
+SCHEMA = "mage.candidate-qualification.evidence/4"
+WITNESS_SCHEMA = "mage.candidate-qualification.witness/4"
+EXEC_WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/2"
 INTEGRITY_SCHEMA = "mage.candidate-qualification.integrity/1"
 
 PASS = "PASS"
@@ -226,7 +226,7 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
         if corpus.get("status") not in ("OK", "VIOLATION", "UNKNOWN"):
             unknown("corpus_policy_unusable: status={}".format(corpus.get("status")))
         required_methods_bound = corpus.get("required_methods") or []
-        owning = {str(m).rpartition("#")[0] for m in required_methods_bound if isinstance(m, str)}
+        owning = {str(m).rpartition("#")[0].partition("$")[0] for m in required_methods_bound if isinstance(m, str)}
         inheriting = corpus.get("required_inheriting_classes")
         if not isinstance(inheriting, list) or not all(isinstance(c, str) for c in inheriting):
             unknown("required_inheriting_classes_missing: the corpus policy bound no inheriting-class list")

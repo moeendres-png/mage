@@ -87,21 +87,17 @@ public final class TrustedTestDriver {
         // under its subclass but is the declaring class's required method. A
         // JUnit 4 Parameterized invocation is reported as name[index]: the
         // identity is the method, not the invocation.
-        String declaring;
-        try {
-            declaring = source.getJavaMethod().getDeclaringClass().getName();
-        } catch (RuntimeException exc) {
-            declaring = source.getClassName();
-        }
-        String name = source.getMethodName();
-        int cut = name.length();
-        for (char stop : new char[] {'[', '('}) {
-            int at = name.indexOf(stop);
-            if (at >= 0) {
-                cut = Math.min(cut, at);
+        java.lang.reflect.Method method = source.getJavaMethod();
+        StringBuilder identity = new StringBuilder(method.getDeclaringClass().getName());
+        identity.append("#").append(method.getName()).append("(");
+        Class<?>[] parameters = method.getParameterTypes();
+        for (int i = 0; i < parameters.length; i++) {
+            if (i > 0) {
+                identity.append(",");
             }
+            identity.append(parameters[i].getSimpleName());
         }
-        return topLevel(declaring) + "#" + name.substring(0, cut);
+        return identity.append(")").toString();
     }
 
     private static final class CodeSourceStub {
@@ -342,7 +338,11 @@ public final class TrustedTestDriver {
                 boolean trustedEngine = ALLOWED_ENGINES.contains(engine);
                 if (trustedEngine && identifier.getSource().isPresent()
                         && identifier.getSource().get() instanceof MethodSource) {
-                    observedMethods.add(methodIdentityOf((MethodSource) identifier.getSource().get()));
+                    try {
+                        observedMethods.add(methodIdentityOf((MethodSource) identifier.getSource().get()));
+                    } catch (RuntimeException exc) {
+                        originViolations.add("unresolved_method_identity:" + identifier.getUniqueId());
+                    }
                 }
                 if (!identifier.isTest()) {
                     return;
@@ -447,7 +447,7 @@ public final class TrustedTestDriver {
 
         StringBuilder json = new StringBuilder();
         json.append("{\n");
-        json.append("  \"schema\": \"mage.candidate-qualification.trusted-execution-witness/1\",\n");
+        json.append("  \"schema\": \"mage.candidate-qualification.trusted-execution-witness/2\",\n");
         json.append("  \"producer\": \"TrustedTestDriver\",\n");
         json.append("  \"evidence_origin\": \"trusted_side_direct_execution\",\n");
         json.append("  \"candidate_authored_evidence_used\": false,\n");

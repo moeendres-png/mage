@@ -65,8 +65,8 @@ from pathlib import PurePosixPath
 # Trusted code never resolves tools from the inherited PATH (see sandbox.TOOL_PATH).
 GIT = shutil.which("git", path="/usr/sbin:/usr/bin:/sbin:/bin") or "/usr/bin/git"
 
-BASELINE_SCHEMA = "mage.candidate-qualification.test-corpus-baseline/2"
-POLICY_SCHEMA = "mage.candidate-qualification.corpus-policy/2"
+BASELINE_SCHEMA = "mage.candidate-qualification.test-corpus-baseline/3"
+POLICY_SCHEMA = "mage.candidate-qualification.corpus-policy/3"
 BASELINE_PATH = ".github/qualification/test_corpus_baseline.json"
 
 # Selection rule for what must run, never an evidence heuristic: a class that
@@ -91,13 +91,15 @@ ENUMERATION_RULE = {
     "source_suffix": SOURCE_SUFFIX,
     "pair_format": "module" + PAIR_SEPARATOR + "fully.qualified.ClassName",
     "module_rule": "nearest ancestor directory of the test source root that holds a pom.xml",
-    "method_format": "module" + PAIR_SEPARATOR + "fully.qualified.ClassName" + METHOD_SEPARATOR + "methodName",
+    "method_format": "module" + PAIR_SEPARATOR + "fully.qualified.ClassName" + METHOD_SEPARATOR + "methodName(erasedSimpleParameterTypes)",
     "method_rule": {
         "test_annotations": list(TEST_METHOD_ANNOTATIONS),
         "disabling_annotation_regex": DISABLING_ANNOTATION_RE,
         "junit3_base_regex": JUNIT3_BASE_RE,
         "junit3_method_regex": JUNIT3_METHOD_RE,
-        "scope": "methods declared anywhere in the source file of a baseline class, comments and literals ignored",
+        "scope": "binary declaring class, including nested types; comments and literals ignored",
+        "signature": "erased simple parameter types, arrays preserved, varargs as array",
+        "ambiguity": "duplicate normalized declaration identities are unsupported and fail closed",
         "enabled": "a test method with no disabling annotation on itself or an enclosing type",
     },
 }
@@ -258,17 +260,80 @@ def _skip_parens(tokens: list[str], start: int) -> int:
     return len(tokens)
 
 
+def _parameter_signature(tokens: list[str]) -> str:
+    """Collision-rejecting erased parameter signature, also emitted by the driver.
+
+    Simple names avoid guessing Java import/type resolution. A pair of overloads
+    whose erased simple types collide is rejected, never collapsed into one test.
+    Unresolved type variables cannot earn runtime credit: reflection emits their
+    actual erased bound, not a guessed Object fallback.
+    """
+    if not tokens:
+        return "()"
+    groups, group, angle = [], [], 0
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        if tok == "@":
+            i += 1
+            if i >= len(tokens) or not _IDENT.match(tokens[i]):
+                raise CorpusError("malformed parameter annotation")
+            i += 1
+            while i + 1 < len(tokens) and tokens[i] == "." and _IDENT.match(tokens[i + 1]):
+                i += 2
+            if i < len(tokens) and tokens[i] == "(":
+                i = _skip_parens(tokens, i)
+            continue
+        if tok == "<":
+            angle += 1
+        elif tok == ">":
+            angle -= 1
+            if angle < 0:
+                raise CorpusError("unbalanced generic parameter")
+        elif angle == 0 and tok == ",":
+            groups.append(group)
+            group = []
+        elif angle == 0 and tok != "final":
+            group.append(tok)
+        i += 1
+    if angle:
+        raise CorpusError("unbalanced generic parameter")
+    groups.append(group)
+    types = []
+    for group in groups:
+        # A receiver is not a Java method parameter. It has no reflected slot.
+        if group and group[-1] == "this":
+            continue
+        text = "".join(group)
+        # Names are separate tokens; remove the variable before normalizing type.
+        indices = [j for j, tok in enumerate(group) if _IDENT.match(tok)]
+        if len(indices) < 2:
+            raise CorpusError("unsupported parameter declaration: " + text)
+        variable = indices[-1]
+        type_tokens = group[:variable] + group[variable + 1:]
+        text = "".join(type_tokens).replace("...", "[]")
+        if not re.fullmatch(r"[\w$]+(?:\.[\w$]+)*(?:\[\])*", text):
+            raise CorpusError("unsupported parameter type: " + text)
+        head, _, arrays = text.partition("[")
+        types.append(head.rpartition(".")[2] + ("[" + arrays if arrays else ""))
+    return "(" + ",".join(types) + ")"
+
+
 def java_test_methods(source: str) -> tuple[set, set]:
-    """(enabled, disabled) test method names declared in one Java source file."""
+    """Enabled/disabled binary declaring-class + erased-signature identities.
+
+    Duplicate normalized identities are a policy error, including enabled versus
+    disabled collisions. They must not disappear into a set and permit shrinkage.
+    """
     code = strip_java(source)
     tokens = _TOKEN.findall(code)
     disabling = re.compile(DISABLING_ANNOTATION_RE)
-    enabled: set = set()
-    disabled: set = set()
-    scopes = [False]  # per brace scope: is an enclosing type disabled?
-    pending: list[str] = []  # simple names of annotations awaiting their declaration
-    type_disabled = None  # a type declaration waiting for its body
+    enabled, disabled, declarations = set(), set(), set()
+    scopes = [(False, ())]
+    pending = []
+    type_pending = None
     prev = None
+    junit3 = bool(re.search(JUNIT3_BASE_RE, code))
     i, n = 0, len(tokens)
     while i < n:
         tok = tokens[i]
@@ -287,12 +352,15 @@ def java_test_methods(source: str) -> tuple[set, set]:
                 pending.append(name)
             i, prev = max(j, i + 1), None
             continue
-        if tok in ("class", "interface", "enum") and prev != ".":
-            type_disabled = scopes[-1] or any(disabling.match(a) for a in pending)
+        if tok in ("class", "interface", "enum", "record") and prev != ".":
+            if i + 1 >= n or not _IDENT.match(tokens[i + 1]):
+                raise CorpusError("unsupported type declaration")
+            type_pending = (scopes[-1][0] or any(disabling.match(a) for a in pending),
+                            scopes[-1][1] + (tokens[i + 1],))
             pending = []
         elif tok == "{":
-            scopes.append(scopes[-1] if type_disabled is None else type_disabled)
-            type_disabled, pending = None, []
+            scopes.append(scopes[-1] if type_pending is None else type_pending)
+            type_pending, pending = None, []
         elif tok == "}":
             if len(scopes) > 1:
                 scopes.pop()
@@ -300,17 +368,24 @@ def java_test_methods(source: str) -> tuple[set, set]:
         elif tok == ";":
             pending = []
         elif tok == "(":
-            if prev and _IDENT.match(prev) and any(a in TEST_METHOD_ANNOTATIONS for a in pending):
-                off = scopes[-1] or any(disabling.match(a) for a in pending)
-                (disabled if off else enabled).add(prev)
+            end = _skip_parens(tokens, i)
+            annotated = any(a in TEST_METHOD_ANNOTATIONS for a in pending)
+            legacy = junit3 and prev and prev.startswith("test") and tokens[max(0, i - 3):i - 1] == ["public", "void"] and end == i + 2
+            if prev and _IDENT.match(prev) and (annotated or legacy):
+                if not scopes[-1][1]:
+                    raise CorpusError("test method has no declaring type")
+                identity = "$".join(scopes[-1][1]) + "#" + prev + _parameter_signature(tokens[i + 1:end - 1])
+                if identity in declarations:
+                    raise CorpusError("ambiguous test method identity: " + identity)
+                declarations.add(identity)
+                off = scopes[-1][0] or any(disabling.match(a) for a in pending)
+                (disabled if off else enabled).add(identity)
             pending = []
-            i, prev = _skip_parens(tokens, i), ")"
+            i, prev = end, ")"
             continue
         prev = tok
         i += 1
-    if re.search(JUNIT3_BASE_RE, code):
-        enabled.update(re.findall(JUNIT3_METHOD_RE, code))
-    return enabled, disabled - enabled
+    return enabled, disabled
 
 
 def method_id(class_pair: str, method: str) -> str:
@@ -318,7 +393,7 @@ def method_id(class_pair: str, method: str) -> str:
 
 
 def class_of_method(value: str) -> str:
-    return value.rpartition(METHOD_SEPARATOR)[0]
+    return value.rpartition(METHOD_SEPARATOR)[0].partition("$")[0]
 
 
 def enumerate_methods(entries: list[dict], read) -> tuple[list[str], list[str]]:
@@ -334,9 +409,11 @@ def enumerate_methods(entries: list[dict], read) -> tuple[list[str], list[str]]:
         if blob is None:
             raise CorpusError("source of {} is unreadable".format(entry["path"]))
         on, off = java_test_methods(blob.decode("utf-8", errors="replace"))
-        base = pair(entry["module"], entry["class_name"])
-        enabled.update(method_id(base, name) for name in on)
-        disabled.update(method_id(base, name) for name in off)
+        package = entry["class_name"].rpartition(".")[0]
+        def qualified(name):
+            return pair(entry["module"], (package + "." if package else "") + name)
+        enabled.update(qualified(name) for name in on)
+        disabled.update(qualified(name) for name in off)
     return sorted(enabled), sorted(disabled - enabled)
 
 
@@ -568,7 +645,7 @@ def validate_baseline(doc) -> list[str]:
     known_methods = set(methods)
     for method in methods:
         owner, _, name = method.rpartition(METHOD_SEPARATOR)
-        if owner not in known or not _IDENT.match(name):
+        if class_of_method(method) not in known or not re.fullmatch(r"[\w$]+\((?:[\w$]+(?:\[\])*(?:,[\w$]+(?:\[\])*)*)?\)", name):
             problems.append("malformed method {!r}".format(method))
             break
     if doc.get("methods_count") != len(methods):

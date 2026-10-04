@@ -1439,7 +1439,7 @@ def corpus_controls(h: Harness) -> list[dict]:
     run("CTRL-64-approved-method-removal", "positive",
         "a method removal approved on the default branch first, then performed, qualifies",
         "PASS", None, project({"ProbeTest": many_methods(9)}), base=ten,
-        approvals=[{"entry": ".::probe.ProbeTest#test9", "reason": "duplicate of test8", "reference": "review#2"}])
+        approvals=[{"entry": ".::probe.ProbeTest#test9()", "reason": "duplicate of test8", "reference": "review#2"}])
     run("CTRL-65-method-addition-required", "positive",
         "adding methods to a retained class qualifies when they pass and the baseline lists them",
         "PASS", None, project({"ProbeTest": many_methods(12)}), base=ten)
@@ -1458,6 +1458,60 @@ def corpus_controls(h: Harness) -> list[dict]:
         "FAIL", ["required_tests_never_entered", "required_pairs_not_entered"],
         project({"ProbeTest": HOOKED_BASE_TEST, "SubProbeTest": hooked_subclass(1, abstract=True)}),
         base=inherited)
+    nested = """package probe;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Nested;
+public class ProbeTest {
+  @Nested class Left { @Test public void proof() {} }
+  @Nested class Right { @Test public void proof() {} }
+}
+"""
+    run("CTRL-71-nested-same-name-positive", "positive",
+        "both nested declarations are independently required and actually started",
+        "PASS", None, project({"ProbeTest": nested}), base=project({"ProbeTest": nested}))
+    run("CTRL-72-nested-same-name-removal", "red",
+        "deleting one same-named nested method cannot retain the other's credit",
+        "FAIL", "baseline_test_method_removed",
+        project({"ProbeTest": nested.replace("  @Nested class Right { @Test public void proof() {} }\n", "")}),
+        base=project({"ProbeTest": nested}))
+    run("CTRL-73-nested-same-name-disabled", "red",
+        "disabling one nested test cannot be masked by another nested declaration",
+        "FAIL", "baseline_test_method_removed",
+        project({"ProbeTest": nested.replace("class Right { @Test", "class Right { @org.junit.jupiter.api.Disabled @Test")}),
+        base=project({"ProbeTest": nested}))
+    overloads = """package probe;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+public class ProbeTest {
+  @ParameterizedTest @ValueSource(ints={1}) void proof(int value) {}
+  @ParameterizedTest @ValueSource(strings={"one"}) void proof(String value) {}
+}
+"""
+    run("CTRL-74-overloaded-signature-positive", "positive",
+        "overloaded parameterized tests have distinct runtime-bound signatures",
+        "PASS", None, project({"ProbeTest": overloads}), base=project({"ProbeTest": overloads}))
+    run("CTRL-75-overloaded-signature-removal", "red",
+        "one surviving overloaded test cannot replace a removed signature",
+        "FAIL", "baseline_test_method_removed",
+        project({"ProbeTest": overloads.replace('  @ParameterizedTest @ValueSource(strings={"one"}) void proof(String value) {}\n', '')}),
+        base=project({"ProbeTest": overloads}))
+    # Simple erasure deliberately avoids guessing imports. A collision must be
+    # rejected before a baseline can ever be issued, including disabled methods.
+    ambiguous = """package probe;
+class ProbeTest {
+  @org.junit.jupiter.api.Test void proof(one.Foo value) {}
+  @org.junit.jupiter.api.Disabled @org.junit.jupiter.api.Test void proof(two.Foo value) {}
+}
+"""
+    try:
+        corpus_policy.java_test_methods(ambiguous)
+        ambiguity_refused = False
+    except corpus_policy.CorpusError as exc:
+        ambiguity_refused = "ambiguous test method identity" in str(exc)
+    rows.append({"control": "CTRL-76-ambiguous-signature-refused", "kind": "red",
+                 "expectation": "ambiguous erased signatures cannot issue a baseline or shrink into a set",
+                 "expected_verdict": "REFUSED", "observed_verdict": "REFUSED" if ambiguity_refused else "ACCEPTED",
+                 "ok": ambiguity_refused})
     return rows
 
 
