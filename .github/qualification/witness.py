@@ -113,23 +113,45 @@ def read_parent_receipt(path: Path):
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None, "trusted_parent_receipt_unparseable"
 
-def sanitize_classpath(module: str, resolved: str, candidate_root: Path, all_modules: list[str]):
-    """Drop stale installed sibling jars; put the candidate's reactor main output first."""
+def sanitize_classpath(module: str, resolved: str, candidate_root: Path, all_modules: list[str],
+                       candidate_home: Path, trusted_maven_repo: Path):
+    """Use candidate main output but only trusted-parent copies of dependencies."""
     dropped: list[str] = []
     kept: list[str] = []
+    missing_trusted: list[str] = []
+    candidate_repo = (candidate_home / ".m2" / "repository").resolve()
+    trusted_repo = trusted_maven_repo.resolve()
     for entry in (resolved or "").split(os.pathsep):
         entry = entry.strip()
         if not entry:
             continue
         if any(marker in entry.replace("\\", "/") for marker in STALE_SIBLING_MARKERS):
             dropped.append(entry)
+            continue
+        path = Path(entry).resolve()
+        try:
+            rel = path.relative_to(candidate_repo)
+        except ValueError:
+            # Reactor outputs are supplied explicitly below. Any other external
+            # entry is not authority-bound and is refused.
+            try:
+                path.relative_to(candidate_root)
+            except ValueError:
+                missing_trusted.append(entry)
+            continue
+        trusted = trusted_repo / rel
+        if trusted.is_file():
+            kept.append(str(trusted))
         else:
-            kept.append(entry)
+            missing_trusted.append(entry)
     prefixes = []
     for name in [module] + [m for m in all_modules if m != module]:
         classes = candidate_root / name / MAIN_CLASSES_DIR
         if classes.is_dir():
             prefixes.append(str(classes))
+    if missing_trusted:
+        raise ValueError("untrusted_classpath_entries_without_trusted_copy in {}: {}".format(
+            module, ",".join(missing_trusted[:5])))
     return prefixes + kept, dropped, prefixes
 
 
@@ -376,12 +398,16 @@ def main() -> int:
     parser.add_argument("--build-result", required=True, help="sandbox.py run record of the candidate build")
     parser.add_argument("--build-definition-audit", required=True)
     parser.add_argument("--module-classpaths", required=True)
+    parser.add_argument("--trusted-maven-repo", required=True,
+                        help="parent-owned Maven repository resolved before candidate execution")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
 
     trusted_root = Path(args.trusted_root).resolve()
     sandbox_dir = Path(args.sandbox_dir).resolve()
     candidate_root = sandbox_dir / "candidate"
+    candidate_home = sandbox.sandbox_home(sandbox_dir)
+    trusted_maven_repo = Path(args.trusted_maven_repo).resolve()
     workdir = Path(args.work_dir).resolve()
     bundle = Path(args.bundle_dir)
     out = Path(args.out)
@@ -527,7 +553,9 @@ def main() -> int:
         compile_records = []
         for index, module in enumerate(all_modules):
             classes = modules[module]
-            cp, dropped, prefixes = sanitize_classpath(module, str(classpath_map.get(module, "")), candidate_root, all_modules)
+            cp, dropped, prefixes = sanitize_classpath(
+                module, str(classpath_map.get(module, "")), candidate_root, all_modules,
+                candidate_home, trusted_maven_repo)
             bundle_name = "{:03d}-{}".format(index, module.replace("/", "_").replace(".", "_") or "root")
             compiled_out = staging / "tests" / bundle_name
             record = trusted_compile_module(export, module, junit_jars + cp, compiled_out)
