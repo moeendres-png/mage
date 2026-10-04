@@ -400,7 +400,11 @@ def method_id(class_pair: str, method: str) -> str:
 
 
 def class_of_method(value: str) -> str:
-    return value.rpartition(METHOD_SEPARATOR)[0].partition("$")[0]
+    class_pair = value.rpartition(METHOD_SEPARATOR)[0]
+    module, sep, class_name = class_pair.partition(PAIR_SEPARATOR)
+    if not sep:
+        raise CorpusError("malformed method identity: " + value)
+    return pair(module, class_name.partition("$")[0])
 
 
 def enumerate_methods(entries: list[dict], read) -> tuple[list[str], list[str]]:
