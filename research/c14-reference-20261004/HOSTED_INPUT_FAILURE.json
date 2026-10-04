@@ -1,0 +1,13 @@
+{
+  "source_sha": "33b000e60a4e0dcf12bc216aebbbc0f93bd7a30c",
+  "source_tree": "be3d81639893fbd35748be06c3a198cca772e734",
+  "run_id": 37215544620,
+  "build_job_id": 111475179089,
+  "failure_artifact_id": 11308186575,
+  "input_binding": "FAIL",
+  "native_execution": "NOT_RUN",
+  "reason": "Pinned GitHub Release was still draft: download HTTP 404, fetch exited before Maven.",
+  "impact_adjudication": "Requalification is justified only after the declared release becomes public and asset readback matches the pin. This failure remains part of the record.",
+  "evidence_class": "DIRECTLY_VERIFIED_HOSTED_INPUT_FAILURE",
+  "qualification_credit": false
+}

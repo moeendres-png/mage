@@ -32,13 +32,21 @@ jobs:
         distribution: 'temurin'
         cache: maven
     - name: Native signal controls
-      run: python3 .github/ci/test_native_signals.py
+      run: |
+        python3 .github/ci/test_native_signals.py
+        python3 .github/ci/test_mtgjson_reference.py
+    - name: Fetch and verify exact committed MTGJSON reference
+      run: >-
+        python3 .github/ci/mtgjson_reference.py fetch
+        --pin Mage.Verify/mtgjson-reference.json
+        --dir "$RUNNER_TEMP/mtgjson-reference"
+        --receipt evidence/MTGJSON_REFERENCE.json
     - name: Build and test
       shell: bash
       run: |
         set -o pipefail
         mkdir -p evidence
-        mvn test -fae -B -Dstyle.color=never -Dxmage.dataCollectors.printGameLogs=false -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/.travis/log4j.properties | tee evidence/reactor.log
+        mvn test -fae -B -Dxmage.verify.mtgjson.reference="${GITHUB_WORKSPACE}/Mage.Verify/mtgjson-reference.json" -Dxmage.verify.mtgjson.dir="${RUNNER_TEMP}/mtgjson-reference" -Dstyle.color=never -Dxmage.dataCollectors.printGameLogs=false -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/.travis/log4j.properties | tee evidence/reactor.log
     - name: Record distinct native module signals
       if: ${{ !cancelled() }}
       env:
@@ -53,6 +61,8 @@ jobs:
         path: |
           evidence/NATIVE_MODULE_SIGNALS.json
           evidence/reactor.log
+          evidence/MTGJSON_REFERENCE.json
+          Mage.Verify/mtgjson-reference.json
           Mage.Tests/target/surefire-reports/TEST-*.xml
           Mage.Verify/target/surefire-reports/TEST-*.xml
 

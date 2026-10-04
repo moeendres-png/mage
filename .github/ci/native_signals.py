@@ -9,9 +9,10 @@ import re
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
+import mtgjson_reference as reference
 
 MODULES = ("Mage.Tests", "Mage.Verify")
-SCHEMA = "mage.native-module-signals/1"
+SCHEMA = "mage.native-module-signals/2"
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -36,6 +37,54 @@ def read_suite(path):
     if counts != actual or sum(counts[k] for k in ("failures", "errors", "skipped")) > counts["tests"]:
         raise ValueError("suite counters disagree with testcases")
     return {"name": node.get("name"), "sha256": hashlib.sha256(raw).hexdigest(), **counts}
+
+
+def reference_observation(root, paths, execution_context):
+    """Candidate-controlled observations, never trusted qualification authority."""
+    pin_path = root/'Mage.Verify/mtgjson-reference.json'
+    receipt_path = root/'evidence/MTGJSON_REFERENCE.json'
+    try:
+        for path in (pin_path, receipt_path):
+            if path.is_symlink() or not path.is_file():
+                raise ValueError("missing/non-regular reference declaration")
+        pin = json.loads(pin_path.read_text())
+        reference.validate_pin(pin)
+        receipt = json.loads(receipt_path.read_text())
+        expected = {'schema': reference.SCHEMA + '#receipt', 'status': 'INPUT_BOUND',
+                    'qualification_credit': False, 'pin_sha256': digest(pin_path),
+                    **{key: pin[key] for key in ('release', 'repository', 'files', 'meta')}}
+        if receipt != expected:
+            raise ValueError("reference receipt disagrees with committed pin")
+        if not paths:
+            return {'status': 'NOT_RUN', 'pin_sha256': digest(pin_path), 'qualification_credit': False}
+        workspace = execution_context.get('execution_workspace')
+        expected_directory = execution_context.get('reference_directory')
+        if not workspace or not workspace.startswith('/') or not expected_directory or not expected_directory.startswith('/'):
+            raise ValueError('Independent execution path context missing')
+        expected_pin = workspace + '/Mage.Verify/mtgjson-reference.json'
+        directories = set()
+        for path in paths:
+            # read_suite performs declaration/counter validation before this call.
+            node = ET.fromstring(path.read_bytes())
+            values = {}
+            for prop in node.findall('properties/property'):
+                if prop.get('name') in ('xmage.verify.mtgjson.reference', 'xmage.verify.mtgjson.dir'):
+                    name = prop.get('name')
+                    if name in values:
+                        raise ValueError("duplicate pinned-reference JVM property")
+                    values[name] = prop.get('value')
+            declared_pin = values.get('xmage.verify.mtgjson.reference')
+            directory = values.get('xmage.verify.mtgjson.dir')
+            if declared_pin != expected_pin or directory != expected_directory:
+                raise ValueError("actual Verify JVM lacks explicit pinned-reference properties")
+            directories.add(directory)
+        if len(directories) != 1:
+            raise ValueError("Verify reports disagree about reference directory")
+        return {'status': 'OBSERVED_PIN_USE', 'pin_sha256': digest(pin_path),
+                'receipt_sha256': digest(receipt_path), 'release': pin['release'],
+                'qualification_credit': False, 'authority': 'candidate-controlled native observations'}
+    except (OSError, ValueError, TypeError, KeyError, ET.ParseError) as exc:
+        return {'status': 'UNKNOWN', 'reason': str(exc), 'qualification_credit': False}
 
 def collect(root, identity):
     results = {}
@@ -71,10 +120,13 @@ def collect(root, identity):
             outcome = "FAIL"
         else:
             outcome = "PASS"
+        binding = reference_observation(root, paths, identity) if module == 'Mage.Verify' else {'status': 'NOT_APPLICABLE'}
+        if module == 'Mage.Verify' and outcome == 'PASS' and binding['status'] != 'OBSERVED_PIN_USE':
+            outcome = 'UNKNOWN'
         results[module] = {"native_outcome": outcome, "reactor_completion": completion, "reactor_log_sha256": reactor_digest, "counts": totals, "reports": suites, "problems": problems,
                            "qualification_credit": False, "complete_coverage_claimed": False,
                            "disabled_coverage": "UNKNOWN_PENDING_C16",
-                           "reference_binding": "UNKNOWN_PENDING_C14" if module == "Mage.Verify" else "NOT_APPLICABLE"}
+                           "reference_binding": binding}
     return {"schema": SCHEMA, "identity": identity, "producer": "native Maven reports, candidate-controlled",
             "evidence_class": "NATIVE_REPORT_OBSERVED", "trusted_qualification": False, "modules": results}
 
@@ -114,7 +166,9 @@ def main():
                     'event_head_sha': os.environ.get('EVENT_HEAD_SHA'), 'run_id': os.environ.get('GITHUB_RUN_ID'),
                     'run_attempt': os.environ.get('GITHUB_RUN_ATTEMPT'),
                     'workflow': '.github/workflows/maven.yml',
-                    'producer_sha256': digest(Path(__file__))}
+                    'producer_sha256': digest(Path(__file__)),
+                    'execution_workspace': os.environ.get('GITHUB_WORKSPACE'),
+                    'reference_directory': str(Path(os.environ['RUNNER_TEMP'])/'mtgjson-reference') if os.environ.get('RUNNER_TEMP') else None}
         doc = collect(args.root, identity)
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(doc, indent=2, sort_keys=True) + '\n')
@@ -129,6 +183,8 @@ def main():
             'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
             'workflow': '.github/workflows/maven.yml',
             'producer_sha256': digest(Path(__file__)),
+            'execution_workspace': os.environ.get('GITHUB_WORKSPACE'),
+            'reference_directory': str(Path(os.environ['RUNNER_TEMP'])/'mtgjson-reference') if os.environ.get('RUNNER_TEMP') else None,
         }
         outcome = consume(doc, args.module, args.expected_sha, args.expected_run,
                           args.input.parent.parent, context)
@@ -136,7 +192,7 @@ def main():
         print('Native signal unavailable:', exc)
         return 2
     record = doc.get('modules', {}).get(args.module, {})
-    text = f"{args.module}: native {outcome}; {record.get('counts')}; qualification credit=false; disabled coverage={record.get('disabled_coverage')}"
+    text = f"{args.module}: native {outcome}; {record.get('counts')}; qualification credit=false; disabled coverage={record.get('disabled_coverage')}; reference binding={record.get('reference_binding')}"
     print(text)
     if os.environ.get('GITHUB_STEP_SUMMARY'):
         with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:

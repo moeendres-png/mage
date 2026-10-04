@@ -1,0 +1,9 @@
+{
+  "baseline_sha": "40a89beacf7e0cbd032386dfdb6d44a6d4819c62",
+  "before_exit": 1,
+  "before_output": "F\n======================================================================\nFAIL: test_other_pin_same_suffix_and_arbitrary_directory_are_unknown (test_native_signals.NativeSignals.test_other_pin_same_suffix_and_arbitrary_directory_are_unknown)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/tmpvc6pwgfk/test_native_signals.py\", line 198, in test_other_pin_same_suffix_and_arbitrary_directory_are_unknown\n    self.assertEqual(self.result('Mage.Verify'),'UNKNOWN')\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'PASS' != 'UNKNOWN'\n- PASS\n+ UNKNOWN\n\n\n----------------------------------------------------------------------\nRan 1 test in 0.002s\n\nFAILED (failures=1)\n",
+  "after": "PASS",
+  "control": "Different pin with identical suffix and arbitrary directory cannot produce observed binding/native PASS",
+  "evidence_class": "SYNTHETIC_RAW_XML_REFERENCE_PATH_CONTROL",
+  "qualification_credit": false
+}

@@ -8,7 +8,13 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.DigestInputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.nio.file.StandardCopyOption;
 import java.text.Normalizer;
 import java.util.*;
@@ -24,6 +30,99 @@ import java.util.concurrent.TimeUnit;
 public final class MtgJsonService {
 
     private static final boolean MTGJSON_OFFLINE_MODE = false; // enable to keep mtgjson files forever instead everyday update
+
+    /*
+     * Qualification binding (C14, commander-playtest-lab#495). With the reference
+     * property set to a pin file, Mage.Verify reads MTGJSON only from the
+     * directory property: nothing is downloaded or refreshed, every file's
+     * SHA-256 must equal the pin, and AllPrintings' meta version/date must equal
+     * the pin's. Any mismatch or missing file fails loading. Refreshing the
+     * reference is a separate operation (the mtgjson-reference-refresh workflow
+     * publishes immutable release assets; a reviewed change updates the pin).
+     * Without the property, the developer behaviour below is unchanged.
+     */
+    public static final String REFERENCE_PROPERTY = "xmage.verify.mtgjson.reference";
+    public static final String DIRECTORY_PROPERTY = "xmage.verify.mtgjson.dir";
+
+    /** The pinned reference, as committed in the pin file. */
+    public static final class Reference {
+        public String schema;
+        public String release;
+        public Map<String, PinnedFile> files;
+        public MtgJsonMetadata meta;
+    }
+
+    public static final class PinnedFile {
+        public String sha256;
+        public long bytes;
+    }
+
+    /** The bound reference, or null when Mage.Verify runs unpinned (developer refresh mode). */
+    public static Reference boundReference() throws IOException {
+        String pin = System.getProperty(REFERENCE_PROPERTY);
+        if (pin == null || pin.trim().isEmpty()) {
+            return null;
+        }
+        Reference reference = new Gson().fromJson(
+                new String(Files.readAllBytes(Paths.get(pin)), StandardCharsets.UTF_8), Reference.class);
+        if (reference == null || !"mage.verify.mtgjson-reference/1".equals(reference.schema)
+                || reference.files == null || reference.meta == null
+                || reference.meta.version == null || reference.meta.date == null) {
+            throw new IOException("mtgjson reference: malformed pin file " + pin);
+        }
+        return reference;
+    }
+
+    /** Opens a pinned file after proving its bytes equal the pin; never downloads. */
+    static InputStream openPinned(Reference reference, String filename) throws IOException {
+        PinnedFile pinned = reference.files.get(filename);
+        if (pinned == null || pinned.sha256 == null) {
+            throw new IOException("mtgjson reference: " + filename + " is not pinned");
+        }
+        String directory = System.getProperty(DIRECTORY_PROPERTY);
+        if (directory == null || directory.trim().isEmpty()) {
+            throw new IOException("mtgjson reference: " + DIRECTORY_PROPERTY + " is not set");
+        }
+        Path file = Paths.get(directory, filename);
+        if (!Files.isRegularFile(file)) {
+            throw new IOException("mtgjson reference: missing pinned file " + file);
+        }
+        String actual = sha256(file);
+        if (!actual.equals(pinned.sha256) || Files.size(file) != pinned.bytes) {
+            throw new IOException("mtgjson reference: " + filename + " does not match the pin (sha256 "
+                    + actual + ", " + Files.size(file) + " bytes; pinned " + pinned.sha256 + ", "
+                    + pinned.bytes + " bytes)");
+        }
+        logger.info("mtgjson: bound reference " + reference.release + " " + filename + " sha256 " + actual);
+        return Files.newInputStream(file);
+    }
+
+    static void requirePinnedMeta(Reference reference, MtgJsonMetadata meta) throws IOException {
+        if (meta == null || !reference.meta.version.equals(meta.version) || !reference.meta.date.equals(meta.date)) {
+            throw new IOException("mtgjson reference: AllPrintings meta " + (meta == null ? "missing"
+                    : meta.version + " / " + meta.date) + " is not the pinned " + reference.meta.version
+                    + " / " + reference.meta.date);
+        }
+    }
+
+    private static String sha256(Path file) throws IOException {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[1 << 16];
+            try (InputStream in = new DigestInputStream(Files.newInputStream(file), digest)) {
+                while (in.read(buffer) >= 0) {
+                    // digest accumulates as the stream is read
+                }
+            }
+            StringBuilder hex = new StringBuilder();
+            for (byte b : digest.digest()) {
+                hex.append(String.format("%02x", b & 0xff));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IOException(e);
+        }
+    }
 
     private static final Logger logger = Logger.getLogger(MtgJsonService.class);
 
@@ -41,14 +140,29 @@ public final class MtgJsonService {
 
     private static Map<String, MtgJsonCard> loadAllCards() throws IOException {
         AtomicCardsModel json = readFromZip("AtomicCards.json.zip", AtomicCardsModel.class);
+        Reference reference = boundReference();
+        if (reference != null) {
+            requirePinnedMeta(reference, json.meta);
+        }
         return json.prepareIndex();
     }
 
     private static AllPrintingsModel loadAllSets() throws IOException {
-        return readFromZip("AllPrintings.json.zip", AllPrintingsModel.class);
+        AllPrintingsModel model = readFromZip("AllPrintings.json.zip", AllPrintingsModel.class);
+        Reference reference = boundReference();
+        if (reference != null) {
+            requirePinnedMeta(reference, model.meta);
+        }
+        return model;
     }
 
     private static <T> T readFromZip(String filename, Class<T> clazz) throws IOException {
+        // qualification: only the pinned reference, never a download or a refresh
+        Reference reference = boundReference();
+        if (reference != null) {
+            return readFromZip(openPinned(reference, filename), clazz);
+        }
+
         // build-in file
         InputStream stream = MtgJsonService.class.getResourceAsStream(filename);
         if (stream != null) {
@@ -181,6 +295,7 @@ public final class MtgJsonService {
     }
 
     private static final class AtomicCardsModel {
+        public MtgJsonMetadata meta;
 
         // list by card names, each name can have multiple cards (two faces, different cards with same name from un-sets)
         public Map<String, ArrayList<MtgJsonCard>> data;
