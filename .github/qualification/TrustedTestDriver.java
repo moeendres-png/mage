@@ -470,6 +470,13 @@ public final class TrustedTestDriver {
                         || "shutdownHooks".equals(name)
                         || "setIO".equals(name)
                         || "accessDeclaredMembers".equals(name)
+                        || "createClassLoader".equals(name)
+                        || "setContextClassLoader".equals(name)
+                        || "enableContextClassLoaderOverride".equals(name)
+                        || "modifyThread".equals(name)
+                        || "modifyThreadGroup".equals(name)
+                        || "manageProcess".equals(name)
+                        || "setDefaultUncaughtExceptionHandler".equals(name)
                         || name.startsWith("loadLibrary.")
                         || name.startsWith("accessClassInPackage.sun.misc")
                         || name.startsWith("accessClassInPackage.jdk.internal.misc")
@@ -485,6 +492,10 @@ public final class TrustedTestDriver {
                         || name.startsWith("removeProvider")) {
                     refuse("security-permission:" + name);
                 }
+            }
+            if (permission instanceof java.util.PropertyPermission
+                    && permission.getActions().contains("write")) {
+                refuse("property-write:" + name);
             }
         }
     }

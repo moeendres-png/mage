@@ -1642,6 +1642,10 @@ public final class Attack {
  public static boolean hookBlocked() { return true; }
  public static boolean nativeLoadBlocked() { return true; }
  public static boolean managerRemovalBlocked() { return true; }
+ public static boolean classLoaderBlocked() { return true; }
+ public static boolean contextLoaderBlocked() { return true; }
+ public static boolean processHandleBlocked() { return true; }
+ public static boolean propertyWriteBlocked() { return true; }
  public static boolean exitBlocked() { return true; }
  public static boolean noAuthoritySecrets() { return true; }
 }
@@ -1658,6 +1662,10 @@ public class ProbeTest {
  @Test public void hook() { assertTrue(Attack.hookBlocked()); }
  @Test public void nativeLoad() { assertTrue(Attack.nativeLoadBlocked()); }
  @Test public void manager() { assertTrue(Attack.managerRemovalBlocked()); }
+ @Test public void classLoader() { assertTrue(Attack.classLoaderBlocked()); }
+ @Test public void contextLoader() { assertTrue(Attack.contextLoaderBlocked()); }
+ @Test public void processHandle() { assertTrue(Attack.processHandleBlocked()); }
+ @Test public void propertyWrite() { assertTrue(Attack.propertyWriteBlocked()); }
  @Test public void exit() { assertTrue(Attack.exitBlocked()); }
  @Test public void secrets() { assertTrue(Attack.noAuthoritySecrets()); }
 }
@@ -1727,6 +1735,20 @@ public final class Attack {
  public static boolean managerRemovalBlocked() {
   return blocked(() -> System.setSecurityManager(null));
  }
+ public static boolean classLoaderBlocked() {
+  return blocked(() -> new java.net.URLClassLoader(
+      new java.net.URL[0], Attack.class.getClassLoader()));
+ }
+ public static boolean contextLoaderBlocked() {
+  return blocked(() -> Thread.currentThread().setContextClassLoader(
+      Attack.class.getClassLoader()));
+ }
+ public static boolean processHandleBlocked() {
+  return blocked(() -> ProcessHandle.allProcesses().count());
+ }
+ public static boolean propertyWriteBlocked() {
+  return blocked(() -> System.setProperty("c12.candidate.probe", "x"));
+ }
  public static boolean exitBlocked() {
   return blocked(() -> System.exit(0));
  }
@@ -1748,7 +1770,7 @@ public final class Attack {
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but reflection, authority discovery, channel reuse, process/socket/fd/native/shutdown/exit escape paths are denied",
+        "hostile candidate production bytecode can execute but reflection, authority discovery, channel reuse, process/socket/fd/native/classloader/TCCL/property/shutdown/exit escape paths are denied",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
