@@ -94,7 +94,7 @@ class NativeSignals(unittest.TestCase):
         self.assertIn('mvn test -fae ',block)
         # Collection and the module checks run after a failure, never after a cancellation.
         self.assertNotIn('always()',workflow)
-        self.assertEqual(workflow.count('${{ !cancelled() }}'),3)
+        self.assertEqual(workflow.count('${{ !cancelled() }}'),4)
     def test_entity_refused(self):
         self.report('Mage.Tests', '<!DOCTYPE x [<!ENTITY y "z">]>'+PASS)
         self.assertEqual(self.result('Mage.Tests'),'UNKNOWN')
