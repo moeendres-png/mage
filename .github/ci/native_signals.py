@@ -40,7 +40,7 @@ def read_suite(path):
     return {"name": node.get("name"), "sha256": hashlib.sha256(raw).hexdigest(), **counts}
 
 
-def reference_observation(root, paths):
+def reference_observation(root, paths, execution_context):
     """Candidate-controlled observations, never trusted qualification authority."""
     pin_path = root/'Mage.Verify/mtgjson-reference.json'
     receipt_path = root/'evidence/MTGJSON_REFERENCE.json'
@@ -58,6 +58,11 @@ def reference_observation(root, paths):
             raise ValueError("reference receipt disagrees with committed pin")
         if not paths:
             return {'status': 'NOT_RUN', 'pin_sha256': digest(pin_path), 'qualification_credit': False}
+        workspace = execution_context.get('execution_workspace')
+        expected_directory = execution_context.get('reference_directory')
+        if not workspace or not workspace.startswith('/') or not expected_directory or not expected_directory.startswith('/'):
+            raise ValueError('Independent execution path context missing')
+        expected_pin = workspace + '/Mage.Verify/mtgjson-reference.json'
         directories = set()
         for path in paths:
             # read_suite performs declaration/counter validation before this call.
@@ -71,9 +76,7 @@ def reference_observation(root, paths):
                     values[name] = prop.get('value')
             declared_pin = values.get('xmage.verify.mtgjson.reference')
             directory = values.get('xmage.verify.mtgjson.dir')
-            if (not declared_pin or not declared_pin.startswith('/')
-                    or not declared_pin.endswith('/Mage.Verify/mtgjson-reference.json')
-                    or not directory or not directory.startswith('/')):
+            if declared_pin != expected_pin or directory != expected_directory:
                 raise ValueError("actual Verify JVM lacks explicit pinned-reference properties")
             directories.add(directory)
         if len(directories) != 1:
@@ -119,7 +122,7 @@ def collect(root, identity, source_root=None):
             outcome = "FAIL"
         else:
             outcome = "PASS"
-        binding = reference_observation(root, paths) if module == 'Mage.Verify' else {'status': 'NOT_APPLICABLE'}
+        binding = reference_observation(root, paths, identity) if module == 'Mage.Verify' else {'status': 'NOT_APPLICABLE'}
         if module == 'Mage.Verify' and outcome == 'PASS' and binding['status'] != 'OBSERVED_PIN_USE':
             outcome = 'UNKNOWN'
         results[module] = {"native_outcome": outcome, "reactor_completion": completion, "reactor_log_sha256": reactor_digest, "counts": totals, "reports": suites, "problems": problems,
@@ -165,7 +168,9 @@ def main():
                     'event_head_sha': os.environ.get('EVENT_HEAD_SHA'), 'run_id': os.environ.get('GITHUB_RUN_ID'),
                     'run_attempt': os.environ.get('GITHUB_RUN_ATTEMPT'),
                     'workflow': '.github/workflows/maven.yml',
-                    'producer_sha256': digest(Path(__file__))}
+                    'producer_sha256': digest(Path(__file__)),
+                    'execution_workspace': os.environ.get('GITHUB_WORKSPACE'),
+                    'reference_directory': str(Path(os.environ['RUNNER_TEMP'])/'mtgjson-reference') if os.environ.get('RUNNER_TEMP') else None}
         doc = collect(args.root, identity)
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(doc, indent=2, sort_keys=True) + '\n')
@@ -180,6 +185,8 @@ def main():
             'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
             'workflow': '.github/workflows/maven.yml',
             'producer_sha256': digest(Path(__file__)),
+            'execution_workspace': os.environ.get('GITHUB_WORKSPACE'),
+            'reference_directory': str(Path(os.environ['RUNNER_TEMP'])/'mtgjson-reference') if os.environ.get('RUNNER_TEMP') else None,
         }
         outcome = consume(doc, args.module, args.expected_sha, args.expected_run,
                           args.input.parent.parent, context)

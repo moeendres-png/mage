@@ -14,7 +14,7 @@ class NativeSignals(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
-        self.identity = {'checkout_sha': 'source', 'run_id': 'run', 'checkout_tree': 'tree', 'producer_sha256': signals.digest(Path(signals.__file__)), 'event_head_sha':'event', 'run_attempt':'1', 'workflow':'.github/workflows/maven.yml'}
+        self.identity = {'checkout_sha': 'source', 'run_id': 'run', 'checkout_tree': 'tree', 'producer_sha256': signals.digest(Path(signals.__file__)), 'event_head_sha':'event', 'run_attempt':'1', 'workflow':'.github/workflows/maven.yml','execution_workspace':'/workspace','reference_directory':'/reference'}
         self.log=self.root/'evidence/reactor.log'
         self.log.parent.mkdir()
         self.log.write_text('[INFO] Mage Tests .......... SUCCESS [1 s]\n[INFO] Mage Verify .......... SUCCESS [1 s]\n')
@@ -136,7 +136,7 @@ class NativeSignals(unittest.TestCase):
 
     def test_identity_provenance_fields_are_not_artifact_authority(self):
         self.report('Mage.Tests', PASS); doc=signals.collect(self.root,self.identity)
-        for field in ('checkout_tree','event_head_sha','run_attempt','workflow'):
+        for field in ('checkout_tree','event_head_sha','run_attempt','workflow','execution_workspace','reference_directory'):
             altered=copy.deepcopy(doc); altered['identity'][field]='forged'
             self.assertEqual(signals.consume(altered,'Mage.Tests','source','run',self.root,self.identity),'UNKNOWN',field)
 
@@ -188,6 +188,18 @@ class NativeSignals(unittest.TestCase):
     def test_forged_binding_in_json_is_rejected_by_raw_consumer(self):
         self.bound_verify(); doc=signals.collect(self.root,self.identity)
         doc['modules']['Mage.Verify']['reference_binding']['pin_sha256']='forged'
+        self.assertEqual(signals.consume(doc,'Mage.Verify','source','run',self.root,self.identity),'UNKNOWN')
+
+
+    def test_other_pin_same_suffix_and_arbitrary_directory_are_unknown(self):
+        self.bound_verify(); p=self.root/'Mage.Verify/target/surefire-reports/TEST-probe.xml';original=p.read_text()
+        for before, after in (('/workspace/Mage.Verify/mtgjson-reference.json','/tmp/other/Mage.Verify/mtgjson-reference.json'),('/reference','/tmp/other-data')):
+            p.write_text(original.replace(before,after))
+            self.assertEqual(self.result('Mage.Verify'),'UNKNOWN')
+
+    def test_reference_execution_context_cannot_come_from_artifact(self):
+        self.bound_verify();doc=signals.collect(self.root,self.identity)
+        doc['identity']['execution_workspace']='/tmp/other'
         self.assertEqual(signals.consume(doc,'Mage.Verify','source','run',self.root,self.identity),'UNKNOWN')
 
 if __name__=='__main__':
