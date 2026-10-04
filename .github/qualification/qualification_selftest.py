@@ -1738,6 +1738,12 @@ def module_controls(h: Harness) -> list[dict]:
         "a module with zero required classes contributes nothing and cannot fabricate credit",
         "PASS", None, empty, ["modA", "modEmpty"],
         extra_check=lambda r: r.get("modules_with_witness") == ["modA"])
+
+    dollar = project({"DollarTest": passing("DollarTest")}, module="mod$dollar")
+    run("CTRL-83-dollar-module-owner-positive", "positive",
+        "a legal dollar sign in a Maven module path is preserved when deriving a method owner",
+        "PASS", None, dollar, ["mod$dollar"],
+        extra_check=lambda r: r.get("modules_with_witness") == ["mod$dollar"])
     return rows
 
 
