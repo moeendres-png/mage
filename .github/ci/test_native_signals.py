@@ -87,6 +87,14 @@ class NativeSignals(unittest.TestCase):
             lines.append('false | tee evidence/reactor.log' if command.startswith('mvn test ') else command)
         result=subprocess.run(['bash','-e','-c','\n'.join(lines)],cwd=self.root,capture_output=True)
         self.assertNotEqual(result.returncode,0)
+    def test_signals_are_independent_and_cancellation_is_not_evidence(self):
+        workflow=(Path(__file__).resolve().parents[1]/'workflows/maven.yml').read_text()
+        block=workflow.split('    - name: Build and test\n',1)[1].split('    - name:',1)[0]
+        # Fail at end: a Mage.Tests failure must not hide Mage.Verify's own outcome.
+        self.assertIn('mvn test -fae ',block)
+        # Collection and the module checks run after a failure, never after a cancellation.
+        self.assertNotIn('always()',workflow)
+        self.assertEqual(workflow.count('${{ !cancelled() }}'),3)
     def test_entity_refused(self):
         self.report('Mage.Tests', '<!DOCTYPE x [<!ENTITY y "z">]>'+PASS)
         self.assertEqual(self.result('Mage.Tests'),'UNKNOWN')

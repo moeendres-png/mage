@@ -38,14 +38,14 @@ jobs:
       run: |
         set -o pipefail
         mkdir -p evidence
-        mvn test -B -Dstyle.color=never -Dxmage.dataCollectors.printGameLogs=false -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/.travis/log4j.properties | tee evidence/reactor.log
+        mvn test -fae -B -Dstyle.color=never -Dxmage.dataCollectors.printGameLogs=false -Dlog4j.configuration=file:${GITHUB_WORKSPACE}/.travis/log4j.properties | tee evidence/reactor.log
     - name: Record distinct native module signals
-      if: always()
+      if: ${{ !cancelled() }}
       env:
         EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       run: python3 .github/ci/native_signals.py collect --out evidence/NATIVE_MODULE_SIGNALS.json
     - name: Upload native source-bound module evidence
-      if: always()
+      if: ${{ !cancelled() }}
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       with:
         name: native-module-signals-${{ github.run_id }}-${{ github.run_attempt }}
@@ -59,7 +59,7 @@ jobs:
   native-module-signal:
     name: ${{ matrix.module }}
     needs: build
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

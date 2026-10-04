@@ -23,3 +23,8 @@ Local controls: `python3 .github/ci/test_native_signals.py`. The full execution
 proof is the exact-head hosted Maven run plus both dependent signal jobs/artifact.
 No required check/ruleset, engine source, test assertion, provider pin or disabled
 test policy is changed.
+
+Maven runs with `-fae` (fail at end), so a failing `Mage.Tests` does not stop
+`Mage.Verify` from running: each check reports its own module's outcome, and the
+overall `build` result is still failure. Collection and the two checks run after
+a failure but not after a cancellation; a cancelled run yields no signal.
