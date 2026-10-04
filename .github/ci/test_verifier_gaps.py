@@ -47,4 +47,19 @@ class GapInventory(unittest.TestCase):
         before=self.observe();self.p.write_text('class Empty {}')
         self.assertEqual(self.observe(),before)
 
+    def test_workflow_regenerates_runtime_gap_artifact_after_maven(self):
+        workflow=(Path(__file__).resolve().parents[1]/'workflows/maven.yml').read_text()
+        build=workflow.index('    - name: Build and test')
+        regenerate=workflow.index('    - name: Regenerate verifier omission evidence after Maven')
+        collect=workflow.index('    - name: Record distinct native module signals')
+        upload=workflow.index('    - name: Upload native source-bound module evidence')
+        self.assertLess(build,regenerate)
+        self.assertLess(regenerate,collect)
+        self.assertLess(regenerate,upload)
+        block=workflow[regenerate:collect]
+        self.assertIn('if: ${{ !cancelled() }}',block)
+        self.assertIn('python3 .github/ci/verifier_gaps.py check',block)
+        self.assertIn('--out evidence/VERIFIER_GAPS.json',block)
+        self.assertIn('--markdown evidence/VERIFIER_GAPS.md',block)
+
 if __name__=='__main__':unittest.main()
