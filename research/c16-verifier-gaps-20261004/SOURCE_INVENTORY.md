@@ -1,0 +1,365 @@
+# Mage.Verify execution and omission inventory
+
+Inventory status: SOURCE_INVENTORY_MATCH
+
+Source inventory does not prove runtime coverage. Disabled checks are NOT_RUN; branch review surfaces remain UNKNOWN.
+
+- downloadAndPrepareCommanderBracketsData — MAINTENANCE_UTILITY / NOT_RUN (`Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java`)
+- list_ChangelogHelper — MAINTENANCE_UTILITY / NOT_RUN (`Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java`)
+- test_checkBadConditions — VERIFICATION_GAP / NOT_RUN (`Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java`)
+- test_checkDoubleRareCardsInSets — VERIFICATION_GAP / NOT_RUN (`Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java`)
+- test_checkMissingScryfallSettingsAndCardNumbers — VERIFICATION_GAP / NOT_RUN (`Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java`)
+- test_checkMissingTokenData — VERIFICATION_GAP / NOT_RUN (`Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java`)
+- test_checkWrongCardsDataInSets — VERIFICATION_GAP / NOT_RUN (`Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java`)
+- test_checkWrongFullArtAndRetro — VERIFICATION_GAP / NOT_RUN (`Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java`)
+
+Runtime XML: executed=0, skipped=0. These counts have no qualification credit.
+
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:51`: return number + " - " + this.getNameAsFull()
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:56`: * @return single side name like Ice from Fire // Ice
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:59`: // return single side name
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:60`: return faceName != null ? faceName : (asciiName != null ? asciiName : name);
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:64`: * @return full card name like Fire // Ice
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:75`: return getNameAsFace();
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:78`: return getNameAsASCII();
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:82`: return this.name;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:86`: return this.asciiName != null ? this.asciiName : this.name;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:90`: return this.asciiName != null && this.name != null && !this.asciiName.equals(this.name);
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:94`: * @return the Rarity of the card if present in the mtgjson file
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:99`: return null;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:104`: return Rarity.COMMON;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:106`: return Rarity.UNCOMMON;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:108`: return Rarity.RARE;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:110`: return Rarity.MYTHIC;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:112`: return Rarity.SPECIAL;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java:114`: return Rarity.BONUS;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:64`: return null;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:73`: return reference;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:97`: return Files.newInputStream(file);
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:121`: return hex.toString();
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:147`: return json.prepareIndex();
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:156`: return model;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:163`: return readFromZip(openPinned(reference, filename), clazz);
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:170`: return readFromZip(stream, clazz);
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:179`: return readFromZip(Files.newInputStream(file.toPath()), clazz);
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:187`: // mtgjson site require user-agent in headers (otherwise it return 403)
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:200`: return readFromZip(Files.newInputStream(file.toPath()), clazz);
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:209`: return new Gson().fromJson(new InputStreamReader(zipInputStream), clazz);
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:214`: return SetHolder.sets;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:218`: return CardHolder.cards;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:222`: return SetHolder.meta;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:226`: return findReference(CardHolder.cards, name);
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:231`: return findReference(CardHolder.cardsByClasses, shortName);
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:237`: return new ArrayList<>();
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:242`: return set.cards.stream()
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:250`: return list.stream()
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:261`: return ref;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:265`: return cardName;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:273`: return number
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:294`: return decomposed.replaceAll("[\\p{InCombiningDiacriticalMarks}]", "");
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:305`: return names.size() == 1;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:323`: if (card == mainCard) continue;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java:330`: return index;
+- UNKNOWN `Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonSet.java:33`: return code + " - " + name;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:90`: private static String FULL_ABILITIES_CHECK_SET_CODES = ""; // check ability text due mtgjson, can use multiple sets like MAT;CMD or * for all
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:91`: private static boolean CHECK_ONLY_ABILITIES_TEXT = false; // use when checking text locally, suppresses unnecessary checks and output messages
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:94`: private static final boolean CHECK_COPYABLE_FIELDS = true;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:95`: private static final boolean CHECK_FILTER_FIELDS = true;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:101`: FULL_ABILITIES_CHECK_SET_CODES = val;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:105`: CHECK_ONLY_ABILITIES_TEXT = Boolean.parseBoolean(val);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:157`: // skipListAddName(SKIP_LIST_PT, set, cardName);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:160`: // skipListAddName(SKIP_LIST_LOYALTY, set, cardName);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:163`: // skipListAddName(SKIP_LIST_DEFENSE, set, cardName);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:166`: // skipListAddName(SKIP_LIST_COLOR, set, cardName);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:169`: // skipListAddName(SKIP_LIST_COST, set, cardName);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:172`: // skipListAddName(SKIP_LIST_SUPERTYPE, set, cardName);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:175`: // skipListAddName(SKIP_LIST_TYPE, set, cardName);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:176`: skipListAddName(SKIP_LIST_TYPE, "UNH", "Old Fogey"); // uses summon word as a joke card
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:177`: skipListAddName(SKIP_LIST_TYPE, "UND", "Old Fogey");
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:178`: skipListAddName(SKIP_LIST_TYPE, "UST", "capital offense"); // uses "instant" instead "Instant" as a joke card
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:181`: // skipListAddName(SKIP_LIST_SUBTYPE, set, cardName);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:182`: skipListAddName(SKIP_LIST_SUBTYPE, "UGL", "Miss Demeanor"); // uses multiple types as a joke card: Lady, of, Proper, Etiquette
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:183`: skipListAddName(SKIP_LIST_SUBTYPE, "UGL", "Elvish Impersonators"); // subtype is "Elves" pun
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:184`: skipListAddName(SKIP_LIST_SUBTYPE, "UND", "Elvish Impersonators");
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:188`: // skipListAddName(SKIP_LIST_NUMBER, set, cardName);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:191`: // skipListAddName(SKIP_LIST_RARITY, set, cardName);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:192`: skipListAddName(SKIP_LIST_RARITY, "CMR", "The Prismatic Piper"); // Collation is not yet set up for CMR https://www.lethe.xyz/mtg/collation/cmr.html
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:195`: // skipListAddName(SKIP_LIST_MISSING_ABILITIES, set, cardName);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:198`: // skipListAddName(SKIP_LIST_DOUBLE_RARE, set, cardName);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:205`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "4BB"); // 4th Edition Foreign black border.
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:206`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "FBB"); // Foreign Black Border. Not on Scryfall, but other sources use this to distinguish non-English Revised cards
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:207`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PHJ"); // Hobby Japan Promos
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:208`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PJJT"); // Japan Junior Tournament
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:209`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PRED"); // Redemption Program
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:210`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PSAL"); // Salvat 2005
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:211`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PS11"); // Salvat 2011
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:212`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PMPS"); // Magic Premiere Shop 2005, Japanese Basic lands
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:213`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PMPS06"); // Magic Premiere Shop 2006, Japanese Basic lands
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:214`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PMPS07"); // Magic Premiere Shop 2007, Japanese Basic lands
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:215`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PMPS08"); // Magic Premiere Shop 2008, Japanese Basic lands
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:216`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PMPS09"); // Magic Premiere Shop 2009, Japanese Basic lands
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:217`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PMPS10"); // Magic Premiere Shop 2010, Japanese Basic lands
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:218`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PMPS11"); // Magic Premiere Shop 2011, Japanese Basic lands
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:219`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "REN"); // Renaissance
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:220`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "RIN"); // Rinascimento
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:223`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "OARC"); // Archenemy Schemes
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:224`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "OE01"); // Archenemy: Nicol Bolas Schemes
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:225`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PARC"); // Promotional Schemes
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:228`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "OHOP"); // Planechase Planes
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:229`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "OPC2"); // Planechase 2012 Plane
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:230`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "OPCA"); // Planechase Anthology Planes
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:231`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PHOP"); // Promotional Planes
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:233`: // Token sets TODO: implement tokens only sets
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:234`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "L12"); // League Tokens 2012
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:235`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "L13"); // League Tokens 2013
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:236`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "L14"); // League Tokens 2014
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:237`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "L15"); // League Tokens 2015
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:238`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "L16"); // League Tokens 2016
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:239`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "L17"); // League Tokens 2017
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:240`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PLNY"); // 2018 Lunar New Year
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:241`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "F18"); // Friday Night Magic 2018
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:242`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PR2"); // Magic Player Rewards 2002
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:245`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PPC1"); // M15 Prerelease Challenge
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:246`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "TBTH"); // Battle the Horde
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:247`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "TDAG"); // Defeat a God
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:248`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "TFTH"); // Face the Hydra
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:249`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "THP1"); // Theros Hero's Path
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:250`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "THP2"); // Born of the Gods Hero's Path
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:251`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "THP3"); // Journey into Nyx Hero's Path
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:254`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PCEL"); // Celebration Cards
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:255`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PMOA"); // Magic Online Avatar
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:256`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PVAN"); // Vanguard Series
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:257`: skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, "PTG"); // Ponies: The Galloping
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:260`: skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, "SWS"); // Star Wars
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:261`: skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, "UND"); // un-sets don't have full implementation of card variations
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:262`: skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, "UST"); // un-sets don't have full implementation of card variations
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:263`: skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, "SOI", "Tamiyo's Journal"); // not all variations implemented
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:264`: skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, "SLD", "Zndrsplt, Eye of Wisdom"); // has alternative image as second side
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:265`: skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, "SLD", "Krark's Thumb"); // has alternative image as second side
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:266`: skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, "SLD", "Okaun, Eye of Chaos"); // has alternative image as second side
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:267`: skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, "SLD", "Propaganda"); // has alternative image as second side
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:268`: skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, "SLD", "Stitch in Time"); // has alternative image as second side
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:269`: skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, "SLD", "Zndrsplt, Eye of Wisdom"); // has alternative image as second side
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:273`: skipListAddName(SKIP_LIST_SCRYFALL_DOWNLOAD_SETS, "SWS"); // Star Wars
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:278`: skipListAddName(SKIP_LIST_SAMPLE_DECKS, Paths.get("Jumpstart", "jumpstart_custom.txt").toString()); // it's not a deck file
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:288`: return skipCheckLists.computeIfAbsent(listName, x -> new LinkedHashSet<>());
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:291`: private static void skipListAddName(String listName, String set, String cardName) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:295`: private static void skipListAddName(String listName, String set) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:299`: private static boolean skipListHaveName(String listName, String set, String cardName) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:300`: return skipListGet(listName).contains(set + " - " + cardName)
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:304`: private static boolean skipListHaveName(String listName, String set) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:305`: return skipListGet(listName).contains(set);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:312`: return evergreenKeywords.contains(s) || s.startsWith("protection from") || s.startsWith("hexproof from")
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:319`: return b == null || b.isEmpty();
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:321`: return b != null && a.size() == b.size() && a.containsAll(b);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:379`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:444`: @Ignore // TODO: enable it after THB set will be completed
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:461`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:464`: if (skipListHaveName(SKIP_LIST_DOUBLE_RARE, set.getCode())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:465`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:472`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:475`: if (skipListHaveName(SKIP_LIST_DOUBLE_RARE, set.getCode(), checkCard.getName())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:476`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:568`: if (skipListHaveName(SKIP_LIST_UNSUPPORTED_SETS, searchSet)) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:571`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:582`: if (!CHECK_ONLY_ABILITIES_TEXT) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:586`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:599`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:613`: System.out.println("* TODO sets: " + (MtgJsonService.sets().size() - mtgSets - unsupportedSets) + ", cards: " + (mtgCards - xmageCards - unsupportedCards));
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:640`: return FileVisitResult.CONTINUE;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:653`: if (!deckName.endsWith(".dck") || skipListHaveName(SKIP_LIST_SAMPLE_DECKS, deckName)) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:654`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:664`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:672`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:712`: @Ignore // TODO: enable after all missing cards and settings fixes
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:727`: if (skipListHaveName(SKIP_LIST_WRONG_CARD_NUMBERS, set.getCode())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:728`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:737`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:749`: if (skipListHaveName(SKIP_LIST_UNSUPPORTED_SETS, jsonSet.code)
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:750`: || skipListHaveName(SKIP_LIST_WRONG_CARD_NUMBERS, jsonSet.code)) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:751`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:765`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:795`: if (skipListHaveName(SKIP_LIST_WRONG_CARD_NUMBERS, set.getCode())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:796`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:802`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:812`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:816`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:819`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:849`: @Ignore // TODO: enable after all missing cards and settings fixes
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:858`: if (skipListHaveName(SKIP_LIST_SCRYFALL_DOWNLOAD_SETS, set.getCode())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:859`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:878`: if (skipListHaveName(SKIP_LIST_SCRYFALL_DOWNLOAD_SETS, set.getCode())
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:879`: || skipListHaveName(SKIP_LIST_WRONG_CARD_NUMBERS, set.getCode())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:880`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:884`: if (skipListHaveName(SKIP_LIST_WRONG_CARD_NUMBERS, set.getCode(), card.getName())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:885`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:891`: if (!skipListHaveName(SKIP_LIST_WRONG_CARD_NUMBERS, set.getCode(), card.getName())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:894`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:923`: // TODO: add same for tokens
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:928`: if (skipListHaveName(SKIP_LIST_SCRYFALL_DOWNLOAD_SETS, setCode)
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:929`: || skipListHaveName(SKIP_LIST_WRONG_CARD_NUMBERS, setCode)) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:930`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:935`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:952`: return cons.newInstance();
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:956`: return null;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:959`: return null;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:974`: return Boolean.compare(e1, e2);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:976`: return o1.compareTo(o2);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:995`: return origin.replaceAll(".+\\$(.+)", "$1");
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:998`: return origin.replaceAll(".+\\.(.+)", "$1");
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1005`: // jumpstart, TODO: implement from JumpstartPoolGenerator, see #13264
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1079`: // TODO: add test to check num cards (hasBasicLands and numLand > 0)
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1107`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1129`: // TODO: it's UX problem, see https://github.com/magefree/mage/issues/10184
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1132`: continue; // TODO: comments it and run to find a problems
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1136`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1167`: continue; // TODO: comments it and run to find a problems
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1187`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1192`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1209`: // TODO: remove after implement dozens A-cards, see HBG - Alchemy Horizons: Baldur's Gate
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1210`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1213`: // TODO: Determine how to model this set, if at all.
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1215`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1226`: // TODO: add test to check num cards for rarity (rarityStats > 0 and numRarity > 0)
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1431`: @Ignore  // TODO: enable test after massive token fixes
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1528`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1545`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1624`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1647`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1691`: // TODO: all sets must have full tokens data in tok file (token in every set)
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1792`: // TODO: add same images verify for tokens/dungeons and other
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1793`: // TODO: add same verify for Speed and other new command objects
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1860`: // TODO: add classes support (see example with tokens and default constructor)?
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1908`: // TODO: Remove when MtgJson updated
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1911`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1914`: } else if (!CHECK_ONLY_ABILITIES_TEXT) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1920`: return options != null && options.contains(value);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1926`: return true;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1929`: return false;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1933`: if (!CHECK_ONLY_ABILITIES_TEXT) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1945`: if (CHECK_FILTER_FIELDS) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1946`: //checkWrongCreatureFilter(card); // TODO: enable after all creature filter fixes, see #14302, #7008
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1948`: if (CHECK_COPYABLE_FIELDS) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1956`: if (skipListHaveName(SKIP_LIST_COLOR, card.getExpansionSetCode(), card.getName())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1957`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1960`: // TODO: temporary fix - scryfall/mtgjson wrongly add [colors, mana cost] from spell part to main part/card,
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1964`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:1993`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2011`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2017`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2021`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2032`: return; // we already checked that obj1 and do not want to recurse. stop there.
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2046`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2050`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2064`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2176`: if (skipListHaveName(SKIP_LIST_SUBTYPE, card.getExpansionSetCode(), card.getName())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2177`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2214`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2235`: if (skipListHaveName(SKIP_LIST_SUPERTYPE, card.getExpansionSetCode(), card.getName())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2236`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2268`: // Ideally the indirect/quoted text check and this check would always return the same result, but that would require both better regexes for checking and a lot of card changes
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2271`: return false;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2274`: return recursiveTargetEffectCheck((Effect) obj, depth - 1);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2277`: return recursiveTargetAbilityCheck((Ability) obj, depth - 1);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2280`: return ((Token) obj).getAbilities().stream().anyMatch(ability -> recursiveTargetAbilityCheck(ability, depth - 1));
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2283`: return ((Collection) obj).stream().anyMatch(x -> recursiveTargetObjectCheck(x, depth - 1));
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2285`: return false;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2290`: return false;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2292`: return Arrays.stream(effect.getClass().getDeclaredFields())
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2296`: return recursiveTargetObjectCheck(f.get(effect), depth); // Intentionally not decreasing depth here
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2305`: return false;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2308`: return modes.stream().flatMap(mode -> mode.getTargets().stream()).anyMatch(target -> !target.isNotTarget())
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2315`: return false;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2319`: return ((Collection) obj).stream().anyMatch(x -> recursiveCreatureFilterCheck(card, x, depth - 1));
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2323`: return ((Map) obj).values().stream().anyMatch(x -> recursiveCreatureFilterCheck(card, x, depth - 1));
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2336`: return isCreatureInFilter && !isCreatureInRules;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2346`: return fullClasses.stream()
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2352`: return recursiveCreatureFilterCheck(card, f.get(obj), depth - 1);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2363`: return false;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2368`: return true;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2373`: return false;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2378`: return false;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2382`: return true;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2386`: if (skipListHaveName(SKIP_LIST_MISSING_ABILITIES, card.getExpansionSetCode(), card.getName())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2387`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2392`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2487`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2493`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2497`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2508`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2519`: // TODO: add check for wrongly enabled settings too?
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2546`: // - In cases involving a target in a reflexive trigger or token or other complex situation, it assumes that it's fine
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2653`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2663`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2670`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2675`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2717`: if (skipListHaveName("LEGALITY", card.getExpansionSetCode(), card.getName())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2718`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2721`: // TODO: add legality checks (by sets and cards, by banned)
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2735`: return rule
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2755`: return mageObject.getName();
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2759`: return mageObject
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2771`: return parts.get(0);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2773`: return mageObject.getName();
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2777`: return "this creature";
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2781`: return "this " + subType.getDescription();
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2785`: return "this land";
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2788`: return "this battle";
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2791`: return "this enchantment";
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2794`: return "this artifact";
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2796`: return "this permanent";
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2827`: return CardUtil.getTextWithFirstCharUpperCase(newRule.trim());
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2965`: return cardText.equals(refText)
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2973`: return card.getAbilities()
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2984`: if (FULL_ABILITIES_CHECK_SET_CODES.isEmpty()) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2985`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2987`: System.out.println("Ability text checks started for " + FULL_ABILITIES_CHECK_SET_CODES);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2994`: if (FULL_ABILITIES_CHECK_SET_CODES.isEmpty()) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2995`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:2998`: // TODO: implement tests result/stats by github actions to show in check message compared to prev version
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3008`: if (!forceToCheck && !FULL_ABILITIES_CHECK_SET_CODES.equals("*") && !FULL_ABILITIES_CHECK_SET_CODES.contains(card.getExpansionSetCode())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3009`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3012`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3016`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3114`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3130`: if (!CHECK_ONLY_ABILITIES_TEXT) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3175`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3190`: return refText;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3206`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3210`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3214`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3246`: return refText;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3299`: if (skipListHaveName(SKIP_LIST_TYPE, card.getExpansionSetCode(), card.getName())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3300`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3314`: if (skipListHaveName(SKIP_LIST_PT, card.getExpansionSetCode(), card.getName())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3315`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3320`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3332`: return "0".equals(found);
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3334`: return found.equals(expected) || expected.contains("*");
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3339`: if (skipListHaveName(SKIP_LIST_LOYALTY, card.getExpansionSetCode(), card.getName())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3340`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3344`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3348`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3351`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3357`: if (skipListHaveName(SKIP_LIST_DEFENSE, card.getExpansionSetCode(), card.getName())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3358`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3362`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3366`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3369`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3375`: if (skipListHaveName(SKIP_LIST_COST, card.getExpansionSetCode(), card.getName())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3376`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3379`: // TODO: temporary fix - scryfall/mtgjson wrongly add [colors, mana cost] from spell part to main part/card,
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3383`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3407`: return checkName.equals("Island")
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3415`: return name.equals("Island")
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3423`: if (skipListHaveName(SKIP_LIST_RARITY, card.getExpansionSetCode(), card.getName())) {
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3424`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3493`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3522`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3641`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3644`: continue;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3682`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3687`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3704`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3712`: return;
+- UNKNOWN `Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java:3730`: return;
