@@ -1,0 +1,138 @@
+{
+  "claim": "Listed tests, skip-list entries and opt-in checks are NOT_RUN in a default Mage.Verify run; a green Verify result covers only the executed remainder.",
+  "disabled_tests": [
+    {
+      "method": "downloadAndPrepareCommanderBracketsData",
+      "reason": "no reason given in source"
+    },
+    {
+      "method": "list_ChangelogHelper",
+      "reason": "no reason given in source"
+    },
+    {
+      "method": "test_checkBadConditions",
+      "reason": "no reason given in source"
+    },
+    {
+      "method": "test_checkDoubleRareCardsInSets",
+      "reason": "TODO: enable it after THB set will be completed"
+    },
+    {
+      "method": "test_checkMissingScryfallSettingsAndCardNumbers",
+      "reason": "TODO: enable after all missing cards and settings fixes"
+    },
+    {
+      "method": "test_checkMissingTokenData",
+      "reason": "TODO: enable test after massive token fixes"
+    },
+    {
+      "method": "test_checkWrongCardsDataInSets",
+      "reason": "TODO: enable after all missing cards and settings fixes"
+    },
+    {
+      "method": "test_checkWrongFullArtAndRetro",
+      "reason": "no reason given in source"
+    }
+  ],
+  "opt_in_checks": [
+    {
+      "default": "false",
+      "effect": "when true, suppresses every other check; false by default",
+      "flag": "CHECK_ONLY_ABILITIES_TEXT"
+    },
+    {
+      "default": "\"\"",
+      "effect": "full ability-text comparison against MTGJSON runs only for the set codes in -Dxmage.tests.verifyCheckSetCodes; empty by default, so it is NOT_RUN",
+      "flag": "FULL_ABILITIES_CHECK_SET_CODES"
+    }
+  ],
+  "schema": "mage.verify.coverage-gaps/1",
+  "skip_entry_counts": {
+    "RARITY": 1,
+    "SAMPLE_DECKS": 1,
+    "SCRYFALL_DOWNLOAD_SETS": 1,
+    "SUBTYPE": 3,
+    "TYPE": 3,
+    "UNSUPPORTED_SETS": 43,
+    "WRONG_CARD_NUMBERS": 10
+  },
+  "skip_lists": {
+    "RARITY": [
+      "\"CMR\", \"The Prismatic Piper\""
+    ],
+    "SAMPLE_DECKS": [
+      "Paths.get(\"Jumpstart\", \"jumpstart_custom.txt\").toString()"
+    ],
+    "SCRYFALL_DOWNLOAD_SETS": [
+      "\"SWS\""
+    ],
+    "SUBTYPE": [
+      "\"UGL\", \"Elvish Impersonators\"",
+      "\"UGL\", \"Miss Demeanor\"",
+      "\"UND\", \"Elvish Impersonators\""
+    ],
+    "TYPE": [
+      "\"UND\", \"Old Fogey\"",
+      "\"UNH\", \"Old Fogey\"",
+      "\"UST\", \"capital offense\""
+    ],
+    "UNSUPPORTED_SETS": [
+      "\"4BB\"",
+      "\"F18\"",
+      "\"FBB\"",
+      "\"L12\"",
+      "\"L13\"",
+      "\"L14\"",
+      "\"L15\"",
+      "\"L16\"",
+      "\"L17\"",
+      "\"OARC\"",
+      "\"OE01\"",
+      "\"OHOP\"",
+      "\"OPC2\"",
+      "\"OPCA\"",
+      "\"PARC\"",
+      "\"PCEL\"",
+      "\"PHJ\"",
+      "\"PHOP\"",
+      "\"PJJT\"",
+      "\"PLNY\"",
+      "\"PMOA\"",
+      "\"PMPS\"",
+      "\"PMPS06\"",
+      "\"PMPS07\"",
+      "\"PMPS08\"",
+      "\"PMPS09\"",
+      "\"PMPS10\"",
+      "\"PMPS11\"",
+      "\"PPC1\"",
+      "\"PR2\"",
+      "\"PRED\"",
+      "\"PS11\"",
+      "\"PSAL\"",
+      "\"PTG\"",
+      "\"PVAN\"",
+      "\"REN\"",
+      "\"RIN\"",
+      "\"TBTH\"",
+      "\"TDAG\"",
+      "\"TFTH\"",
+      "\"THP1\"",
+      "\"THP2\"",
+      "\"THP3\""
+    ],
+    "WRONG_CARD_NUMBERS": [
+      "\"SLD\", \"Krark's Thumb\"",
+      "\"SLD\", \"Okaun, Eye of Chaos\"",
+      "\"SLD\", \"Propaganda\"",
+      "\"SLD\", \"Stitch in Time\"",
+      "\"SLD\", \"Zndrsplt, Eye of Wisdom\"",
+      "\"SLD\", \"Zndrsplt, Eye of Wisdom\"",
+      "\"SOI\", \"Tamiyo's Journal\"",
+      "\"SWS\"",
+      "\"UND\"",
+      "\"UST\""
+    ]
+  },
+  "source": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java"
+}
