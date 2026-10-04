@@ -1,0 +1,62 @@
+{
+  "source_sha": "33b000e60a4e0dcf12bc216aebbbc0f93bd7a30c",
+  "source_tree": "be3d81639893fbd35748be06c3a198cca772e734",
+  "head_after": "33b000e60a4e0dcf12bc216aebbbc0f93bd7a30c",
+  "command": [
+    "mvn",
+    "-B",
+    "-pl",
+    "Mage.Verify",
+    "-am",
+    "-Dtest=VerifyCardDataTest#test_verifyCards",
+    "-Dsurefire.failIfNoSpecifiedTests=false",
+    "-Dxmage.verify.mtgjson.reference=/home/moeen/work/ci479-mage-c14-20261004/Mage.Verify/mtgjson-reference.json",
+    "-Dxmage.verify.mtgjson.dir=/srv/c14-intentionally-missing-20261004",
+    "-Dsurefire.reportsDirectory=/home/moeen/work/takeover-evidence-20261003/C14-missing-reference-reports",
+    "test"
+  ],
+  "exit": 1,
+  "counts": {
+    "tests": 1,
+    "failures": 0,
+    "errors": 1,
+    "skipped": 0
+  },
+  "reports": {
+    "TEST-mage.verify.VerifyCardDataTest.xml": {
+      "sha256": "a3b502ffafd2fa76ef458940443fb17e69ecbbc6c50a4bddd835b2ab3d31f9c2",
+      "tests": 1,
+      "failures": 0,
+      "errors": 1,
+      "skipped": 0
+    }
+  },
+  "log_sha256": "11e9301aa911b5f72e44315c93bf293a6eebdf5e1930ddb4013f44a3e6cc4b0f",
+  "selected_log": [
+    "Caused by: java.lang.RuntimeException: java.io.IOException: mtgjson reference: missing pinned file /srv/c14-intentionally-missing-20261004/AllPrintings.json.zip",
+    "Caused by: java.io.IOException: mtgjson reference: missing pinned file /srv/c14-intentionally-missing-20261004/AllPrintings.json.zip",
+    "[ERROR] Errors: ",
+    "[ERROR]   VerifyCardDataTest.test_verifyCards:352->check:1905 \u00bb ExceptionInInitializer",
+    "[ERROR] Tests run: 1, Failures: 0, Errors: 1, Skipped: 0",
+    "[INFO] BUILD FAILURE",
+    "[INFO] Total time:  12.001 s",
+    "[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.1.2:test (default-test) on project mage-verify: ",
+    "[ERROR] ",
+    "[ERROR] Please refer to /home/moeen/work/ci479-mage-c14-20261004/Mage.Verify/target/surefire-reports for the individual test results.",
+    "[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.",
+    "[ERROR] -> [Help 1]",
+    "[ERROR] ",
+    "[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.",
+    "[ERROR] Re-run Maven using the -X switch to enable full debug logging.",
+    "[ERROR] ",
+    "[ERROR] For more information about the errors and possible solutions, please read the following articles:",
+    "[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException",
+    "[ERROR] ",
+    "[ERROR] After correcting the problems, you can resume the build with the command",
+    "[ERROR]   mvn <args> -rf :mage-verify"
+  ],
+  "evidence_class": "DIRECTLY_VERIFIED_NATIVE_NEGATIVE",
+  "qualification_credit": false,
+  "scope": "One existing Verify test in a fresh Maven/Surefire process; missing declared input refused, no fallback. Full corpus NOT_RUN.",
+  "report_path_adjudication": "Surefire ignored the attempted reportsDirectory override. Trusted reprocessing reads the actual default report from this same execution; raw bytes retained."
+}

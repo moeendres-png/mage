@@ -1,0 +1,17 @@
+{
+  "python_controls": 32,
+  "failed": 0,
+  "not_run": 0,
+  "runtime": "NOT_RUN",
+  "source_sha256": {
+    ".github/ci/mtgjson_reference.py": "ba2baf214d64dfa2a04170b8ea751e81d6a9cfd0ae28928688a7a49955e2023b",
+    ".github/ci/test_mtgjson_reference.py": "e4c2a24d74d1698725117aad19e4077746def173fd0441ac12126828a96d27ba",
+    ".github/workflows/maven.yml": "7cae750b05423df3dd18da69afc81e5bd6e0a426a499cc3e75d98c0987efa11f",
+    "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java": "90e34a87203bfa417d7f8907df9ae35ce03478357069bf74b64c9138be6475ab"
+  },
+  "evidence_classes": {
+    "contracts": "SYNTHETIC",
+    "upstream_archive_hashes": "DIRECTLY_VERIFIED",
+    "native_pin_usage": "NOT_RUN"
+  }
+}

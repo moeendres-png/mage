@@ -1,0 +1,22 @@
+{
+  "files": {
+    "AllPrintings.json.zip": {
+      "bytes": 181769420,
+      "sha256": "ca452425efc7cf5f61a0dd28bb82b9d32448b843f207377c0b63f05bbf0c2fe8"
+    },
+    "AtomicCards.json.zip": {
+      "bytes": 51959008,
+      "sha256": "0a60de51a9f768563a4c9094be2fd2ccb88f4e8d0bd0c2dd5fc3001e5e8b5f8c"
+    }
+  },
+  "meta": {
+    "date": "2026-10-04",
+    "version": "5.3.0+20261004"
+  },
+  "pin_sha256": "149ff7d2abd61a6a9190263c7f83e188d94da7fdcbf9cde9fb1285968c05c3a4",
+  "qualification_credit": false,
+  "release": "mtgjson-reference-5.3.0-20261004-8b775c3a843d336e28f5fccd",
+  "repository": "moeendres-png/mage",
+  "schema": "mage.verify.mtgjson-reference/1#receipt",
+  "status": "INPUT_BOUND"
+}

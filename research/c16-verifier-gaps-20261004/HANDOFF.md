@@ -1,0 +1,11 @@
+# C16 bounded implementation checkpoint
+
+Source locks: Mage master7fbbe79b9df9ae4d98a764e06c16f44d80097af5/TREE1d87f3bbebfcc9c0a728313742ab8813fc2b4e44. This branch stacks on C14 head40a89beacf7e0cbd032386dfdb6d44a6d4819c62/TREEe9f2a4c16e9a24e931a4db001e0ffdfa71a9fb1f. Codex sole C16 writer; C14 branch remains independent.
+
+The full exact Git-byte verifier source inventory is compared with the reviewed baseline. Any source/file-list/omission-record drift requires REVIEW_REQUIRED; removal of disabled checks is not evidence of execution. Eight ignored methods are retained as NOT_RUN, with six verification gaps distinguished from two maintenance utilities. Conservative return/continue/skip/flag/TODO review surfaces remain UNKNOWN; normal exits can be present, so this is explicitly not a claim that every listed line disables behavior. Complete source-byte binding catches changes even outside the recognized patterns. No Rules checks or expectations changed.
+
+The native observation contract becomes v3 for structured disabled_coverage. It reprocesses exact source Git objects plus actual raw XML for executed/skipped names. This is candidate-controlled native evidence, not C12 hostile-code authority. Qualification credit=false, complete_semantic_coverage_claimed=false. Baseline regeneration requires explicit source review; a candidate changing source and its own baseline is not an adversarial trusted approval.
+
+Controls:28 native signal,10 MTGJSON,8 omission controls PASS. Negative controls cover source/method removal, additions/new files, silent baseline shrink, unrecognized spelling, missing baseline, symlinked source and green partial XML without erasing disabled gaps. Working-tree edits cannot change the exact Git inventory. Initial integration control failures were root-specific unavailable-source exception text in synthetic test fixtures; normalized UNKNOWN preserves failure semantics and reprocessing equivalence. No implementation result from that failed test pass was promoted.
+
+Next: exact-head CI/runtime inventory and independent review; C14 merge first, then merge current master into this branch (no rebase) and re-adjudicate affected observations. Do not claim full branch execution, test safety or provider eligibility. C12/D17 containment, Forge D24 execution restoration and D21 reduction remain separate open obligations.

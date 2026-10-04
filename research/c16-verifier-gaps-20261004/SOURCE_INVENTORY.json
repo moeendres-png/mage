@@ -1,0 +1,2943 @@
+{
+  "disabled_tests": [
+    {
+      "evidence_class": "CODE_DERIVED",
+      "kind": "DISABLED_TEST",
+      "method": "downloadAndPrepareCommanderBracketsData",
+      "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+      "role": "MAINTENANCE_UTILITY",
+      "status": "NOT_RUN"
+    },
+    {
+      "evidence_class": "CODE_DERIVED",
+      "kind": "DISABLED_TEST",
+      "method": "list_ChangelogHelper",
+      "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+      "role": "MAINTENANCE_UTILITY",
+      "status": "NOT_RUN"
+    },
+    {
+      "evidence_class": "CODE_DERIVED",
+      "kind": "DISABLED_TEST",
+      "method": "test_checkBadConditions",
+      "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+      "role": "VERIFICATION_GAP",
+      "status": "NOT_RUN"
+    },
+    {
+      "evidence_class": "CODE_DERIVED",
+      "kind": "DISABLED_TEST",
+      "method": "test_checkDoubleRareCardsInSets",
+      "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+      "role": "VERIFICATION_GAP",
+      "status": "NOT_RUN"
+    },
+    {
+      "evidence_class": "CODE_DERIVED",
+      "kind": "DISABLED_TEST",
+      "method": "test_checkMissingScryfallSettingsAndCardNumbers",
+      "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+      "role": "VERIFICATION_GAP",
+      "status": "NOT_RUN"
+    },
+    {
+      "evidence_class": "CODE_DERIVED",
+      "kind": "DISABLED_TEST",
+      "method": "test_checkMissingTokenData",
+      "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+      "role": "VERIFICATION_GAP",
+      "status": "NOT_RUN"
+    },
+    {
+      "evidence_class": "CODE_DERIVED",
+      "kind": "DISABLED_TEST",
+      "method": "test_checkWrongCardsDataInSets",
+      "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+      "role": "VERIFICATION_GAP",
+      "status": "NOT_RUN"
+    },
+    {
+      "evidence_class": "CODE_DERIVED",
+      "kind": "DISABLED_TEST",
+      "method": "test_checkWrongFullArtAndRetro",
+      "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+      "role": "VERIFICATION_GAP",
+      "status": "NOT_RUN"
+    }
+  ],
+  "inventory": {
+    "complete_semantic_coverage_claimed": false,
+    "qualification_credit": false,
+    "records": [
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 51,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "return number + \" - \" + this.getNameAsFull()",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 56,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "* @return single side name like Ice from Fire // Ice",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 59,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "// return single side name",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 60,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "return faceName != null ? faceName : (asciiName != null ? asciiName : name);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 64,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "* @return full card name like Fire // Ice",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 75,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "return getNameAsFace();",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 78,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "return getNameAsASCII();",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 82,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "return this.name;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 86,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "return this.asciiName != null ? this.asciiName : this.name;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 90,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "return this.asciiName != null && this.name != null && !this.asciiName.equals(this.name);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 94,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "* @return the Rarity of the card if present in the mtgjson file",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 99,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "return null;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 104,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "return Rarity.COMMON;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 106,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "return Rarity.UNCOMMON;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 108,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "return Rarity.RARE;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 110,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "return Rarity.MYTHIC;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 112,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "return Rarity.SPECIAL;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 114,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java",
+        "source": "return Rarity.BONUS;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 64,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return null;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 73,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return reference;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 97,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return Files.newInputStream(file);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 121,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return hex.toString();",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 147,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return json.prepareIndex();",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 156,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return model;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 163,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return readFromZip(openPinned(reference, filename), clazz);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 170,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return readFromZip(stream, clazz);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 179,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return readFromZip(Files.newInputStream(file.toPath()), clazz);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 187,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "// mtgjson site require user-agent in headers (otherwise it return 403)",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 200,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return readFromZip(Files.newInputStream(file.toPath()), clazz);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 209,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return new Gson().fromJson(new InputStreamReader(zipInputStream), clazz);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 214,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return SetHolder.sets;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 218,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return CardHolder.cards;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 222,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return SetHolder.meta;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 226,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return findReference(CardHolder.cards, name);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 231,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return findReference(CardHolder.cardsByClasses, shortName);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 237,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return new ArrayList<>();",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 242,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return set.cards.stream()",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 250,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return list.stream()",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 261,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return ref;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 265,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return cardName;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 273,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return number",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 294,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return decomposed.replaceAll(\"[\\\\p{InCombiningDiacriticalMarks}]\", \"\");",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 305,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return names.size() == 1;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 323,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "if (card == mainCard) continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 330,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java",
+        "source": "return index;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 33,
+        "path": "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonSet.java",
+        "source": "return code + \" - \" + name;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED",
+        "kind": "DISABLED_TEST",
+        "method": "downloadAndPrepareCommanderBracketsData",
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "role": "MAINTENANCE_UTILITY",
+        "status": "NOT_RUN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED",
+        "kind": "DISABLED_TEST",
+        "method": "list_ChangelogHelper",
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "role": "MAINTENANCE_UTILITY",
+        "status": "NOT_RUN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED",
+        "kind": "DISABLED_TEST",
+        "method": "test_checkBadConditions",
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "role": "VERIFICATION_GAP",
+        "status": "NOT_RUN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED",
+        "kind": "DISABLED_TEST",
+        "method": "test_checkDoubleRareCardsInSets",
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "role": "VERIFICATION_GAP",
+        "status": "NOT_RUN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED",
+        "kind": "DISABLED_TEST",
+        "method": "test_checkMissingScryfallSettingsAndCardNumbers",
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "role": "VERIFICATION_GAP",
+        "status": "NOT_RUN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED",
+        "kind": "DISABLED_TEST",
+        "method": "test_checkMissingTokenData",
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "role": "VERIFICATION_GAP",
+        "status": "NOT_RUN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED",
+        "kind": "DISABLED_TEST",
+        "method": "test_checkWrongCardsDataInSets",
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "role": "VERIFICATION_GAP",
+        "status": "NOT_RUN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED",
+        "kind": "DISABLED_TEST",
+        "method": "test_checkWrongFullArtAndRetro",
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "role": "VERIFICATION_GAP",
+        "status": "NOT_RUN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 90,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "private static String FULL_ABILITIES_CHECK_SET_CODES = \"\"; // check ability text due mtgjson, can use multiple sets like MAT;CMD or * for all",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 91,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "private static boolean CHECK_ONLY_ABILITIES_TEXT = false; // use when checking text locally, suppresses unnecessary checks and output messages",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 94,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "private static final boolean CHECK_COPYABLE_FIELDS = true;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 95,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "private static final boolean CHECK_FILTER_FIELDS = true;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 101,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "FULL_ABILITIES_CHECK_SET_CODES = val;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 105,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "CHECK_ONLY_ABILITIES_TEXT = Boolean.parseBoolean(val);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 157,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// skipListAddName(SKIP_LIST_PT, set, cardName);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 160,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// skipListAddName(SKIP_LIST_LOYALTY, set, cardName);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 163,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// skipListAddName(SKIP_LIST_DEFENSE, set, cardName);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 166,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// skipListAddName(SKIP_LIST_COLOR, set, cardName);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 169,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// skipListAddName(SKIP_LIST_COST, set, cardName);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 172,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// skipListAddName(SKIP_LIST_SUPERTYPE, set, cardName);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 175,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// skipListAddName(SKIP_LIST_TYPE, set, cardName);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 176,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_TYPE, \"UNH\", \"Old Fogey\"); // uses summon word as a joke card",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 177,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_TYPE, \"UND\", \"Old Fogey\");",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 178,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_TYPE, \"UST\", \"capital offense\"); // uses \"instant\" instead \"Instant\" as a joke card",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 181,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// skipListAddName(SKIP_LIST_SUBTYPE, set, cardName);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 182,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_SUBTYPE, \"UGL\", \"Miss Demeanor\"); // uses multiple types as a joke card: Lady, of, Proper, Etiquette",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 183,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_SUBTYPE, \"UGL\", \"Elvish Impersonators\"); // subtype is \"Elves\" pun",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 184,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_SUBTYPE, \"UND\", \"Elvish Impersonators\");",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 188,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// skipListAddName(SKIP_LIST_NUMBER, set, cardName);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 191,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// skipListAddName(SKIP_LIST_RARITY, set, cardName);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 192,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_RARITY, \"CMR\", \"The Prismatic Piper\"); // Collation is not yet set up for CMR https://www.lethe.xyz/mtg/collation/cmr.html",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 195,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// skipListAddName(SKIP_LIST_MISSING_ABILITIES, set, cardName);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 198,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// skipListAddName(SKIP_LIST_DOUBLE_RARE, set, cardName);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 205,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"4BB\"); // 4th Edition Foreign black border.",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 206,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"FBB\"); // Foreign Black Border. Not on Scryfall, but other sources use this to distinguish non-English Revised cards",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 207,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PHJ\"); // Hobby Japan Promos",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 208,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PJJT\"); // Japan Junior Tournament",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 209,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PRED\"); // Redemption Program",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 210,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PSAL\"); // Salvat 2005",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 211,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PS11\"); // Salvat 2011",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 212,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PMPS\"); // Magic Premiere Shop 2005, Japanese Basic lands",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 213,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PMPS06\"); // Magic Premiere Shop 2006, Japanese Basic lands",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 214,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PMPS07\"); // Magic Premiere Shop 2007, Japanese Basic lands",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 215,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PMPS08\"); // Magic Premiere Shop 2008, Japanese Basic lands",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 216,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PMPS09\"); // Magic Premiere Shop 2009, Japanese Basic lands",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 217,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PMPS10\"); // Magic Premiere Shop 2010, Japanese Basic lands",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 218,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PMPS11\"); // Magic Premiere Shop 2011, Japanese Basic lands",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 219,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"REN\"); // Renaissance",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 220,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"RIN\"); // Rinascimento",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 223,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"OARC\"); // Archenemy Schemes",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 224,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"OE01\"); // Archenemy: Nicol Bolas Schemes",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 225,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PARC\"); // Promotional Schemes",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 228,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"OHOP\"); // Planechase Planes",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 229,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"OPC2\"); // Planechase 2012 Plane",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 230,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"OPCA\"); // Planechase Anthology Planes",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 231,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PHOP\"); // Promotional Planes",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 233,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// Token sets TODO: implement tokens only sets",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 234,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"L12\"); // League Tokens 2012",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 235,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"L13\"); // League Tokens 2013",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 236,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"L14\"); // League Tokens 2014",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 237,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"L15\"); // League Tokens 2015",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 238,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"L16\"); // League Tokens 2016",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 239,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"L17\"); // League Tokens 2017",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 240,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PLNY\"); // 2018 Lunar New Year",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 241,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"F18\"); // Friday Night Magic 2018",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 242,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PR2\"); // Magic Player Rewards 2002",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 245,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PPC1\"); // M15 Prerelease Challenge",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 246,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"TBTH\"); // Battle the Horde",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 247,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"TDAG\"); // Defeat a God",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 248,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"TFTH\"); // Face the Hydra",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 249,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"THP1\"); // Theros Hero's Path",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 250,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"THP2\"); // Born of the Gods Hero's Path",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 251,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"THP3\"); // Journey into Nyx Hero's Path",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 254,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PCEL\"); // Celebration Cards",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 255,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PMOA\"); // Magic Online Avatar",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 256,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PVAN\"); // Vanguard Series",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 257,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_UNSUPPORTED_SETS, \"PTG\"); // Ponies: The Galloping",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 260,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, \"SWS\"); // Star Wars",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 261,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, \"UND\"); // un-sets don't have full implementation of card variations",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 262,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, \"UST\"); // un-sets don't have full implementation of card variations",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 263,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, \"SOI\", \"Tamiyo's Journal\"); // not all variations implemented",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 264,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, \"SLD\", \"Zndrsplt, Eye of Wisdom\"); // has alternative image as second side",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 265,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, \"SLD\", \"Krark's Thumb\"); // has alternative image as second side",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 266,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, \"SLD\", \"Okaun, Eye of Chaos\"); // has alternative image as second side",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 267,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, \"SLD\", \"Propaganda\"); // has alternative image as second side",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 268,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, \"SLD\", \"Stitch in Time\"); // has alternative image as second side",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 269,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_WRONG_CARD_NUMBERS, \"SLD\", \"Zndrsplt, Eye of Wisdom\"); // has alternative image as second side",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 273,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_SCRYFALL_DOWNLOAD_SETS, \"SWS\"); // Star Wars",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 278,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "skipListAddName(SKIP_LIST_SAMPLE_DECKS, Paths.get(\"Jumpstart\", \"jumpstart_custom.txt\").toString()); // it's not a deck file",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 288,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return skipCheckLists.computeIfAbsent(listName, x -> new LinkedHashSet<>());",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 291,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "private static void skipListAddName(String listName, String set, String cardName) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 295,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "private static void skipListAddName(String listName, String set) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 299,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "private static boolean skipListHaveName(String listName, String set, String cardName) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 300,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return skipListGet(listName).contains(set + \" - \" + cardName)",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 304,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "private static boolean skipListHaveName(String listName, String set) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 305,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return skipListGet(listName).contains(set);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 312,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return evergreenKeywords.contains(s) || s.startsWith(\"protection from\") || s.startsWith(\"hexproof from\")",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 319,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return b == null || b.isEmpty();",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 321,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return b != null && a.size() == b.size() && a.containsAll(b);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 379,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 444,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "@Ignore // TODO: enable it after THB set will be completed",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 461,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 464,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_DOUBLE_RARE, set.getCode())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 465,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 472,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 475,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_DOUBLE_RARE, set.getCode(), checkCard.getName())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 476,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 568,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_UNSUPPORTED_SETS, searchSet)) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 571,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 582,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (!CHECK_ONLY_ABILITIES_TEXT) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 586,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 599,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 613,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "System.out.println(\"* TODO sets: \" + (MtgJsonService.sets().size() - mtgSets - unsupportedSets) + \", cards: \" + (mtgCards - xmageCards - unsupportedCards));",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 640,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return FileVisitResult.CONTINUE;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 653,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (!deckName.endsWith(\".dck\") || skipListHaveName(SKIP_LIST_SAMPLE_DECKS, deckName)) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 654,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 664,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 672,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 712,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "@Ignore // TODO: enable after all missing cards and settings fixes",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 727,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_WRONG_CARD_NUMBERS, set.getCode())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 728,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 737,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 749,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_UNSUPPORTED_SETS, jsonSet.code)",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 750,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "|| skipListHaveName(SKIP_LIST_WRONG_CARD_NUMBERS, jsonSet.code)) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 751,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 765,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 795,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_WRONG_CARD_NUMBERS, set.getCode())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 796,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 802,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 812,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 816,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 819,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 849,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "@Ignore // TODO: enable after all missing cards and settings fixes",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 858,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_SCRYFALL_DOWNLOAD_SETS, set.getCode())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 859,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 878,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_SCRYFALL_DOWNLOAD_SETS, set.getCode())",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 879,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "|| skipListHaveName(SKIP_LIST_WRONG_CARD_NUMBERS, set.getCode())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 880,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 884,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_WRONG_CARD_NUMBERS, set.getCode(), card.getName())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 885,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 891,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (!skipListHaveName(SKIP_LIST_WRONG_CARD_NUMBERS, set.getCode(), card.getName())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 894,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 923,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: add same for tokens",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 928,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_SCRYFALL_DOWNLOAD_SETS, setCode)",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 929,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "|| skipListHaveName(SKIP_LIST_WRONG_CARD_NUMBERS, setCode)) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 930,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 935,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 952,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return cons.newInstance();",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 956,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return null;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 959,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return null;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 974,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return Boolean.compare(e1, e2);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 976,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return o1.compareTo(o2);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 995,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return origin.replaceAll(\".+\\\\$(.+)\", \"$1\");",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 998,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return origin.replaceAll(\".+\\\\.(.+)\", \"$1\");",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1005,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// jumpstart, TODO: implement from JumpstartPoolGenerator, see #13264",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1079,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: add test to check num cards (hasBasicLands and numLand > 0)",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1107,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1129,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: it's UX problem, see https://github.com/magefree/mage/issues/10184",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1132,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue; // TODO: comments it and run to find a problems",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1136,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1167,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue; // TODO: comments it and run to find a problems",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1187,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1192,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1209,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: remove after implement dozens A-cards, see HBG - Alchemy Horizons: Baldur's Gate",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1210,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1213,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: Determine how to model this set, if at all.",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1215,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1226,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: add test to check num cards for rarity (rarityStats > 0 and numRarity > 0)",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1431,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "@Ignore  // TODO: enable test after massive token fixes",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1528,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1545,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1624,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1647,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1691,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: all sets must have full tokens data in tok file (token in every set)",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1792,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: add same images verify for tokens/dungeons and other",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1793,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: add same verify for Speed and other new command objects",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1860,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: add classes support (see example with tokens and default constructor)?",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1908,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: Remove when MtgJson updated",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1911,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1914,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "} else if (!CHECK_ONLY_ABILITIES_TEXT) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1920,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return options != null && options.contains(value);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1926,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return true;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1929,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return false;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1933,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (!CHECK_ONLY_ABILITIES_TEXT) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1945,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (CHECK_FILTER_FIELDS) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1946,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "//checkWrongCreatureFilter(card); // TODO: enable after all creature filter fixes, see #14302, #7008",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1948,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (CHECK_COPYABLE_FIELDS) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1956,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_COLOR, card.getExpansionSetCode(), card.getName())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1957,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1960,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: temporary fix - scryfall/mtgjson wrongly add [colors, mana cost] from spell part to main part/card,",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1964,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 1993,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2011,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2017,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2021,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2032,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return; // we already checked that obj1 and do not want to recurse. stop there.",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2046,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2050,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2064,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2176,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_SUBTYPE, card.getExpansionSetCode(), card.getName())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2177,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2214,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2235,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_SUPERTYPE, card.getExpansionSetCode(), card.getName())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2236,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2268,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// Ideally the indirect/quoted text check and this check would always return the same result, but that would require both better regexes for checking and a lot of card changes",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2271,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return false;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2274,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return recursiveTargetEffectCheck((Effect) obj, depth - 1);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2277,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return recursiveTargetAbilityCheck((Ability) obj, depth - 1);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2280,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return ((Token) obj).getAbilities().stream().anyMatch(ability -> recursiveTargetAbilityCheck(ability, depth - 1));",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2283,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return ((Collection) obj).stream().anyMatch(x -> recursiveTargetObjectCheck(x, depth - 1));",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2285,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return false;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2290,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return false;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2292,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return Arrays.stream(effect.getClass().getDeclaredFields())",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2296,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return recursiveTargetObjectCheck(f.get(effect), depth); // Intentionally not decreasing depth here",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2305,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return false;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2308,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return modes.stream().flatMap(mode -> mode.getTargets().stream()).anyMatch(target -> !target.isNotTarget())",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2315,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return false;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2319,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return ((Collection) obj).stream().anyMatch(x -> recursiveCreatureFilterCheck(card, x, depth - 1));",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2323,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return ((Map) obj).values().stream().anyMatch(x -> recursiveCreatureFilterCheck(card, x, depth - 1));",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2336,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return isCreatureInFilter && !isCreatureInRules;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2346,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return fullClasses.stream()",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2352,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return recursiveCreatureFilterCheck(card, f.get(obj), depth - 1);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2363,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return false;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2368,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return true;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2373,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return false;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2378,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return false;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2382,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return true;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2386,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_MISSING_ABILITIES, card.getExpansionSetCode(), card.getName())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2387,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2392,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2487,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2493,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2497,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2508,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2519,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: add check for wrongly enabled settings too?",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2546,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// - In cases involving a target in a reflexive trigger or token or other complex situation, it assumes that it's fine",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2653,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2663,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2670,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2675,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2717,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(\"LEGALITY\", card.getExpansionSetCode(), card.getName())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2718,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2721,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: add legality checks (by sets and cards, by banned)",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2735,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return rule",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2755,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return mageObject.getName();",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2759,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return mageObject",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2771,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return parts.get(0);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2773,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return mageObject.getName();",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2777,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return \"this creature\";",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2781,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return \"this \" + subType.getDescription();",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2785,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return \"this land\";",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2788,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return \"this battle\";",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2791,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return \"this enchantment\";",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2794,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return \"this artifact\";",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2796,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return \"this permanent\";",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2827,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return CardUtil.getTextWithFirstCharUpperCase(newRule.trim());",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2965,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return cardText.equals(refText)",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2973,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return card.getAbilities()",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2984,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (FULL_ABILITIES_CHECK_SET_CODES.isEmpty()) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2985,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2987,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "System.out.println(\"Ability text checks started for \" + FULL_ABILITIES_CHECK_SET_CODES);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2994,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (FULL_ABILITIES_CHECK_SET_CODES.isEmpty()) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2995,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 2998,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: implement tests result/stats by github actions to show in check message compared to prev version",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3008,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (!forceToCheck && !FULL_ABILITIES_CHECK_SET_CODES.equals(\"*\") && !FULL_ABILITIES_CHECK_SET_CODES.contains(card.getExpansionSetCode())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3009,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3012,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3016,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3114,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3130,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (!CHECK_ONLY_ABILITIES_TEXT) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3175,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3190,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return refText;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3206,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3210,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3214,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3246,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return refText;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3299,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_TYPE, card.getExpansionSetCode(), card.getName())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3300,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3314,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_PT, card.getExpansionSetCode(), card.getName())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3315,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3320,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3332,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return \"0\".equals(found);",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3334,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return found.equals(expected) || expected.contains(\"*\");",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3339,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_LOYALTY, card.getExpansionSetCode(), card.getName())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3340,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3344,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3348,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3351,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3357,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_DEFENSE, card.getExpansionSetCode(), card.getName())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3358,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3362,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3366,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3369,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3375,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_COST, card.getExpansionSetCode(), card.getName())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3376,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3379,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "// TODO: temporary fix - scryfall/mtgjson wrongly add [colors, mana cost] from spell part to main part/card,",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3383,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3407,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return checkName.equals(\"Island\")",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3415,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return name.equals(\"Island\")",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3423,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "if (skipListHaveName(SKIP_LIST_RARITY, card.getExpansionSetCode(), card.getName())) {",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3424,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3493,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3522,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3641,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3644,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "continue;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3682,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3687,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3704,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3712,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      },
+      {
+        "evidence_class": "CODE_DERIVED_POTENTIAL_OMISSION",
+        "kind": "REVIEW_SURFACE",
+        "line": 3730,
+        "path": "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java",
+        "source": "return;",
+        "status": "UNKNOWN"
+      }
+    ],
+    "schema": "mage.verifier-gap-inventory/1",
+    "source_files": {
+      "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonCard.java": "8dc7568a8572a6ec42f1a59a78b79c825ccd16ddcf7f28dc78f26118ada8e9b9",
+      "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonMetadata.java": "a8fe7c773bbac884533693a7870099ea51bf37854f7bec59b2919c368b36b596",
+      "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonService.java": "90e34a87203bfa417d7f8907df9ae35ce03478357069bf74b64c9138be6475ab",
+      "Mage.Verify/src/main/java/mage/verify/mtgjson/MtgJsonSet.java": "758e5ef607947f1e350f3b4a89f0d369b2341999a126ec16cbeefbda40d15ae0",
+      "Mage.Verify/src/main/java/mage/verify/mtgjson/SpellBookCard.java": "353d3013f0f7332b5f4bfadfbc691ea18aec114cf6dde43082545db86e053816",
+      "Mage.Verify/src/main/java/mage/verify/mtgjson/SpellBookCardsPage.java": "b21727612c2d3261da3bbda2b36a49b7e2e46657dc7a72bbc7faf6a932db7fdb",
+      "Mage.Verify/src/main/java/mage/verify/mtgjson/SpellBookCombo.java": "ce7861fec324d2568eb8c0b725177b8333cb394d9ab22f4b1a2d71af3bf72619",
+      "Mage.Verify/src/main/java/mage/verify/mtgjson/SpellBookComboPart.java": "a5fc8ee2175ef76f19bec193350f01cb2033616b2c65034f026c86636a5a2dcf",
+      "Mage.Verify/src/test/java/mage/verify/VerifyCardDataTest.java": "c71f16fadd276a8b8a4b51cc597cd58ba6827924a46fe1b8b8ac438702cce525"
+    }
+  },
+  "qualification_credit": false,
+  "runtime_executed_count": 0,
+  "runtime_problems": [],
+  "runtime_reports_present": false,
+  "runtime_skipped": [],
+  "scope": "Source omissions are CODE_DERIVED. XML names are candidate-controlled observations. No full branch or hostile-code authority claim.",
+  "source_sha": "e637c5084057795a60beedc53294645bbe1f846c",
+  "source_tree": "19add233b0db7317b2b0c6dd5e35f1d3a8d1ecb7",
+  "status": "SOURCE_INVENTORY_MATCH"
+}
