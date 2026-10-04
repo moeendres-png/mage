@@ -471,15 +471,18 @@ public final class TrustedTestDriver {
                         || "setIO".equals(name)
                         || "accessDeclaredMembers".equals(name)
                         || "createClassLoader".equals(name)
+                        || "getClassLoader".equals(name)
                         || "setContextClassLoader".equals(name)
                         || "enableContextClassLoaderOverride".equals(name)
                         || "modifyThread".equals(name)
                         || "modifyThreadGroup".equals(name)
                         || "manageProcess".equals(name)
                         || "setDefaultUncaughtExceptionHandler".equals(name)
+                        || "stopThread".equals(name)
                         || name.startsWith("loadLibrary.")
                         || name.startsWith("accessClassInPackage.sun.misc")
                         || name.startsWith("accessClassInPackage.jdk.internal.misc")
+                        || name.startsWith("accessClassInPackage.c12.trusted")
                         || name.startsWith("defineClassInPackage.c12.trusted")) {
                     refuse("runtime-permission:" + name);
                 }

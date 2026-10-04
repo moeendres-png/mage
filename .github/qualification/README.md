@@ -107,10 +107,13 @@ auto-detected extension, shipped in test resources, main resources or a new depe
 
 The candidate JVM is **not a witness producer**. It contains no signing key, receipt path
 or qualification verdict authority. A separate trusted parent JVM opens a one-shot JDI
-listener, accepts the exact sandboxed child, closes the listener, and observes only entries
-into the private `observer*` hooks of the non-exported `c12.trusted` driver module. The
-parent writes the only receipt into trusted-owned storage. Candidate code can write
-arbitrary witness-shaped decoys in its own tree; they are never read (CTRL-38).
+listener, accepts the exact sandboxed child, closes the listener, and observes the private
+`observer*` hooks plus required trusted-test method entry/exit events. For each module the
+trusted parent owns a fresh HMAC-SHA256 key in trusted-only storage; that key is passed only
+to the observer JVM, never to the candidate JVM. The observer signs its receipt, the trusted
+aggregator verifies it and deletes the key, and only then can the receipt contribute credit.
+Candidate code can write arbitrary witness-shaped decoys in its own tree; they are never
+read (CTRL-38).
 
 The executed test bytecode is never the candidate's build output. `witness.py` compiles each
 module's test sources itself, from the `git archive` export, with `javac -proc:none`, so no
@@ -253,7 +256,7 @@ real `c12cand` account.
 
 | family | controls |
 | --- | --- |
-| P1-1 trust domain | CTRL-26–29: test code overwrites `qualify.py`, `witness.py`, the source lock and evidence (target unchanged, integrity OK, a genuinely failing candidate stays FAIL); CTRL-30: initialize-phase plugin; CTRL-31: test-bytecode mutation; CTRL-32: environment scrubbed (positive); CTRL-33–35: simulated breaches are caught; CTRL-36: writable trusted path refused; CTRL-38: candidate-side witness decoy ignored; CTRL-84: hostile-bytecode containment; CTRL-85/86: candidate test edits/additions earn no authority; CTRL-87/88: candidate Jupiter extension or Vintage runner cannot fabricate green lifecycle credit |
+| P1-1 trust domain | CTRL-26–29: test code overwrites `qualify.py`, `witness.py`, the source lock and evidence (target unchanged, integrity OK, a genuinely failing candidate stays FAIL); CTRL-30: initialize-phase plugin; CTRL-31: test-bytecode mutation; CTRL-32: environment scrubbed (positive); CTRL-33–35: simulated breaches are caught; CTRL-36: writable trusted path refused; CTRL-38: candidate-side witness decoy ignored; CTRL-84: hostile-bytecode containment; CTRL-85/86: candidate test edits/additions earn no authority; CTRL-87/88: candidate Jupiter extension or Vintage runner cannot fabricate green lifecycle credit; CTRL-89/90: parent-observed method-body completion negative/positive controls |
 | P1-2 corpus | CTRL-40: honest (positive); CTRL-41: mass rename leaving one; CTRL-42: delete; CTRL-43: move out of test roots; CTRL-44: rename out of regex; CTRL-45: green subset; CTRL-46: legitimate addition (positive); CTRL-47: addition without baseline update; CTRL-48: approved removal path (positive); CTRL-49: removal without default-branch approval; CTRL-50: malformed baseline; CTRL-51: missing baseline; CTRL-52: stale baseline; CTRL-53: candidate behind default branch; CTRL-56: within-class method shrink; CTRL-57: method disabled; CTRL-58: method renamed; CTRL-59: required method never started (static reading fooled); CTRL-64: approved method removal (positive); CTRL-65: method additions (positive) |
 | reports, suppression, binding | CTRL-01–09 |
 | source lock | CTRL-10–14 |
@@ -269,8 +272,9 @@ suite fails.
 ## Limits, stated
 
 - **Execution JVM versus evidence authority.** Candidate production bytecode still executes inside the sandboxed driver JVM because the trusted tests must exercise the candidate. That JVM has no receipt key/path or evidence-writing authority. The trusted parent observer is a separate process and records the only qualification receipt. The child is additionally contained against deep reflection into the driver, process/socket/native/FD escape paths and trust-channel reuse (CTRL-84).
-- **Candidate JUnit execution control is fail-closed.** A green Jupiter/Vintage lifecycle is insufficient when candidate-built code can control invocation. Before discovery the trusted driver inspects selected trusted test classes and refuses candidate-origin runners/extensions/providers or registered Rule/Extension members. Thus a candidate `InvocationInterceptor` or custom Vintage runner cannot suppress a trusted failing assertion and manufacture PASS (CTRL-87/88). Standard JUnit controls and controls compiled from trusted test source remain eligible.
-- **Authoritative test source is trusted.** Executed test bytecode is compiled from the trusted-validator commit, not the candidate's edited test source. Candidate production code remains the subject under test. Weaknesses already present in trusted test source are a reviewed coverage question; a candidate cannot weaken those bodies in the PR being qualified. A `@TestFactory` that returns no dynamic tests still counts as started.
+- **Candidate JUnit execution control is fail-closed.** A green Jupiter/Vintage lifecycle is insufficient when candidate-built code can control invocation. Before discovery the trusted driver inspects selected trusted test classes and refuses candidate-origin runners/extensions/providers or registered Rule/Extension members. Thus a candidate `InvocationInterceptor` or custom Vintage runner cannot suppress a trusted failing assertion and manufacture PASS (CTRL-87/88).
+- **Lifecycle events are not body proof.** The parent JDI observer independently requires every required declaration to enter and normally exit while its JUnit test is active. A runner that invokes a failing method, swallows the assertion and reports green still fails (CTRL-89); a trusted test-side runner whose method genuinely returns remains supported (CTRL-90).
+- **Authoritative test source is trusted.** Executed test bytecode is compiled from the trusted-validator commit, not the candidate's edited test source. Candidate production code remains the subject under test. Unsupported dynamic/template constructs that cannot be bound to parent-observed normal method completion fail closed rather than receiving credit.
 - **The class regex is narrower than surefire's defaults.** Surefire also runs `Test*` classes, for example `TestPartnerCommanders`. The C12 class regex (`(Test|Tests|TestCase|Spec|IT)$`) does not select those, so 16 Mage test files that contain `@Test` methods are not required. Widening the regex is a separate decision: it would also select helper classes named `Test*`, which can never be entered.
 - **Which classes run.** Every required class must still compile from its own module (`required_tests_not_compiled`). The driver runs the selected classes (`selected_test_classes`), and each must be entered:
   - the required classes that own at least one required test method;
@@ -288,8 +292,8 @@ suite fails.
 
 ## Method identity migration (2026-10-04)
 
-Baseline/policy v4, parent-observed execution witness v4 and aggregate witness/evidence v6
-replace the lossy method-name and same-JVM evidence-authority contracts. Historical
+Baseline/policy v4, parent-observed execution witness v5 and aggregate witness/evidence v7
+replace the lossy method-name, same-JVM evidence-authority and lifecycle-only contracts. Historical
 execution-witness epochs receive no credit under this validator. Exact-head controls
 must pass before integration, and a fresh default-branch `pull_request_target` run
 must qualify a real successor PR before C12 runtime is claimed.

@@ -1927,6 +1927,72 @@ public final class GateRunner extends Runner {
         "FAIL", result, reason="candidate_junit_control_code",
     ))
 
+    # Independent parent-observer control: even trusted test-side runner code
+    # cannot manufacture credit by entering a failing method, swallowing its
+    # exception and then reporting a green JUnit lifecycle. Entry alone is not
+    # enough; the parent must observe a normal method exit for the active test.
+    catching_test = """package probe;
+import static org.junit.Assert.assertEquals;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+@RunWith(CatchingRunner.class)
+public class ProbeTest {
+ @Test public void proof() { assertEquals(3, 1 + 1); }
+}
+"""
+    catching_runner = """package probe;
+import java.lang.reflect.Method;
+import org.junit.runner.Description;
+import org.junit.runner.Runner;
+import org.junit.runner.notification.RunNotifier;
+public final class CatchingRunner extends Runner {
+ private final Class<?> type;
+ public CatchingRunner(Class<?> type) { this.type = type; }
+ private Description proof() { return Description.createTestDescription(type, "proof"); }
+ @Override public Description getDescription() {
+  Description root = Description.createSuiteDescription(type);
+  root.addChild(proof());
+  return root;
+ }
+ @Override public void run(RunNotifier notifier) {
+  Description proof = proof();
+  notifier.fireTestStarted(proof);
+  try {
+   Object instance = type.getDeclaredConstructor().newInstance();
+   Method method = type.getMethod("proof");
+   method.invoke(instance);
+  } catch (Throwable ignored) { }
+  notifier.fireTestFinished(proof);
+ }
+}
+"""
+    body_attack = project(
+        {"ProbeTest": catching_test, "CatchingRunner": catching_runner},
+        pom=junit4_main_pom,
+    )
+    fx = h.fixture("CTRL-89-parent-requires-normal-test-body-exit", body_attack, body_attack)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-89-parent-requires-normal-test-body-exit", "red",
+        "green lifecycle plus a swallowed failing assertion cannot earn credit without a parent-observed normal method exit",
+        "FAIL", result, reason="required_test_method_bodies_not_completed",
+    ))
+
+    trusted_runner_test = catching_test.replace(
+        "assertEquals(3, 1 + 1)", "assertEquals(2, 1 + 1)"
+    )
+    trusted_runner = project(
+        {"ProbeTest": trusted_runner_test, "CatchingRunner": catching_runner},
+        pom=junit4_main_pom,
+    )
+    fx = h.fixture("CTRL-90-trusted-test-runner-positive", trusted_runner, trusted_runner)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-90-trusted-test-runner-positive", "positive",
+        "a trusted test-side custom runner still earns credit when the trusted method body actually returns normally",
+        "PASS", result, extra_ok=result.get("credit") is True,
+    ))
+
     return rows
 
 

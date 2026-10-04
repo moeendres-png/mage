@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
 import json
 import select
 import tempfile
@@ -57,8 +58,8 @@ sys.path.append(str(Path(__file__).resolve().parent))
 import corpus_policy  # noqa: E402
 import sandbox  # noqa: E402
 
-SCHEMA = "mage.candidate-qualification.witness/6"
-WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/4"
+SCHEMA = "mage.candidate-qualification.witness/7"
+WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/5"
 DRIVER = "TrustedTestDriver.java"
 OBSERVER = "TrustedTestObserver.java"
 MAIN_CLASSES_DIR = "target/classes"
@@ -100,19 +101,47 @@ def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True, check=False)
 
 
-def read_parent_receipt(path: Path):
-    """Read the receipt written by the trusted parent observer.
+def write_parent_secret(path: Path, data: bytes) -> None:
+    if path.exists() or path.is_symlink():
+        path.unlink()
+    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(data)
 
-    The path is under the trusted witness work directory, not the candidate
-    sandbox. The candidate OS identity cannot write it and the candidate JVM
-    receives neither the path nor any receipt authority.
+
+def read_parent_receipt(path: Path, mac_path: Path, key_path: Path):
+    """Authenticate and read the receipt written by the trusted parent observer.
+
+    The HMAC key exists only in trusted-parent storage/process memory. It is
+    never passed to the sandboxed candidate JVM. After verification the key file
+    is deleted; only the key hash and verified MAC remain as evidence metadata.
     """
     try:
         if path.is_symlink() or not path.is_file():
             return None, "trusted_parent_produced_no_receipt"
-        return json.loads(path.read_text()), None
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        if mac_path.is_symlink() or not mac_path.is_file():
+            return None, "trusted_parent_produced_no_receipt_mac"
+        if key_path.is_symlink() or not key_path.is_file():
+            return None, "trusted_parent_receipt_key_unavailable"
+        data = path.read_bytes()
+        key = key_path.read_bytes()
+        actual = hmac.new(key, data, hashlib.sha256).hexdigest()
+        recorded = mac_path.read_text(encoding="ascii").strip()
+        if not hmac.compare_digest(actual, recorded):
+            return None, "trusted_parent_receipt_authentication_failed"
+        doc = json.loads(data.decode("utf-8"))
+        doc["receipt_authentication"] = "trusted_parent_hmac_sha256"
+        doc["receipt_hmac_verified"] = True
+        doc["receipt_hmac_sha256"] = recorded
+        doc["receipt_key_sha256"] = hashlib.sha256(key).hexdigest()
+        return doc, None
+    except (OSError, UnicodeDecodeError, UnicodeEncodeError, json.JSONDecodeError):
         return None, "trusted_parent_receipt_unparseable"
+    finally:
+        try:
+            key_path.unlink()
+        except OSError:
+            pass
 
 def sanitize_classpath(module: str, resolved: str, candidate_root: Path, all_modules: list[str],
                        candidate_home: Path, trusted_maven_repo: Path):
@@ -308,8 +337,12 @@ def module_witnesses(user, sandbox_dir, candidate_root, modules, bundle, outputs
 
         test_output = bundle / "tests" / entry["bundle_name"]
         receipt = outputs / "module-{}.json".format(entry["bundle_name"])
-        if receipt.exists():
-            receipt.unlink()
+        receipt_mac = outputs / "module-{}.hmac".format(entry["bundle_name"])
+        auth_key = outputs / "module-{}.key".format(entry["bundle_name"])
+        for trusted_output in (receipt, receipt_mac, auth_key):
+            if trusted_output.exists() or trusted_output.is_symlink():
+                trusted_output.unlink()
+        write_parent_secret(auth_key, os.urandom(32))
         junit = [str(bundle / "junit" / Path(j).name) for j in entry["junit"]]
         classpath = os.pathsep.join([*junit, str(test_output), *entry["classpath"]])
 
@@ -318,9 +351,12 @@ def module_witnesses(user, sandbox_dir, candidate_root, modules, bundle, outputs
             "-cp", str(bundle / "observer"), "TrustedTestObserver",
             "--module-id", module, "--bind-sha", locked_sha, "--bind-tree", locked_tree,
             "--module-output", str(test_output), "--receipt", str(receipt),
+            "--receipt-mac", str(receipt_mac), "--auth-key-file", str(auth_key),
         ]
         for name in classes:
             observer_cmd += ["--select", name]
+        for method in entry.get("required_methods") or []:
+            observer_cmd += ["--require-method", method]
 
         observer = subprocess.Popen(
             observer_cmd, cwd=str(outputs), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -360,7 +396,7 @@ def module_witnesses(user, sandbox_dir, candidate_root, modules, bundle, outputs
             except Exception:
                 pass
 
-        witness, receipt_failure = read_parent_receipt(receipt)
+        witness, receipt_failure = read_parent_receipt(receipt, receipt_mac, auth_key)
         if receipt_failure:
             failure = failure or receipt_failure
         observer_stdout = ""
@@ -516,6 +552,10 @@ def main() -> int:
         modules: dict = {}
         for entry in required:
             modules.setdefault(entry["module"], set()).add(entry["class_name"])
+        methods_by_module: dict[str, list[str]] = {}
+        for method_identity in trusted_methods:
+            method_module, local_identity = corpus_policy.split_pair(method_identity)
+            methods_by_module.setdefault(method_module, []).append(local_identity)
 
         classpath_map = json.loads(Path(args.module_classpaths).read_text())
         if not isinstance(classpath_map, dict):
@@ -567,6 +607,7 @@ def main() -> int:
             resolved[module] = {
                 "required_classes": sorted(classes),
                 "selected_classes": sorted(c for c in classes if corpus_policy.pair(module, c) in owning),
+                "required_methods": sorted(methods_by_module.get(module, [])),
                 "classpath": cp,
                 "junit": junit_jars,
                 "bundle_name": bundle_name,
@@ -628,8 +669,12 @@ def aggregate(execution: list[dict]) -> dict:
                              "tests_aborted", "tests_skipped", "containers_failed")}
     entered_pairs: set = set()
     observed_methods: set = set()
+    body_entered_methods: set = set()
+    body_completed_methods: set = set()
+    methods_never_body_completed: set = set()
     never_entered: set = set()
     origin_violations: set = set()
+    control_violations: set = set()
     entered_modules: list = []
     modules_without_witness: list = []
     origin_paths: dict = {}
@@ -653,8 +698,19 @@ def aggregate(execution: list[dict]) -> dict:
         for name in witness.get("observed_methods") or []:
             if isinstance(name, str):
                 observed_methods.add(corpus_policy.pair(module, name))
+        for name in witness.get("body_entered_methods") or []:
+            if isinstance(name, str):
+                body_entered_methods.add(corpus_policy.pair(module, name))
+        for name in witness.get("body_completed_methods") or []:
+            if isinstance(name, str):
+                body_completed_methods.add(corpus_policy.pair(module, name))
+        for name in witness.get("methods_never_body_completed") or []:
+            if isinstance(name, str):
+                methods_never_body_completed.add(corpus_policy.pair(module, name))
         for violation in witness.get("code_origin_violations") or []:
             origin_violations.add("{}: {}".format(module, violation))
+        for violation in witness.get("control_violations") or []:
+            control_violations.add(str(violation))
         for name, location in (witness.get("class_code_origins") or {}).items():
             origin_paths[corpus_policy.pair(module, name)] = location
         for name, count in (witness.get("non_successful_by_class") or {}).items():
@@ -662,6 +718,12 @@ def aggregate(execution: list[dict]) -> dict:
                 key = corpus_policy.pair(module, name)
                 non_successful[key] = non_successful.get(key, 0) + count
     bound = [e["witness"] for e in execution if isinstance(e.get("witness"), dict)]
+    all_receipts_hmac_verified = bool(bound) and all(
+        w.get("receipt_authentication") == "trusted_parent_hmac_sha256"
+        and w.get("receipt_hmac_verified") is True
+        and w.get("receipt_key_in_candidate_jvm") is False
+        for w in bound
+    )
     return {
         "schema": WITNESS_SCHEMA,
         "producer": "witness.py per-module aggregation",
@@ -669,6 +731,9 @@ def aggregate(execution: list[dict]) -> dict:
         "candidate_authored_evidence_used": False,
         "candidate_witness_authority": False,
         "execution_mode": "per_module_external_observer",
+        "receipt_authentication": "trusted_parent_hmac_sha256",
+        "all_receipts_hmac_verified": all_receipts_hmac_verified,
+        "receipt_key_in_candidate_jvm": False,
         "bound_candidate_sha": bound[0].get("bound_candidate_sha") if bound else None,
         "bound_candidate_shas": sorted({str(w.get("bound_candidate_sha")) for w in bound}),
         "bound_candidate_tree": bound[0].get("bound_candidate_tree") if bound else None,
@@ -680,7 +745,11 @@ def aggregate(execution: list[dict]) -> dict:
         "classes_entered_total": len(entered_pairs),
         "classes_never_entered": sorted(never_entered),
         "observed_methods": sorted(observed_methods),
+        "body_entered_methods": sorted(body_entered_methods),
+        "body_completed_methods": sorted(body_completed_methods),
+        "methods_never_body_completed": sorted(methods_never_body_completed),
         "code_origin_violations": sorted(origin_violations),
+        "control_violations": sorted(control_violations),
         "class_code_origins": origin_paths,
         "non_successful_by_class": dict(sorted(non_successful.items())),
         "driver_verdict": "PENDING",

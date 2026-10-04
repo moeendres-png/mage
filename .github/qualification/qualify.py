@@ -48,9 +48,9 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent))
 import corpus_policy  # noqa: E402
 
-SCHEMA = "mage.candidate-qualification.evidence/6"
-WITNESS_SCHEMA = "mage.candidate-qualification.witness/6"
-EXEC_WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/4"
+SCHEMA = "mage.candidate-qualification.evidence/7"
+WITNESS_SCHEMA = "mage.candidate-qualification.witness/7"
+EXEC_WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/5"
 INTEGRITY_SCHEMA = "mage.candidate-qualification.integrity/1"
 
 PASS = "PASS"
@@ -185,6 +185,10 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
         fail(
             "execution_mode_not_per_module: {}".format(execution.get("execution_mode"))
         )
+    if execution.get("receipt_authentication") != "trusted_parent_hmac_sha256" \
+            or execution.get("all_receipts_hmac_verified") is not True \
+            or execution.get("receipt_key_in_candidate_jvm") is not False:
+        fail("trusted_parent_receipt_authentication_unproven")
 
     # Adjudicated rule: a non-zero candidate build exit is an unconditional FAIL.
     raw_exit = witness.get("candidate_build_exit_code")
@@ -281,6 +285,14 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
                 if not_started:
                     fail("required_test_methods_not_started: {} of {}: {}".format(
                         len(not_started), len(required_methods), ",".join(not_started[:10])))
+                body_completed = execution.get("body_completed_methods")
+                if not isinstance(body_completed, list) or not all(isinstance(m, str) for m in body_completed):
+                    fail("required_test_method_body_evidence_missing: parent observer reported no completed method bodies")
+                else:
+                    body_missing = sorted(set(required_methods) - set(body_completed))
+                    if body_missing:
+                        fail("required_test_method_bodies_not_completed: {} of {}: {}".format(
+                            len(body_missing), len(required_methods), ",".join(body_missing[:10])))
 
     never_entered = execution.get("classes_never_entered") or []
     if never_entered:
@@ -293,6 +305,13 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
         fail(
             "class_origin_mismatch: {}".format("; ".join(origin_violations[:5]))
         )
+
+    control_violations = execution.get("control_violations") or []
+    for violation in control_violations[:5]:
+        if isinstance(violation, str) and violation.startswith("candidate_junit_control_code:"):
+            fail(violation)
+        else:
+            fail("candidate_execution_control_violation: {}".format(violation))
 
     # Per-module aggregation integrity. A module that owns required classes but
     # produced no trusted witness is a gap, never a silent skip; and partial
@@ -365,11 +384,21 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
             fail("module_evidence_origin_untrusted: {}".format(entry.get("module")))
         if record.get("candidate_witness_authority") is not False:
             fail("module_candidate_witness_authority_present: {}".format(entry.get("module")))
+        if record.get("receipt_authentication") != "trusted_parent_hmac_sha256" \
+                or record.get("receipt_hmac_verified") is not True \
+                or record.get("receipt_key_in_candidate_jvm") is not False:
+            fail("module_receipt_authentication_unproven: {}".format(entry.get("module")))
         if record.get("observer_status") != "COMPLETE":
             fail("module_observer_incomplete: {}".format(entry.get("module")))
         if record.get("protocol_violations"):
             fail("module_observer_protocol_violation: {}: {}".format(
                 entry.get("module"), ",".join(record.get("protocol_violations")[:5])))
+        if record.get("control_violations"):
+            fail("module_execution_control_violation: {}: {}".format(
+                entry.get("module"), ",".join(record.get("control_violations")[:5])))
+        if record.get("methods_never_body_completed"):
+            fail("module_required_method_bodies_not_completed: {}: {}".format(
+                entry.get("module"), ",".join(record.get("methods_never_body_completed")[:5])))
         if record.get("driver_verdict") != "PASS":
             fail("module_observed_execution_failed: {}".format(entry.get("module")))
         if entry.get("observer_exit_code") != 0:

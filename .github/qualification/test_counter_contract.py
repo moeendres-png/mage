@@ -40,7 +40,7 @@ def synthetic_current_witness():
     pipeline controls independently exercise real parent-observer receipts.
     """
     witness = copy.deepcopy(PRE_OBSERVER_WITNESS)
-    witness["schema"] = "mage.candidate-qualification.witness/6"
+    witness["schema"] = "mage.candidate-qualification.witness/7"
     witness["test_bytecode_origin"] = "trusted_compile_of_trusted_validator_export"
     witness["candidate_witness_authority"] = False
     witness["execution_mode"] = "per_module_external_observer"
@@ -53,18 +53,32 @@ def synthetic_current_witness():
     )
 
     execution = witness["trusted_execution_witness"]
-    execution["schema"] = "mage.candidate-qualification.trusted-execution-witness/4"
+    execution["schema"] = "mage.candidate-qualification.trusted-execution-witness/5"
     execution["evidence_origin"] = "trusted_parent_jdi_observation"
     execution["candidate_witness_authority"] = False
     execution["execution_mode"] = "per_module_external_observer"
+    execution["receipt_authentication"] = "trusted_parent_hmac_sha256"
+    execution["all_receipts_hmac_verified"] = True
+    execution["receipt_key_in_candidate_jvm"] = False
+    execution["body_entered_methods"] = list(execution.get("observed_methods") or [])
+    execution["body_completed_methods"] = list(execution.get("observed_methods") or [])
+    execution["methods_never_body_completed"] = []
+    execution["control_violations"] = []
 
     for entry in witness.get("module_execution") or []:
         record = entry.get("witness") or {}
-        record["schema"] = "mage.candidate-qualification.trusted-execution-witness/4"
+        record["schema"] = "mage.candidate-qualification.trusted-execution-witness/5"
         record["evidence_origin"] = "trusted_parent_jdi_observation"
         record["candidate_witness_authority"] = False
         record["observer_status"] = "COMPLETE"
         record["protocol_violations"] = []
+        record["control_violations"] = []
+        record["receipt_authentication"] = "trusted_parent_hmac_sha256"
+        record["receipt_hmac_verified"] = True
+        record["receipt_key_in_candidate_jvm"] = False
+        record["body_entered_methods"] = list(record.get("observed_methods") or [])
+        record["body_completed_methods"] = list(record.get("observed_methods") or [])
+        record["methods_never_body_completed"] = []
         entry["observer_exit_code"] = 0
 
     return witness
