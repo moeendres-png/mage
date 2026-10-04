@@ -10,9 +10,10 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 import mtgjson_reference as reference
+import verifier_gaps
 
 MODULES = ("Mage.Tests", "Mage.Verify")
-SCHEMA = "mage.native-module-signals/2"
+SCHEMA = "mage.native-module-signals/3"
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -83,7 +84,8 @@ def reference_observation(root, paths):
     except (OSError, ValueError, TypeError, KeyError, ET.ParseError) as exc:
         return {'status': 'UNKNOWN', 'reason': str(exc), 'qualification_credit': False}
 
-def collect(root, identity):
+def collect(root, identity, source_root=None):
+    source_root = root if source_root is None else source_root
     results = {}
     log = root/'evidence/reactor.log'
     try:
@@ -122,7 +124,7 @@ def collect(root, identity):
             outcome = 'UNKNOWN'
         results[module] = {"native_outcome": outcome, "reactor_completion": completion, "reactor_log_sha256": reactor_digest, "counts": totals, "reports": suites, "problems": problems,
                            "qualification_credit": False, "complete_coverage_claimed": False,
-                           "disabled_coverage": "UNKNOWN_PENDING_C16",
+                           "disabled_coverage": verifier_gaps.observe(source_root, identity['checkout_sha'], root) if module == 'Mage.Verify' else {'status': 'NOT_APPLICABLE'},
                            "reference_binding": binding}
     return {"schema": SCHEMA, "identity": identity, "producer": "native Maven reports, candidate-controlled",
             "evidence_class": "NATIVE_REPORT_OBSERVED", "trusted_qualification": False, "modules": results}
@@ -138,7 +140,7 @@ def consume(doc, module, expected_sha, expected_run, root, expected_context):
             or doc['identity'] != expected_context
             or expected_context.get('producer_sha256') != digest(Path(__file__))):
         return "UNKNOWN"
-    fresh = collect(root, expected_context)
+    fresh = collect(root, expected_context, source_root=Path.cwd())
     if doc != fresh:
         return "UNKNOWN"
     return fresh['modules'][module]['native_outcome']

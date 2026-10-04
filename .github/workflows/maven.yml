@@ -35,6 +35,12 @@ jobs:
       run: |
         python3 .github/ci/test_native_signals.py
         python3 .github/ci/test_mtgjson_reference.py
+        python3 .github/ci/test_verifier_gaps.py
+    - name: Require source-bound verifier omission inventory
+      run: >-
+        python3 .github/ci/verifier_gaps.py check
+        --out evidence/VERIFIER_GAPS.json
+        --markdown evidence/VERIFIER_GAPS.md
     - name: Fetch and verify exact committed MTGJSON reference
       run: >-
         python3 .github/ci/mtgjson_reference.py fetch
@@ -62,6 +68,8 @@ jobs:
           evidence/NATIVE_MODULE_SIGNALS.json
           evidence/reactor.log
           evidence/MTGJSON_REFERENCE.json
+          evidence/VERIFIER_GAPS.json
+          evidence/VERIFIER_GAPS.md
           Mage.Verify/mtgjson-reference.json
           Mage.Tests/target/surefire-reports/TEST-*.xml
           Mage.Verify/target/surefire-reports/TEST-*.xml
