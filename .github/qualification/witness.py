@@ -59,7 +59,8 @@ import sandbox  # noqa: E402
 
 SCHEMA = "mage.candidate-qualification.witness/6"
 WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/4"
-DRIVER = "TrustedTestDriver.java"\nOBSERVER = "TrustedTestObserver.java"
+DRIVER = "TrustedTestDriver.java"
+OBSERVER = "TrustedTestObserver.java"
 MAIN_CLASSES_DIR = "target/classes"
 TEST_SOURCE_DIRS = ("src/test/java",)
 TEST_RESOURCE_DIRS = ("src/test/resources",)
