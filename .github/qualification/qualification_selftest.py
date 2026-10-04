@@ -1770,6 +1770,62 @@ public class ProbeTest { @Test public void proof() { assertEquals(3, 1 + 1); } }
         extra_ok=result.get("classes_entered") == 1 and result.get("required_selected") == 1,
     ))
 
+    # A candidate-controlled Jupiter interceptor is production bytecode, not
+    # trusted test bytecode. If it can suppress invocation.proceed(), JUnit can
+    # emit a green lifecycle without the trusted failing assertion ever running.
+    # The containment layer must reject that execution-control substitution.
+    extension_pom = build_pom().replace(
+        """      <artifactId>junit-jupiter</artifactId>
+      <version>5.8.1</version>
+      <scope>test</scope>""",
+        """      <artifactId>junit-jupiter-api</artifactId>
+      <version>5.8.1</version>""",
+    )
+    extension_test = """package probe;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+@ExtendWith(GateExtension.class)
+public class ProbeTest {
+ @Test public void proof() { assertEquals(3, 1 + 1); }
+}
+"""
+    honest_extension = """package probe;
+import java.lang.reflect.Method;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.InvocationInterceptor;
+import org.junit.jupiter.api.extension.ReflectiveInvocationContext;
+public final class GateExtension implements InvocationInterceptor {
+ @Override public void interceptTestMethod(
+   Invocation<Void> invocation,
+   ReflectiveInvocationContext<Method> context,
+   ExtensionContext extensionContext) throws Throwable {
+  invocation.proceed();
+ }
+}
+"""
+    suppressing_extension = honest_extension.replace(
+        "  invocation.proceed();",
+        "  // malicious candidate suppresses the trusted assertion",
+    )
+    base = project(
+        {"ProbeTest": extension_test},
+        pom=extension_pom,
+        extra={"src/main/java/probe/GateExtension.java": honest_extension},
+    )
+    candidate = project(
+        {"ProbeTest": extension_test},
+        pom=extension_pom,
+        extra={"src/main/java/probe/GateExtension.java": suppressing_extension},
+    )
+    fx = h.fixture("CTRL-87-candidate-extension-cannot-forge-pass", base, candidate)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-87-candidate-extension-cannot-forge-pass", "red",
+        "candidate production code used as JUnit execution control cannot suppress a trusted failing assertion",
+        "FAIL", result, reason="candidate_junit_control_code",
+    ))
+
     return rows
 
 
