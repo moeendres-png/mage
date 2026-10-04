@@ -140,5 +140,55 @@ class NativeSignals(unittest.TestCase):
             altered=copy.deepcopy(doc); altered['identity'][field]='forged'
             self.assertEqual(signals.consume(altered,'Mage.Tests','source','run',self.root,self.identity),'UNKNOWN',field)
 
+
+    def bound_verify(self):
+        import mtgjson_reference as reference
+        pin = {'schema': reference.SCHEMA, 'release': 'mtgjson-reference-test', 'repository': 'owner/repo',
+               'files': {n: {'sha256': 'a'*64, 'bytes': 1} for n in reference.FILES},
+               'meta': {'version': 'test', 'date': '2026-10-04'}}
+        p = self.root/'Mage.Verify/mtgjson-reference.json'
+        p.parent.mkdir(parents=True, exist_ok=True); p.write_text(json.dumps(pin))
+        receipt = {'schema': reference.SCHEMA+'#receipt', 'status': 'INPUT_BOUND',
+                   'qualification_credit': False, 'pin_sha256': signals.digest(p),
+                   **{k: pin[k] for k in ('release', 'repository', 'files', 'meta')}}
+        (self.root/'evidence/MTGJSON_REFERENCE.json').write_text(json.dumps(receipt))
+        props = '<properties><property name="xmage.verify.mtgjson.reference" value="/workspace/Mage.Verify/mtgjson-reference.json"/><property name="xmage.verify.mtgjson.dir" value="/reference"/></properties>'
+        self.report('Mage.Verify', PASS.replace('<testcase', props+'<testcase'))
+
+    def test_reference_binding_is_observed_and_never_trusted(self):
+        self.bound_verify()
+        doc = signals.collect(self.root, self.identity)
+        self.assertEqual(doc['modules']['Mage.Verify']['reference_binding']['status'], 'OBSERVED_PIN_USE')
+        self.assertFalse(doc['modules']['Mage.Verify']['reference_binding']['qualification_credit'])
+        self.assertEqual(self.result('Mage.Verify'), 'PASS')
+
+    def test_reference_receipt_tampering_and_missing_are_unknown(self):
+        self.bound_verify(); p = self.root/'evidence/MTGJSON_REFERENCE.json'; original=p.read_text()
+        for key in ('pin_sha256', 'release', 'files', 'meta', 'status', 'qualification_credit'):
+            with self.subTest(key=key):
+                altered=json.loads(original); altered[key]='forged'; p.write_text(json.dumps(altered))
+                self.assertEqual(self.result('Mage.Verify'), 'UNKNOWN')
+        p.unlink(); self.assertEqual(self.result('Mage.Verify'), 'UNKNOWN')
+
+    def test_reference_properties_required_in_actual_xml(self):
+        self.bound_verify(); self.report('Mage.Verify', PASS)
+        self.assertEqual(self.result('Mage.Verify'), 'UNKNOWN')
+
+    def test_reference_pin_drift_and_duplicated_property_are_unknown(self):
+        self.bound_verify(); p=self.root/'Mage.Verify/mtgjson-reference.json'; p.write_text('{}')
+        self.assertEqual(self.result('Mage.Verify'), 'UNKNOWN')
+        self.bound_verify(); p=self.root/'Mage.Verify/target/surefire-reports/TEST-probe.xml'
+        p.write_text(p.read_text().replace('</properties>', '<property name="xmage.verify.mtgjson.dir" value="/other"/></properties>'))
+        self.assertEqual(self.result('Mage.Verify'), 'UNKNOWN')
+
+    def test_native_failure_survives_unknown_reference_binding(self):
+        self.report('Mage.Verify', FAIL)
+        self.assertEqual(self.result('Mage.Verify'), 'FAIL')
+
+    def test_forged_binding_in_json_is_rejected_by_raw_consumer(self):
+        self.bound_verify(); doc=signals.collect(self.root,self.identity)
+        doc['modules']['Mage.Verify']['reference_binding']['pin_sha256']='forged'
+        self.assertEqual(signals.consume(doc,'Mage.Verify','source','run',self.root,self.identity),'UNKNOWN')
+
 if __name__=='__main__':
     unittest.main()

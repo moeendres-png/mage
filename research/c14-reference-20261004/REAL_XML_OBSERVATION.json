@@ -1,0 +1,14 @@
+{
+  "execution_source_sha": "33b000e60a4e0dcf12bc216aebbbc0f93bd7a30c",
+  "observation_consumer_sha256": "dd756b0a3eea25809af5cc7e0c65e946ee111e37accfaaad74b755437d4db15e",
+  "observation": {
+    "status": "OBSERVED_PIN_USE",
+    "pin_sha256": "149ff7d2abd61a6a9190263c7f83e188d94da7fdcbf9cde9fb1285968c05c3a4",
+    "receipt_sha256": "ac330bbc2701738f8f19f31ae98310ef92b503340acf68b5378b5f5d968dab24",
+    "release": "mtgjson-reference-5.3.0-20261004-8b775c3a843d336e28f5fccd",
+    "qualification_credit": false,
+    "authority": "candidate-controlled native observations"
+  },
+  "evidence_class": "DIRECTLY_VERIFIED_REPROCESSING_OF_RETAINED_NATIVE_XML",
+  "qualification_credit": false
+}
