@@ -45,9 +45,12 @@ import os
 import sys
 from pathlib import Path
 
-SCHEMA = "mage.candidate-qualification.evidence/5"
-WITNESS_SCHEMA = "mage.candidate-qualification.witness/5"
-EXEC_WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/3"
+sys.path.append(str(Path(__file__).resolve().parent))
+import corpus_policy  # noqa: E402
+
+SCHEMA = "mage.candidate-qualification.evidence/6"
+WITNESS_SCHEMA = "mage.candidate-qualification.witness/6"
+EXEC_WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/4"
 INTEGRITY_SCHEMA = "mage.candidate-qualification.integrity/1"
 
 PASS = "PASS"
@@ -167,16 +170,18 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
     locked_sha = (lock.get("candidate") or {}).get("sha")
     if execution.get("bound_candidate_sha") != locked_sha or (execution.get("bound_candidate_shas") or [locked_sha]) != [locked_sha]:
         fail("witness_binding_mismatch: execution witness is bound to another candidate")
-    if witness.get("test_bytecode_origin") != "trusted_compile_of_locked_git_export" or witness.get("candidate_test_classes_used") is not False:
-        fail("test_bytecode_not_trusted: executed test bytecode was not compiled by trusted code from the locked commit")
+    if witness.get("test_bytecode_origin") != "trusted_compile_of_trusted_validator_export" or witness.get("candidate_test_classes_used") is not False:
+        fail("test_bytecode_not_trusted: authoritative test bytecode did not come from the trusted validator commit")
+    if witness.get("candidate_witness_authority") is not False or execution.get("candidate_witness_authority") is not False:
+        fail("candidate_witness_authority_present: hostile candidate bytecode shares qualification authority")
 
-    if execution.get("evidence_origin") != "trusted_side_direct_execution":
+    if execution.get("evidence_origin") != "trusted_parent_jdi_observation":
         fail(
             "evidence_origin_not_trusted: {}".format(execution.get("evidence_origin"))
         )
     if execution.get("candidate_authored_evidence_used") is not False:
         fail("candidate_authored_evidence_used: witness does not assert trusted-only evidence")
-    if execution.get("execution_mode") != "per_module_trusted_driver":
+    if execution.get("execution_mode") != "per_module_external_observer":
         fail(
             "execution_mode_not_per_module: {}".format(execution.get("execution_mode"))
         )
@@ -225,17 +230,17 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
             unknown(reason)
         if corpus.get("status") not in ("OK", "VIOLATION", "UNKNOWN"):
             unknown("corpus_policy_unusable: status={}".format(corpus.get("status")))
-        required_methods_bound = corpus.get("required_methods") or []
+        required_methods_bound = corpus.get("trusted_required_methods") or []
         try:
             owning = {corpus_policy.class_of_method(str(m)) for m in required_methods_bound if isinstance(m, str)}
         except corpus_policy.CorpusError as exc:
             fail("required_method_identity_malformed: {}".format(exc))
             owning = set()
-        inheriting = corpus.get("required_inheriting_classes")
+        inheriting = corpus.get("trusted_required_inheriting_classes")
         if not isinstance(inheriting, list) or not all(isinstance(c, str) for c in inheriting):
             unknown("required_inheriting_classes_missing: the corpus policy bound no inheriting-class list")
             inheriting = []
-        policy_pairs = corpus.get("required_pairs") or []
+        policy_pairs = corpus.get("trusted_required_pairs") or []
         required_from_policy = sorted(policy_pairs)
         if policy_pairs and not (owning or inheriting):
             fail(
@@ -262,7 +267,7 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
         # (the candidate's enabled tests plus every baseline method still owed)
         # must have been started by the trusted driver; a method the static
         # reading still sees but that never ran is not credit.
-        required_methods = corpus.get("required_methods")
+        required_methods = corpus.get("trusted_required_methods")
         observed_methods = execution.get("observed_methods")
         if corpus.get("status") == "OK" and (
             not isinstance(required_methods, list) or not all(isinstance(m, str) for m in required_methods)
@@ -302,7 +307,7 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
 
     for entry in witness.get("module_execution") or []:
         why = entry.get("reason")
-        if why and why != "no_required_classes_in_module":
+        if why and why not in ("no_required_classes_in_module", "no_trusted_required_classes_in_module"):
             fail("module_witness_rejected: {}: {}".format(entry.get("module"), why))
 
     modules_without_witness = execution.get("modules_without_witness") or []
@@ -353,6 +358,23 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
         record = entry.get("witness")
         if not isinstance(record, dict):
             continue  # required missing witnesses are already rejected above
+        if record.get("schema") != EXEC_WITNESS_SCHEMA:
+            fail("module_witness_schema_unexpected: {}: {!r}".format(
+                entry.get("module"), record.get("schema")))
+        if record.get("evidence_origin") != "trusted_parent_jdi_observation":
+            fail("module_evidence_origin_untrusted: {}".format(entry.get("module")))
+        if record.get("candidate_witness_authority") is not False:
+            fail("module_candidate_witness_authority_present: {}".format(entry.get("module")))
+        if record.get("observer_status") != "COMPLETE":
+            fail("module_observer_incomplete: {}".format(entry.get("module")))
+        if record.get("protocol_violations"):
+            fail("module_observer_protocol_violation: {}: {}".format(
+                entry.get("module"), ",".join(record.get("protocol_violations")[:5])))
+        if record.get("driver_verdict") != "PASS":
+            fail("module_observed_execution_failed: {}".format(entry.get("module")))
+        if entry.get("observer_exit_code") != 0:
+            fail("module_observer_process_failed: {}: {}".format(
+                entry.get("module"), entry.get("observer_exit_code")))
         invalid_module = [key for key in counter_keys
                           if type(record.get(key)) is not int or record[key] < 0]
         if invalid_module:
