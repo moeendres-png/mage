@@ -14,8 +14,11 @@ compares the test-execution fingerprint of the candidate against the
 comparison base and fails closed on any difference, so the qualification
 definition cannot be edited in the same PR that is being qualified.
 
-Scope: dependency declarations and ordinary source edits are untouched. What is
-compared is everything that makes Maven execute code during the build: every
+Scope: ordinary Java source edits are untouched. Dependency declarations,
+dependency management, repositories, plugin repositories, module topology and
+properties are authority-bearing too: otherwise a candidate can substitute an
+assertion/runtime jar after the trusted cache was staged. What is compared also
+includes everything that makes Maven execute code during the build: every
 build plugin in any lifecycle phase (an ``initialize``-bound plugin runs before
 anything else, so restricting the audit to post-test phases left a hole), core
 build extensions, profiles, the parent POM, every property the build section
@@ -145,6 +148,14 @@ def _build_code_fingerprint(root: ET.Element) -> dict:
         "profiles": _canonical(profiles),
         "parent": _canonical(_child(root, "parent")),
         "interpolated_build_properties": dict(sorted(values.items())),
+        "qualification_runtime_inputs": {
+            "dependencies": _canonical(_child(root, "dependencies")),
+            "dependency_management": _canonical(_child(root, "dependencyManagement")),
+            "repositories": _canonical(_child(root, "repositories")),
+            "plugin_repositories": _canonical(_child(root, "pluginRepositories")),
+            "modules": _canonical(_child(root, "modules")),
+            "properties": _canonical(properties),
+        },
     }
 
 
@@ -154,6 +165,7 @@ BUILD_CODE_KEYS = (
     "profiles",
     "parent",
     "interpolated_build_properties",
+    "qualification_runtime_inputs",
 )
 
 
