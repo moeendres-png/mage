@@ -1,0 +1,57 @@
+name: MTGJSON reference refresh
+
+# C14 (commander-playtest-lab#495): refreshing Mage.Verify's MTGJSON reference
+# is a separate, manual operation. This downloads the current MTGJSON files
+# once, publishes them as immutable release assets, and prints the pin. A
+# reviewed change to Mage.Verify/mtgjson-reference.json then makes CI verify
+# against exactly that reference. Qualification runs never contact mtgjson.com.
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      with:
+        persist-credentials: false
+    - name: Download current MTGJSON files
+      run: |
+        set -euo pipefail
+        mkdir -p "$RUNNER_TEMP/mtgjson"
+        for name in AllPrintings.json.zip AtomicCards.json.zip; do
+          # mtgjson.com answers 403 without a user agent
+          curl -fsSL --retry 3 -A "xmage-verify-reference-refresh" \
+            -o "$RUNNER_TEMP/mtgjson/$name" "https://mtgjson.com/api/v5/$name"
+        done
+    - name: Pin and publish the reference
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+      run: |
+        set -euo pipefail
+        tag=$(python3 .github/ci/mtgjson_reference.py pin --dir "$RUNNER_TEMP/mtgjson" \
+          --repo "$REPO" --out "$RUNNER_TEMP/mtgjson-reference.json")
+        if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then
+          echo "release $tag already exists; its assets are immutable and are not replaced"
+        else
+          gh release create "$tag" --repo "$REPO" --title "$tag" --latest=false \
+            --notes "Immutable MTGJSON reference for Mage.Verify qualification (C14)." \
+            "$RUNNER_TEMP/mtgjson/AllPrintings.json.zip" "$RUNNER_TEMP/mtgjson/AtomicCards.json.zip"
+        fi
+        {
+          echo '### Pin for Mage.Verify/mtgjson-reference.json'
+          echo '```json'
+          cat "$RUNNER_TEMP/mtgjson-reference.json"
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+    - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      with:
+        name: mtgjson-reference-pin-${{ github.run_id }}
+        path: ${{ runner.temp }}/mtgjson-reference.json
+        if-no-files-found: error
