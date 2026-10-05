@@ -1824,15 +1824,15 @@ import com.sun.tools.attach.VirtualMachine;
 import javax.management.ObjectName;
 
 public final class Attack {
- private static boolean blocked(Throwing action) {
+ private static boolean securityBlocked(Throwing action) {
   try { action.run(); return false; }
-  catch (SecurityException | ReflectiveOperationException | java.io.IOException exc) { return true; }
+  catch (SecurityException expected) { return true; }
   catch (Exception unexpected) { return false; }
  }
  @FunctionalInterface private interface Throwing { void run() throws Exception; }
 
  public static boolean reflectionBlocked() {
-  return blocked(() -> {
+  return securityBlocked(() -> {
    Class<?> type = Class.forName("c12.trusted.TrustedTestDriver");
    Method hook = type.getDeclaredMethod("observerComplete");
    hook.setAccessible(true);
@@ -1855,7 +1855,7 @@ public final class Attack {
   }
   if (address == null || address.isEmpty()) return false;
   final String addr = address;
-  return blocked(() -> {
+  return securityBlocked(() -> {
    String host = "127.0.0.1";
    String portText = addr;
    int colon = addr.lastIndexOf(':');
@@ -1894,38 +1894,38 @@ public final class Attack {
   }
  }
  public static boolean processBlocked() {
-  return blocked(() -> new ProcessBuilder("/bin/true").start());
+  return securityBlocked(() -> new ProcessBuilder("/bin/true").start());
  }
  public static boolean fdDiscoveryBlocked() {
-  return blocked(() -> { try (java.util.stream.Stream<java.nio.file.Path> ignored =
+  return securityBlocked(() -> { try (java.util.stream.Stream<java.nio.file.Path> ignored =
       Files.list(Paths.get("/proc/self/fd"))) { ignored.count(); } });
  }
  public static boolean hookBlocked() {
-  return blocked(() -> Runtime.getRuntime().addShutdownHook(new Thread(() -> {})));
+  return securityBlocked(() -> Runtime.getRuntime().addShutdownHook(new Thread(() -> {})));
  }
  public static boolean nativeLoadBlocked() {
-  return blocked(() -> System.loadLibrary("c12_candidate_escape_probe"));
+  return securityBlocked(() -> System.loadLibrary("c12_candidate_escape_probe"));
  }
  @SuppressWarnings("removal")
  public static boolean managerRemovalBlocked() {
-  return blocked(() -> System.setSecurityManager(null));
+  return securityBlocked(() -> System.setSecurityManager(null));
  }
  public static boolean classLoaderBlocked() {
-  return blocked(() -> new java.net.URLClassLoader(
+  return securityBlocked(() -> new java.net.URLClassLoader(
       new java.net.URL[0], Attack.class.getClassLoader()));
  }
  public static boolean contextLoaderBlocked() {
-  return blocked(() -> Thread.currentThread().setContextClassLoader(
+  return securityBlocked(() -> Thread.currentThread().setContextClassLoader(
       Attack.class.getClassLoader()));
  }
  public static boolean processHandleBlocked() {
-  return blocked(() -> ProcessHandle.allProcesses().count());
+  return securityBlocked(() -> ProcessHandle.allProcesses().count());
  }
  public static boolean propertyWriteBlocked() {
-  return blocked(() -> System.setProperty("c12.candidate.probe", "x"));
+  return securityBlocked(() -> System.setProperty("c12.candidate.probe", "x"));
  }
  public static boolean exitBlocked() {
-  return blocked(() -> System.exit(0));
+  return securityBlocked(() -> System.exit(0));
  }
  public static boolean noAuthoritySecrets() {
   for (Map.Entry<String,String> e : System.getenv().entrySet()) {
