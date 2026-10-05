@@ -214,11 +214,41 @@ def sanitize_classpath(module: str, resolved: str, trusted_resolved: str,
     # exactly; only prepend this module's own main output, matching ordinary
     # test runtime layout. Stable de-duplication changes no first-hit semantics.
     runtime: list[str] = []
-    own = (candidate_checkout / module / MAIN_CLASSES_DIR).resolve()
+    own_lexical = candidate_checkout / module / MAIN_CLASSES_DIR
+    own = own_lexical.resolve()
+    # The module's own output is candidate code-under-test, never trusted code.
+    # Refuse any symlink/ancestor escape from its exact lexical output path: if
+    # it resolved elsewhere, the old prefix test could omit it from containment
+    # and hostile bytecode would run without candidate-stack capability checks.
+    if own.is_dir() and own != own_lexical:
+        raise ValueError(
+            "candidate_module_output_outside_candidate_root in {}: {} -> {}".format(
+                module, own_lexical, own
+            )
+        )
+    try:
+        own.relative_to(candidate_checkout)
+    except ValueError:
+        raise ValueError(
+            "candidate_module_output_outside_candidate_root in {}: {}".format(
+                module, own
+            )
+        )
+
     for entry in ([str(own)] if own.is_dir() else []) + mapped_order:
         if entry not in runtime:
             runtime.append(entry)
-    prefixes = [entry for entry in runtime if Path(entry).is_dir() and entry.startswith(str(candidate_checkout))]
+
+    prefixes = []
+    for entry in runtime:
+        path = Path(entry)
+        if not path.is_dir():
+            continue
+        try:
+            path.resolve().relative_to(candidate_checkout)
+        except ValueError:
+            continue
+        prefixes.append(str(path.resolve()))
     return runtime, dropped, prefixes
 
 def compile_runtime(trusted_root: Path, staging: Path, junit_classpath: str) -> dict:
