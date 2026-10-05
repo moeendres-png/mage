@@ -557,6 +557,18 @@ class Harness:
         if integrity_proc.returncode != 0:
             verdict = "FAIL" if integrity.get("status") == "VIOLATION" or verdict == "FAIL" else "UNKNOWN"
         test_evidence = ev.get("test_evidence") or {}
+        module_diagnostics = []
+        for module_result in (witness.get("module_execution") or [])[:4]:
+            module_diagnostics.append({
+                "module": module_result.get("module"),
+                "driver_exit_code": module_result.get("driver_exit_code"),
+                "driver_stdout": (module_result.get("driver_stdout") or "")[-1200:],
+                "driver_stderr": (module_result.get("driver_stderr") or "")[-2400:],
+                "observer_exit_code": module_result.get("observer_exit_code"),
+                "observer_stdout": (module_result.get("observer_stdout") or "")[-1200:],
+                "observer_stderr": (module_result.get("observer_stderr") or "")[-1200:],
+                "reason": module_result.get("reason"),
+            })
         return {
             "verdict": verdict,
             "scorer_verdict": ev.get("verdict"),
@@ -580,6 +592,7 @@ class Harness:
             "witness_stdout": witness_proc.stdout,
             "qualify_stdout": qualify_proc.stdout,
             "witness_stderr": witness_proc.stderr.strip()[-400:],
+            "module_diagnostics": module_diagnostics,
         }
 
 
@@ -2939,9 +2952,12 @@ def main() -> int:
             item.get("expected_verdict"), item.get("observed_verdict")))
         if not item.get("ok"):
             print("        expectation: {}".format(item.get("expectation")))
-            for key in ("reasons", "witness_notes", "error", "sandbox_error", "witness_stderr"):
+            for key in ("reasons", "witness_notes", "error", "sandbox_error", "witness_stderr",
+                        "module_diagnostics"):
                 if item.get(key):
-                    print("        {}: {}".format(key, json.dumps(item[key], ensure_ascii=True)[:700]))
+                    limit = 2400 if key == "module_diagnostics" else 700
+                    print("        {}: {}".format(
+                        key, json.dumps(item[key], ensure_ascii=True)[:limit]))
     print("SELFTEST = {} ({}/{} controls ok, {} not run)".format(status, len(passed), len(results), len(not_run)))
     if args.out:
         out = Path(args.out)
