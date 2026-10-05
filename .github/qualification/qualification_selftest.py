@@ -1564,11 +1564,14 @@ def corpus_controls(h: Harness) -> list[dict]:
     evasive = many_methods(10).replace(
         "import org.junit.jupiter.api.Test;", "import probe.Test;"
     ).replace("@Test public void test0()", "@org.junit.jupiter.api.Test public void test0()")
+    evasive_project = project(
+        {"ProbeTest": evasive},
+        extra={"src/main/java/probe/Test.java": FAKE_TEST_ANNOTATION},
+    )
     run("CTRL-59-required-method-never-started", "red",
-        "a required method the static reading accepts but the launcher never starts earns no credit",
+        "a method the trusted static parser accepts but the trusted launcher never starts earns no credit",
         "FAIL", "required_test_methods_not_started",
-        project({"ProbeTest": evasive}, extra={"src/main/java/probe/Test.java": FAKE_TEST_ANNOTATION}),
-        base=ten)
+        evasive_project, base=evasive_project)
     run("CTRL-64-approved-method-removal", "positive",
         "a method removal approved on the default branch first, then performed, qualifies",
         "PASS", None, project({"ProbeTest": many_methods(9)}), base=ten,
@@ -1582,13 +1585,36 @@ def corpus_controls(h: Harness) -> list[dict]:
     run("CTRL-68-inherited-tests-run", "positive",
         "a class that only inherits its tests is run, entered and credited",
         "PASS", None, inherited, base=inherited)
+
+    inherited_production_test = """package probe;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
+public class ProbeTest {
+ @Test public void test0() { assertEquals(1, value()); }
+ protected int value() { return 1; }
+}
+"""
+    inherited_subclass = """package probe;
+public class SubProbeTest extends ProbeTest {
+ @Override protected int value() { return ProductionHook.value(); }
+}
+"""
+    hook_ok = "package probe; public final class ProductionHook { public static int value() { return 1; } }\n"
+    hook_bad = "package probe; public final class ProductionHook { public static int value() { return 2; } }\n"
+    inherited_prod_base = project(
+        {"ProbeTest": inherited_production_test, "SubProbeTest": inherited_subclass},
+        extra={"src/main/java/probe/ProductionHook.java": hook_ok},
+    )
+    inherited_prod_candidate = project(
+        {"ProbeTest": inherited_production_test, "SubProbeTest": inherited_subclass},
+        extra={"src/main/java/probe/ProductionHook.java": hook_bad},
+    )
     run("CTRL-69-inherited-test-regression", "red",
-        "a regression only an inheriting class exposes fails qualification",
-        "FAIL", "test_failures",
-        project({"ProbeTest": HOOKED_BASE_TEST, "SubProbeTest": hooked_subclass(2)}), base=inherited)
+        "a candidate production regression exposed only through a trusted inheriting test class fails qualification",
+        "FAIL", "test_failures", inherited_prod_candidate, base=inherited_prod_base)
     run("CTRL-70-inheriting-class-made-abstract", "red",
-        "making a trusted inheriting class abstract does not stop it being owed",
-        "FAIL", ["required_tests_never_entered", "required_pairs_not_entered"],
+        "making a trusted inheriting class abstract is a corpus-obligation removal, not a way to retire it silently",
+        "FAIL", "baseline_inheriting_test_removed",
         project({"ProbeTest": HOOKED_BASE_TEST, "SubProbeTest": hooked_subclass(1, abstract=True)}),
         base=inherited)
     nested = """package probe;
@@ -1801,7 +1827,7 @@ public final class Attack {
  private static boolean blocked(Throwing action) {
   try { action.run(); return false; }
   catch (SecurityException | ReflectiveOperationException | java.io.IOException exc) { return true; }
-  catch (RuntimeException exc) { return true; }
+  catch (Exception unexpected) { return false; }
  }
  @FunctionalInterface private interface Throwing { void run() throws Exception; }
 
