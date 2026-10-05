@@ -143,47 +143,85 @@ def read_parent_receipt(path: Path, mac_path: Path, key_path: Path):
         except OSError:
             pass
 
-def sanitize_classpath(module: str, resolved: str, candidate_root: Path, all_modules: list[str],
+def sanitize_classpath(module: str, resolved: str, trusted_resolved: str,
+                       candidate_root: Path, trusted_root: Path,
                        candidate_home: Path, trusted_maven_repo: Path):
-    """Use candidate main output but only trusted-parent copies of dependencies."""
+    """Execute only the reactor/dependency graph resolved from trusted POMs.
+
+    The candidate-produced classpath remains an observation/completeness signal,
+    never runtime authority. Reactor outputs are mapped from the trusted
+    validator's pre-candidate Maven resolution onto the corresponding candidate
+    main outputs (code under test). External Maven artifacts execute only from
+    the candidate-inaccessible trusted repository.
+    """
     dropped: list[str] = []
-    kept: list[str] = []
-    missing_trusted: list[str] = []
-    candidate_repo = (candidate_home / ".m2" / "repository").resolve()
-    trusted_repo = trusted_maven_repo.resolve()
     for entry in (resolved or "").split(os.pathsep):
+        entry = entry.strip()
+        if entry and any(marker in entry.replace("\\", "/") for marker in STALE_SIBLING_MARKERS):
+            dropped.append(entry)
+
+    trusted_repo = trusted_maven_repo.resolve()
+    trusted_checkout = trusted_root.resolve()
+    candidate_checkout = candidate_root.resolve()
+    kept: list[str] = []
+    candidate_outputs: list[str] = []
+    unmappable: list[str] = []
+
+    for entry in (trusted_resolved or "").split(os.pathsep):
         entry = entry.strip()
         if not entry:
             continue
-        if any(marker in entry.replace("\\", "/") for marker in STALE_SIBLING_MARKERS):
-            dropped.append(entry)
-            continue
         path = Path(entry).resolve()
-        try:
-            rel = path.relative_to(candidate_repo)
-        except ValueError:
-            # Reactor outputs are supplied explicitly below. Any other external
-            # entry is not authority-bound and is refused.
-            try:
-                path.relative_to(candidate_root)
-            except ValueError:
-                missing_trusted.append(entry)
-            continue
-        trusted = trusted_repo / rel
-        if trusted.is_file():
-            kept.append(str(trusted))
-        else:
-            missing_trusted.append(entry)
-    prefixes = []
-    for name in [module] + [m for m in all_modules if m != module]:
-        classes = candidate_root / name / MAIN_CLASSES_DIR
-        if classes.is_dir():
-            prefixes.append(str(classes))
-    if missing_trusted:
-        raise ValueError("untrusted_classpath_entries_without_trusted_copy in {}: {}".format(
-            module, ",".join(missing_trusted[:5])))
-    return prefixes + kept, dropped, prefixes
 
+        try:
+            rel = path.relative_to(trusted_repo)
+            trusted = trusted_repo / rel
+            if trusted.is_file():
+                kept.append(str(trusted))
+            else:
+                unmappable.append(entry)
+            continue
+        except ValueError:
+            pass
+
+        try:
+            rel = path.relative_to(trusted_checkout)
+        except ValueError:
+            unmappable.append(entry)
+            continue
+
+        # Reactor dependencies resolved by Maven must be main outputs. Test
+        # outputs, arbitrary checkout files and generated side channels are not
+        # runtime authority.
+        if len(rel.parts) < 2 or tuple(rel.parts[-2:]) != ("target", "classes"):
+            unmappable.append(entry)
+            continue
+        mapped = (candidate_checkout / rel).resolve()
+        try:
+            mapped.relative_to(candidate_checkout)
+        except ValueError:
+            unmappable.append(entry)
+            continue
+        if not mapped.is_dir():
+            unmappable.append(entry)
+            continue
+        candidate_outputs.append(str(mapped))
+
+    own = (candidate_checkout / module / MAIN_CLASSES_DIR).resolve()
+    if own.is_dir():
+        candidate_outputs.insert(0, str(own))
+
+    if unmappable:
+        raise ValueError("trusted_classpath_entries_unmappable in {}: {}".format(
+            module, ",".join(unmappable[:5])))
+
+    # Stable de-duplication preserves Maven's trusted dependency order.
+    runtime: list[str] = []
+    for entry in candidate_outputs + kept:
+        if entry not in runtime:
+            runtime.append(entry)
+    prefixes = [entry for entry in runtime if Path(entry).is_dir() and entry.startswith(str(candidate_checkout))]
+    return runtime, dropped, prefixes
 
 def compile_runtime(trusted_root: Path, staging: Path, junit_classpath: str) -> dict:
     """Compile the closed driver module and the parent-side JDI observer."""
@@ -435,6 +473,8 @@ def main() -> int:
     parser.add_argument("--build-result", required=True, help="sandbox.py run record of the candidate build")
     parser.add_argument("--build-definition-audit", required=True)
     parser.add_argument("--module-classpaths", required=True)
+    parser.add_argument("--trusted-module-classpaths", required=True,
+                        help="pre-candidate classpaths resolved from the trusted validator POM graph")
     parser.add_argument("--trusted-maven-repo", required=True,
                         help="parent-owned Maven repository resolved before candidate execution")
     parser.add_argument("--out", required=True)
@@ -482,6 +522,8 @@ def main() -> int:
         "candidate_reports_parsed": False,
         "candidate_test_classes_used": False,
         "module_classpaths_are_authority": False,
+        "trusted_module_classpaths_are_authority": True,
+        "trusted_module_classpath_completeness": None,
         "notes": [],
     }
 
@@ -562,6 +604,7 @@ def main() -> int:
             raise ValueError("module classpath map must be a JSON object")
         missing_modules = sorted(set(modules) - set(classpath_map))
         doc["module_classpath_completeness"] = {
+            "authority": "candidate_observation_only",
             "modules_with_required_tests": sorted(modules),
             "modules_with_classpath": sorted(classpath_map),
             "modules_missing_classpath": missing_modules,
@@ -569,6 +612,21 @@ def main() -> int:
         }
         if missing_modules:
             raise ValueError("module_classpath_missing for required modules: {}".format(",".join(missing_modules)))
+
+        trusted_classpath_map = json.loads(Path(args.trusted_module_classpaths).read_text())
+        if not isinstance(trusted_classpath_map, dict):
+            raise ValueError("trusted module classpath map must be a JSON object")
+        trusted_missing_modules = sorted(set(modules) - set(trusted_classpath_map))
+        doc["trusted_module_classpath_completeness"] = {
+            "authority": "trusted_validator_pre_candidate_resolution",
+            "modules_with_required_tests": sorted(modules),
+            "modules_with_classpath": sorted(trusted_classpath_map),
+            "modules_missing_classpath": trusted_missing_modules,
+            "complete": not trusted_missing_modules,
+        }
+        if trusted_missing_modules:
+            raise ValueError("trusted_module_classpath_missing for required modules: {}".format(
+                ",".join(trusted_missing_modules)))
         if not modules:
             raise ValueError("no required test class was enumerated from the locked candidate")
 
@@ -595,8 +653,13 @@ def main() -> int:
         for index, module in enumerate(all_modules):
             classes = modules[module]
             cp, dropped, prefixes = sanitize_classpath(
-                module, str(classpath_map.get(module, "")), candidate_root, all_modules,
-                candidate_home, trusted_maven_repo)
+                module,
+                str(classpath_map.get(module, "")),
+                str(trusted_classpath_map.get(module, "")),
+                candidate_root,
+                Path(args.git_repo),
+                candidate_home,
+                trusted_maven_repo)
             bundle_name = "{:03d}-{}".format(index, module.replace("/", "_").replace(".", "_") or "root")
             compiled_out = staging / "tests" / bundle_name
             record = trusted_compile_module(export, module, junit_jars + cp, compiled_out)
