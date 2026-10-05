@@ -86,7 +86,11 @@ jobs:
           test -f "$jar"
           echo "TRUSTED_JUNIT_CLASSPATH=$jar" >> "$GITHUB_ENV"
           # CTRL-62 and CTRL-66 compile forged bytecode against the Jupiter API.
+          # Resolve the full Jupiter/Vintage fixture runtime on the trusted side
+          # so candidate-local Maven downloads can never become witness authority.
           mvn -B -q dependency:get -Dartifact=org.junit.jupiter:junit-jupiter-api:5.8.1
+          mvn -B -q dependency:get -Dartifact=org.junit.jupiter:junit-jupiter:5.8.1
+          mvn -B -q dependency:get -Dartifact=org.junit.vintage:junit-vintage-engine:5.8.1
       - name: Stage a root-owned read-only JDK and Maven for the controls
         # As in the self-test workflow: the hosted tool cache is writable by any
         # account, so the controls' trusted side runs only root-owned copies.
@@ -183,6 +187,16 @@ jobs:
             --candidate "${{ github.event.pull_request.head.sha }}" \
             --out "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" || true
           test -s "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json"
+      - name: Populate trusted dependency cache from trusted validator
+        # Candidate dependency/build-definition changes are authority-bearing and
+        # rejected by build_definition_audit.py. Resolve and compile the trusted
+        # validator's unchanged test graph before any candidate code executes.
+        # The sandbox later receives only a copy; witness.py maps every candidate
+        # Maven-repository classpath entry back to this candidate-inaccessible
+        # trusted cache and fails closed if no trusted counterpart exists.
+        run: |
+          set -euo pipefail
+          mvn -B -q -f "$TRUSTED_ROOT/pom.xml" test-compile             -DskipTests=true             -Dmaven.test.skip.exec=true             -Dmaven.compiler.proc=none             -Dxmage.dataCollectors.printGameLogs=false
       - name: Prepare candidate sandbox (separate OS identity)
         env:
           CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
