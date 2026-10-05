@@ -1130,6 +1130,21 @@ def trust_controls(h: Harness) -> list[dict]:
         extra={"target_unchanged": unchanged},
     ))
 
+    # The inherited root POM exposes file://${basedir}/repository. Candidate
+    # bytes placed there are dependency-resolution authority even when no POM
+    # changes. The audit must reject that channel independently.
+    name = "CTRL-92-local-project-repository-change-refused"
+    honest = project({"ProbeTest": PASSING_TEST})
+    attacked = dict(honest)
+    attacked["repository/c12/evil/1.0/evil-1.0.jar"] = b"candidate dependency authority"
+    fx = h.fixture(name, honest, attacked)
+    result = h.pipeline(fx)
+    rows.append(row(
+        name, "red",
+        "candidate changes under a module-local file:// repository are build-definition authority even without a POM change",
+        "FAIL", result, reason="local_project_repository_changed",
+    ))
+
     # Test-bytecode mutation: candidate code rewrites its compiled test class to a
     # passing one after the build. The executed bytecode must still be compiled
     # by trusted code from the locked commit's failing source.
