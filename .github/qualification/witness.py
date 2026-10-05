@@ -195,12 +195,22 @@ def sanitize_classpath(module: str, resolved: str, trusted_resolved: str,
         if len(rel.parts) < 2 or tuple(rel.parts[-2:]) != ("target", "classes"):
             unmappable.append(entry)
             continue
-        mapped = (candidate_checkout / rel).resolve()
+        mapped_lexical = candidate_checkout / rel
+        mapped = mapped_lexical.resolve()
         try:
             mapped.relative_to(candidate_checkout)
         except ValueError:
             unmappable.append(entry)
             continue
+        # A trusted reactor edge names one exact module output. Redirecting that
+        # path to another candidate module would reintroduce sibling/FQN
+        # substitution even though the trusted dependency graph itself is clean.
+        if mapped != mapped_lexical:
+            raise ValueError(
+                "trusted_reactor_output_path_redirected: {} -> {}".format(
+                    mapped_lexical, mapped
+                )
+            )
         if not mapped.is_dir():
             unmappable.append(entry)
             continue
