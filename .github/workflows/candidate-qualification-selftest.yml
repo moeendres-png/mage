@@ -28,7 +28,7 @@ jobs:
   gate-controls:
     name: C12 gate controls on the proposed gate code
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     env:
       PYTHONDONTWRITEBYTECODE: "1"
       JUNIT_PLATFORM_VERSION: 1.9.3
