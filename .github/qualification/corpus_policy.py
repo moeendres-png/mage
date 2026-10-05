@@ -724,6 +724,7 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
         "methods_removed_without_approval": [],
         "methods_disabled_without_approval": [],
         "methods_behind_default_branch": [],
+        "inheriting_classes_removed_without_approval": [],
         "candidate_baseline": None,
     }
 
@@ -814,9 +815,20 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
     # A trusted class that runs only inherited tests stays owed while it exists:
     # making it abstract or dropping its superclass in the candidate must not
     # silently stop it from running (it then never enters, which fails).
+    trusted_inheriting_still_present = set(trusted["inheriting"]) & candidate_set
     result["required_inheriting_classes"] = sorted(
-        set(candidate["inheriting"]) | (set(trusted["inheriting"]) & candidate_set)
+        set(candidate["inheriting"]) | trusted_inheriting_still_present
     )
+    # Inheritance itself is part of the test obligation. Making a trusted
+    # inheriting class abstract, disabled, or disconnecting its superclass while
+    # keeping the class name would otherwise pass today because authoritative
+    # bytecode is compiled from trusted source, yet weaken tomorrow's trusted
+    # corpus after merge. Refuse that temporal authority shift.
+    lost_inheriting = sorted(
+        entry for entry in trusted_inheriting_still_present
+        if entry not in set(candidate["inheriting"]) and entry not in approved
+    )
+    result["inheriting_classes_removed_without_approval"] = lost_inheriting
 
     # Qualification authority is the trusted default-branch corpus, never test
     # source supplied by the candidate. Candidate additions remain visible in
@@ -850,6 +862,14 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
             "baseline_test_method_removed: {} required test method(s) deleted, renamed, "
             "un-annotated or disabled without a default-branch approval: {}".format(
                 len(shrunk), ",".join(sorted(shrunk)[:10]),
+            )
+        )
+    if result["inheriting_classes_removed_without_approval"]:
+        result["violations"].append(
+            "baseline_inheriting_test_removed: {} trusted inheriting test class(es) no longer "
+            "inherit enabled tests without a default-branch approval: {}".format(
+                len(result["inheriting_classes_removed_without_approval"]),
+                ",".join(result["inheriting_classes_removed_without_approval"][:10]),
             )
         )
     behind = result["behind_default_branch"] + result["methods_behind_default_branch"]
