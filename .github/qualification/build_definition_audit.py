@@ -340,6 +340,37 @@ def changed_maven_config(repo: Path, base_rev: str, candidate_rev: str) -> list[
     return [line for line in out.splitlines() if line.strip()]
 
 
+def _pom_dirs(repo: Path, rev: str) -> set[str]:
+    """Module roots that can interpret a sibling repository/ as file:// authority."""
+    out = git(repo, "ls-tree", "-r", "--name-only", rev)
+    dirs = set()
+    for path in out.splitlines():
+        if path == "pom.xml":
+            dirs.add("")
+        elif path.endswith("/pom.xml"):
+            dirs.add(path[:-len("/pom.xml")])
+    return dirs
+
+
+def changed_local_project_repositories(repo: Path, authority_rev: str, candidate_rev: str) -> list[str]:
+    """Tracked bytes under <module>/repository are Maven resolution authority.
+
+    The trusted root POM currently exposes file://${basedir}/repository to every
+    module. A candidate can therefore replace a dependency without touching any
+    POM unless these repository bytes are part of the build-definition audit.
+    """
+    module_dirs = _pom_dirs(repo, authority_rev) | _pom_dirs(repo, candidate_rev)
+    prefixes = {
+        (module + "/" if module else "") + "repository/"
+        for module in module_dirs
+    }
+    out = git(repo, "diff", "--name-only", authority_rev, candidate_rev)
+    return sorted(
+        path for path in out.splitlines()
+        if path and any(path.startswith(prefix) for prefix in prefixes)
+    )
+
+
 def audit(repo: Path, authority_rev: str, candidate_rev: str, comparison_base_rev: str | None = None) -> dict:
     """Compare all runtime-authority inputs to the trusted validator commit.
 
@@ -356,6 +387,15 @@ def audit(repo: Path, authority_rev: str, candidate_rev: str, comparison_base_re
     result["maven_config_changes"] = config
     for path in config:
         result["violations"].append({"path": path, "kind": "maven_config_changed", "detail": path})
+
+    local_repo = changed_local_project_repositories(repo, authority_rev, candidate_rev)
+    result["local_project_repository_changes"] = local_repo
+    for path in local_repo:
+        result["violations"].append({
+            "path": path,
+            "kind": "local_project_repository_changed",
+            "detail": "candidate changed file://${basedir}/repository dependency authority",
+        })
     if result["violations"]:
         result["status"] = "VIOLATION"
     result["trusted_authority_rev"] = authority_rev
