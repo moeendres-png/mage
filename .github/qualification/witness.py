@@ -490,6 +490,8 @@ def module_witnesses(user, sandbox_dir, candidate_root, modules, bundle, outputs
             "driver_exit_code": proc.returncode if proc is not None else None,
             "driver_stdout": (proc.stdout if proc is not None else "").strip()[-2000:],
             "driver_stderr": (proc.stderr if proc is not None else "").strip()[-2000:],
+            "driver_stderr_head": (proc.stderr if proc is not None else "").strip()[:4000],
+            "driver_stderr_tail": (proc.stderr if proc is not None else "").strip()[-4000:],
             "observer_exit_code": observer.returncode,
             "observer_stdout": observer_stdout,
             "observer_stderr": observer_stderr,
