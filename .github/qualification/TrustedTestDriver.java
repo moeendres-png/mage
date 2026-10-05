@@ -259,6 +259,32 @@ public final class TrustedTestDriver {
         }
     }
 
+    private static boolean hasUniqueIdSegment(TestIdentifier identifier, String type) {
+        try {
+            for (org.junit.platform.engine.UniqueId.Segment segment
+                    : identifier.getUniqueIdObject().getSegments()) {
+                if (type.equals(segment.getType())) return true;
+            }
+        } catch (RuntimeException ignored) {
+            // Unrecognized identifiers fail closed elsewhere.
+        }
+        return false;
+    }
+
+    private static boolean isJupiterFactoryContainer(
+            String engine, TestIdentifier identifier) {
+        return "junit-jupiter".equals(engine)
+                && !identifier.isTest()
+                && hasUniqueIdSegment(identifier, "test-factory");
+    }
+
+    private static boolean isJupiterDynamicTest(
+            String engine, TestIdentifier identifier) {
+        return "junit-jupiter".equals(engine)
+                && identifier.isTest()
+                && hasUniqueIdSegment(identifier, "dynamic-test");
+    }
+
     private static String classNameOf(TestIdentifier identifier) {
         if (identifier.getSource().isPresent()
                 && identifier.getSource().get() instanceof MethodSource) {
@@ -573,8 +599,11 @@ public final class TrustedTestDriver {
                             "foreign engine " + engine + " for " + identifier.getUniqueId());
                     return;
                 }
+                boolean factoryContainer = isJupiterFactoryContainer(engine, identifier);
+                boolean dynamicTest = isJupiterDynamicTest(engine, identifier);
                 String method = "";
-                if (identifier.getSource().isPresent()
+                if (!dynamicTest
+                        && identifier.getSource().isPresent()
                         && identifier.getSource().get() instanceof MethodSource) {
                     try {
                         method = methodIdentityOf((MethodSource)identifier.getSource().get());
@@ -593,7 +622,7 @@ public final class TrustedTestDriver {
 
                 String className = "";
                 String origin = "";
-                if (identifier.isTest()) {
+                if (identifier.isTest() || factoryContainer) {
                     try {
                         className = topLevel(classNameOf(identifier));
                         Class<?> loaded = Class.forName(
@@ -603,7 +632,7 @@ public final class TrustedTestDriver {
                         origin = stub.location == null ? "" : stub.location;
                     } catch (RuntimeException | ClassNotFoundException exc) {
                         observerEvent("VIOLATION", engine, identifier.getUniqueId(),
-                                true, className, method, "", origin,
+                                identifier.isTest(), className, method, "", origin,
                                 "class_origin_unverified:" + className + ":" + exc.getClass().getName());
                     }
                 }
@@ -623,7 +652,9 @@ public final class TrustedTestDriver {
             public void executionFinished(
                     TestIdentifier identifier, TestExecutionResult result) {
                 String engine = engineOf(identifier);
-                String className = identifier.isTest() ? topLevel(classNameOf(identifier)) : "";
+                boolean factoryContainer = isJupiterFactoryContainer(engine, identifier);
+                String className = (identifier.isTest() || factoryContainer)
+                        ? topLevel(classNameOf(identifier)) : "";
                 observerEvent("FINISHED", engine, identifier.getUniqueId(),
                         identifier.isTest(), className, "",
                         result.getStatus().name(), "", "");
