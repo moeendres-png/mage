@@ -1814,6 +1814,10 @@ public final class Attack {
  public static boolean propertyWriteBlocked() { return true; }
  public static boolean exitBlocked() { return true; }
  public static boolean noAuthoritySecrets() { return true; }
+ public static boolean ownPrivateAccessBlocked() { return true; }
+ public static boolean moduleLoaderBlocked() { return true; }
+ public static boolean jdkDeclaredMembersBlocked() { return true; }
+ public static boolean privilegedLambdaAccessBlocked() { return true; }
 }
 """
     test = """package probe;
@@ -1843,6 +1847,10 @@ public class ProbeTest {
  @Test public void propertyWrite() { assertTrue(Attack.propertyWriteBlocked()); }
  @Test public void exit() { assertTrue(Attack.exitBlocked()); }
  @Test public void secrets() { assertTrue(Attack.noAuthoritySecrets()); }
+ @Test public void ownPrivateAccess() { assertTrue(Attack.ownPrivateAccessBlocked()); }
+ @Test public void moduleLoader() { assertTrue(Attack.moduleLoaderBlocked()); }
+ @Test public void jdkDeclaredMembers() { assertTrue(Attack.jdkDeclaredMembersBlocked()); }
+ @Test public void privilegedLambdaAccess() { assertTrue(Attack.privilegedLambdaAccessBlocked()); }
 }
 """
     hostile = r"""package probe;
@@ -2110,6 +2118,26 @@ public final class Attack {
   }
   return System.getProperty("c12.receipt") == null && System.getProperty("c12.witness.key") == null;
  }
+ // JDK privileged-site controls. The driver admits five exact JDK sites (lambda
+ // metafactory, enum constants, logger finder, service-loader lookup); each probe
+ // below matches a site's plumbing frames but lacks its JDK action frame, so it
+ // must still be refused.
+ private static void privateTarget() { }
+ public static boolean ownPrivateAccessBlocked() {
+  return securityBlocked(() -> Attack.class.getDeclaredMethod("privateTarget").setAccessible(true));
+ }
+ public static boolean moduleLoaderBlocked() {
+  return securityBlocked(() -> String.class.getModule().getClassLoader());
+ }
+ public static boolean jdkDeclaredMembersBlocked() {
+  return securityBlocked(() -> Thread.class.getDeclaredFields());
+ }
+ public static boolean privilegedLambdaAccessBlocked() {
+  return securityBlocked(() -> {
+   final Method target = Attack.class.getDeclaredMethod("privateTarget");
+   AccessController.doPrivileged((PrivilegedAction<Void>) () -> { target.setAccessible(true); return null; });
+  });
+ }
 }
 """
     base = project({"ProbeTest": test}, extra={"src/main/java/probe/Attack.java": benign})
@@ -2118,7 +2146,7 @@ public final class Attack {
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX management, direct, MethodHandle/new-thread and explicit-doPrivileged-context-laundered process, fd/native/classloader (URLClassLoader, candidate subclass, MethodHandle-laundered, JDK reflection loader, ReflectionFactory)/TCCL/property/shutdown/exit escape paths are denied",
+        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX management, direct, MethodHandle/new-thread and explicit-doPrivileged-context-laundered process, fd/native/classloader (URLClassLoader, candidate subclass, MethodHandle-laundered, JDK reflection loader, ReflectionFactory)/TCCL/property/shutdown/exit escape paths are denied, and no admitted JDK privileged site is reachable without its JDK action frame (own-member setAccessible, Module.getClassLoader, JDK getDeclaredFields, candidate-lambda doPrivileged)",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
