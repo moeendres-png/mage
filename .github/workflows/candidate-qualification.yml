@@ -198,7 +198,7 @@ jobs:
           set -euo pipefail
           mvn -B -q -f "$TRUSTED_ROOT/pom.xml" test-compile dependency:build-classpath \
             -DincludeScope=test \
-            -Dmdep.outputFile=target/c12-trusted-test-classpath.txt \
+            -Dmdep.outputFile=target/c12-test-classpath.txt \
             -DskipTests=true \
             -Dmaven.test.skip.exec=true \
             -Dmaven.compiler.proc=none \
