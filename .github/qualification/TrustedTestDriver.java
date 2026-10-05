@@ -538,7 +538,8 @@ public final class TrustedTestDriver {
          * through standard Java (a lambda, an EnumSet, a Logger, a ServiceLoader).
          * The JDK performs it inside its own AccessController.doPrivileged block
          * for its own purposes and hands no reflective capability back to the
-         * caller. Because this boundary deliberately ignores doPrivileged (a
+         * caller (the enum site returns the enum's constants, as ordinary Java
+         * does, never the accessible Method). Because this boundary deliberately ignores doPrivileged (a
          * candidate frame anywhere on the stack taints the check), each such
          * action is admitted individually, and only when the stack names it
          * exactly: the requested permission, the reflection plumbing that asks
@@ -632,11 +633,17 @@ public final class TrustedTestDriver {
                 i++;
                 actions++;
             }
-            if (actions == 0 && !site.actionIsLambdaPrefix) return false;
-            if (i >= frames.length || !bootstrapNamed(frames[i], "java.security.AccessController")) {
-                return false;
+            // Every site needs its JDK action frame; on the pinned JDK the
+            // service-loader lambda frame is visible too.
+            if (actions == 0) return false;
+            // JDK 17 doPrivileged delegates to executePrivileged, so the stack
+            // carries two adjacent AccessController frames.
+            int controller = 0;
+            while (i < frames.length && bootstrapNamed(frames[i], "java.security.AccessController")) {
+                i++;
+                controller++;
             }
-            i++;
+            if (controller == 0) return false;
             return i < frames.length && bootstrapNamed(frames[i], site.owner);
         }
 

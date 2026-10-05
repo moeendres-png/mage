@@ -2146,7 +2146,44 @@ public final class Attack {
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX management, direct, MethodHandle/new-thread and explicit-doPrivileged-context-laundered process, fd/native/classloader (URLClassLoader, candidate subclass, MethodHandle-laundered, JDK reflection loader, ReflectionFactory)/TCCL/property/shutdown/exit escape paths are denied, and no admitted JDK privileged site is reachable without its JDK action frame (own-member setAccessible, Module.getClassLoader, JDK getDeclaredFields, candidate-lambda doPrivileged)",
+        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX management, direct, MethodHandle/new-thread and explicit-doPrivileged-context-laundered process, fd/native/classloader (URLClassLoader, candidate subclass, MethodHandle-laundered, JDK reflection loader, ReflectionFactory)/TCCL/property/shutdown/exit escape paths are denied, and the admitted JDK privileged sites stay unreachable from candidate frames that present only their plumbing (own-member setAccessible, Module.getClassLoader, JDK getDeclaredFields, candidate-lambda doPrivileged)",
+        "PASS", result, extra_ok=result.get("credit") is True,
+    ))
+
+    # Positive control for the admitted JDK privileged sites: ordinary candidate
+    # code that makes the JDK run its own privileged actions beneath candidate
+    # frames (lambda spinning, enum constants, platform logger, module service
+    # lookup) must still execute and earn credit.
+    honest_jdk = """package probe;
+import java.util.EnumSet;
+import java.util.ServiceLoader;
+import java.util.function.Supplier;
+public final class Honest {
+ public enum Color { RED, GREEN }
+ public interface Plugin { }
+ public static int lambdaValue() { Supplier<Integer> s = () -> 41; return s.get() + 1; }
+ public static int enumCount() { return EnumSet.allOf(Color.class).size(); }
+ public static boolean logger() { return java.util.logging.Logger.getLogger("probe.honest") != null; }
+ public static boolean serviceLookup() { return !ServiceLoader.load(Plugin.class).iterator().hasNext(); }
+}
+"""
+    honest_test = """package probe;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+public class ProbeTest {
+ @Test public void lambda() { assertEquals(42, Honest.lambdaValue()); }
+ @Test public void enumConstants() { assertEquals(2, Honest.enumCount()); }
+ @Test public void logger() { assertTrue(Honest.logger()); }
+ @Test public void serviceLookup() { assertTrue(Honest.serviceLookup()); }
+}
+"""
+    honest_project = project({"ProbeTest": honest_test}, extra={"src/main/java/probe/Honest.java": honest_jdk})
+    fx = h.fixture("CTRL-99-honest-jdk-privileged-sites-run", honest_project, honest_project)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-99-honest-jdk-privileged-sites-run", "positive",
+        "ordinary candidate code that makes the JDK run its own privileged actions beneath candidate frames (lambda, EnumSet over a candidate enum, platform Logger, module service lookup) executes and earns credit",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
