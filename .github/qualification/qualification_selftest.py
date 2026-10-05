@@ -847,6 +847,46 @@ class ModuleBTest {
 }
 """
 
+REACTOR_REDIRECT_TEST = """package probe;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
+
+class GraphTest {
+    @Test
+    void trustedGraphMustSelectTheNamedReactorOutput() throws Exception {
+        Class<?> type = Class.forName("dep.Value");
+        int value = ((Integer) type.getMethod("value").invoke(null)).intValue();
+        assertEquals(99, value);
+    }
+}
+"""
+
+REACTOR_DEP_SOURCE = """package dep;
+
+public final class Value {
+    private Value() {
+    }
+
+    public static int value() {
+        return 42;
+    }
+}
+"""
+
+REACTOR_SHADOW_SOURCE = """package dep;
+
+public final class Value {
+    private Value() {
+    }
+
+    public static int value() {
+        return 99;
+    }
+}
+"""
+
+
 MODULE_VICTIM_SHADOW_TEST = """package probe;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -2247,6 +2287,55 @@ def module_controls(h: Harness) -> list[dict]:
         "CTRL-91-unrelated-sibling-main-cannot-shadow-dependency", "red",
         "an unrelated sibling main output cannot shadow a trusted external dependency on another module's runtime classpath",
         "FAIL", result, reason="test_failures",
+    ))
+
+    redirect_base = {}
+    redirect_base.update(project(
+        {"GraphTest": REACTOR_REDIRECT_TEST}, module="modVictim"))
+    redirect_base.update(project(
+        {}, module="modDep",
+        extra={"modDep/src/main/java/dep/Value.java": REACTOR_DEP_SOURCE}))
+    redirect_base.update(project(
+        {}, module="modShadow",
+        extra={"modShadow/src/main/java/dep/Value.java": REACTOR_SHADOW_SOURCE}))
+    fx = h.fixture("CTRL-94-reactor-output-symlink-substitution-refused", redirect_base)
+    redirect_state = {}
+
+    def trusted_dep_edge(_h, _fx, mapping):
+        original = mapping.get("modVictim", "")
+        trusted_dep = str(_fx["repo"] / "modDep" / "target" / "classes")
+        mapping["modVictim"] = os.pathsep.join(
+            [trusted_dep] + ([original] if original else [])
+        )
+        return mapping
+
+    def redirect_dep_output(_h, _fx):
+        dep = h.sandbox_dir / "candidate" / "modDep" / "target" / "classes"
+        shadow = h.sandbox_dir / "candidate" / "modShadow" / "target" / "classes"
+        proc = h.as_candidate(
+            h.sandbox_dir,
+            ["/bin/sh", "-c", 'rm -rf "$1" && ln -s "$2" "$1"',
+             "c12", str(dep), str(shadow)],
+        )
+        redirect_state["applied"] = (
+            proc.returncode == 0
+            and dep.is_symlink()
+            and dep.resolve() == shadow.resolve()
+            and shadow.is_dir()
+        )
+
+    result = h.pipeline(
+        fx,
+        build_modules=["modVictim", "modDep", "modShadow"],
+        trusted_classpath_override=trusted_dep_edge,
+        after_build=redirect_dep_output,
+    )
+    rows.append(row(
+        "CTRL-94-reactor-output-symlink-substitution-refused", "red",
+        "a trusted reactor edge cannot be redirected to a different candidate sibling output whose colliding FQN would make the trusted test pass",
+        "UNKNOWN", result, reason="trusted_reactor_output_path_redirected",
+        extra_ok=redirect_state.get("applied") is True,
+        extra={"reactor_redirect_applied": redirect_state.get("applied")},
     ))
 
     escape_files = project(
