@@ -163,8 +163,7 @@ def sanitize_classpath(module: str, resolved: str, trusted_resolved: str,
     trusted_repo = trusted_maven_repo.resolve()
     trusted_checkout = trusted_root.resolve()
     candidate_checkout = candidate_root.resolve()
-    kept: list[str] = []
-    candidate_outputs: list[str] = []
+    mapped_order: list[str] = []
     unmappable: list[str] = []
 
     for entry in (trusted_resolved or "").split(os.pathsep):
@@ -177,7 +176,7 @@ def sanitize_classpath(module: str, resolved: str, trusted_resolved: str,
             rel = path.relative_to(trusted_repo)
             trusted = trusted_repo / rel
             if trusted.is_file():
-                kept.append(str(trusted))
+                mapped_order.append(str(trusted))
             else:
                 unmappable.append(entry)
             continue
@@ -205,19 +204,18 @@ def sanitize_classpath(module: str, resolved: str, trusted_resolved: str,
         if not mapped.is_dir():
             unmappable.append(entry)
             continue
-        candidate_outputs.append(str(mapped))
-
-    own = (candidate_checkout / module / MAIN_CLASSES_DIR).resolve()
-    if own.is_dir():
-        candidate_outputs.insert(0, str(own))
+        mapped_order.append(str(mapped))
 
     if unmappable:
         raise ValueError("trusted_classpath_entries_unmappable in {}: {}".format(
             module, ",".join(unmappable[:5])))
 
-    # Stable de-duplication preserves Maven's trusted dependency order.
+    # Maven's dependency order is semantics-bearing when FQNs collide. Keep it
+    # exactly; only prepend this module's own main output, matching ordinary
+    # test runtime layout. Stable de-duplication changes no first-hit semantics.
     runtime: list[str] = []
-    for entry in candidate_outputs + kept:
+    own = (candidate_checkout / module / MAIN_CLASSES_DIR).resolve()
+    for entry in ([str(own)] if own.is_dir() else []) + mapped_order:
         if entry not in runtime:
             runtime.append(entry)
     prefixes = [entry for entry in runtime if Path(entry).is_dir() and entry.startswith(str(candidate_checkout))]
