@@ -460,6 +460,23 @@ public final class TrustedTestDriver {
         @Override public void checkPermission(Permission permission) {
             if (permission == null || inspecting.get()) return;
             String name = permission.getName();
+            String permissionType = permission.getClass().getName();
+            // Public management/attach APIs can cross the ordinary Java call
+            // boundary and, in the case of Attach/JVMTI or DiagnosticCommand
+            // MBeans, can load agents or execute VM diagnostics without calling
+            // Runtime.loadLibrary from candidate code. Unix-domain sockets are
+            // permission-gated separately from TCP checkConnect/checkListen.
+            if ("com.sun.tools.attach.AttachPermission".equals(permissionType)
+                    || "javax.management.MBeanPermission".equals(permissionType)
+                    || "javax.management.MBeanServerPermission".equals(permissionType)
+                    || "javax.management.MBeanTrustPermission".equals(permissionType)
+                    || ("java.lang.management.ManagementPermission".equals(permissionType)
+                        && "control".equals(name))
+                    || ("java.net.NetPermission".equals(permissionType)
+                        && "accessUnixDomainSocket".equals(name))) {
+                refuse("capability-permission:" + permissionType + ":" + name);
+                return;
+            }
             if (permission instanceof ReflectPermission
                     && "suppressAccessChecks".equals(name)) {
                 refuse("deep-reflection");
