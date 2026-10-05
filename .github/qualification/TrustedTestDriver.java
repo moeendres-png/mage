@@ -533,6 +533,34 @@ public final class TrustedTestDriver {
             }
         }
 
+        /**
+         * True only when the class loader under construction is the JDK's own
+         * reflection accessor loader. Core reflection and serialization
+         * (MethodAccessorGenerator, via ObjectStreamClass in JUnit's TestPlan,
+         * for example) create one per generated accessor; it defines only
+         * JDK-generated accessor bytecode in a JDK-chosen domain, so candidate
+         * code can neither choose its bytes nor forge a trusted code source
+         * through it. The type is identified by bootstrap-loader identity and
+         * exact name, which candidate code cannot define. Every other loader,
+         * URLClassLoader and candidate subclasses included, stays denied: a
+         * new loader could define classes under an arbitrary code source and
+         * so launder the provenance this boundary relies on.
+         */
+        private boolean constructingJdkReflectionLoader() {
+            for (Class<?> type : getClassContext()) {
+                if (type == ContainmentSecurityManager.class
+                        || type == SecurityManager.class
+                        || type == ClassLoader.class) {
+                    continue;
+                }
+                // The first frame past ClassLoader's constructor checks is the
+                // constructor of the concrete loader being created.
+                return type.getClassLoader() == null
+                        && "jdk.internal.reflect.DelegatingClassLoader".equals(type.getName());
+            }
+            return false;
+        }
+
         @SuppressWarnings("removal")
         private void refuse(String capability) {
             boolean denied = untrustedOnStack();
@@ -609,6 +637,9 @@ public final class TrustedTestDriver {
                 return;
             }
             if (permission instanceof RuntimePermission) {
+                if ("createClassLoader".equals(name) && constructingJdkReflectionLoader()) {
+                    return;
+                }
                 if ("setSecurityManager".equals(name)
                         || "shutdownHooks".equals(name)
                         || "setIO".equals(name)

@@ -1799,6 +1799,9 @@ public final class Attack {
  public static boolean managerRemovalBlocked() { return true; }
  public static boolean classLoaderBlocked() { return true; }
  public static boolean contextLoaderBlocked() { return true; }
+ public static boolean subclassLoaderBlocked() { return true; }
+ public static boolean launderedClassLoaderBlocked() { return true; }
+ public static boolean jdkReflectionLoaderUnreachable() { return true; }
  public static boolean processHandleBlocked() { return true; }
  public static boolean propertyWriteBlocked() { return true; }
  public static boolean exitBlocked() { return true; }
@@ -1824,6 +1827,9 @@ public class ProbeTest {
  @Test public void manager() { assertTrue(Attack.managerRemovalBlocked()); }
  @Test public void classLoader() { assertTrue(Attack.classLoaderBlocked()); }
  @Test public void contextLoader() { assertTrue(Attack.contextLoaderBlocked()); }
+ @Test public void subclassLoader() { assertTrue(Attack.subclassLoaderBlocked()); }
+ @Test public void launderedClassLoader() { assertTrue(Attack.launderedClassLoaderBlocked()); }
+ @Test public void jdkReflectionLoader() { assertTrue(Attack.jdkReflectionLoaderUnreachable()); }
  @Test public void processHandle() { assertTrue(Attack.processHandleBlocked()); }
  @Test public void propertyWrite() { assertTrue(Attack.propertyWriteBlocked()); }
  @Test public void exit() { assertTrue(Attack.exitBlocked()); }
@@ -2012,6 +2018,55 @@ public final class Attack {
   return securityBlocked(() -> Thread.currentThread().setContextClassLoader(
       Attack.class.getClassLoader()));
  }
+ // The containment admits createClassLoader only for the JDK's own reflection
+ // accessor loader. A candidate-defined loader type must stay denied.
+ public static boolean subclassLoaderBlocked() {
+  return securityBlocked(() -> new ClassLoader(Attack.class.getClassLoader()) { });
+ }
+ // A JDK loader type constructed with only JDK frames on a fresh thread (the
+ // MethodHandle-proxy laundering shape) must stay denied as well.
+ public static boolean launderedClassLoaderBlocked() {
+  try {
+   MethodHandle create = MethodHandles.lookup().findConstructor(
+       java.net.URLClassLoader.class,
+       MethodType.methodType(void.class, java.net.URL[].class, ClassLoader.class))
+       .bindTo(new java.net.URL[0]);
+   create = MethodHandles.insertArguments(create, 0, Attack.class.getClassLoader())
+       .asType(MethodType.methodType(Object.class));
+   @SuppressWarnings("unchecked")
+   Callable<Object> proxy = (Callable<Object>) MethodHandleProxies.asInterfaceInstance(
+       Callable.class, create);
+   FutureTask<Object> task = new FutureTask<>(proxy);
+   Thread thread = new Thread(task, "c12-laundered-class-loader");
+   thread.start();
+   thread.join();
+   try {
+    task.get();
+    return false;
+   } catch (ExecutionException expected) {
+    Throwable cause = expected.getCause();
+    while (cause != null && !(cause instanceof SecurityException)
+        && cause.getCause() != cause) {
+     cause = cause.getCause();
+    }
+    return cause instanceof SecurityException;
+   }
+  } catch (Exception unexpected) {
+   return false;
+  }
+ }
+ // The admitted loader type itself is not constructible by candidate code.
+ public static boolean jdkReflectionLoaderUnreachable() {
+  try {
+   Class<?> type = Class.forName("jdk.internal.reflect.DelegatingClassLoader");
+   java.lang.reflect.Constructor<?> ctor = type.getDeclaredConstructor(ClassLoader.class);
+   ctor.setAccessible(true);
+   ctor.newInstance(Attack.class.getClassLoader());
+   return false;
+  } catch (SecurityException | RuntimeException | ReflectiveOperationException denied) {
+   return true;
+  }
+ }
  public static boolean processHandleBlocked() {
   return securityBlocked(() -> ProcessHandle.allProcesses().count());
  }
@@ -2039,7 +2094,7 @@ public final class Attack {
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX management, direct, MethodHandle/new-thread and explicit-doPrivileged-context-laundered process, fd/native/classloader/TCCL/property/shutdown/exit escape paths are denied",
+        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX management, direct, MethodHandle/new-thread and explicit-doPrivileged-context-laundered process, fd/native/classloader (URLClassLoader, candidate subclass, MethodHandle-laundered, JDK reflection loader)/TCCL/property/shutdown/exit escape paths are denied",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
