@@ -416,7 +416,8 @@ class Harness:
 
     # -- the production pipeline -------------------------------------------
 
-    def pipeline(self, fx: dict, *, build_modules=None, classpath_override=None, after_build=None,
+    def pipeline(self, fx: dict, *, build_modules=None, classpath_override=None,
+                 trusted_classpath_override=None, after_build=None,
                  after_seal=None, corrupt_witness=False, lock_candidate_sha=None, before_prepare=None,
                  trusted_path_prefix=None) -> dict:
         evidence = fx["evidence"]
@@ -439,6 +440,30 @@ class Harness:
         audit_path = evidence / "BUILD_DEFINITION_AUDIT.json"
         audit_path.write_text(json.dumps(audit, indent=2, sort_keys=True) + "\n")
 
+        # Resolve the authoritative dependency/reactor graph from the trusted
+        # validator before candidate execution. The candidate-produced map is
+        # retained only as an observation/completeness signal.
+        trusted_modules = sorted({entry["module"] for entry in corpus_policy.enumerate_rev(
+            str(fx["repo"]), fx["trusted_sha"])})
+        for module in trusted_modules:
+            module_dir = fx["repo"] / module
+            proc = subprocess.run(
+                self.mvn("test-compile", "dependency:build-classpath", "-DincludeScope=test",
+                         "-Dmdep.outputFile=" + resolve_classpaths.CLASSPATH_FILE,
+                         "-Dmaven.compiler.proc=none"),
+                cwd=str(module_dir), capture_output=True, text=True, check=False,
+            )
+            if proc.returncode != 0:
+                # Leave the map incomplete/failing; witness must refuse rather
+                # than silently falling back to candidate classpath authority.
+                pass
+        trusted_mapping, _ = resolve_classpaths.collect(
+            str(fx["repo"]), fx["trusted_sha"], fx["repo"])
+        if trusted_classpath_override:
+            trusted_mapping = trusted_classpath_override(self, fx, dict(trusted_mapping))
+        trusted_classpaths_path = evidence / "TRUSTED_MODULE_CLASSPATHS.json"
+        trusted_classpaths_path.write_text(json.dumps(trusted_mapping, indent=2, sort_keys=True) + "\n")
+
         if before_prepare:
             before_prepare(self, fx)
         prepare_path = evidence / "SANDBOX_PREPARE.json"
@@ -455,7 +480,7 @@ class Harness:
         seal1 = fx["work"] / "seal-before.json"
         sandbox_ok = prep.returncode == 0
         subprocess.run(py + [str(qual / "sandbox.py"), "seal", "--out", str(seal1),
-                             str(lock_path), str(audit_path), str(prepare_path)],
+                             str(lock_path), str(audit_path), str(trusted_classpaths_path), str(prepare_path)],
                        capture_output=True, text=True, check=False)
 
         build_path = evidence / "BUILD_RESULT.json"
@@ -494,8 +519,9 @@ class Harness:
                   "--sandbox-user", self.user, "--sandbox-prepare", str(prepare_path),
                   "--bundle-dir", str(self.bundle_dir), "--work-dir", str(fx["work"] / "witness"),
                   "--build-result", str(build_path), "--build-definition-audit", str(audit_path),
-                  "--module-classpaths", str(classpaths_path), "--trusted-maven-repo", self.seed,
-                  "--out", str(witness_path)],
+                  "--module-classpaths", str(classpaths_path),
+                  "--trusted-module-classpaths", str(trusted_classpaths_path),
+                  "--trusted-maven-repo", self.seed, "--out", str(witness_path)],
             capture_output=True, text=True, check=False, env=env)
         if corrupt_witness and witness_path.is_file():
             witness_path.write_text("{ this is not valid json")
@@ -820,6 +846,34 @@ class ModuleBTest {
     }
 }
 """
+
+MODULE_VICTIM_SHADOW_TEST = """package probe;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import helper.OnlyOnB;
+import org.junit.jupiter.api.Test;
+
+class VictimTest {
+    @Test
+    void unrelatedSiblingCannotShadowTrustedDependency() {
+        assertEquals(99, OnlyOnB.value());
+    }
+}
+"""
+
+SHADOW_HELPER_SOURCE = """package helper;
+
+public final class OnlyOnB {
+    private OnlyOnB() {
+    }
+
+    public static int value() {
+        return 99;
+    }
+}
+"""
+
 
 SHARED_TEST = """package probe;
 
@@ -2127,7 +2181,7 @@ def module_controls(h: Harness) -> list[dict]:
 
     run("CTRL-21-unresolved-module-dependency", "red",
         "a required class that cannot resolve on its module classpath earns no credit and is not skipped",
-        "FAIL", "required_tests_not_compiled", multi, both, classpath_override=without_helper)
+        "FAIL", "required_tests_not_compiled", multi, both, trusted_classpath_override=without_helper)
 
     with_c = dict(multi)
     with_c.update(project({"ModuleCTest": MODULE_C_TEST}, module="modC"))
@@ -2161,6 +2215,24 @@ def module_controls(h: Harness) -> list[dict]:
     run("CTRL-24-required-class-not-credited-from-sibling", "red",
         "a required class present only in another module's output cannot be credited",
         "FAIL", "required_tests_not_compiled", collision, ["modA", "modB"], classpath_override=sibling_tests)
+
+    # Candidate code in an unrelated test-bearing sibling must not be placed
+    # ahead of the trusted dependency graph. Otherwise it can define the same
+    # FQN as an external dependency and make a trusted failing assertion pass.
+    shadow_base = {}
+    shadow_base.update(project(
+        {"VictimTest": MODULE_VICTIM_SHADOW_TEST}, pom=POM_WITH_HELPER, module="modVictim"))
+    shadow_base.update(project({"ShadowTest": passing("ShadowTest")}, module="modShadow"))
+    shadow_candidate = dict(shadow_base)
+    shadow_candidate["modShadow/src/main/java/helper/OnlyOnB.java"] = SHADOW_HELPER_SOURCE
+    fx = h.fixture("CTRL-91-unrelated-sibling-main-cannot-shadow-dependency",
+                   shadow_base, shadow_candidate)
+    result = h.pipeline(fx, build_modules=["modVictim", "modShadow"])
+    rows.append(row(
+        "CTRL-91-unrelated-sibling-main-cannot-shadow-dependency", "red",
+        "an unrelated sibling main output cannot shadow a trusted external dependency on another module's runtime classpath",
+        "FAIL", result, reason="test_failures",
+    ))
 
     empty = {}
     empty.update(project({"ModuleATest": MODULE_A_TEST}, module="modA"))
@@ -2242,6 +2314,7 @@ def static_controls() -> list[dict]:
         "SANDBOX_PREPARE.json",
         "BUILD_RESULT.json",
         "MODULE_CLASSPATHS.json",
+        "TRUSTED_MODULE_CLASSPATHS.json",
         "TRUSTED_WITNESS.json",
         "INTEGRITY.json",
         "QUALIFICATION_EVIDENCE.json",
@@ -2251,6 +2324,7 @@ def static_controls() -> list[dict]:
         "--integrity",
         "INTEGRITY_EXIT",
         'bin/mvn" -B test-compile dependency:build-classpath',
+        "--trusted-module-classpaths",
         "-Dmaven.compiler.proc=none",
         "--harden-world-writable",
         "--stage-jdk",
@@ -2274,8 +2348,12 @@ def static_controls() -> list[dict]:
         stripped = line.strip()
         if "python3" in stripped and "$QUALIFICATION_DIR" in stripped and not stripped.startswith("/usr/bin/python3 -I -S -B "):
             problems.append("trusted script not run as /usr/bin/python3 -I -S -B: {}".format(stripped[:80]))
-        if re.search(r"(^|[\s;&|(])mvn\s+-", stripped) and "dependency:get" not in stripped and not stripped.startswith("-- mvn "):
-            problems.append("Maven invoked outside the sandbox: {}".format(stripped[:80]))
+        if (re.search(r"(^|[\s;&|(])mvn\s+-", stripped)
+                and "dependency:get" not in stripped
+                and '-f "$TRUSTED_ROOT/pom.xml"' not in stripped
+                and not stripped.startswith("-- mvn ")):
+            problems.append("Maven invoked outside the sandbox/trusted-validator pre-resolution: {}".format(
+                stripped[:80]))
     rows.append(
         {
             "control": "CTRL-15-workflow-contract",
