@@ -190,6 +190,12 @@ public final class TrustedTestObserver {
         return methodIdentity.substring(0, hash);
     }
 
+    private static boolean isJupiterFactoryUniqueId(String uniqueId) {
+        return uniqueId != null
+                && uniqueId.startsWith("[engine:junit-jupiter]")
+                && uniqueId.contains("/[test-factory:");
+    }
+
     private static String hmacHex(byte[] key, byte[] data) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(key, "HmacSHA256"));
@@ -252,6 +258,15 @@ public final class TrustedTestObserver {
                     && bodyEntriesByTest.getOrDefault(uniqueId, 0) > 0) {
                 bodyCompletedMethods.add(identity);
                 bodyExitsByTest.put(uniqueId, bodyExitsByTest.getOrDefault(uniqueId, 0) + 1);
+                // A TestFactory container stays active while its dynamic children
+                // execute. Its authority-bearing method body, however, is complete
+                // as soon as the factory method returns normally. Close the
+                // correlation window here so dynamic child lifecycle events cannot
+                // inherit or overwrite factory-method body credit.
+                if (isJupiterFactoryUniqueId(uniqueId)) {
+                    activeTestIds.remove(threadId);
+                    activeMethods.remove(threadId);
+                }
             }
         }
 
@@ -290,15 +305,19 @@ public final class TrustedTestObserver {
             }
             if ("STARTED".equals(phase)) {
                 if (!method.isEmpty()) observedMethods.add(method);
-                if (isTest && !method.isEmpty()) {
+                boolean factoryMethod = !isTest
+                        && isJupiterFactoryUniqueId(uniqueId)
+                        && !method.isEmpty()
+                        && requiredMethods.contains(method);
+                if ((isTest || factoryMethod) && !method.isEmpty()) {
                     if (activeTestIds.containsKey(threadId)) {
                         protocolViolations.add("overlapping_test_on_thread:" + threadId);
                     }
                     activeTestIds.put(threadId, uniqueId);
                     activeMethods.put(threadId, method);
                 }
-                if (isTest) {
-                    testsStarted++;
+                if (isTest) testsStarted++;
+                if (isTest || factoryMethod) {
                     if (!className.isEmpty()) {
                         observedClasses.add(className);
                         if (!origin.isEmpty()) classOrigins.put(className, origin);
@@ -326,8 +345,23 @@ public final class TrustedTestObserver {
                     else if ("FAILED".equals(status)) testsFailed++;
                     else if ("ABORTED".equals(status)) testsAborted++;
                     else protocolViolations.add("unknown_test_status:" + status);
-                } else if ("FAILED".equals(status) || "ABORTED".equals(status)) {
-                    containersFailed++;
+                } else {
+                    if (isJupiterFactoryUniqueId(uniqueId)) {
+                        String activeId = activeTestIds.get(threadId);
+                        if (uniqueId.equals(activeId)) {
+                            activeTestIds.remove(threadId);
+                            String activeMethod = activeMethods.remove(threadId);
+                            if ("SUCCESSFUL".equals(status) && activeMethod != null
+                                    && (bodyEntriesByTest.getOrDefault(uniqueId, 0) < 1
+                                        || bodyExitsByTest.getOrDefault(uniqueId, 0) < 1)) {
+                                controlViolations.add(
+                                        "required_method_body_not_completed:" + activeMethod + ":" + uniqueId);
+                            }
+                        }
+                    }
+                    if ("FAILED".equals(status) || "ABORTED".equals(status)) {
+                        containersFailed++;
+                    }
                 }
                 if (!"SUCCESSFUL".equals(status) && !className.isEmpty()) {
                     nonSuccessful.put(className, nonSuccessful.getOrDefault(className, 0) + 1);
