@@ -1777,6 +1777,7 @@ public final class Attack {
  public static boolean jmxBlocked() { return true; }
  public static boolean processBlocked() { return true; }
  public static boolean launderedProcessBlocked() { return true; }
+ public static boolean privilegedLaunderedProcessBlocked() { return true; }
  public static boolean fdDiscoveryBlocked() { return true; }
  public static boolean hookBlocked() { return true; }
  public static boolean nativeLoadBlocked() { return true; }
@@ -1801,6 +1802,7 @@ public class ProbeTest {
  @Test public void jmx() { assertTrue(Attack.jmxBlocked()); }
  @Test public void process() { assertTrue(Attack.processBlocked()); }
  @Test public void launderedProcess() { assertTrue(Attack.launderedProcessBlocked()); }
+ @Test public void privilegedLaunderedProcess() { assertTrue(Attack.privilegedLaunderedProcessBlocked()); }
  @Test public void fds() { assertTrue(Attack.fdDiscoveryBlocked()); }
  @Test public void hook() { assertTrue(Attack.hookBlocked()); }
  @Test public void nativeLoad() { assertTrue(Attack.nativeLoadBlocked()); }
@@ -1821,6 +1823,10 @@ import java.lang.invoke.MethodHandleProxies;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.net.Socket;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
@@ -1932,6 +1938,43 @@ public final class Attack {
    return false;
   }
  }
+ @SuppressWarnings("removal")
+ public static boolean privilegedLaunderedProcessBlocked() {
+  try {
+   MethodHandle start = MethodHandles.lookup().findVirtual(
+       ProcessBuilder.class, "start", MethodType.methodType(Process.class))
+       .bindTo(new ProcessBuilder("/bin/true"));
+   @SuppressWarnings("unchecked")
+   PrivilegedAction<Process> action = (PrivilegedAction<Process>)
+       MethodHandleProxies.asInterfaceInstance(PrivilegedAction.class, start);
+   AccessControlContext empty = new AccessControlContext(new ProtectionDomain[0]);
+   MethodHandle doPrivileged = MethodHandles.lookup().findStatic(
+       AccessController.class, "doPrivileged",
+       MethodType.methodType(Object.class, PrivilegedAction.class, AccessControlContext.class));
+   MethodHandle bound = MethodHandles.insertArguments(doPrivileged, 0, action, empty)
+       .asType(MethodType.methodType(Process.class));
+   @SuppressWarnings("unchecked")
+   Callable<Process> outer = (Callable<Process>)
+       MethodHandleProxies.asInterfaceInstance(Callable.class, bound);
+   FutureTask<Process> task = new FutureTask<>(outer);
+   Thread thread = new Thread(task, "c12-privileged-method-handle-proxy");
+   thread.start();
+   thread.join();
+   try {
+    task.get();
+    return false;
+   } catch (ExecutionException expected) {
+    Throwable cause = expected.getCause();
+    while (cause != null && !(cause instanceof SecurityException)
+        && cause.getCause() != cause) {
+     cause = cause.getCause();
+    }
+    return cause instanceof SecurityException;
+   }
+  } catch (Exception unexpected) {
+   return false;
+  }
+ }
  public static boolean fdDiscoveryBlocked() {
   return securityBlocked(() -> { try (java.util.stream.Stream<java.nio.file.Path> ignored =
       Files.list(Paths.get("/proc/self/fd"))) { ignored.count(); } });
@@ -1981,7 +2024,7 @@ public final class Attack {
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX management, direct and MethodHandle/new-thread-laundered process, fd/native/classloader/TCCL/property/shutdown/exit escape paths are denied",
+        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX management, direct, MethodHandle/new-thread and explicit-doPrivileged-context-laundered process, fd/native/classloader/TCCL/property/shutdown/exit escape paths are denied",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
