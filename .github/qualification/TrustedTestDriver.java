@@ -555,8 +555,10 @@ public final class TrustedTestDriver {
                 }
                 // The first frame past ClassLoader's constructor checks is the
                 // constructor of the concrete loader being created.
-                return type.getClassLoader() == null
-                        && "jdk.internal.reflect.DelegatingClassLoader".equals(type.getName());
+                // Name first: getClassLoader() on a non-JDK frame would itself
+                // be a permission-checked call.
+                return "jdk.internal.reflect.DelegatingClassLoader".equals(type.getName())
+                        && type.getClassLoader() == null;
             }
             return false;
         }
@@ -659,8 +661,14 @@ public final class TrustedTestDriver {
                     denyAlways("runtime-permission:" + name);
                     return;
                 }
+                // sun.reflect.ReflectionFactory can allocate objects without
+                // running their constructors' own security checks (a loader
+                // whose createClassLoader check lives in ClassLoader.<init>, for
+                // example). JUnit and serialization use the internal factory,
+                // which needs no permission; candidate access stays refused.
                 if ("accessDeclaredMembers".equals(name)
-                        || "getClassLoader".equals(name)) {
+                        || "getClassLoader".equals(name)
+                        || "reflectionFactoryAccess".equals(name)) {
                     // JUnit/trusted tests legitimately need these. Keep the
                     // provenance check, with the ACC marker as defense in depth.
                     refuse("runtime-permission:" + name);
@@ -693,6 +701,27 @@ public final class TrustedTestDriver {
         java.util.logging.LogManager.getLogManager();
     }
 
+    /**
+     * The JDK reflection-loader admission relies on java.base keeping its
+     * internal packages closed to classpath code: otherwise candidate code
+     * could construct or extend the admitted loader type directly. The trusted
+     * launcher passes no such flags; refuse to run if the JVM was started with
+     * any (for example --add-opens/--add-exports java.base/jdk.internal.*).
+     */
+    private static void requireJdkInternalsSealed() {
+        Module base = Object.class.getModule();
+        Module unnamed = ClassLoader.getSystemClassLoader().getUnnamedModule();
+        for (String pkg : new String[] {
+                "jdk.internal.reflect", "jdk.internal.misc",
+                "jdk.internal.access", "jdk.internal.loader"}) {
+            if (base.isExported(pkg, unnamed) || base.isOpen(pkg, unnamed)) {
+                throw new IllegalStateException(
+                        "C12 containment precondition failed: java.base/" + pkg
+                        + " is exported or opened to classpath code");
+            }
+        }
+    }
+
     @SuppressWarnings("removal")
     private static void installContainment(List<Path> untrustedPrefixes) {
         Policy.setPolicy(new ContainmentPolicy(Policy.getPolicy(), untrustedPrefixes));
@@ -720,6 +749,7 @@ public final class TrustedTestDriver {
 
         final Path expectedOutput = Paths.get(moduleOutput).toRealPath();
         initializeTrustedRuntimeBeforeContainment();
+        requireJdkInternalsSealed();
         installContainment(untrustedPrefixes);
         observerStart();
 
