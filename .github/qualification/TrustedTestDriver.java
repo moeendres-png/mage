@@ -534,6 +534,113 @@ public final class TrustedTestDriver {
         }
 
         /**
+         * One JDK-internal privileged action that ordinary candidate code reaches
+         * through standard Java (a lambda, an EnumSet, a Logger, a ServiceLoader).
+         * The JDK performs it inside its own AccessController.doPrivileged block
+         * for its own purposes and hands no reflective capability back to the
+         * caller. Because this boundary deliberately ignores doPrivileged (a
+         * candidate frame anywhere on the stack taints the check), each such
+         * action is admitted individually, and only when the stack names it
+         * exactly: the requested permission, the reflection plumbing that asks
+         * for it, the JDK action class whose own run() is that request, the
+         * AccessController.doPrivileged that runs it, and the JDK owner that
+         * called doPrivileged. Every one of those frames must be loaded by the
+         * bootstrap loader, which candidate code cannot define classes in.
+         */
+        private static final class JdkPrivilegedSite {
+            final String permission;
+            final Set<String> plumbing;
+            final String action;
+            final boolean actionIsLambdaPrefix;
+            final String owner;
+
+            JdkPrivilegedSite(String permission, Set<String> plumbing, String action,
+                    boolean actionIsLambdaPrefix, String owner) {
+                this.permission = permission;
+                this.plumbing = plumbing;
+                this.action = action;
+                this.actionIsLambdaPrefix = actionIsLambdaPrefix;
+                this.owner = owner;
+            }
+
+            boolean isAction(String name) {
+                return actionIsLambdaPrefix ? name.startsWith(action) : name.equals(action);
+            }
+        }
+
+        // JDK 17 (the pinned qualification JDK). A different JDK build that moves
+        // one of these actions simply stops matching and fails closed.
+        private static final List<JdkPrivilegedSite> JDK_PRIVILEGED_SITES = List.of(
+                // Every non-capturing lambda and method reference: the metafactory
+                // reads and opens the constructor of the hidden class it has just
+                // spun for the call site.
+                new JdkPrivilegedSite("accessDeclaredMembers", Set.of("java.lang.Class"),
+                        "java.lang.invoke.InnerClassLambdaMetafactory$1", false,
+                        "java.lang.invoke.InnerClassLambdaMetafactory"),
+                new JdkPrivilegedSite("suppressAccessChecks",
+                        Set.of("java.lang.reflect.AccessibleObject", "java.lang.reflect.Constructor"),
+                        "java.lang.invoke.InnerClassLambdaMetafactory$1", false,
+                        "java.lang.invoke.InnerClassLambdaMetafactory"),
+                // Enum.valueOf, EnumSet and EnumMap: Class.getEnumConstantsShared
+                // opens the enum's own values() method to read its constants.
+                new JdkPrivilegedSite("suppressAccessChecks",
+                        Set.of("java.lang.reflect.AccessibleObject", "java.lang.reflect.Method"),
+                        "java.lang.Class$3", false, "java.lang.Class"),
+                // java.util.logging.Logger.getLogger: the logger finder asks
+                // whether the caller's module is a system module.
+                new JdkPrivilegedSite("getClassLoader", Set.of("java.lang.Module"),
+                        "jdk.internal.logger.DefaultLoggerFinder$1", false,
+                        "jdk.internal.logger.DefaultLoggerFinder"),
+                // ServiceLoader iteration: the lookup reads the loader of each
+                // module it searches for providers.
+                new JdkPrivilegedSite("getClassLoader", Set.of("java.lang.Module"),
+                        "java.util.ServiceLoader$ModuleServicesLookupIterator$$Lambda", true,
+                        "java.util.ServiceLoader$ModuleServicesLookupIterator"));
+
+        private boolean jdkPrivilegedSite(String permissionName) {
+            Class<?>[] frames = getClassContext();
+            for (JdkPrivilegedSite site : JDK_PRIVILEGED_SITES) {
+                if (site.permission.equals(permissionName) && matchesSite(site, frames)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static boolean bootstrapNamed(Class<?> type, String name) {
+            // Name first: getClassLoader() on a non-JDK frame would itself be a
+            // permission-checked call.
+            return type.getName().equals(name) && type.getClassLoader() == null;
+        }
+
+        private static boolean matchesSite(JdkPrivilegedSite site, Class<?>[] frames) {
+            int i = 0;
+            while (i < frames.length && (frames[i] == ContainmentSecurityManager.class
+                    || frames[i] == SecurityManager.class)) {
+                i++;
+            }
+            int plumbing = 0;
+            while (i < frames.length && site.plumbing.contains(frames[i].getName())
+                    && frames[i].getClassLoader() == null) {
+                i++;
+                plumbing++;
+            }
+            if (plumbing == 0) return false;
+            int actions = 0;
+            while (i < frames.length && site.isAction(frames[i].getName())
+                    && frames[i].getClassLoader() == null) {
+                i++;
+                actions++;
+            }
+            if (actions == 0 && !site.actionIsLambdaPrefix) return false;
+            if (i >= frames.length || !bootstrapNamed(frames[i], "java.security.AccessController")) {
+                return false;
+            }
+            i++;
+            return i < frames.length && bootstrapNamed(frames[i], site.owner);
+        }
+
+        /**
          * True only when the class loader under construction is the JDK's own
          * reflection accessor loader. Core reflection and serialization
          * (MethodAccessorGenerator, via ObjectStreamClass in JUnit's TestPlan,
@@ -635,6 +742,7 @@ public final class TrustedTestDriver {
             }
             if (permission instanceof ReflectPermission
                     && "suppressAccessChecks".equals(name)) {
+                if (jdkPrivilegedSite(name)) return;
                 refuse("deep-reflection");
                 return;
             }
@@ -671,6 +779,8 @@ public final class TrustedTestDriver {
                         || "reflectionFactoryAccess".equals(name)) {
                     // JUnit/trusted tests legitimately need these. Keep the
                     // provenance check, with the ACC marker as defense in depth.
+                    // ReflectionFactory access is never a JDK privileged site.
+                    if (!"reflectionFactoryAccess".equals(name) && jdkPrivilegedSite(name)) return;
                     refuse("runtime-permission:" + name);
                 }
                 return;
