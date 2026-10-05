@@ -780,7 +780,22 @@ public final class TrustedTestDriver {
                 boolean factoryContainer = isJupiterFactoryContainer(engine, identifier);
                 boolean dynamicTest = isJupiterDynamicTest(engine, identifier);
                 String method = "";
-                if (!dynamicTest
+                boolean vintageTest = identifier.isTest() && "junit-vintage".equals(engine);
+                if (vintageTest) {
+                    // A Vintage test id names exactly one public no-argument
+                    // @org.junit.Test method. Resolving it from the id is exact
+                    // even when the class inherits same-named overloads (Mage's
+                    // CardTestPlayerAPIImpl.attack(int, TestPlayer, String) next
+                    // to a test method attack()), where the name-only MethodSource
+                    // fallback below is ambiguous and would drop the observation.
+                    try {
+                        method = vintageMethodIdentityOf(identifier);
+                    } catch (ReflectiveOperationException | RuntimeException unresolved) {
+                        method = "";
+                    }
+                }
+                if (method.isEmpty()
+                        && !dynamicTest
                         && identifier.getSource().isPresent()
                         && identifier.getSource().get() instanceof MethodSource) {
                     try {
@@ -790,13 +805,8 @@ public final class TrustedTestDriver {
                                 identifier.isTest(), "", "", "", "",
                                 "unresolved_method_identity:" + identifier.getUniqueId());
                     }
-                } else if (identifier.isTest() && "junit-vintage".equals(engine)) {
-                    try {
-                        method = vintageMethodIdentityOf(identifier);
-                    } catch (ReflectiveOperationException | RuntimeException ignored) {
-                        // A required Vintage method then remains unobserved and fails closed.
-                    }
                 }
+                // An unresolved required Vintage method remains unobserved and fails closed.
 
                 String className = "";
                 String origin = "";
