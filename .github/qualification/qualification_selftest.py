@@ -1882,10 +1882,26 @@ public final class Attack {
   catch (Throwable denied) { return refused(denied); }
  }
  // A containment refusal may surface directly or wrapped, e.g. as the cause of
- // an ExceptionInInitializerError when a JDK class initializer is refused.
+ // an ExceptionInInitializerError when a JDK class initializer is refused. A
+ // later use of that class in the same JVM then throws a cause-less
+ // NoClassDefFoundError("Could not initialize class X"); it counts as a
+ // refusal only for a class whose initializer this probe saw refused.
+ private static final java.util.Set<String> REFUSED_INIT =
+     java.util.concurrent.ConcurrentHashMap.newKeySet();
  private static boolean refused(Throwable t) {
   for (Throwable x = t; x != null; x = x.getCause() == x ? null : x.getCause()) {
-   if (x instanceof SecurityException) return true;
+   if (x instanceof SecurityException) {
+    for (StackTraceElement frame : x.getStackTrace()) {
+     if ("<clinit>".equals(frame.getMethodName())) REFUSED_INIT.add(frame.getClassName());
+    }
+    return true;
+   }
+   String message = x.getMessage();
+   if (x instanceof NoClassDefFoundError && message != null
+       && message.startsWith("Could not initialize class ")
+       && REFUSED_INIT.contains(message.substring("Could not initialize class ".length()).trim())) {
+    return true;
+   }
   }
   return false;
  }
