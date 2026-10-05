@@ -1879,8 +1879,29 @@ import javax.management.ObjectName;
 public final class Attack {
  private static boolean securityBlocked(Throwing action) {
   try { action.run(); return false; }
-  catch (SecurityException expected) { return true; }
-  catch (Exception unexpected) { return false; }
+  catch (Throwable denied) { return refused(denied); }
+ }
+ // A containment refusal may surface directly or wrapped, e.g. as the cause of
+ // an ExceptionInInitializerError when a JDK class initializer is refused.
+ private static boolean refused(Throwable t) {
+  for (Throwable x = t; x != null; x = x.getCause() == x ? null : x.getCause()) {
+   if (x instanceof SecurityException) return true;
+  }
+  return false;
+ }
+ // JVM input arguments via JMX, else /proc/self/cmdline; null when both reads
+ // are refused (the candidate then cannot discover them at all).
+ private static java.util.List<String> inputArguments() {
+  try { return ManagementFactory.getRuntimeMXBean().getInputArguments(); }
+  catch (Throwable jmx) { if (!refused(jmx)) throw jmx; }
+  try {
+   String raw = new String(Files.readAllBytes(Paths.get("/proc/self/cmdline")),
+       java.nio.charset.StandardCharsets.UTF_8);
+   return java.util.Arrays.asList(raw.split("\u0000"));
+  } catch (Throwable proc) {
+   if (refused(proc)) return null;
+   throw new IllegalStateException(proc);
+  }
  }
  @FunctionalInterface private interface Throwing { void run() throws Exception; }
 
@@ -1898,7 +1919,9 @@ public final class Attack {
  }
  public static boolean channelBlocked() {
   String address = null;
-  for (String arg : ManagementFactory.getRuntimeMXBean().getInputArguments()) {
+  java.util.List<String> args = inputArguments();
+  if (args == null) return true;
+  for (String arg : args) {
    int p = arg.indexOf("address=");
    if (p >= 0) {
     address = arg.substring(p + 8);
@@ -1917,22 +1940,20 @@ public final class Attack {
   });
  }
  public static boolean unixSocketBlocked() {
-  try (SocketChannel ignored = SocketChannel.open(StandardProtocolFamily.UNIX)) {
+  // Opening an unbound channel is not access-checked; connecting is.
+  try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.UNIX)) {
+   channel.connect(java.net.UnixDomainSocketAddress.of("/nonexistent/c12-probe.sock"));
    return false;
-  } catch (SecurityException expected) {
-   return true;
-  } catch (java.io.IOException other) {
-   return false;
+  } catch (Throwable other) {
+   return refused(other);
   }
  }
  public static boolean attachBlocked() {
   try {
    VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
    return false;
-  } catch (SecurityException expected) {
-   return true;
-  } catch (Exception other) {
-   return false;
+  } catch (Throwable other) {
+   return refused(other);
   }
  }
  public static boolean jmxBlocked() {
@@ -1940,10 +1961,8 @@ public final class Attack {
    ManagementFactory.getPlatformMBeanServer().getAttribute(
        new ObjectName("java.lang:type=Runtime"), "Name");
    return false;
-  } catch (SecurityException expected) {
-   return true;
-  } catch (Exception other) {
-   return false;
+  } catch (Throwable other) {
+   return refused(other);
   }
  }
  public static boolean processBlocked() {
@@ -1972,8 +1991,8 @@ public final class Attack {
     }
     return cause instanceof SecurityException;
    }
-  } catch (Exception unexpected) {
-   return false;
+  } catch (Throwable unexpected) {
+   return refused(unexpected);
   }
  }
  @SuppressWarnings("removal")
@@ -2009,8 +2028,8 @@ public final class Attack {
     }
     return cause instanceof SecurityException;
    }
-  } catch (Exception unexpected) {
-   return false;
+  } catch (Throwable unexpected) {
+   return refused(unexpected);
   }
  }
  public static boolean fdDiscoveryBlocked() {
@@ -2074,8 +2093,8 @@ public final class Attack {
     return cause instanceof SecurityException
         && String.valueOf(cause.getMessage()).contains("runtime-permission:createClassLoader");
    }
-  } catch (Exception unexpected) {
-   return false;
+  } catch (Throwable unexpected) {
+   return refused(unexpected);
   }
  }
  // Encapsulation control: the admitted loader type is package-private in a
@@ -2113,7 +2132,8 @@ public final class Attack {
    String k = e.getKey().toUpperCase(java.util.Locale.ROOT);
    if (k.contains("WITNESS") || k.contains("RECEIPT") || k.contains("SECRET") || k.contains("TOKEN")) return false;
   }
-  for (String arg : ManagementFactory.getRuntimeMXBean().getInputArguments()) {
+  java.util.List<String> args = inputArguments();
+  for (String arg : args == null ? java.util.List.<String>of() : args) {
    if (arg.contains("observer-receipts") || arg.contains("TRUSTED_WITNESS")) return false;
   }
   return System.getProperty("c12.receipt") == null && System.getProperty("c12.witness.key") == null;
