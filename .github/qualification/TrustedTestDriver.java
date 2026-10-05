@@ -218,6 +218,10 @@ public final class TrustedTestDriver {
                 boolean junit4Rule = hasDirectAnnotation(field, "org.junit.Rule")
                         || hasDirectAnnotation(field, "org.junit.ClassRule");
                 if (junit4Rule) {
+                    String ownerViolation = rejectControlType(
+                            "registered_rule_owner", field.getDeclaringClass(),
+                            untrustedPrefixes, where);
+                    if (ownerViolation != null) return ownerViolation;
                     Class<?> ruleType = field.getType();
                     String typeViolation = rejectControlType(
                             "registered_rule", ruleType, untrustedPrefixes, where);
@@ -239,6 +243,10 @@ public final class TrustedTestDriver {
                 boolean junit4Rule = hasDirectAnnotation(method, "org.junit.Rule")
                         || hasDirectAnnotation(method, "org.junit.ClassRule");
                 if (junit4Rule) {
+                    String ownerViolation = rejectControlType(
+                            "registered_rule_owner", method.getDeclaringClass(),
+                            untrustedPrefixes, where);
+                    if (ownerViolation != null) return ownerViolation;
                     Class<?> ruleType = method.getReturnType();
                     String typeViolation = rejectControlType(
                             "registered_rule", ruleType, untrustedPrefixes, where);
