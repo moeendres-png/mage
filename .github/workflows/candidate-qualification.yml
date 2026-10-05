@@ -356,9 +356,13 @@ jobs:
             ${{ env.EVIDENCE_DIR }}/BUILD_RESULT.json
             ${{ env.EVIDENCE_DIR }}/MODULE_CLASSPATHS.json
             ${{ env.EVIDENCE_DIR }}/MODULE_CLASSPATHS_RECORD.json
+            ${{ env.EVIDENCE_DIR }}/TRUSTED_MODULE_CLASSPATHS.json
+            ${{ env.EVIDENCE_DIR }}/TRUSTED_MODULE_CLASSPATHS_RECORD.json
             ${{ env.EVIDENCE_DIR }}/TRUSTED_WITNESS.json
             ${{ env.EVIDENCE_DIR }}/INTEGRITY.json
             ${{ env.EVIDENCE_DIR }}/QUALIFICATION_EVIDENCE.json
+            ${{ runner.temp }}/c12-seals/before-candidate.json
+            ${{ runner.temp }}/c12-seals/after-witness.json
           if-no-files-found: error
           retention-days: 30
       - name: Publish source-bound qualification summary
