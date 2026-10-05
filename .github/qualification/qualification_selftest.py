@@ -2249,6 +2249,41 @@ def module_controls(h: Harness) -> list[dict]:
         "FAIL", result, reason="test_failures",
     ))
 
+    escape_files = project(
+        {"ModuleBTest": MODULE_B_USES_MAIN},
+        module="modEscape",
+        extra={"modEscape/src/main/java/probe/LibB.java": LIB_B_ESCAPE_SOURCE},
+    )
+    fx = h.fixture("CTRL-93-module-output-symlink-escape-refused", escape_files)
+    escape_state = {}
+
+    def escape_main_output(_h, _fx):
+        target = h.sandbox_dir / "candidate" / "modEscape" / "target" / "classes"
+        escaped = h.sandbox_dir / "escaped-main"
+        proc = h.as_candidate(
+            h.sandbox_dir,
+            ["/bin/sh", "-c",
+             'rm -rf "$2" && mv "$1" "$2" && ln -s "$2" "$1"',
+             "c12", str(target), str(escaped)],
+        )
+        escape_state["applied"] = (
+            proc.returncode == 0
+            and target.is_symlink()
+            and target.resolve() == escaped.resolve()
+            and escaped.is_dir()
+        )
+
+    result = h.pipeline(
+        fx, build_modules=["modEscape"], after_build=escape_main_output
+    )
+    rows.append(row(
+        "CTRL-93-module-output-symlink-escape-refused", "red",
+        "candidate target/classes cannot escape its contained output prefix through a symlink and thereby lose hostile-bytecode capability checks",
+        "UNKNOWN", result, reason="candidate_module_output_outside_candidate_root",
+        extra_ok=escape_state.get("applied") is True,
+        extra={"symlink_escape_applied": escape_state.get("applied")},
+    ))
+
     empty = {}
     empty.update(project({"ModuleATest": MODULE_A_TEST}, module="modA"))
     empty.update(project({"Helper": "package probe;\n\npublic final class Helper {\n}\n"}, module="modEmpty"))
@@ -2288,6 +2323,24 @@ public final class LibB {
     }
 
     public static int five() {
+        return 5;
+    }
+}
+"""
+
+LIB_B_ESCAPE_SOURCE = """package probe;
+
+public final class LibB {
+
+    private LibB() {
+    }
+
+    public static int five() {
+        // If this class is loaded from a candidate-writable directory that is
+        // accidentally omitted from untrustedPrefixes, the property write is
+        // allowed and the trusted test passes. Correct containment refuses the
+        // escaped output path before this code can execute.
+        System.setProperty("c12.symlink.escape", "reached");
         return 5;
     }
 }
