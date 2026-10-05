@@ -2142,6 +2142,33 @@ public final class CandidateRule implements TestRule {
         "FAIL", result, reason="candidate_junit_control_code",
     ))
 
+    candidate_rule_owner = """package probe;
+import org.junit.Rule;
+import org.junit.rules.TestName;
+public class CandidateRuleOwner {
+ @Rule public TestName name = new TestName();
+}
+"""
+    trusted_inheriting_rule_test = """package probe;
+import org.junit.Test;
+public class ProbeTest extends CandidateRuleOwner {
+ @Test public void proof() { }
+}
+"""
+    candidate_rule_owner_project = project(
+        {"ProbeTest": trusted_inheriting_rule_test},
+        pom=junit4_main_pom,
+        extra={"src/main/java/probe/CandidateRuleOwner.java": candidate_rule_owner},
+    )
+    fx = h.fixture("CTRL-98-candidate-origin-built-in-rule-member-refused",
+                   candidate_rule_owner_project, candidate_rule_owner_project)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-98-candidate-origin-built-in-rule-member-refused", "red",
+        "a candidate production superclass cannot inject even an allowlisted built-in JUnit4 Rule member",
+        "FAIL", result, reason="candidate_junit_control_code",
+    ))
+
     vintage_test = """package probe;
 import static org.junit.Assert.assertEquals;
 import org.junit.Test;
