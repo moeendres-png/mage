@@ -1637,6 +1637,9 @@ public final class Attack {
  public static boolean reflectionBlocked() { return true; }
  public static boolean observerHidden() { return true; }
  public static boolean channelBlocked() { return true; }
+ public static boolean unixSocketBlocked() { return true; }
+ public static boolean attachBlocked() { return true; }
+ public static boolean jmxBlocked() { return true; }
  public static boolean processBlocked() { return true; }
  public static boolean fdDiscoveryBlocked() { return true; }
  public static boolean hookBlocked() { return true; }
@@ -1657,6 +1660,9 @@ public class ProbeTest {
  @Test public void reflection() { assertTrue(Attack.reflectionBlocked()); }
  @Test public void observer() { assertTrue(Attack.observerHidden()); }
  @Test public void channel() { assertTrue(Attack.channelBlocked()); }
+ @Test public void unixSocket() { assertTrue(Attack.unixSocketBlocked()); }
+ @Test public void attach() { assertTrue(Attack.attachBlocked()); }
+ @Test public void jmx() { assertTrue(Attack.jmxBlocked()); }
  @Test public void process() { assertTrue(Attack.processBlocked()); }
  @Test public void fds() { assertTrue(Attack.fdDiscoveryBlocked()); }
  @Test public void hook() { assertTrue(Attack.hookBlocked()); }
@@ -1674,9 +1680,13 @@ public class ProbeTest {
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
 import java.net.Socket;
+import java.net.StandardProtocolFamily;
+import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Map;
+import com.sun.tools.attach.VirtualMachine;
+import javax.management.ObjectName;
 
 public final class Attack {
  private static boolean blocked(Throwing action) {
@@ -1717,6 +1727,36 @@ public final class Attack {
    if (colon >= 0) { host = addr.substring(0, colon); portText = addr.substring(colon + 1); }
    try (Socket ignored = new Socket(host, Integer.parseInt(portText))) { }
   });
+ }
+ public static boolean unixSocketBlocked() {
+  try (SocketChannel ignored = SocketChannel.open(StandardProtocolFamily.UNIX)) {
+   return false;
+  } catch (SecurityException expected) {
+   return true;
+  } catch (java.io.IOException other) {
+   return false;
+  }
+ }
+ public static boolean attachBlocked() {
+  try {
+   VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
+   return false;
+  } catch (SecurityException expected) {
+   return true;
+  } catch (Exception other) {
+   return false;
+  }
+ }
+ public static boolean jmxBlocked() {
+  try {
+   ManagementFactory.getPlatformMBeanServer().getAttribute(
+       new ObjectName("java.lang:type=Runtime"), "Name");
+   return false;
+  } catch (SecurityException expected) {
+   return true;
+  } catch (Exception other) {
+   return false;
+  }
  }
  public static boolean processBlocked() {
   return blocked(() -> new ProcessBuilder("/bin/true").start());
@@ -1770,7 +1810,7 @@ public final class Attack {
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but reflection, authority discovery, channel reuse, process/socket/fd/native/classloader/TCCL/property/shutdown/exit escape paths are denied",
+        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX management, process/fd/native/classloader/TCCL/property/shutdown/exit escape paths are denied",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
