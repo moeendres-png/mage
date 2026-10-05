@@ -52,6 +52,10 @@ jobs:
           # API (with opentest4j and apiguardian) from the seeded repository; a
           # cold Maven cache would leave them NOT_RUN.
           mvn -B -q dependency:get -Dartifact=org.junit.jupiter:junit-jupiter-api:5.8.1
+          # Evidence-harness enablement only: pre-resolve the same fixture
+          # runtime graph so CTRL-87 reaches the historical vulnerable mechanism.
+          mvn -B -q dependency:get -Dartifact=org.junit.jupiter:junit-jupiter:5.8.1
+          mvn -B -q dependency:get -Dartifact=org.junit.vintage:junit-vintage-engine:5.8.1
           jar="${HOME}/.m2/repository/org/junit/platform/junit-platform-console-standalone/${JUNIT_PLATFORM_VERSION}/junit-platform-console-standalone-${JUNIT_PLATFORM_VERSION}.jar"
           test -f "$jar"
           echo "TRUSTED_JUNIT_CLASSPATH=$jar" >> "$GITHUB_ENV"
