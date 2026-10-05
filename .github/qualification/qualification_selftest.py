@@ -2168,6 +2168,28 @@ public final class CatchingRunner extends Runner {
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
+    test_factory = """package probe;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.TestFactory;
+public class ProbeTest {
+ @TestFactory
+ public Stream<DynamicTest> factoryProof() {
+  return Stream.of(DynamicTest.dynamicTest("child", () -> assertEquals(2, 1 + 1)));
+ }
+}
+"""
+    factory_project = project({"ProbeTest": test_factory})
+    fx = h.fixture("CTRL-95-required-test-factory-body-positive",
+                   factory_project, factory_project)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-95-required-test-factory-body-positive", "positive",
+        "a required Jupiter TestFactory container earns body credit only when the factory method itself enters and returns normally before its dynamic children run",
+        "PASS", result, extra_ok=result.get("credit") is True,
+    ))
+
     return rows
 
 
