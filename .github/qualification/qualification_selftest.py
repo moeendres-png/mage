@@ -1776,6 +1776,7 @@ public final class Attack {
  public static boolean attachBlocked() { return true; }
  public static boolean jmxBlocked() { return true; }
  public static boolean processBlocked() { return true; }
+ public static boolean launderedProcessBlocked() { return true; }
  public static boolean fdDiscoveryBlocked() { return true; }
  public static boolean hookBlocked() { return true; }
  public static boolean nativeLoadBlocked() { return true; }
@@ -1799,6 +1800,7 @@ public class ProbeTest {
  @Test public void attach() { assertTrue(Attack.attachBlocked()); }
  @Test public void jmx() { assertTrue(Attack.jmxBlocked()); }
  @Test public void process() { assertTrue(Attack.processBlocked()); }
+ @Test public void launderedProcess() { assertTrue(Attack.launderedProcessBlocked()); }
  @Test public void fds() { assertTrue(Attack.fdDiscoveryBlocked()); }
  @Test public void hook() { assertTrue(Attack.hookBlocked()); }
  @Test public void nativeLoad() { assertTrue(Attack.nativeLoadBlocked()); }
@@ -1814,7 +1816,14 @@ public class ProbeTest {
     hostile = r"""package probe;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandleProxies;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.net.Socket;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
 import java.net.StandardProtocolFamily;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
@@ -1896,6 +1905,33 @@ public final class Attack {
  public static boolean processBlocked() {
   return securityBlocked(() -> new ProcessBuilder("/bin/true").start());
  }
+ public static boolean launderedProcessBlocked() {
+  try {
+   MethodHandle start = MethodHandles.lookup().findVirtual(
+       ProcessBuilder.class, "start", MethodType.methodType(Process.class))
+       .bindTo(new ProcessBuilder("/bin/true"));
+   @SuppressWarnings("unchecked")
+   Callable<Process> proxy = (Callable<Process>) MethodHandleProxies.asInterfaceInstance(
+       Callable.class, start);
+   FutureTask<Process> task = new FutureTask<>(proxy);
+   Thread thread = new Thread(task, "c12-method-handle-proxy");
+   thread.start();
+   thread.join();
+   try {
+    task.get();
+    return false;
+   } catch (ExecutionException expected) {
+    Throwable cause = expected.getCause();
+    while (cause != null && !(cause instanceof SecurityException)
+        && cause.getCause() != cause) {
+     cause = cause.getCause();
+    }
+    return cause instanceof SecurityException;
+   }
+  } catch (Exception unexpected) {
+   return false;
+  }
+ }
  public static boolean fdDiscoveryBlocked() {
   return securityBlocked(() -> { try (java.util.stream.Stream<java.nio.file.Path> ignored =
       Files.list(Paths.get("/proc/self/fd"))) { ignored.count(); } });
@@ -1945,7 +1981,7 @@ public final class Attack {
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX management, process/fd/native/classloader/TCCL/property/shutdown/exit escape paths are denied",
+        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX management, direct and MethodHandle/new-thread-laundered process, fd/native/classloader/TCCL/property/shutdown/exit escape paths are denied",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
@@ -2050,6 +2086,62 @@ public final class GateExtension implements InvocationInterceptor {
       <version>4.13.2</version>""",
         1,
     )
+    trusted_rule_test = """package probe;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestName;
+public class ProbeTest {
+ @Rule public TestName testName = new TestName();
+ @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
+ @Test public void proof() throws Exception {
+  assertEquals("proof", testName.getMethodName());
+  assertTrue(tempFolder.newFolder().isDirectory());
+ }
+}
+"""
+    trusted_rule_project = project({"ProbeTest": trusted_rule_test}, pom=junit4_main_pom)
+    fx = h.fixture("CTRL-96-trusted-junit4-built-in-rules-positive",
+                   trusted_rule_project, trusted_rule_project)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-96-trusted-junit4-built-in-rules-positive", "positive",
+        "current-corpus trusted JUnit4 TestName and TemporaryFolder rules remain executable",
+        "PASS", result, extra_ok=result.get("credit") is True,
+    ))
+
+    candidate_rule_test = """package probe;
+import org.junit.Rule;
+import org.junit.Test;
+public class ProbeTest {
+ @Rule public CandidateRule rule = new CandidateRule();
+ @Test public void proof() { }
+}
+"""
+    candidate_rule = """package probe;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
+public final class CandidateRule implements TestRule {
+ @Override public Statement apply(Statement base, Description description) { return base; }
+}
+"""
+    candidate_rule_project = project(
+        {"ProbeTest": candidate_rule_test},
+        pom=junit4_main_pom,
+        extra={"src/main/java/probe/CandidateRule.java": candidate_rule},
+    )
+    fx = h.fixture("CTRL-97-candidate-origin-junit4-rule-refused",
+                   candidate_rule_project, candidate_rule_project)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-97-candidate-origin-junit4-rule-refused", "red",
+        "candidate production code cannot become JUnit4 Rule execution authority",
+        "FAIL", result, reason="candidate_junit_control_code",
+    ))
+
     vintage_test = """package probe;
 import static org.junit.Assert.assertEquals;
 import org.junit.Test;
