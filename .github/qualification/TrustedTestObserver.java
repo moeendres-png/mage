@@ -491,29 +491,67 @@ public final class TrustedTestObserver {
                     break;
                 }
                 try {
+                    // EventSet is a Set, not a causally ordered list. HotSpot may
+                    // batch the trusted STARTED hook, body entry/exit and FINISHED
+                    // hook in one set. Processing FINISHED first would erase the
+                    // thread correlation before the body exit is observed and
+                    // fabricate a "body not completed" failure. Re-impose only
+                    // the causal partial order that qualification needs:
+                    // STARTED -> body ENTRY -> body EXIT -> other hooks -> VM end.
+                    List<MethodEntryEvent> hookStarted = new ArrayList<>();
+                    List<MethodEntryEvent> bodyEntered = new ArrayList<>();
+                    List<MethodExitEvent> bodyExited = new ArrayList<>();
+                    List<MethodEntryEvent> otherHooks = new ArrayList<>();
+                    List<Event> terminalEvents = new ArrayList<>();
+
                     for (Event event : set) {
                         if (event instanceof MethodEntryEvent) {
-                            MethodEntryEvent entered = (MethodEntryEvent)event;
+                            MethodEntryEvent entered = (MethodEntryEvent) event;
                             String name = entered.method().name();
                             if (HOOK_CLASS.equals(entered.method().declaringType().name())
                                     && name.startsWith("observer")) {
-                                state.hook(name, args(entered), entered.thread().uniqueID());
-                            } else {
-                                String identity = methodIdentity(entered.method());
-                                if (requiredMethods.contains(identity)) {
-                                    state.bodyEntry(entered.thread().uniqueID(), identity);
+                                List<Value> values = args(entered);
+                                if ("observerEvent".equals(name)
+                                        && values.size() == 9
+                                        && "STARTED".equals(text(values.get(0)))) {
+                                    hookStarted.add(entered);
+                                } else {
+                                    otherHooks.add(entered);
                                 }
+                            } else {
+                                bodyEntered.add(entered);
                             }
                         } else if (event instanceof MethodExitEvent) {
-                            MethodExitEvent exited = (MethodExitEvent)event;
-                            String identity = methodIdentity(exited.method());
-                            if (requiredMethods.contains(identity)) {
-                                state.bodyExit(exited.thread().uniqueID(), identity);
-                            }
-                        } else if (event instanceof VMDeathEvent) {
-                            observerStatus = state.completeSeen ? "COMPLETE" : "INCOMPLETE";
-                            done = true;
-                        } else if (event instanceof VMDisconnectEvent) {
+                            bodyExited.add((MethodExitEvent) event);
+                        } else if (event instanceof VMDeathEvent
+                                || event instanceof VMDisconnectEvent) {
+                            terminalEvents.add(event);
+                        }
+                    }
+
+                    for (MethodEntryEvent entered : hookStarted) {
+                        state.hook(entered.method().name(), args(entered),
+                                entered.thread().uniqueID());
+                    }
+                    for (MethodEntryEvent entered : bodyEntered) {
+                        String identity = methodIdentity(entered.method());
+                        if (requiredMethods.contains(identity)) {
+                            state.bodyEntry(entered.thread().uniqueID(), identity);
+                        }
+                    }
+                    for (MethodExitEvent exited : bodyExited) {
+                        String identity = methodIdentity(exited.method());
+                        if (requiredMethods.contains(identity)) {
+                            state.bodyExit(exited.thread().uniqueID(), identity);
+                        }
+                    }
+                    for (MethodEntryEvent entered : otherHooks) {
+                        state.hook(entered.method().name(), args(entered),
+                                entered.thread().uniqueID());
+                    }
+                    for (Event event : terminalEvents) {
+                        if (event instanceof VMDeathEvent
+                                || event instanceof VMDisconnectEvent) {
                             observerStatus = state.completeSeen ? "COMPLETE" : "INCOMPLETE";
                             done = true;
                         }
