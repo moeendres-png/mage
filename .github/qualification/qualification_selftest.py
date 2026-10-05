@@ -2315,6 +2315,7 @@ def static_controls() -> list[dict]:
         "BUILD_RESULT.json",
         "MODULE_CLASSPATHS.json",
         "TRUSTED_MODULE_CLASSPATHS.json",
+        "TRUSTED_MODULE_CLASSPATHS_RECORD.json",
         "TRUSTED_WITNESS.json",
         "INTEGRITY.json",
         "QUALIFICATION_EVIDENCE.json",
@@ -2334,6 +2335,14 @@ def static_controls() -> list[dict]:
     ):
         if required not in text:
             problems.append("trusted workflow is missing {!r}".format(required))
+    expected_classpath_output = "-Dmdep.outputFile=" + resolve_classpaths.CLASSPATH_FILE
+    if text.count(expected_classpath_output) < 2:
+        problems.append(
+            "trusted and candidate classpath producers must both use {!r}".format(
+                resolve_classpaths.CLASSPATH_FILE
+            )
+        )
+
     for forbidden in (
         "--candidate-ref",
         "continue-on-error",
