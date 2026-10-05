@@ -288,6 +288,7 @@ class Harness:
         # Root-owned parents only (/opt is world-writable on hosted runners).
         self.bundle_dir = Path("/var/lib/c12-selftest/bundle")
         self.runtime_dir = Path("/var/lib/c12-selftest/runtime")
+        self.staged: list[Path] = []
         self.seed = str(Path(os.environ.get("HOME", "/root")) / ".m2" / "repository")
 
     # -- fixtures ---------------------------------------------------------
@@ -404,6 +405,7 @@ class Harness:
     def stage_readonly(self, src: Path, name: str) -> Path:
         dest = Path("/var/lib/c12-selftest") / name
         sandbox.stage_readonly(src, dest)
+        self.staged.append(dest)
         return dest
 
     def cleanup(self) -> None:
@@ -411,7 +413,12 @@ class Harness:
             sandbox.reap(self.user)
         except sandbox.SandboxError:
             pass
-        subprocess.run(sandbox._priv(["rm", "-rf", "/var/lib/c12-selftest", str(self.sandbox_dir)]),
+        # Remove only what this harness created. /var/lib/c12-selftest also
+        # holds the workflow's root-owned jdk/ and maven/, which a later
+        # invocation in the same job (the full matrix after the honest smoke)
+        # still needs.
+        owned = [self.bundle_dir, self.runtime_dir, *self.staged, self.sandbox_dir]
+        subprocess.run(sandbox._priv(["rm", "-rf", *[str(path) for path in owned]]),
                        capture_output=True, check=False)
 
     # -- the production pipeline -------------------------------------------
