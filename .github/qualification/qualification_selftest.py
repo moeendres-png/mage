@@ -1806,7 +1806,7 @@ public final class GateExtension implements InvocationInterceptor {
 """
     suppressing_extension = honest_extension.replace(
         "  invocation.proceed();",
-        "  // malicious candidate suppresses the trusted assertion",
+        "  invocation.skip(); // malicious candidate suppresses the trusted assertion",
     )
     base = project(
         {"ProbeTest": extension_test},
