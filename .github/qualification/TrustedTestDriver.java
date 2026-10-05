@@ -653,6 +653,15 @@ public final class TrustedTestDriver {
         }
     }
 
+    private static void initializeTrustedRuntimeBeforeContainment() {
+        // JUnit Platform initializes java.util.logging lazily while building the
+        // discovery request. LogManager's one-time JDK initialization requests
+        // RuntimePermission("shutdownHooks"). Perform that trusted bootstrap
+        // before the containment boundary is installed; shutdown-hook authority
+        // remains unconditionally denied for all post-boundary execution.
+        java.util.logging.LogManager.getLogManager();
+    }
+
     @SuppressWarnings("removal")
     private static void installContainment(List<Path> untrustedPrefixes) {
         Policy.setPolicy(new ContainmentPolicy(Policy.getPolicy(), untrustedPrefixes));
@@ -679,6 +688,7 @@ public final class TrustedTestDriver {
         }
 
         final Path expectedOutput = Paths.get(moduleOutput).toRealPath();
+        initializeTrustedRuntimeBeforeContainment();
         installContainment(untrustedPrefixes);
         observerStart();
 
