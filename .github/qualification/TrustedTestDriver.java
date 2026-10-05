@@ -21,7 +21,9 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.AccessController;
 import java.security.Permission;
+import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.security.SecurityPermission;
 import java.util.ArrayList;
@@ -46,6 +48,12 @@ import org.junit.platform.launcher.core.LauncherFactory;
 public final class TrustedTestDriver {
     private static final Set<String> ALLOWED_ENGINES =
             new HashSet<>(java.util.Arrays.asList("junit-jupiter", "junit-vintage"));
+    private static final Set<String> ALLOWED_TRUSTED_JUNIT4_RULE_TYPES =
+            new HashSet<>(java.util.Arrays.asList(
+                    "org.junit.rules.TestName",
+                    "org.junit.rules.TemporaryFolder"));
+    private static final RuntimePermission CAPABILITY_PERMISSION =
+            new RuntimePermission("c12.trustedCapability");
 
     // JDI observes method ENTRY and reads only immutable primitive/String args.
     // The bodies intentionally do nothing. They are private and the driver
@@ -207,9 +215,20 @@ public final class TrustedTestDriver {
                 String where = "field:" + type.getName() + "#" + field.getName();
                 violation = inspectAnnotatedElement(field, untrustedPrefixes, where);
                 if (violation != null) return violation;
-                if (hasDirectAnnotation(field, "org.junit.Rule")
-                        || hasDirectAnnotation(field, "org.junit.ClassRule")
-                        || hasDirectAnnotation(field, "org.junit.jupiter.api.extension.RegisterExtension")) {
+                boolean junit4Rule = hasDirectAnnotation(field, "org.junit.Rule")
+                        || hasDirectAnnotation(field, "org.junit.ClassRule");
+                if (junit4Rule) {
+                    Class<?> ruleType = field.getType();
+                    String typeViolation = rejectControlType(
+                            "registered_rule", ruleType, untrustedPrefixes, where);
+                    if (typeViolation != null) return typeViolation;
+                    if (!ALLOWED_TRUSTED_JUNIT4_RULE_TYPES.contains(ruleType.getName())) {
+                        return "candidate_junit_control_code:unapproved_trusted_rule_type:"
+                                + ruleType.getName() + ":" + where;
+                    }
+                }
+                if (hasDirectAnnotation(
+                        field, "org.junit.jupiter.api.extension.RegisterExtension")) {
                     return "candidate_junit_control_code:registered_member:" + where;
                 }
             }
@@ -217,9 +236,20 @@ public final class TrustedTestDriver {
                 String where = "method:" + type.getName() + "#" + method.getName();
                 violation = inspectAnnotatedElement(method, untrustedPrefixes, where);
                 if (violation != null) return violation;
-                if (hasDirectAnnotation(method, "org.junit.Rule")
-                        || hasDirectAnnotation(method, "org.junit.ClassRule")
-                        || hasDirectAnnotation(method, "org.junit.jupiter.api.extension.RegisterExtension")) {
+                boolean junit4Rule = hasDirectAnnotation(method, "org.junit.Rule")
+                        || hasDirectAnnotation(method, "org.junit.ClassRule");
+                if (junit4Rule) {
+                    Class<?> ruleType = method.getReturnType();
+                    String typeViolation = rejectControlType(
+                            "registered_rule", ruleType, untrustedPrefixes, where);
+                    if (typeViolation != null) return typeViolation;
+                    if (!ALLOWED_TRUSTED_JUNIT4_RULE_TYPES.contains(ruleType.getName())) {
+                        return "candidate_junit_control_code:unapproved_trusted_rule_type:"
+                                + ruleType.getName() + ":" + where;
+                    }
+                }
+                if (hasDirectAnnotation(
+                        method, "org.junit.jupiter.api.extension.RegisterExtension")) {
                     return "candidate_junit_control_code:registered_member:" + where;
                 }
             }
@@ -409,6 +439,49 @@ public final class TrustedTestDriver {
     }
 
     @SuppressWarnings("removal")
+    private static final class ContainmentPolicy extends Policy {
+        private final Policy delegate;
+        private final List<Path> untrustedPrefixes;
+
+        ContainmentPolicy(Policy delegate, List<Path> prefixes) {
+            this.delegate = delegate;
+            this.untrustedPrefixes = new ArrayList<>();
+            for (Path path : prefixes) {
+                this.untrustedPrefixes.add(path.toAbsolutePath().normalize());
+            }
+        }
+
+        private boolean untrustedDomain(ProtectionDomain domain) {
+            if (domain == null || domain.getCodeSource() == null
+                    || domain.getCodeSource().getLocation() == null) {
+                return false;
+            }
+            try {
+                Path source = Paths.get(domain.getCodeSource().getLocation().toURI())
+                        .toAbsolutePath().normalize();
+                return underAny(source, untrustedPrefixes);
+            } catch (Exception exc) {
+                // An opaque non-bootstrap application domain cannot gain the
+                // capability marker merely because origin resolution failed.
+                return domain.getClassLoader() != null;
+            }
+        }
+
+        @Override
+        public boolean implies(ProtectionDomain domain, Permission permission) {
+            if (CAPABILITY_PERMISSION.equals(permission)) {
+                return !untrustedDomain(domain);
+            }
+            return delegate == null || delegate.implies(domain, permission);
+        }
+
+        @Override
+        public void refresh() {
+            if (delegate != null) delegate.refresh();
+        }
+    }
+
+    @SuppressWarnings("removal")
     private static final class ContainmentSecurityManager extends SecurityManager {
         private final List<Path> untrustedPrefixes;
         private final ThreadLocal<Boolean> inspecting =
@@ -452,8 +525,17 @@ public final class TrustedTestDriver {
             }
         }
 
+        @SuppressWarnings("removal")
         private void refuse(String capability) {
-            if (untrustedOnStack()) {
+            boolean denied = untrustedOnStack();
+            if (!denied) {
+                try {
+                    AccessController.checkPermission(CAPABILITY_PERMISSION);
+                } catch (SecurityException exc) {
+                    denied = true;
+                }
+            }
+            if (denied) {
                 throw new SecurityException("C12 containment denied " + capability);
             }
         }
@@ -546,10 +628,10 @@ public final class TrustedTestDriver {
         }
     }
 
+    @SuppressWarnings("removal")
     private static void installContainment(List<Path> untrustedPrefixes) {
-        @SuppressWarnings("removal")
+        Policy.setPolicy(new ContainmentPolicy(Policy.getPolicy(), untrustedPrefixes));
         SecurityManager manager = new ContainmentSecurityManager(untrustedPrefixes);
-        @SuppressWarnings("removal")
         SecurityManager ignored = System.getSecurityManager();
         System.setSecurityManager(manager);
     }
