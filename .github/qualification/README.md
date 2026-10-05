@@ -125,7 +125,10 @@ every phase, build extensions, profiles, the parent POM, the properties the buil
 interpolates, and `.mvn/**`. A plugin bound to `initialize` is a `build_definition_changed`
 FAIL (CTRL-30). Dependencies, dependency management, repositories, module topology and
 other qualification-runtime inputs are authority-bearing as well; changing them in the
-candidate is a build-definition violation.
+candidate is a build-definition violation. The root POM also exposes
+`file://${basedir}/repository`, so tracked bytes below each module's `repository/`
+tree are dependency authority even when no POM changes. Candidate changes there fail
+`local_project_repository_changed` (CTRL-92).
 
 ### Export integrity, loaded code and tool resolution (review 2026-10-03)
 
@@ -222,9 +225,12 @@ UNKNOWN. Mergeability is recorded by a separate job that the verdict never reads
 
 ## Per-module execution
 
-- **Single reactor session.** The candidate build is one reactor session: `mvn test-compile dependency:build-classpath -Dmdep.outputFile=target/c12-test-classpath.txt`. Sibling modules therefore resolve to the candidate's own reactor output, not to an installed and possibly stale `org/mage` jar. Any remaining `org/mage` repository entry is still dropped.
-- **Classpath collection.** `resolve_classpaths.py` reads each module's file back, refusing symlinks. The module list comes from the trusted Git enumeration. A missing module fails closed.
-- **Per-module driver runs.** The driver runs once per module. It enforces that each class loads from that module's trusted-compiled output, credits `@Nested` classes to the top-level class, and aggregates over `(module, class)` pairs.
+- **Candidate classpath is observation, not authority.** The candidate build still runs one reactor session and records `target/c12-test-classpath.txt` per module, but this map is used only to prove that every required module resolved. It does not decide which dependency bytes the trusted driver executes.
+- **Trusted pre-candidate reactor graph.** Before any candidate code runs, the default-branch validator runs its own `test-compile dependency:build-classpath` over the trusted reactor. `TRUSTED_MODULE_CLASSPATHS.json` is sealed before candidate execution and is the runtime graph authority. Trusted reactor `target/classes` entries are mapped to the corresponding candidate main outputs (the code under test); external Maven entries execute only from the candidate-inaccessible trusted Maven cache. Maven dependency order is preserved exactly. An unrelated sibling therefore cannot be injected merely because it has required tests (CTRL-91).
+- **Output containment.** Every mapped reactor output must resolve under the candidate checkout. The tested module's own `target/classes` must resolve to its exact lexical path; a symlink/ancestor escape is refused before execution, so code moved to a candidate-writable path outside the containment prefixes cannot shed the hostile-bytecode policy (CTRL-93).
+- **Classpath collection.** `resolve_classpaths.py` refuses a symlink as the classpath record itself. Missing candidate-observation or trusted-authority entries fail closed.
+- **Evidence persistence.** The qualification artifact includes both candidate and trusted classpath maps/records plus the before-candidate and after-witness evidence seals.
+- **Per-module driver runs.** The driver runs once per module. It enforces that each trusted test class loads from that module's trusted-compiled output, credits `@Nested` classes to the top-level class, and aggregates over `(module, class)` pairs.
 
 ## Controls
 
@@ -256,12 +262,12 @@ real `c12cand` account.
 
 | family | controls |
 | --- | --- |
-| P1-1 trust domain | CTRL-26–29: test code overwrites `qualify.py`, `witness.py`, the source lock and evidence (target unchanged, integrity OK, a genuinely failing candidate stays FAIL); CTRL-30: initialize-phase plugin; CTRL-31: test-bytecode mutation; CTRL-32: environment scrubbed (positive); CTRL-33–35: simulated breaches are caught; CTRL-36: writable trusted path refused; CTRL-38: candidate-side witness decoy ignored; CTRL-84: hostile-bytecode containment; CTRL-85/86: candidate test edits/additions earn no authority; CTRL-87/88: candidate Jupiter extension or Vintage runner cannot fabricate green lifecycle credit; CTRL-89/90: parent-observed method-body completion negative/positive controls |
+| P1-1 trust domain | CTRL-26–29: test code overwrites `qualify.py`, `witness.py`, the source lock and evidence (target unchanged, integrity OK, a genuinely failing candidate stays FAIL); CTRL-30: initialize-phase plugin; CTRL-31: test-bytecode mutation; CTRL-32: environment scrubbed (positive); CTRL-33–35: simulated breaches are caught; CTRL-36: writable trusted path refused; CTRL-38: candidate-side witness decoy ignored; CTRL-84: hostile-bytecode containment; CTRL-85/86: candidate test edits/additions earn no authority; CTRL-87/88: candidate Jupiter extension or Vintage runner cannot fabricate green lifecycle credit; CTRL-89/90: parent-observed method-body completion negative/positive controls; CTRL-92: module-local Maven repository mutation is authority-bearing |
 | P1-2 corpus | CTRL-40: honest (positive); CTRL-41: mass rename leaving one; CTRL-42: delete; CTRL-43: move out of test roots; CTRL-44: rename out of regex; CTRL-45: green subset; CTRL-46: legitimate addition (positive); CTRL-47: addition without baseline update; CTRL-48: approved removal path (positive); CTRL-49: removal without default-branch approval; CTRL-50: malformed baseline; CTRL-51: missing baseline; CTRL-52: stale baseline; CTRL-53: candidate behind default branch; CTRL-56: within-class method shrink; CTRL-57: method disabled; CTRL-58: method renamed; CTRL-59: required method never started (static reading fooled); CTRL-64: approved method removal (positive); CTRL-65: method additions (positive) |
 | reports, suppression, binding | CTRL-01–09 |
 | source lock | CTRL-10–14 |
 | static | CTRL-15: workflow contract (Maven only inside the sandbox, `-I -B`, independent integrity enforcement); CTRL-16: no report harvesting; CTRL-17: driver present; CTRL-37: no candidate test bytecode |
-| per-module | CTRL-18–25 |
+| per-module | CTRL-18–25; CTRL-91: unrelated sibling FQN cannot shadow a trusted dependency; CTRL-93: module-output symlink escape is refused |
 | JUnit configuration and PATH (second review) | CTRL-60–62: an auto-detected extension via test resources, main resources or a dependency jar cannot hide a failing test; CTRL-63: a candidate-writable PATH entry refuses the sandbox and fails integrity; CTRL-66: a `.class` test resource cannot replace trusted-compiled bytecode |
 
 **Meta-control.** With a scorer that always returns `PASS`, the suite reports
@@ -284,7 +290,7 @@ suite fails.
   - **Limit:** an inherited test is not required by name; it is credited through its class being entered and every failure counting. A superclass outside the test source roots, or named as a nested type, is not resolved, so a class inheriting only from such a superclass is not run.
 - **Method identity binds declaring class and qualified erased parameter signature (v4).** Nested and overloaded test removal controls CTRL-71–78 protect separate declarations. Ambiguous normalized signatures cannot earn PASS. A required `@ParameterizedTest`, `@RepeatedTest` or `@TestFactory` counts as started when its container starts, even if every invocation is skipped. Static enumeration misses composed or meta `@Test` annotations, `@Theory`, and JUnit 3 `final` methods. Such methods are not required by name: they still run when their class runs, but a regression in a method whose class is never run is not seen.
 - **Network egress.** Candidate build code still has the runner's network access. The job is read-only, persists no credentials and references no secret.
-- **Main-class bytecode** comes from the candidate's Maven build under an audited build definition, with annotation processing disabled.
+- **Main-class bytecode** comes from the candidate's Maven build under an audited build definition, with annotation processing disabled. Which reactor outputs may participate is fixed by the trusted pre-candidate dependency graph, and their canonical paths must remain inside the candidate checkout; candidate classpath text itself grants no runtime authority.
 - **The inherited `Mage.Verify` red** (`VerifyCardDataTest`, external card-data drift) fails every candidate's positive control. It is deliberately not excluded. Which signals belong in the campaign is C13's decision (#494), and the drift is C14's (#495).
 - **Runtime.** `pull_request_target` runs the default-branch copy, so the gate cannot prove itself live on the PR that introduces it. `C12_RUNTIME` stays `UNKNOWN` until the post-merge live controls run. The workflow is **not** a required status check.
 
