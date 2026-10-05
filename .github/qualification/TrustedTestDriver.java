@@ -548,13 +548,23 @@ public final class TrustedTestDriver {
             }
         }
 
-        @Override public void checkExit(int status) { refuse("vm-exit"); }
-        @Override public void checkExec(String cmd) { refuse("process-exec"); }
-        @Override public void checkConnect(String host, int port) { refuse("socket-connect"); }
-        @Override public void checkConnect(String host, int port, Object context) { refuse("socket-connect"); }
-        @Override public void checkListen(int port) { refuse("socket-listen"); }
-        @Override public void checkAccept(String host, int port) { refuse("socket-accept"); }
-        @Override public void checkMulticast(InetAddress maddr) { refuse("socket-multicast"); }
+        private void denyAlways(String capability) {
+            // These capabilities are unnecessary to the trusted test launcher
+            // once containment is installed and can directly cross the process
+            // boundary or disable the boundary itself. Do not rely on stack or
+            // AccessControlContext provenance here: AccessController.doPrivileged
+            // and JDK-owned MethodHandle proxies can intentionally truncate the
+            // caller context.
+            throw new SecurityException("C12 containment denied " + capability);
+        }
+
+        @Override public void checkExit(int status) { denyAlways("vm-exit"); }
+        @Override public void checkExec(String cmd) { denyAlways("process-exec"); }
+        @Override public void checkConnect(String host, int port) { denyAlways("socket-connect"); }
+        @Override public void checkConnect(String host, int port, Object context) { denyAlways("socket-connect"); }
+        @Override public void checkListen(int port) { denyAlways("socket-listen"); }
+        @Override public void checkAccept(String host, int port) { denyAlways("socket-accept"); }
+        @Override public void checkMulticast(InetAddress maddr) { denyAlways("socket-multicast"); }
 
         @Override public void checkRead(String file) {
             if (file != null) {
@@ -562,7 +572,7 @@ public final class TrustedTestDriver {
                 if (normalized.equals("/proc") || normalized.startsWith("/proc/")
                         || normalized.equals("/sys") || normalized.startsWith("/sys/")
                         || normalized.equals("/dev/fd") || normalized.startsWith("/dev/fd/")) {
-                    refuse("fd-or-kernel-discovery");
+                    denyAlways("fd-or-kernel-discovery");
                 }
             }
         }
@@ -590,7 +600,7 @@ public final class TrustedTestDriver {
                         && "control".equals(name))
                     || ("java.net.NetPermission".equals(permissionType)
                         && "accessUnixDomainSocket".equals(name))) {
-                refuse("capability-permission:" + permissionType + ":" + name);
+                denyAlways("capability-permission:" + permissionType + ":" + name);
                 return;
             }
             if (permission instanceof ReflectPermission
@@ -602,9 +612,7 @@ public final class TrustedTestDriver {
                 if ("setSecurityManager".equals(name)
                         || "shutdownHooks".equals(name)
                         || "setIO".equals(name)
-                        || "accessDeclaredMembers".equals(name)
                         || "createClassLoader".equals(name)
-                        || "getClassLoader".equals(name)
                         || "setContextClassLoader".equals(name)
                         || "enableContextClassLoaderOverride".equals(name)
                         || "modifyThread".equals(name)
@@ -617,16 +625,25 @@ public final class TrustedTestDriver {
                         || name.startsWith("accessClassInPackage.jdk.internal.misc")
                         || name.startsWith("accessClassInPackage.c12.trusted")
                         || name.startsWith("defineClassInPackage.c12.trusted")) {
+                    denyAlways("runtime-permission:" + name);
+                    return;
+                }
+                if ("accessDeclaredMembers".equals(name)
+                        || "getClassLoader".equals(name)) {
+                    // JUnit/trusted tests legitimately need these. Keep the
+                    // provenance check, with the ACC marker as defense in depth.
                     refuse("runtime-permission:" + name);
                 }
                 return;
             }
             if (permission instanceof SecurityPermission) {
                 if ("setPolicy".equals(name)
+                        || "createAccessControlContext".equals(name)
+                        || "getDomainCombiner".equals(name)
                         || name.startsWith("setProperty.")
                         || name.startsWith("insertProvider")
                         || name.startsWith("removeProvider")) {
-                    refuse("security-permission:" + name);
+                    denyAlways("security-permission:" + name);
                 }
             }
             if (permission instanceof java.util.PropertyPermission
