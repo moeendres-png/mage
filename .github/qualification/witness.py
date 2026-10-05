@@ -609,6 +609,9 @@ def main() -> int:
 
         corpus = corpus_policy.evaluate(args.git_repo, trusted_sha, base_sha, locked_sha)
         doc["corpus_policy"] = corpus
+        if corpus.get("status") == "UNKNOWN":
+            unknowns = corpus.get("unknowns") or ["corpus_policy_unknown"]
+            raise ValueError("corpus_policy_unknown: {}".format("; ".join(str(v) for v in unknowns[:5])))
         # Only the trusted default-branch corpus can earn C12 credit.
         # Candidate-added tests remain visible to the delta policy/native CI but
         # are not loaded into the authoritative JVM.
