@@ -2368,17 +2368,26 @@ public class ProbeTest {
     return rows
 
 
+def honest_execution_control(h: Harness) -> dict:
+    """Fast-fail smoke using the exact CTRL-01 production pipeline."""
+    honest = project({"ProbeTest": PASSING_TEST})
+    fx = h.fixture("CTRL-01-honest-execution", honest)
+    return row(
+        "CTRL-01-honest-execution", "positive",
+        "an honest candidate whose tests the trusted launcher actually runs earns credit",
+        "PASS", h.pipeline(fx),
+    )
+
+
 def legacy_controls(h: Harness) -> list[dict]:
     """The report-forgery, suppression, binding and witness controls, on the new pipeline."""
-    rows: list[dict] = []
+    rows: list[dict] = [honest_execution_control(h)]
     honest = project({"ProbeTest": PASSING_TEST})
 
     def run(control, kind, expectation, expected, reason, base, candidate=None, **pipeline_kwargs):
         fx = h.fixture(control, base, candidate)
         rows.append(row(control, kind, expectation, expected, h.pipeline(fx, **pipeline_kwargs), reason=reason))
 
-    run("CTRL-01-honest-execution", "positive",
-        "an honest candidate whose tests the trusted launcher actually runs earns credit", "PASS", None, honest)
     forged_pom = build_pom(extra=ANTRUN_FORGE.format(phase="test"))
     forged = dict(project({"ProbeTest": PASSING_TEST}, pom=forged_pom))
     forged["forged/TEST-probe.ForgedTest.xml"] = FORGED_REPORT
@@ -2882,6 +2891,8 @@ def main() -> int:
     parser.add_argument("--harden-world-writable", action="store_true",
                         help="hosted runners: remove o+w from non-sticky world-writable directories first")
     parser.add_argument("--out", default="")
+    parser.add_argument("--smoke-honest", action="store_true",
+                        help="run only CTRL-01 through the exact production pipeline for fast diagnostics")
     args = parser.parse_args()
     if args.harden_world_writable:
         print("hardened: {}".format(", ".join(sandbox.harden_world_writable()) or "nothing to harden"))
@@ -2897,9 +2908,22 @@ def main() -> int:
         ("containment", containment_controls),
     )
     try:
-        results = list(static_controls()) + source_lock_controls(tmp)
         available, reason = toolchain_available(harness)
-        for family, runner in families:
+        if args.smoke_honest:
+            if available:
+                results = [honest_execution_control(harness)]
+            else:
+                results = [{
+                    "control": "CTRL-01-honest-execution",
+                    "kind": "not_run",
+                    "expectation": "honest smoke needs a real Maven/JDK toolchain and sandbox: {}".format(reason),
+                    "observed_verdict": "NOT_RUN",
+                    "expected_verdict": "PASS",
+                    "ok": False,
+                }]
+        else:
+            results = list(static_controls()) + source_lock_controls(tmp)
+        for family, runner in (() if args.smoke_honest else families):
             if not available:
                 results.append({
                     "control": "{}-controls".format(family),
