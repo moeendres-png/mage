@@ -564,6 +564,8 @@ class Harness:
                 "driver_exit_code": module_result.get("driver_exit_code"),
                 "driver_stdout": (module_result.get("driver_stdout") or "")[-1200:],
                 "driver_stderr": (module_result.get("driver_stderr") or "")[-2400:],
+                "driver_stderr_head": (module_result.get("driver_stderr_head") or "")[:4000],
+                "driver_stderr_tail": (module_result.get("driver_stderr_tail") or "")[-4000:],
                 "observer_exit_code": module_result.get("observer_exit_code"),
                 "observer_stdout": (module_result.get("observer_stdout") or "")[-1200:],
                 "observer_stderr": (module_result.get("observer_stderr") or "")[-1200:],
