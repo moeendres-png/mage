@@ -1,0 +1,13 @@
+# C12 CI diagnostic injection repair — 2026-10-04
+
+At base `05856bec9ca9c158ec67c983ec956b8d5c7a985c`, a real JUnit4 custom runner emitted a suite child named `candidate\n::notice::FORGED-C12-LOG`. The complete trusted compilation/execution/enforcement pipeline rejected its qualification, but witness stdout contained a standalone workflow command. BEFORE.json, BEFORE.bundle and BEFORE.raw.json.gz preserve the failing behavior and exact fixture sources; this is an executed attack, not crafted witness JSON.
+
+Diagnostic names, exception messages and verdict reasons now use ASCII JSON escaping. Raw evidence keeps the full original text. The same runner still fails required-method/origin gates, but emits no workflow command. Scorer diagnostics are also protected. Related trusted error/integrity/classpath/summary output is escaped; no scoring contracts, baseline corpus or obligations were weakened.
+
+83/83 full-path controls passed, 0 NOT_RUN: CTRL81 executes the malicious runner, requires FAIL for the intended missing-method reason and verifies single-line witness/scorer logs. CTRL82 executes an ordinary failing test and verifies its useful class diagnostic. CTRL79/80 retain the newer Vintage overloaded-method coverage. See VALIDATION.json for executed-source byte bindings and CONTROLS.json.gz for complete outcomes. AFTER source identity is the base plus committed delta, not the unchanged parent.
+
+Reproduce on Linux with Java/Maven/JUnit platform standalone1.9.3 and root-controlled sandbox parents: adapt the repository, seed and output paths in the committed helpers; run `python3 run-c12-log-controls-20261004.py` as root with PATH=/usr/bin:/bin. This runs the production Harness under a separate `nobody` candidate account, online Maven. `c12-log-safety-20261004.py after` reproduces only the attack. For BEFORE use the bundled fixture's trusted validator sources. Toolchain unavailable or failed Maven compilation is NOT_RUN, never attack evidence.
+
+Local /var/lib and /srv fixture copies and /tmp selftest fixtures are reproducible and non-authoritative; durable source/bundles/raw JSON above suffice. The first exploratory suite-only description produced no injection because Vintage supplied a typed class source; it is intentionally discarded, superseded by the child-description attack. The previous offline Vintage attempt failed dependency resolution and remains explicitly NOT_RUN as documented on PR43.
+
+Remaining: exact-head hosted controls and review; same-JVM malicious-bytecode authority remains unproved. This change is not containment and does not authorize a hostile-candidate trust PASS. C13 native signals and C14 immutable reference data remain separate.

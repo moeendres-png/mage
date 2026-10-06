@@ -105,11 +105,15 @@ Without these measures, a candidate could hide a failing test method behind an
 auto-detected extension, shipped in test resources, main resources or a new dependency jar
 (CTRL-60, 61, 62). Every count would have stayed green.
 
-The driver authenticates its witness with HMAC-SHA256. The key is delivered on stdin from
-an unlinked trusted file. The driver reads it and closes stdin before any candidate class
-loads, and keeps it only in a local of `main()`. Candidate test code can write into the
-driver's (candidate-writable) output directory, but a forged witness carries no valid MAC
-(CTRL-38).
+The candidate JVM is **not a witness producer**. It contains no signing key, receipt path
+or qualification verdict authority. A separate trusted parent JVM opens a one-shot JDI
+listener, accepts the exact sandboxed child, closes the listener, and observes the private
+`observer*` hooks plus required trusted-test method entry/exit events. For each module the
+trusted parent owns a fresh HMAC-SHA256 key in trusted-only storage; that key is passed only
+to the observer JVM, never to the candidate JVM. The observer signs its receipt, the trusted
+aggregator verifies it and deletes the key, and only then can the receipt contribute credit.
+Candidate code can write arbitrary witness-shaped decoys in its own tree; they are never
+read (CTRL-38).
 
 The executed test bytecode is never the candidate's build output. `witness.py` compiles each
 module's test sources itself, from the `git archive` export, with `javac -proc:none`, so no
@@ -119,7 +123,12 @@ executes (CTRL-31). The candidate build runs with `-Dmaven.compiler.proc=none`.
 `build_definition_audit.py` is defence in depth. It now fingerprints every build plugin in
 every phase, build extensions, profiles, the parent POM, the properties the build
 interpolates, and `.mvn/**`. A plugin bound to `initialize` is a `build_definition_changed`
-FAIL (CTRL-30). Dependency declarations remain free.
+FAIL (CTRL-30). Dependencies, dependency management, repositories, module topology and
+other qualification-runtime inputs are authority-bearing as well; changing them in the
+candidate is a build-definition violation. The root POM also exposes
+`file://${basedir}/repository`, so tracked bytes below each module's `repository/`
+tree are dependency authority even when no POM changes. Candidate changes there fail
+`local_project_repository_changed` (CTRL-92).
 
 ### Export integrity, loaded code and tool resolution (review 2026-10-03)
 
@@ -147,9 +156,25 @@ trusted validator commit** (`corpus_policy.py`, Git data only):
 
 A method is a required test when it carries `@Test`, `@ParameterizedTest`, `@RepeatedTest`,
 `@TestFactory` or `@TestTemplate`, or when it is a public no-argument `test*` method of a JUnit 3
-`TestCase` subclass. Comments and literals are ignored. The identity is the class of the
-source file that declares it plus the method name, so an inherited test counts for the class
-that declares it, and a parameterized or repeated method counts once.
+`TestCase` subclass. Comments and literals are ignored. The v4 identity binds the binary declaring
+class (including each nested type) and `methodName(qualifiedErasedParameterTypes)`.
+Arrays retain their shape; varargs become arrays. Primitive types and explicitly
+qualified reference spellings are supported. Import resolution, type-variable
+bounds and nested parameter type resolution are never guessed: unsupported
+spellings fail closed. The driver uses the declaring Java method and actual
+`Class.getTypeName()` types, with no guessed identity on resolution failure.
+JUnit Vintage reports a JUnit 4 test without a `MethodSource` when its name is overloaded
+by a method of the same name in the class hierarchy. Mage has two today:
+`AlpineHoundmasterTest#attack()` and `BasriKetTest#attack()`, next to the
+inherited `attack(int, TestPlayer, String)` helper. For such a test the driver
+reads `name(class)` from the vintage unique id. It then resolves the public no-argument
+method that carries `org.junit.Test`. If that resolution fails, the method is
+simply not observed, so a required method fails closed as not started (CTRL-79/80).
+Inherited tests retain declaring-class attribution; parameterized and repeated
+invocations share only their own declaration identity. Different qualified
+types cannot replace each other, even when only one occurs per revision.
+All 6835 enabled native Mage baseline declarations currently have no parameters;
+this restriction does not drop existing required tests.
 
 The static reading is not the authority. The trusted driver records every method the launcher
 started (`observed_methods`, attributed to the declaring class), and `qualify.py` requires every
@@ -200,9 +225,12 @@ UNKNOWN. Mergeability is recorded by a separate job that the verdict never reads
 
 ## Per-module execution
 
-- **Single reactor session.** The candidate build is one reactor session: `mvn test-compile dependency:build-classpath -Dmdep.outputFile=target/c12-test-classpath.txt`. Sibling modules therefore resolve to the candidate's own reactor output, not to an installed and possibly stale `org/mage` jar. Any remaining `org/mage` repository entry is still dropped.
-- **Classpath collection.** `resolve_classpaths.py` reads each module's file back, refusing symlinks. The module list comes from the trusted Git enumeration. A missing module fails closed.
-- **Per-module driver runs.** The driver runs once per module. It enforces that each class loads from that module's trusted-compiled output, credits `@Nested` classes to the top-level class, and aggregates over `(module, class)` pairs.
+- **Candidate classpath is observation, not authority.** The candidate build still runs one reactor session and records `target/c12-test-classpath.txt` per module, but this map is used only to prove that every required module resolved. It does not decide which dependency bytes the trusted driver executes.
+- **Trusted pre-candidate reactor graph.** Before any candidate code runs, the default-branch validator runs its own `test-compile dependency:build-classpath` over the trusted reactor. `TRUSTED_MODULE_CLASSPATHS.json` is sealed before candidate execution and is the runtime graph authority. Trusted reactor `target/classes` entries are mapped to the corresponding candidate main outputs (the code under test); external Maven entries execute only from the candidate-inaccessible trusted Maven cache. Maven dependency order is preserved exactly. An unrelated sibling therefore cannot be injected merely because it has required tests (CTRL-91), and a trusted reactor edge cannot be symlink-redirected to another sibling output with a colliding FQN (CTRL-94).
+- **Output containment.** Every mapped reactor output must resolve under the candidate checkout. The tested module's own `target/classes` must resolve to its exact lexical path; a symlink/ancestor escape is refused before execution, so code moved to a candidate-writable path outside the containment prefixes cannot shed the hostile-bytecode policy (CTRL-93).
+- **Classpath collection.** `resolve_classpaths.py` refuses a symlink as the classpath record itself. Missing candidate-observation or trusted-authority entries fail closed.
+- **Evidence persistence.** The qualification artifact includes both candidate and trusted classpath maps/records plus the before-candidate and after-witness evidence seals.
+- **Per-module driver runs.** The driver runs once per module. It enforces that each trusted test class loads from that module's trusted-compiled output, credits `@Nested` classes to the top-level class, and aggregates over `(module, class)` pairs.
 
 ## Controls
 
@@ -218,7 +246,7 @@ Every pipeline control runs the production path against a real Git fixture:
 3. sandbox prepare with the probe;
 4. sandboxed build;
 5. classpath collection;
-6. witness (corpus policy, trusted compile, sandboxed and authenticated driver);
+6. witness (corpus policy, trusted compile, sandboxed driver plus trusted parent JDI observer);
 7. seals;
 8. integrity check;
 9. scorer.
@@ -227,30 +255,32 @@ The executed scripts are the copies committed in the fixture's trusted commit, s
 candidate able to overwrite them would be overwriting the scorer that actually runs. Red
 controls must also show their **intended reason**.
 
-`SELFTEST = PASS (56/56 controls ok, 0 not run)`. This was run locally as a separate
+Historical first-epoch `SELFTEST = PASS (56/56 controls ok, 0 not run)` was run locally as a separate
 unprivileged account (`nobody`, offline) in about 5 minutes. With the previous driver, CTRL-60 to 62 gave a false PASS: candidate configuration hid a failing test. The PR-time workflow
 `candidate-qualification-selftest.yml` runs the same suite on GitHub-hosted runners with the
 real `c12cand` account.
 
 | family | controls |
 | --- | --- |
-| P1-1 trust domain | CTRL-26–29: test code overwrites `qualify.py`, `witness.py`, the source lock and evidence (target unchanged, integrity OK, a genuinely failing candidate stays FAIL); CTRL-30: initialize-phase plugin; CTRL-31: test-bytecode mutation; CTRL-32: environment scrubbed (positive); CTRL-33–35: simulated breaches are caught (replaced scorer, rewritten sealed evidence, planted module); CTRL-36: writable trusted path refused; CTRL-38: forged witness rejected |
+| P1-1 trust domain | CTRL-26–29: test code overwrites `qualify.py`, `witness.py`, the source lock and evidence (target unchanged, integrity OK, a genuinely failing candidate stays FAIL); CTRL-30: initialize-phase plugin; CTRL-31: test-bytecode mutation; CTRL-32: environment scrubbed (positive); CTRL-33–35: simulated breaches are caught; CTRL-36: writable trusted path refused; CTRL-38: candidate-side witness decoy ignored; CTRL-84: hostile-bytecode containment; CTRL-85/86: candidate test edits/additions earn no authority; CTRL-87/88: candidate Jupiter extension or Vintage runner cannot fabricate green lifecycle credit; CTRL-89/90: parent-observed method-body completion negative/positive controls; CTRL-92: module-local Maven repository mutation is authority-bearing |
 | P1-2 corpus | CTRL-40: honest (positive); CTRL-41: mass rename leaving one; CTRL-42: delete; CTRL-43: move out of test roots; CTRL-44: rename out of regex; CTRL-45: green subset; CTRL-46: legitimate addition (positive); CTRL-47: addition without baseline update; CTRL-48: approved removal path (positive); CTRL-49: removal without default-branch approval; CTRL-50: malformed baseline; CTRL-51: missing baseline; CTRL-52: stale baseline; CTRL-53: candidate behind default branch; CTRL-56: within-class method shrink; CTRL-57: method disabled; CTRL-58: method renamed; CTRL-59: required method never started (static reading fooled); CTRL-64: approved method removal (positive); CTRL-65: method additions (positive) |
 | reports, suppression, binding | CTRL-01–09 |
 | source lock | CTRL-10–14 |
 | static | CTRL-15: workflow contract (Maven only inside the sandbox, `-I -B`, independent integrity enforcement); CTRL-16: no report harvesting; CTRL-17: driver present; CTRL-37: no candidate test bytecode |
-| per-module | CTRL-18–25 |
+| per-module | CTRL-18–25; CTRL-91: unrelated sibling FQN cannot shadow a trusted dependency; CTRL-93: module-output symlink escape is refused; CTRL-94: trusted reactor output cannot be symlink-redirected to a sibling |
 | JUnit configuration and PATH (second review) | CTRL-60–62: an auto-detected extension via test resources, main resources or a dependency jar cannot hide a failing test; CTRL-63: a candidate-writable PATH entry refuses the sandbox and fails integrity; CTRL-66: a `.class` test resource cannot replace trusted-compiled bytecode |
 
 **Meta-control.** With a scorer that always returns `PASS`, the suite reports
-`SELFTEST = FAIL (19/52)`. CTRL-33–36 stay red even then, because integrity is enforced
+Historical first-epoch `SELFTEST = FAIL (19/52)` (not a current-suite denominator). CTRL-33–36 stay red even then, because integrity is enforced
 independently of the scorer. A missing toolchain or sandbox reports `NOT_RUN`, and the
 suite fails.
 
 ## Limits, stated
 
-- **The same JVM is shared.** Candidate test code, and the main or dependency code it reaches, runs in the driver's JVM. Such code can read that process's memory, including the MAC key, so the MAC defeats forgery from outside the run, not deliberate in-process tampering. That code can also tamper with JVM state at runtime. Attach is disabled (`-XX:+DisableAttachMechanism`) and the key is zeroed after use, but nothing in the same process can rule this out. What C12 does guarantee: the candidate cannot write trusted state, cannot change which test bytecode runs, cannot reconfigure the launcher declaratively, and cannot shrink the corpus. Any in-process tampering must therefore come from reviewable candidate source.
-- **Test code is candidate code.** It runs as the sandbox account. A test whose own source is weak (an empty body, a swallowed assertion) is a source-review and coverage question for C13/C16. The corpus baseline binds classes and test methods, not test bodies. A `@TestFactory` that returns no dynamic tests still counts as started.
+- **Execution JVM versus evidence authority.** Candidate production bytecode still executes inside the sandboxed driver JVM because the trusted tests must exercise the candidate. That JVM has no receipt key/path or evidence-writing authority. The trusted parent observer is a separate process and records the only qualification receipt. The child is additionally contained against deep reflection into the driver, process/socket/native/FD escape paths and trust-channel reuse (CTRL-84).
+- **Candidate JUnit execution control is fail-closed.** A green Jupiter/Vintage lifecycle is insufficient when candidate-built code can control invocation. Before discovery the trusted driver inspects selected trusted test classes and refuses candidate-origin runners/extensions/providers or registered Rule/Extension members. Thus a candidate `InvocationInterceptor` or custom Vintage runner cannot suppress a trusted failing assertion and manufacture PASS (CTRL-87/88).
+- **Lifecycle events are not body proof.** The parent JDI observer independently requires every required declaration to enter and normally exit while its JUnit test is active. A runner that invokes a failing method, swallows the assertion and reports green still fails (CTRL-89); a trusted test-side runner whose method genuinely returns remains supported (CTRL-90).
+- **Authoritative test source is trusted.** Executed test bytecode is compiled from the trusted-validator commit, not the candidate's edited test source. Candidate production code remains the subject under test. Unsupported dynamic/template constructs that cannot be bound to parent-observed normal method completion fail closed rather than receiving credit.
 - **The class regex is narrower than surefire's defaults.** Surefire also runs `Test*` classes, for example `TestPartnerCommanders`. The C12 class regex (`(Test|Tests|TestCase|Spec|IT)$`) does not select those, so 16 Mage test files that contain `@Test` methods are not required. Widening the regex is a separate decision: it would also select helper classes named `Test*`, which can never be entered.
 - **Which classes run.** Every required class must still compile from its own module (`required_tests_not_compiled`). The driver runs the selected classes (`selected_test_classes`), and each must be entered:
   - the required classes that own at least one required test method;
@@ -258,10 +288,27 @@ suite fails.
   - `qualify.py` re-derives the selection from the policy and fails `selected_set_not_policy_derived` on any difference.
   - A corpus class with neither stays protected by the class-level policy and must still compile, but it is not run. It is listed in `corpus_classes_without_required_methods`. Examples are an abstract base, a class-level `@Ignore`, or a helper without `@Test`.
   - **Limit:** an inherited test is not required by name; it is credited through its class being entered and every failure counting. A superclass outside the test source roots, or named as a nested type, is not resolved, so a class inheriting only from such a superclass is not run.
-- **Method identity is name plus top-level class.** Overloads and same-named methods in `@Nested` classes share one identity. A required `@ParameterizedTest`, `@RepeatedTest` or `@TestFactory` counts as started when its container starts, even if every invocation is skipped. Static enumeration misses composed or meta `@Test` annotations, `@Theory`, and JUnit 3 `final` methods. Such methods are not required by name: they still run when their class runs, but a regression in a method whose class is never run is not seen.
+- **Method identity binds declaring class and qualified erased parameter signature (v4).** Nested and overloaded test removal controls CTRL-71–78 protect separate declarations. Ambiguous normalized signatures cannot earn PASS. A required `@ParameterizedTest`, `@RepeatedTest` or `@TestFactory` counts as started when its container starts, even if every invocation is skipped. Static enumeration misses composed or meta `@Test` annotations, `@Theory`, and JUnit 3 `final` methods. Such methods are not required by name: they still run when their class runs, but a regression in a method whose class is never run is not seen.
 - **Network egress.** Candidate build code still has the runner's network access. The job is read-only, persists no credentials and references no secret.
-- **Main-class bytecode** comes from the candidate's Maven build under an audited build definition, with annotation processing disabled.
+- **Main-class bytecode** comes from the candidate's Maven build under an audited build definition, with annotation processing disabled. Which reactor outputs may participate is fixed by the trusted pre-candidate dependency graph, and their canonical paths must remain inside the candidate checkout; candidate classpath text itself grants no runtime authority.
 - **The inherited `Mage.Verify` red** (`VerifyCardDataTest`, external card-data drift) fails every candidate's positive control. It is deliberately not excluded. Which signals belong in the campaign is C13's decision (#494), and the drift is C14's (#495).
 - **Runtime.** `pull_request_target` runs the default-branch copy, so the gate cannot prove itself live on the PR that introduces it. `C12_RUNTIME` stays `UNKNOWN` until the post-merge live controls run. The workflow is **not** a required status check.
 
 `PRODUCTION_PROVIDER = NOT_SELECTED` · `ARCHITECTURE_FREEZE = NOT_CLAIMED`
+
+## Method identity migration (2026-10-04)
+
+Baseline/policy v4, parent-observed execution witness v5 and aggregate witness/evidence v7
+replace the lossy method-name, same-JVM evidence-authority and lifecycle-only contracts. Historical
+execution-witness epochs receive no credit under this validator. Exact-head controls
+must pass before integration, and a fresh default-branch `pull_request_target` run
+must qualify a real successor PR before C12 runtime is claimed.
+
+The regenerated baseline still protects all 1997 classes and 6835 enabled methods
+(140 disabled); no removal approvals, test bodies, engine code or denominator were
+changed. The current qualification engine pin is unaffected. Exact-head hosted
+controls and a post-merge live qualification remain mandatory before runtime PASS.
+
+Historical diagnostic evidence remains under `research/c12-log-safety-20261004/`.
+Candidate diagnostic text is ASCII JSON-escaped and raw JSON artifacts retain the original
+values; that historical evidence is bounded to its own source epoch.

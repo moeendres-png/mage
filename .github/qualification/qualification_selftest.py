@@ -55,10 +55,12 @@ QUALIFY = QUALIFICATION_DIR / "qualify.py"
 WITNESS = QUALIFICATION_DIR / "witness.py"
 SOURCE_LOCK = QUALIFICATION_DIR / "source_lock.py"
 DRIVER = QUALIFICATION_DIR / "TrustedTestDriver.java"
+OBSERVER = QUALIFICATION_DIR / "TrustedTestObserver.java"
 WORKFLOW = QUALIFICATION_DIR.parent / "workflows" / "candidate-qualification.yml"
 FIXTURE_QUAL = ".github/qualification"
 TRUSTED_FILES = (
     "TrustedTestDriver.java",
+    "TrustedTestObserver.java",
     "build_definition_audit.py",
     "corpus_policy.py",
     "qualify.py",
@@ -286,6 +288,7 @@ class Harness:
         # Root-owned parents only (/opt is world-writable on hosted runners).
         self.bundle_dir = Path("/var/lib/c12-selftest/bundle")
         self.runtime_dir = Path("/var/lib/c12-selftest/runtime")
+        self.staged: list[Path] = []
         self.seed = str(Path(os.environ.get("HOME", "/root")) / ".m2" / "repository")
 
     # -- fixtures ---------------------------------------------------------
@@ -384,7 +387,9 @@ class Harness:
         Done directly in the repository layout rather than through install:install-file,
         so the control does not depend on the install plugin being resolvable offline.
         """
-        target = sandbox.sandbox_home(self.sandbox_dir) / ".m2" / "repository" / Path(*group.split(".")) / artifact / version
+        relative = Path(*group.split(".")) / artifact / version
+        target = sandbox.sandbox_home(self.sandbox_dir) / ".m2" / "repository" / relative
+        trusted_target = Path(self.seed) / relative
         pom = ('<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion>'
                "<groupId>{}</groupId><artifactId>{}</artifactId><version>{}</version></project>").format(group, artifact, version)
         stem = "{}-{}".format(artifact, version)
@@ -393,10 +398,14 @@ class Harness:
             "c12", str(target), str(jar), stem, pom])
         if proc.returncode != 0:
             raise RuntimeError("could not install {}:{}:{}: {}".format(group, artifact, version, proc.stderr[-300:]))
+        trusted_target.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(jar, trusted_target / (stem + ".jar"))
+        (trusted_target / (stem + ".pom")).write_text(pom)
 
     def stage_readonly(self, src: Path, name: str) -> Path:
         dest = Path("/var/lib/c12-selftest") / name
         sandbox.stage_readonly(src, dest)
+        self.staged.append(dest)
         return dest
 
     def cleanup(self) -> None:
@@ -404,12 +413,18 @@ class Harness:
             sandbox.reap(self.user)
         except sandbox.SandboxError:
             pass
-        subprocess.run(sandbox._priv(["rm", "-rf", "/var/lib/c12-selftest", str(self.sandbox_dir)]),
+        # Remove only what this harness created. /var/lib/c12-selftest also
+        # holds the workflow's root-owned jdk/ and maven/, which a later
+        # invocation in the same job (the full matrix after the honest smoke)
+        # still needs.
+        owned = [self.bundle_dir, self.runtime_dir, *self.staged, self.sandbox_dir]
+        subprocess.run(sandbox._priv(["rm", "-rf", *[str(path) for path in owned]]),
                        capture_output=True, check=False)
 
     # -- the production pipeline -------------------------------------------
 
-    def pipeline(self, fx: dict, *, build_modules=None, classpath_override=None, after_build=None,
+    def pipeline(self, fx: dict, *, build_modules=None, classpath_override=None,
+                 trusted_classpath_override=None, after_build=None,
                  after_seal=None, corrupt_witness=False, lock_candidate_sha=None, before_prepare=None,
                  trusted_path_prefix=None) -> dict:
         evidence = fx["evidence"]
@@ -428,9 +443,33 @@ class Harness:
             "comparison_base": {"sha": fx["base_sha"], "tree": fx["base_tree"]},
             "candidate_code_executed_as_validator": False,
         }, indent=2, sort_keys=True) + "\n")
-        audit = build_definition_audit.audit(fx["repo"], fx["base_sha"], fx["cand_sha"])
+        audit = build_definition_audit.audit(fx["repo"], fx["trusted_sha"], fx["cand_sha"], fx["base_sha"])
         audit_path = evidence / "BUILD_DEFINITION_AUDIT.json"
         audit_path.write_text(json.dumps(audit, indent=2, sort_keys=True) + "\n")
+
+        # Resolve the authoritative dependency/reactor graph from the trusted
+        # validator before candidate execution. The candidate-produced map is
+        # retained only as an observation/completeness signal.
+        trusted_modules = sorted({entry["module"] for entry in corpus_policy.enumerate_rev(
+            str(fx["repo"]), fx["trusted_sha"])})
+        for module in trusted_modules:
+            module_dir = fx["repo"] / module
+            proc = subprocess.run(
+                self.mvn("test-compile", "dependency:build-classpath", "-DincludeScope=test",
+                         "-Dmdep.outputFile=" + resolve_classpaths.CLASSPATH_FILE,
+                         "-Dmaven.compiler.proc=none"),
+                cwd=str(module_dir), capture_output=True, text=True, check=False,
+            )
+            if proc.returncode != 0:
+                # Leave the map incomplete/failing; witness must refuse rather
+                # than silently falling back to candidate classpath authority.
+                pass
+        trusted_mapping, _ = resolve_classpaths.collect(
+            str(fx["repo"]), fx["trusted_sha"], fx["repo"])
+        if trusted_classpath_override:
+            trusted_mapping = trusted_classpath_override(self, fx, dict(trusted_mapping))
+        trusted_classpaths_path = evidence / "TRUSTED_MODULE_CLASSPATHS.json"
+        trusted_classpaths_path.write_text(json.dumps(trusted_mapping, indent=2, sort_keys=True) + "\n")
 
         if before_prepare:
             before_prepare(self, fx)
@@ -448,7 +487,7 @@ class Harness:
         seal1 = fx["work"] / "seal-before.json"
         sandbox_ok = prep.returncode == 0
         subprocess.run(py + [str(qual / "sandbox.py"), "seal", "--out", str(seal1),
-                             str(lock_path), str(audit_path), str(prepare_path)],
+                             str(lock_path), str(audit_path), str(trusted_classpaths_path), str(prepare_path)],
                        capture_output=True, text=True, check=False)
 
         build_path = evidence / "BUILD_RESULT.json"
@@ -487,7 +526,9 @@ class Harness:
                   "--sandbox-user", self.user, "--sandbox-prepare", str(prepare_path),
                   "--bundle-dir", str(self.bundle_dir), "--work-dir", str(fx["work"] / "witness"),
                   "--build-result", str(build_path), "--build-definition-audit", str(audit_path),
-                  "--module-classpaths", str(classpaths_path), "--out", str(witness_path)],
+                  "--module-classpaths", str(classpaths_path),
+                  "--trusted-module-classpaths", str(trusted_classpaths_path),
+                  "--trusted-maven-repo", self.seed, "--out", str(witness_path)],
             capture_output=True, text=True, check=False, env=env)
         if corrupt_witness and witness_path.is_file():
             witness_path.write_text("{ this is not valid json")
@@ -523,6 +564,20 @@ class Harness:
         if integrity_proc.returncode != 0:
             verdict = "FAIL" if integrity.get("status") == "VIOLATION" or verdict == "FAIL" else "UNKNOWN"
         test_evidence = ev.get("test_evidence") or {}
+        module_diagnostics = []
+        for module_result in (witness.get("module_execution") or [])[:4]:
+            module_diagnostics.append({
+                "module": module_result.get("module"),
+                "driver_exit_code": module_result.get("driver_exit_code"),
+                "driver_stdout": (module_result.get("driver_stdout") or "")[-1200:],
+                "driver_stderr": (module_result.get("driver_stderr") or "")[-2400:],
+                "driver_stderr_head": (module_result.get("driver_stderr_head") or "")[:4000],
+                "driver_stderr_tail": (module_result.get("driver_stderr_tail") or "")[-4000:],
+                "observer_exit_code": module_result.get("observer_exit_code"),
+                "observer_stdout": (module_result.get("observer_stdout") or "")[-1200:],
+                "observer_stderr": (module_result.get("observer_stderr") or "")[-1200:],
+                "reason": module_result.get("reason"),
+            })
         return {
             "verdict": verdict,
             "scorer_verdict": ev.get("verdict"),
@@ -543,7 +598,10 @@ class Harness:
             "required_selected": test_evidence.get("trusted_selected_classes"),
             "qualify_exit": 0 if verdict == "PASS" else 1,
             "witness_exit": witness_proc.returncode,
+            "witness_stdout": witness_proc.stdout,
+            "qualify_stdout": qualify_proc.stdout,
             "witness_stderr": witness_proc.stderr.strip()[-400:],
+            "module_diagnostics": module_diagnostics,
         }
 
 
@@ -811,6 +869,74 @@ class ModuleBTest {
 }
 """
 
+REACTOR_REDIRECT_TEST = """package probe;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
+
+class GraphTest {
+    @Test
+    void trustedGraphMustSelectTheNamedReactorOutput() throws Exception {
+        Class<?> type = Class.forName("dep.Value");
+        int value = ((Integer) type.getMethod("value").invoke(null)).intValue();
+        assertEquals(99, value);
+    }
+}
+"""
+
+REACTOR_DEP_SOURCE = """package dep;
+
+public final class Value {
+    private Value() {
+    }
+
+    public static int value() {
+        return 42;
+    }
+}
+"""
+
+REACTOR_SHADOW_SOURCE = """package dep;
+
+public final class Value {
+    private Value() {
+    }
+
+    public static int value() {
+        return 99;
+    }
+}
+"""
+
+
+MODULE_VICTIM_SHADOW_TEST = """package probe;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import helper.OnlyOnB;
+import org.junit.jupiter.api.Test;
+
+class VictimTest {
+    @Test
+    void unrelatedSiblingCannotShadowTrustedDependency() {
+        assertEquals(99, OnlyOnB.value());
+    }
+}
+"""
+
+SHADOW_HELPER_SOURCE = """package helper;
+
+public final class OnlyOnB {
+    private OnlyOnB() {
+    }
+
+    public static int value() {
+        return 99;
+    }
+}
+"""
+
+
 SHARED_TEST = """package probe;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -885,8 +1011,11 @@ class TamperTest {{
 
 FORGER_TEST = """package probe;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import org.junit.jupiter.api.Test;
@@ -894,14 +1023,18 @@ import org.junit.jupiter.api.Test;
 class ForgerTest {{
 
     @Test
-    void forgeTheWitness() throws Exception {{
-        String forged = "{{\\"observed_classes\\": [\\"probe.ForgerTest\\"], \\"tests_found\\": 1, "
-                + "\\"tests_started\\": 1, \\"tests_succeeded\\": 1, \\"tests_failed\\": 0, "
-                + "\\"classes_never_entered\\": [], \\"code_origin_violations\\": [], "
+    void writeCandidateSideDecoy() throws Exception {{
+        Path path = Paths.get("{path}");
+        Files.createDirectories(path.getParent());
+        String forged = "{{\\"observed_classes\\": [\\"probe.ForgerTest\\"], \\"tests_found\\": 999, "
+                + "\\"tests_started\\": 999, \\"tests_succeeded\\": 999, \\"tests_failed\\": 0, "
                 + "\\"driver_verdict\\": \\"PASS\\"}}";
-        Files.write(Paths.get("{path}"), forged.getBytes(StandardCharsets.UTF_8));
-        Files.write(Paths.get("{path}.mac"), "00".getBytes(StandardCharsets.US_ASCII));
-        Runtime.getRuntime().halt(0);
+        Files.write(path, forged.getBytes(StandardCharsets.UTF_8));
+    }}
+
+    @Test
+    void genuinelyFails() {{
+        assertEquals(3, 1 + 1);
     }}
 }}
 """
@@ -1059,6 +1192,21 @@ def trust_controls(h: Harness) -> list[dict]:
         extra={"target_unchanged": unchanged},
     ))
 
+    # The inherited root POM exposes file://${basedir}/repository. Candidate
+    # bytes placed there are dependency-resolution authority even when no POM
+    # changes. The audit must reject that channel independently.
+    name = "CTRL-92-local-project-repository-change-refused"
+    honest = project({"ProbeTest": PASSING_TEST})
+    attacked = dict(honest)
+    attacked["repository/c12/evil/1.0/evil-1.0.jar"] = b"candidate dependency authority"
+    fx = h.fixture(name, honest, attacked)
+    result = h.pipeline(fx)
+    rows.append(row(
+        name, "red",
+        "candidate changes under a module-local file:// repository are build-definition authority even without a POM change",
+        "FAIL", result, reason="local_project_repository_changed",
+    ))
+
     # Test-bytecode mutation: candidate code rewrites its compiled test class to a
     # passing one after the build. The executed bytecode must still be compiled
     # by trusted code from the locked commit's failing source.
@@ -1088,8 +1236,8 @@ def trust_controls(h: Harness) -> list[dict]:
         extra={"mutation_applied": mutated.get("applied")},
     ))
 
-    # Candidate test code forges the driver's witness file in the (candidate-
-    # writable) output directory and halts the JVM before the driver writes.
+    # Candidate code can author witness-shaped decoys only in its own storage.
+    # The real receipt path exists only in the trusted parent work directory.
     name = "CTRL-38-test-code-forges-witness"
     forged_path = h.sandbox_dir / "witness-out" / "module-000-_.json"
     forger = FORGER_TEST.format(path=str(forged_path))
@@ -1097,8 +1245,10 @@ def trust_controls(h: Harness) -> list[dict]:
     result = h.pipeline(fx)
     rows.append(row(
         name, "red",
-        "a witness file written by candidate test code carries no valid MAC and earns nothing",
-        "FAIL", result, reason="witness_authentication_failed",
+        "a candidate-side witness-shaped decoy is ignored; the trusted parent observes the real failing test",
+        "FAIL", result, reason="test_failures",
+        extra_ok=forged_path.is_file(),
+        extra={"candidate_decoy_written": forged_path.is_file()},
     ))
 
     # The candidate environment carries no runner handle (GITHUB_ENV etc.).
@@ -1222,8 +1372,8 @@ def junit_controls(h: Harness) -> list[dict]:
     rows: list[dict] = []
     honest = project({"MixedTest": MIXED_TEST})
 
-    def run(control, expectation, candidate):
-        fx = h.fixture(control, honest, candidate)
+    def run(control, expectation, candidate, base=None):
+        fx = h.fixture(control, base or honest, candidate)
         rows.append(row(control, "red", expectation, "FAIL", h.pipeline(fx), reason="test_failures"))
 
     via_test_resources = project({"MixedTest": MIXED_TEST}, extra={
@@ -1234,16 +1384,20 @@ def junit_controls(h: Harness) -> list[dict]:
     run("CTRL-60-junit-config-via-test-resources",
         "an extension and configuration shipped in test resources cannot hide a failing test", via_test_resources)
 
-    via_main = project({"MixedTest": MIXED_TEST}, pom=build_pom().replace("  </dependencies>", MAIN_JUPITER_DEPENDENCY, 1),
+    main_pom = build_pom().replace("  </dependencies>", MAIN_JUPITER_DEPENDENCY, 1)
+    honest_main = project({"MixedTest": MIXED_TEST}, pom=main_pom)
+    via_main = project({"MixedTest": MIXED_TEST}, pom=main_pom,
                        extra={
                            "src/main/java/probe/SkipFailing.java": SKIP_FAILING_EXTENSION,
                            "src/main/resources/junit-platform.properties": AUTODETECT,
                            "src/main/resources/" + EXTENSION_SERVICE: "probe.SkipFailing\n",
                        })
     run("CTRL-61-junit-config-via-main-resources",
-        "an extension and configuration shipped in main classes cannot hide a failing test", via_main)
+        "an extension and configuration shipped in main classes cannot hide a failing test",
+        via_main, base=honest_main)
 
-    # Route 3: a newly declared dependency jar (dependency changes pass the audit).
+    # Route 3: a dependency jar already declared by trusted source. Runtime
+    # dependencies are authority-bearing; this control does not edit the POM.
     work = h.tmp / "evil-jar"
     src = work / "src" / "probe"
     src.mkdir(parents=True)
@@ -1268,10 +1422,12 @@ def junit_controls(h: Harness) -> list[dict]:
     else:
         staged = h.stage_readonly(jar.parent, "evil-jar")
         h.install_artifact(staged / jar.name, "c12.evil", "skip-failing", "1.0")
-        via_dependency = project({"MixedTest": MIXED_TEST},
-                                 pom=build_pom().replace("  </dependencies>", EVIL_DEPENDENCY, 1))
+        dependency_pom = build_pom().replace("  </dependencies>", EVIL_DEPENDENCY, 1)
+        honest_dependency = project({"MixedTest": MIXED_TEST}, pom=dependency_pom)
+        via_dependency = project({"MixedTest": MIXED_TEST}, pom=dependency_pom)
         run("CTRL-62-junit-config-via-dependency-jar",
-            "an extension and configuration shipped in a dependency jar cannot hide a failing test", via_dependency)
+            "an extension and configuration shipped in a dependency jar cannot hide a failing test",
+            via_dependency, base=honest_dependency)
 
     # Codex P1 on witness.py:178: a .class test resource must not replace the
     # failing test that trusted javac compiled from the locked source.
@@ -1388,30 +1544,29 @@ def corpus_controls(h: Harness) -> list[dict]:
         trusted_followup=test_file("DeltaTest", passing("DeltaTest")))
     # A trusted producer fault is still authenticated: this full-path control
     # proves the scorer validates counts rather than merely provenance.
-    driver = (QUALIFICATION_DIR / "TrustedTestDriver.java").read_text()
-    needle = 'json.append("  \\"tests_failed\\": ").append(failed).append(",\\n");'
-    assert driver.count(needle) == 1
-    driver = driver.replace(needle, needle.replace(".append(failed)", ".append(-1)"))
+    observer = OBSERVER.read_text()
+    needle = 'out.append("  \\"tests_failed\\": ").append(testsFailed).append(",\\n");'
+    assert observer.count(needle) == 1
+    malformed = observer.replace(needle, needle.replace(".append(testsFailed)", ".append(-1)"))
     fx = h.fixture(
-        "CTRL-54-authenticated-negative-counter", project({"ProbeTest": passing("ProbeTest")}),
-        trusted_followup={FIXTURE_QUAL + "/TrustedTestDriver.java": driver},
+        "CTRL-54-parent-negative-counter", project({"ProbeTest": passing("ProbeTest")}),
+        trusted_followup={FIXTURE_QUAL + "/TrustedTestObserver.java": malformed},
     )
     result = h.pipeline(fx)
     rows.append(row(
-        "CTRL-54-authenticated-negative-counter", "red",
-        "an authenticated producer fault cannot grant PASS for a negative execution counter",
+        "CTRL-54-parent-negative-counter", "red",
+        "a trusted parent observer fault cannot grant PASS for a negative execution counter",
         "FAIL", result, reason="invalid_execution_counter",
     ))
-    driver = (QUALIFICATION_DIR / "TrustedTestDriver.java").read_text()
-    driver = driver.replace(needle, needle.replace(".append(failed)", ".append(-1.0)"))
+    malformed = observer.replace(needle, needle.replace(".append(testsFailed)", ".append(-1.0)"))
     fx = h.fixture(
-        "CTRL-55-authenticated-noninteger-module-counter", project({"ProbeTest": passing("ProbeTest")}),
-        trusted_followup={FIXTURE_QUAL + "/TrustedTestDriver.java": driver},
+        "CTRL-55-parent-noninteger-module-counter", project({"ProbeTest": passing("ProbeTest")}),
+        trusted_followup={FIXTURE_QUAL + "/TrustedTestObserver.java": malformed},
     )
     result = h.pipeline(fx)
     rows.append(row(
-        "CTRL-55-authenticated-noninteger-module-counter", "red",
-        "a malformed module count must not disappear into a coerced-zero aggregate",
+        "CTRL-55-parent-noninteger-module-counter", "red",
+        "a malformed parent-observed module count must not disappear into a coerced-zero aggregate",
         "FAIL", result, reason="invalid_module_counter",
     ))
     # Codex P1 on corpus_policy.py:132: a class can stay while its methods go.
@@ -1431,15 +1586,18 @@ def corpus_controls(h: Harness) -> list[dict]:
     evasive = many_methods(10).replace(
         "import org.junit.jupiter.api.Test;", "import probe.Test;"
     ).replace("@Test public void test0()", "@org.junit.jupiter.api.Test public void test0()")
+    evasive_project = project(
+        {"ProbeTest": evasive},
+        extra={"src/main/java/probe/Test.java": FAKE_TEST_ANNOTATION},
+    )
     run("CTRL-59-required-method-never-started", "red",
-        "a required method the static reading accepts but the launcher never starts earns no credit",
+        "a method the trusted static parser accepts but the trusted launcher never starts earns no credit",
         "FAIL", "required_test_methods_not_started",
-        project({"ProbeTest": evasive}, extra={"src/main/java/probe/Test.java": FAKE_TEST_ANNOTATION}),
-        base=ten)
+        evasive_project, base=evasive_project)
     run("CTRL-64-approved-method-removal", "positive",
         "a method removal approved on the default branch first, then performed, qualifies",
         "PASS", None, project({"ProbeTest": many_methods(9)}), base=ten,
-        approvals=[{"entry": ".::probe.ProbeTest#test9", "reason": "duplicate of test8", "reference": "review#2"}])
+        approvals=[{"entry": ".::probe.ProbeTest#test9()", "reason": "duplicate of test8", "reference": "review#2"}])
     run("CTRL-65-method-addition-required", "positive",
         "adding methods to a retained class qualifies when they pass and the baseline lists them",
         "PASS", None, project({"ProbeTest": many_methods(12)}), base=ten)
@@ -1449,29 +1607,996 @@ def corpus_controls(h: Harness) -> list[dict]:
     run("CTRL-68-inherited-tests-run", "positive",
         "a class that only inherits its tests is run, entered and credited",
         "PASS", None, inherited, base=inherited)
+
+    inherited_production_test = """package probe;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
+public class ProbeTest {
+ @Test public void test0() { assertEquals(1, value()); }
+ protected int value() { return 1; }
+}
+"""
+    inherited_subclass = """package probe;
+public class SubProbeTest extends ProbeTest {
+ @Override protected int value() { return ProductionHook.value(); }
+}
+"""
+    hook_ok = "package probe; public final class ProductionHook { public static int value() { return 1; } }\n"
+    hook_bad = "package probe; public final class ProductionHook { public static int value() { return 2; } }\n"
+    inherited_prod_base = project(
+        {"ProbeTest": inherited_production_test, "SubProbeTest": inherited_subclass},
+        extra={"src/main/java/probe/ProductionHook.java": hook_ok},
+    )
+    inherited_prod_candidate = project(
+        {"ProbeTest": inherited_production_test, "SubProbeTest": inherited_subclass},
+        extra={"src/main/java/probe/ProductionHook.java": hook_bad},
+    )
     run("CTRL-69-inherited-test-regression", "red",
-        "a regression only an inheriting class exposes fails qualification",
-        "FAIL", "test_failures",
-        project({"ProbeTest": HOOKED_BASE_TEST, "SubProbeTest": hooked_subclass(2)}), base=inherited)
+        "a candidate production regression exposed only through a trusted inheriting test class fails qualification",
+        "FAIL", "test_failures", inherited_prod_candidate, base=inherited_prod_base)
     run("CTRL-70-inheriting-class-made-abstract", "red",
-        "making a trusted inheriting class abstract does not stop it being owed",
-        "FAIL", ["required_tests_never_entered", "required_pairs_not_entered"],
+        "making a trusted inheriting class abstract is a corpus-obligation removal, not a way to retire it silently",
+        "FAIL", "baseline_inheriting_test_removed",
         project({"ProbeTest": HOOKED_BASE_TEST, "SubProbeTest": hooked_subclass(1, abstract=True)}),
         base=inherited)
+    nested = """package probe;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Nested;
+public class ProbeTest {
+  @Nested class Left { @Test public void proof() {} }
+  @Nested class Right { @Test public void proof() {} }
+}
+"""
+    run("CTRL-71-nested-same-name-positive", "positive",
+        "both nested declarations are independently required and actually started",
+        "PASS", None, project({"ProbeTest": nested}), base=project({"ProbeTest": nested}))
+    run("CTRL-72-nested-same-name-removal", "red",
+        "deleting one same-named nested method cannot retain the other's credit",
+        "FAIL", "baseline_test_method_removed",
+        project({"ProbeTest": nested.replace("  @Nested class Right { @Test public void proof() {} }\n", "")}),
+        base=project({"ProbeTest": nested}))
+    run("CTRL-73-nested-same-name-disabled", "red",
+        "disabling one nested test cannot be masked by another nested declaration",
+        "FAIL", "baseline_test_method_removed",
+        project({"ProbeTest": nested.replace("class Right { @Test", "class Right { @org.junit.jupiter.api.Disabled @Test")}),
+        base=project({"ProbeTest": nested}))
+    overloads = """package probe;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+public class ProbeTest {
+  @ParameterizedTest @ValueSource(ints={1}) void proof(int value) {}
+  @ParameterizedTest @ValueSource(strings={"one"}) void proof(java.lang.String value) {}
+}
+"""
+    run("CTRL-74-overloaded-signature-positive", "positive",
+        "overloaded parameterized tests have distinct runtime-bound signatures",
+        "PASS", None, project({"ProbeTest": overloads}), base=project({"ProbeTest": overloads}))
+    run("CTRL-75-overloaded-signature-removal", "red",
+        "one surviving overloaded test cannot replace a removed signature",
+        "FAIL", "baseline_test_method_removed",
+        project({"ProbeTest": overloads.replace('  @ParameterizedTest @ValueSource(strings={"one"}) void proof(java.lang.String value) {}\n', '')}),
+        base=project({"ProbeTest": overloads}))
+    qualified = """package probe;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+public class ProbeTest {
+ @ParameterizedTest @MethodSource("arguments") void proof(one.Foo value) {}
+ static java.util.stream.Stream<one.Foo> arguments() { return java.util.stream.Stream.of(new one.Foo()); }
+}
+"""
+    extra = {"src/main/java/one/Foo.java": "package one; public class Foo {}",
+             "src/main/java/two/Foo.java": "package two; public class Foo {}"}
+    qualified_base = project({"ProbeTest": qualified}, extra=extra)
+    run("CTRL-76-qualified-parameter-positive", "positive",
+        "the exact qualified parameter declaration is required and actually started",
+        "PASS", None, qualified_base, base=qualified_base)
+    run("CTRL-77-qualified-parameter-replacement", "red",
+        "replacing one.Foo with two.Foo cannot supply the previous test's identity",
+        "FAIL", "baseline_test_method_removed",
+        project({"ProbeTest": qualified.replace("one.Foo", "two.Foo")}, extra=extra), base=qualified_base)
+    for spelling in ("Foo", "T", "String"):
+        try:
+            corpus_policy.java_test_methods("class ProbeTest { @Test void proof(" + spelling + " value) {} }")
+            refused = False
+        except corpus_policy.CorpusError as exc:
+            refused = "unresolved parameter type" in str(exc)
+        rows.append({"control": "CTRL-78-unresolved-parameter-refused-" + spelling, "kind": "red",
+                     "expectation": "import or bound resolution is never guessed",
+                     "expected_verdict": "REFUSED", "observed_verdict": "REFUSED" if refused else "ACCEPTED",
+                     "ok": refused})
+    # A JUnit 4 test named like an inherited public helper (Mage's
+    # AlpineHoundmasterTest#attack() next to CardTestPlayerAPIImpl's
+    # attack(int, TestPlayer, String)): JUnit Vintage reports it without a
+    # MethodSource, and it must still count as started under its own identity.
+    junit4_pom = build_pom().replace(
+        "<groupId>org.junit.jupiter</groupId>\n      <artifactId>junit-jupiter</artifactId>\n      <version>5.8.1</version>",
+        "<groupId>junit</groupId>\n      <artifactId>junit</artifactId>\n      <version>4.13.2</version>", 1)
+    helper = """package probe;
+public class ProbeBase {
+  public void attack(int turn, String attacker) {}
+}
+"""
+    overloaded = """package probe;
+import org.junit.Test;
+public class ProbeTest extends ProbeBase {
+  @Test public void attack() {}
+  @Test public void proof() {}
+}
+"""
+    overloaded_base = project({"ProbeBase": helper, "ProbeTest": overloaded}, pom=junit4_pom)
+    run("CTRL-79-junit4-overloaded-name-positive", "positive",
+        "a JUnit 4 test overloaded by an inherited helper is identified and actually started",
+        "PASS", None, overloaded_base, base=overloaded_base)
+    run("CTRL-80-junit4-overloaded-name-removal", "red",
+        "the inherited helper of the same name cannot stand in for a removed test",
+        "FAIL", "baseline_test_method_removed",
+        project({"ProbeBase": helper, "ProbeTest": overloaded.replace("  @Test public void attack() {}\n", "")},
+                pom=junit4_pom),
+        base=overloaded_base)
+
+    # Vintage can report arbitrary runner descriptions without a typed source.
+    # Exercise the complete build/compile/launch/aggregate/enforce path, rather
+    # than constructing a diagnostic mapping in Python.
+    log_probe = """package probe;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+@RunWith(ProbeRunner.class)
+public class ProbeTest { @Test public void proof() {} }
+"""
+    log_runner = r"""package probe;
+import org.junit.runner.Runner;
+import org.junit.runner.Description;
+import org.junit.runner.notification.RunNotifier;
+import org.junit.runner.notification.Failure;
+public class ProbeRunner extends Runner {
+ public ProbeRunner(Class<?> cls) {}
+ private Description bad() { return Description.createSuiteDescription("candidate\n::notice::FORGED-C12-LOG"); }
+ public Description getDescription() {
+  Description root = Description.createSuiteDescription(ProbeTest.class);
+  root.addChild(bad()); return root;
+ }
+ public void run(RunNotifier n) {
+  Description d = bad(); n.fireTestStarted(d);
+  n.fireTestFailure(new Failure(d, new AssertionError("failed")));
+  n.fireTestFinished(d);
+ }
+}
+"""
+    fx = h.fixture("CTRL-81-candidate-log-command-refused",
+                   project({"ProbeTest": log_probe, "ProbeRunner": log_runner}, pom=junit4_pom))
+    result = h.pipeline(fx)
+    output = result.get("witness_stdout", "")
+    safe = ("FORGED-C12-LOG" in output and "\\n::notice::" in output
+            and all(line.startswith("TRUSTED_WITNESS ") for line in output.splitlines())
+            and all(line.startswith("QUALIFICATION = ") for line in result.get("qualify_stdout", "").splitlines()))
+    rows.append(row("CTRL-81-candidate-log-command-refused", "red",
+                    "a real malicious runner failure stays FAIL and cannot inject workflow commands",
+                    "FAIL", result, reason="required_test_methods_not_started", extra_ok=safe))
+    fx = h.fixture("CTRL-82-ordinary-failure-diagnostic", project({"ProbeTest": FAILING_TEST}))
+    result = h.pipeline(fx)
+    output = result.get("witness_stdout", "")
+    safe = ('non-successful: ".::probe.ProbeTest" x1' in output
+            and all(line.startswith("TRUSTED_WITNESS ") for line in output.splitlines())
+            and all(line.startswith("QUALIFICATION = ") for line in result.get("qualify_stdout", "").splitlines()))
+    rows.append(row("CTRL-82-ordinary-failure-diagnostic", "red",
+                    "an ordinary real failing test keeps a useful single-line diagnostic",
+                    "FAIL", result, reason="test_failures", extra_ok=safe))
     return rows
+
+
+
+def containment_controls(h: Harness) -> list[dict]:
+    """Hostile candidate bytecode executes, but never owns qualification authority."""
+    rows: list[dict] = []
+
+    benign = """package probe;
+public final class Attack {
+ public static boolean reflectionBlocked() { return true; }
+ public static boolean observerHidden() { return true; }
+ public static boolean channelBlocked() { return true; }
+ public static boolean unixSocketBlocked() { return true; }
+ public static boolean attachBlocked() { return true; }
+ public static boolean jmxBlocked() { return true; }
+ public static boolean processBlocked() { return true; }
+ public static boolean launderedProcessBlocked() { return true; }
+ public static boolean privilegedLaunderedProcessBlocked() { return true; }
+ public static boolean fdDiscoveryBlocked() { return true; }
+ public static boolean hookBlocked() { return true; }
+ public static boolean nativeLoadBlocked() { return true; }
+ public static boolean managerRemovalBlocked() { return true; }
+ public static boolean classLoaderBlocked() { return true; }
+ public static boolean contextLoaderBlocked() { return true; }
+ public static boolean subclassLoaderBlocked() { return true; }
+ public static boolean launderedClassLoaderBlocked() { return true; }
+ public static boolean jdkReflectionLoaderUnreachable() { return true; }
+ public static boolean reflectionFactoryBlocked() { return true; }
+ public static boolean processHandleBlocked() { return true; }
+ public static boolean propertyWriteBlocked() { return true; }
+ public static boolean exitBlocked() { return true; }
+ public static boolean noAuthoritySecrets() { return true; }
+ public static boolean ownPrivateAccessBlocked() { return true; }
+ public static boolean moduleLoaderBlocked() { return true; }
+ public static boolean jdkDeclaredMembersBlocked() { return true; }
+ public static boolean privilegedLambdaAccessBlocked() { return true; }
+ public static boolean classNewInstanceBlocked() { return true; }
+}
+"""
+    test = """package probe;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+public class ProbeTest {
+ @Test public void reflection() { assertTrue(Attack.reflectionBlocked()); }
+ @Test public void observer() { assertTrue(Attack.observerHidden()); }
+ @Test public void channel() { assertTrue(Attack.channelBlocked()); }
+ @Test public void unixSocket() { assertTrue(Attack.unixSocketBlocked()); }
+ @Test public void attach() { assertTrue(Attack.attachBlocked()); }
+ @Test public void jmx() { assertTrue(Attack.jmxBlocked()); }
+ @Test public void process() { assertTrue(Attack.processBlocked()); }
+ @Test public void launderedProcess() { assertTrue(Attack.launderedProcessBlocked()); }
+ @Test public void privilegedLaunderedProcess() { assertTrue(Attack.privilegedLaunderedProcessBlocked()); }
+ @Test public void fds() { assertTrue(Attack.fdDiscoveryBlocked()); }
+ @Test public void hook() { assertTrue(Attack.hookBlocked()); }
+ @Test public void nativeLoad() { assertTrue(Attack.nativeLoadBlocked()); }
+ @Test public void manager() { assertTrue(Attack.managerRemovalBlocked()); }
+ @Test public void classLoader() { assertTrue(Attack.classLoaderBlocked()); }
+ @Test public void contextLoader() { assertTrue(Attack.contextLoaderBlocked()); }
+ @Test public void subclassLoader() { assertTrue(Attack.subclassLoaderBlocked()); }
+ @Test public void launderedClassLoader() { assertTrue(Attack.launderedClassLoaderBlocked()); }
+ @Test public void jdkReflectionLoader() { assertTrue(Attack.jdkReflectionLoaderUnreachable()); }
+ @Test public void reflectionFactory() { assertTrue(Attack.reflectionFactoryBlocked()); }
+ @Test public void processHandle() { assertTrue(Attack.processHandleBlocked()); }
+ @Test public void propertyWrite() { assertTrue(Attack.propertyWriteBlocked()); }
+ @Test public void exit() { assertTrue(Attack.exitBlocked()); }
+ @Test public void secrets() { assertTrue(Attack.noAuthoritySecrets()); }
+ @Test public void ownPrivateAccess() { assertTrue(Attack.ownPrivateAccessBlocked()); }
+ @Test public void moduleLoader() { assertTrue(Attack.moduleLoaderBlocked()); }
+ @Test public void jdkDeclaredMembers() { assertTrue(Attack.jdkDeclaredMembersBlocked()); }
+ @Test public void privilegedLambdaAccess() { assertTrue(Attack.privilegedLambdaAccessBlocked()); }
+ @Test public void classNewInstance() { assertTrue(Attack.classNewInstanceBlocked()); }
+}
+"""
+    hostile = r"""package probe;
+import java.lang.management.ManagementFactory;
+import java.lang.reflect.Method;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandleProxies;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.net.Socket;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.net.StandardProtocolFamily;
+import java.nio.channels.SocketChannel;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Map;
+import com.sun.tools.attach.VirtualMachine;
+import javax.management.ObjectName;
+
+public final class Attack {
+ private static boolean securityBlocked(Throwing action) {
+  try { action.run(); return false; }
+  catch (Throwable denied) { return refused(denied); }
+ }
+ // A containment refusal may surface directly or wrapped, e.g. as the cause of
+ // an ExceptionInInitializerError when a JDK class initializer is refused. A
+ // later use of that class in the same JVM then throws a cause-less
+ // NoClassDefFoundError("Could not initialize class X"); it counts as a
+ // refusal only for a class whose initializer this probe saw refused.
+ private static final java.util.Set<String> REFUSED_INIT =
+     java.util.concurrent.ConcurrentHashMap.newKeySet();
+ private static boolean refused(Throwable t) {
+  for (Throwable x = t; x != null; x = x.getCause() == x ? null : x.getCause()) {
+   if (x instanceof SecurityException) {
+    for (StackTraceElement frame : x.getStackTrace()) {
+     if ("<clinit>".equals(frame.getMethodName())) REFUSED_INIT.add(frame.getClassName());
+    }
+    return true;
+   }
+   String message = x.getMessage();
+   if (x instanceof NoClassDefFoundError && message != null
+       && message.startsWith("Could not initialize class ")
+       && REFUSED_INIT.contains(message.substring("Could not initialize class ".length()).trim())) {
+    return true;
+   }
+  }
+  return false;
+ }
+ // JVM input arguments via JMX, else /proc/self/cmdline; null when both reads
+ // are refused (the candidate then cannot discover them at all).
+ private static java.util.List<String> inputArguments() {
+  try { return ManagementFactory.getRuntimeMXBean().getInputArguments(); }
+  catch (Throwable jmx) { if (!refused(jmx)) throw jmx; }
+  try {
+   String raw = new String(Files.readAllBytes(Paths.get("/proc/self/cmdline")),
+       java.nio.charset.StandardCharsets.UTF_8);
+   return java.util.Arrays.asList(raw.split("\u0000"));
+  } catch (Throwable proc) {
+   if (refused(proc)) return null;
+   throw new IllegalStateException(proc);
+  }
+ }
+ @FunctionalInterface private interface Throwing { void run() throws Exception; }
+
+ public static boolean reflectionBlocked() {
+  return securityBlocked(() -> {
+   Class<?> type = Class.forName("c12.trusted.TrustedTestDriver");
+   Method hook = type.getDeclaredMethod("observerComplete");
+   hook.setAccessible(true);
+   hook.invoke(null);
+  });
+ }
+ public static boolean observerHidden() {
+  try { Class.forName("TrustedTestObserver"); return false; }
+  catch (ClassNotFoundException expected) { return true; }
+ }
+ public static boolean channelBlocked() {
+  String address = null;
+  java.util.List<String> args = inputArguments();
+  if (args == null) return true;
+  for (String arg : args) {
+   int p = arg.indexOf("address=");
+   if (p >= 0) {
+    address = arg.substring(p + 8);
+    int comma = address.indexOf(',');
+    if (comma >= 0) address = address.substring(0, comma);
+   }
+  }
+  if (address == null || address.isEmpty()) return false;
+  final String addr = address;
+  return securityBlocked(() -> {
+   String host = "127.0.0.1";
+   String portText = addr;
+   int colon = addr.lastIndexOf(':');
+   if (colon >= 0) { host = addr.substring(0, colon); portText = addr.substring(colon + 1); }
+   try (Socket ignored = new Socket(host, Integer.parseInt(portText))) { }
+  });
+ }
+ public static boolean unixSocketBlocked() {
+  // Opening an unbound channel is not access-checked; connecting is.
+  try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.UNIX)) {
+   channel.connect(java.net.UnixDomainSocketAddress.of("/nonexistent/c12-probe.sock"));
+   return false;
+  } catch (Throwable other) {
+   return refused(other);
+  }
+ }
+ public static boolean attachBlocked() {
+  try {
+   VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
+   return false;
+  } catch (Throwable other) {
+   return refused(other);
+  }
+ }
+ public static boolean jmxBlocked() {
+  try {
+   ManagementFactory.getPlatformMBeanServer().getAttribute(
+       new ObjectName("java.lang:type=Runtime"), "Name");
+   return false;
+  } catch (Throwable other) {
+   return refused(other);
+  }
+ }
+ public static boolean processBlocked() {
+  return securityBlocked(() -> new ProcessBuilder("/bin/true").start());
+ }
+ public static boolean launderedProcessBlocked() {
+  try {
+   MethodHandle start = MethodHandles.lookup().findVirtual(
+       ProcessBuilder.class, "start", MethodType.methodType(Process.class))
+       .bindTo(new ProcessBuilder("/bin/true"));
+   @SuppressWarnings("unchecked")
+   Callable<Process> proxy = (Callable<Process>) MethodHandleProxies.asInterfaceInstance(
+       Callable.class, start);
+   FutureTask<Process> task = new FutureTask<>(proxy);
+   Thread thread = new Thread(task, "c12-method-handle-proxy");
+   thread.start();
+   thread.join();
+   try {
+    task.get();
+    return false;
+   } catch (ExecutionException expected) {
+    Throwable cause = expected.getCause();
+    while (cause != null && !(cause instanceof SecurityException)
+        && cause.getCause() != cause) {
+     cause = cause.getCause();
+    }
+    return cause instanceof SecurityException;
+   }
+  } catch (Throwable unexpected) {
+   return refused(unexpected);
+  }
+ }
+ @SuppressWarnings("removal")
+ public static boolean privilegedLaunderedProcessBlocked() {
+  try {
+   MethodHandle start = MethodHandles.lookup().findVirtual(
+       ProcessBuilder.class, "start", MethodType.methodType(Process.class))
+       .bindTo(new ProcessBuilder("/bin/true"));
+   @SuppressWarnings("unchecked")
+   PrivilegedAction<Process> action = (PrivilegedAction<Process>)
+       MethodHandleProxies.asInterfaceInstance(PrivilegedAction.class, start);
+   AccessControlContext empty = new AccessControlContext(new ProtectionDomain[0]);
+   MethodHandle doPrivileged = MethodHandles.lookup().findStatic(
+       AccessController.class, "doPrivileged",
+       MethodType.methodType(Object.class, PrivilegedAction.class, AccessControlContext.class));
+   MethodHandle bound = MethodHandles.insertArguments(doPrivileged, 0, action, empty)
+       .asType(MethodType.methodType(Process.class));
+   @SuppressWarnings("unchecked")
+   Callable<Process> outer = (Callable<Process>)
+       MethodHandleProxies.asInterfaceInstance(Callable.class, bound);
+   FutureTask<Process> task = new FutureTask<>(outer);
+   Thread thread = new Thread(task, "c12-privileged-method-handle-proxy");
+   thread.start();
+   thread.join();
+   try {
+    task.get();
+    return false;
+   } catch (ExecutionException expected) {
+    Throwable cause = expected.getCause();
+    while (cause != null && !(cause instanceof SecurityException)
+        && cause.getCause() != cause) {
+     cause = cause.getCause();
+    }
+    return cause instanceof SecurityException;
+   }
+  } catch (Throwable unexpected) {
+   return refused(unexpected);
+  }
+ }
+ public static boolean fdDiscoveryBlocked() {
+  return securityBlocked(() -> { try (java.util.stream.Stream<java.nio.file.Path> ignored =
+      Files.list(Paths.get("/proc/self/fd"))) { ignored.count(); } });
+ }
+ public static boolean hookBlocked() {
+  return securityBlocked(() -> Runtime.getRuntime().addShutdownHook(new Thread(() -> {})));
+ }
+ public static boolean nativeLoadBlocked() {
+  return securityBlocked(() -> System.loadLibrary("c12_candidate_escape_probe"));
+ }
+ @SuppressWarnings("removal")
+ public static boolean managerRemovalBlocked() {
+  return securityBlocked(() -> System.setSecurityManager(null));
+ }
+ public static boolean classLoaderBlocked() {
+  return securityBlocked(() -> new java.net.URLClassLoader(
+      new java.net.URL[0], Attack.class.getClassLoader()));
+ }
+ public static boolean contextLoaderBlocked() {
+  return securityBlocked(() -> Thread.currentThread().setContextClassLoader(
+      Attack.class.getClassLoader()));
+ }
+ // The containment admits createClassLoader only for the JDK's own reflection
+ // accessor loader. A candidate-defined loader type must stay denied.
+ public static boolean subclassLoaderBlocked() {
+  try {
+   new ClassLoader(Attack.class.getClassLoader()) { };
+   return false;
+  } catch (SecurityException expected) {
+   return String.valueOf(expected.getMessage()).contains("runtime-permission:createClassLoader");
+  }
+ }
+ // A JDK loader type constructed with only JDK frames on a fresh thread (the
+ // MethodHandle-proxy laundering shape) must stay denied as well.
+ public static boolean launderedClassLoaderBlocked() {
+  try {
+   MethodHandle create = MethodHandles.lookup().findConstructor(
+       java.net.URLClassLoader.class,
+       MethodType.methodType(void.class, java.net.URL[].class, ClassLoader.class))
+       .bindTo(new java.net.URL[0]);
+   create = MethodHandles.insertArguments(create, 0, Attack.class.getClassLoader())
+       .asType(MethodType.methodType(Object.class));
+   @SuppressWarnings("unchecked")
+   Callable<Object> proxy = (Callable<Object>) MethodHandleProxies.asInterfaceInstance(
+       Callable.class, create);
+   FutureTask<Object> task = new FutureTask<>(proxy);
+   Thread thread = new Thread(task, "c12-laundered-class-loader");
+   thread.start();
+   thread.join();
+   try {
+    task.get();
+    return false;
+   } catch (ExecutionException expected) {
+    Throwable cause = expected.getCause();
+    while (cause != null && !(cause instanceof SecurityException)
+        && cause.getCause() != cause) {
+     cause = cause.getCause();
+    }
+    return cause instanceof SecurityException
+        && String.valueOf(cause.getMessage()).contains("runtime-permission:createClassLoader");
+   }
+  } catch (Throwable unexpected) {
+   return refused(unexpected);
+  }
+ }
+ // Encapsulation control: the admitted loader type is package-private in a
+ // java.base package closed to classpath code (the driver refuses to run when
+ // it is opened), so candidate code can neither construct nor extend it.
+ public static boolean jdkReflectionLoaderUnreachable() {
+  try {
+   Class<?> type = Class.forName("jdk.internal.reflect.DelegatingClassLoader");
+   java.lang.reflect.Constructor<?> ctor = type.getDeclaredConstructor(ClassLoader.class);
+   ctor.setAccessible(true);
+   ctor.newInstance(Attack.class.getClassLoader());
+   return false;
+  } catch (SecurityException | java.lang.reflect.InaccessibleObjectException denied) {
+   return true;
+  } catch (ReflectiveOperationException | RuntimeException other) {
+   return false;
+  }
+ }
+ // ReflectionFactory allocates objects without running their constructors'
+ // security checks; candidate access to it must be refused.
+ public static boolean reflectionFactoryBlocked() {
+  try {
+   sun.reflect.ReflectionFactory.getReflectionFactory();
+   return false;
+  } catch (NoClassDefFoundError absent) {
+   // The driver runs as a named module (-m), so jdk.unsupported is not in the
+   // resolved module graph and the class does not exist for candidate code:
+   // unreachable, which is stronger than refused. Only this exact class counts.
+   return "sun/reflect/ReflectionFactory".equals(absent.getMessage()) || refused(absent);
+  } catch (Throwable other) {
+   return refused(other);
+  }
+ }
+ public static boolean processHandleBlocked() {
+  return securityBlocked(() -> ProcessHandle.allProcesses().count());
+ }
+ public static boolean propertyWriteBlocked() {
+  return securityBlocked(() -> System.setProperty("c12.candidate.probe", "x"));
+ }
+ public static boolean exitBlocked() {
+  return securityBlocked(() -> System.exit(0));
+ }
+ public static boolean noAuthoritySecrets() {
+  for (Map.Entry<String,String> e : System.getenv().entrySet()) {
+   String k = e.getKey().toUpperCase(java.util.Locale.ROOT);
+   if (k.contains("WITNESS") || k.contains("RECEIPT") || k.contains("SECRET") || k.contains("TOKEN")) return false;
+  }
+  java.util.List<String> args = inputArguments();
+  for (String arg : args == null ? java.util.List.<String>of() : args) {
+   if (arg.contains("observer-receipts") || arg.contains("TRUSTED_WITNESS")) return false;
+  }
+  return System.getProperty("c12.receipt") == null && System.getProperty("c12.witness.key") == null;
+ }
+ // JDK privileged-site controls. The driver admits five exact JDK sites (lambda
+ // metafactory, enum constants, logger finder, service-loader lookup); each probe
+ // below matches a site's plumbing frames but lacks its JDK action frame, so it
+ // must still be refused.
+ private static void privateTarget() { }
+ public static boolean ownPrivateAccessBlocked() {
+  return securityBlocked(() -> Attack.class.getDeclaredMethod("privateTarget").setAccessible(true));
+ }
+ public static boolean moduleLoaderBlocked() {
+  return securityBlocked(() -> String.class.getModule().getClassLoader());
+ }
+ public static boolean jdkDeclaredMembersBlocked() {
+  return securityBlocked(() -> Thread.class.getDeclaredFields());
+ }
+ public static boolean privilegedLambdaAccessBlocked() {
+  return securityBlocked(() -> {
+   final Method target = Attack.class.getDeclaredMethod("privateTarget");
+   AccessController.doPrivileged((PrivilegedAction<Void>) () -> { target.setAccessible(true); return null; });
+  });
+ }
+ // Class.newInstance opens the constructor through the same plumbing, action
+ // and owner as the admitted accessor-generator site, but without the
+ // MethodAccessorGenerator caller chain, so it must stay refused.
+ public static final class Target { public Target() { } }
+ @SuppressWarnings("deprecation")
+ public static boolean classNewInstanceBlocked() {
+  return securityBlocked(() -> Target.class.newInstance());
+ }
+}
+"""
+    base = project({"ProbeTest": test}, extra={"src/main/java/probe/Attack.java": benign})
+    candidate = project({"ProbeTest": test}, extra={"src/main/java/probe/Attack.java": hostile})
+    fx = h.fixture("CTRL-84-hostile-bytecode-contained", base, candidate)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-84-hostile-bytecode-contained", "positive",
+        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX and process-handle access (refused at JDK class initialization under candidate frames; the MBean-level and handle-level checks are not reached), direct, MethodHandle/new-thread and explicit-doPrivileged-context-laundered process, fd/native/classloader (URLClassLoader, candidate subclass, MethodHandle-laundered, JDK reflection loader, ReflectionFactory unresolved or refused)/TCCL/property/shutdown/exit escape paths are denied, and the admitted JDK privileged sites stay unreachable from candidate frames that present only their plumbing (own-member setAccessible, Module.getClassLoader, JDK getDeclaredFields, candidate-lambda doPrivileged, Class.newInstance without the accessor-generator chain)",
+        "PASS", result, extra_ok=result.get("credit") is True,
+    ))
+
+    # Positive control for the admitted JDK privileged sites: ordinary candidate
+    # code that makes the JDK run its own privileged actions beneath candidate
+    # frames (lambda spinning, enum constants, platform logger, module service
+    # lookup) must still execute and earn credit.
+    honest_jdk = """package probe;
+import java.util.EnumSet;
+import java.util.ServiceLoader;
+import java.util.function.Supplier;
+public final class Honest {
+ public enum Color { RED, GREEN }
+ public interface Plugin { }
+ public static int lambdaValue() { Supplier<Integer> s = () -> 41; return s.get() + 1; }
+ public static int enumCount() { return EnumSet.allOf(Color.class).size(); }
+ public static boolean logger() { return java.util.logging.Logger.getLogger("probe.honest") != null; }
+ public static boolean serviceLookup() { return !ServiceLoader.load(Plugin.class).iterator().hasNext(); }
+ public static int reflectiveLoop() throws Exception {
+  java.lang.reflect.Method m = Honest.class.getMethod("lambdaValue");
+  int sum = 0;
+  for (int i = 0; i < 20; i++) sum += (Integer) m.invoke(null);
+  return sum;
+ }
+}
+"""
+    honest_test = """package probe;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+public class ProbeTest {
+ @Test public void lambda() { assertEquals(42, Honest.lambdaValue()); }
+ @Test public void enumConstants() { assertEquals(2, Honest.enumCount()); }
+ @Test public void logger() { assertTrue(Honest.logger()); }
+ @Test public void serviceLookup() { assertTrue(Honest.serviceLookup()); }
+ @Test public void reflectiveLoop() throws Exception { assertEquals(840, Honest.reflectiveLoop()); }
+}
+"""
+    honest_project = project({"ProbeTest": honest_test}, extra={"src/main/java/probe/Honest.java": honest_jdk})
+    fx = h.fixture("CTRL-99-honest-jdk-privileged-sites-run", honest_project, honest_project)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-99-honest-jdk-privileged-sites-run", "positive",
+        "ordinary candidate code that makes the JDK run its own privileged actions beneath candidate frames (lambda, EnumSet over a candidate enum, platform Logger, module service lookup, reflection past the JDK 17 inflation threshold) executes and earns credit",
+        "PASS", result, extra_ok=result.get("credit") is True,
+    ))
+
+    # Candidate test source preserves the method identity but weakens a failing
+    # assertion. C12 must still run the trusted default-branch assertion and fail.
+    trusted_failing = """package probe;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
+public class ProbeTest { @Test public void proof() { assertEquals(3, 1 + 1); } }
+"""
+    candidate_passing = trusted_failing.replace("assertEquals(3, 1 + 1)", "assertEquals(2, 1 + 1)")
+    fx = h.fixture(
+        "CTRL-85-candidate-test-weakening-no-credit",
+        project({"ProbeTest": trusted_failing}),
+        project({"ProbeTest": candidate_passing}),
+    )
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-85-candidate-test-weakening-no-credit", "red",
+        "candidate-edited test assertions never replace the trusted baseline test bytecode",
+        "FAIL", result, reason="test_failures",
+    ))
+
+    # A candidate-added green test is delta-visible, but it cannot increase the
+    # authoritative execution set or manufacture credit.
+    one = project({"ProbeTest": PASSING_TEST})
+    two = project({"ProbeTest": PASSING_TEST, "AddedTest": passing("AddedTest")})
+    fx = h.fixture("CTRL-86-candidate-added-test-no-credit", one, two)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-86-candidate-added-test-no-credit", "positive",
+        "candidate-added test bytecode contributes zero trusted witness credit",
+        "PASS", result,
+        extra_ok=result.get("classes_entered") == 1 and result.get("required_selected") == 1,
+    ))
+
+    # A candidate-controlled Jupiter interceptor is production bytecode, not
+    # trusted test bytecode. If it can suppress invocation.proceed(), JUnit can
+    # emit a green lifecycle without the trusted failing assertion ever running.
+    # The containment layer must reject that execution-control substitution.
+    extension_pom = build_pom().replace(
+        """      <artifactId>junit-jupiter</artifactId>
+      <version>5.8.1</version>
+      <scope>test</scope>""",
+        """      <artifactId>junit-jupiter-api</artifactId>
+      <version>5.8.1</version>""",
+    )
+    extension_test = """package probe;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+@ExtendWith(GateExtension.class)
+public class ProbeTest {
+ @Test public void proof() { assertEquals(3, 1 + 1); }
+}
+"""
+    honest_extension = """package probe;
+import java.lang.reflect.Method;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.InvocationInterceptor;
+import org.junit.jupiter.api.extension.ReflectiveInvocationContext;
+public final class GateExtension implements InvocationInterceptor {
+ @Override public void interceptTestMethod(
+   Invocation<Void> invocation,
+   ReflectiveInvocationContext<Method> context,
+   ExtensionContext extensionContext) throws Throwable {
+  invocation.proceed();
+ }
+}
+"""
+    suppressing_extension = honest_extension.replace(
+        "  invocation.proceed();",
+        "  try { invocation.proceed(); } catch (Throwable ignored) { } // malicious candidate swallows trusted assertion",
+    )
+    base = project(
+        {"ProbeTest": extension_test},
+        pom=extension_pom,
+        extra={"src/main/java/probe/GateExtension.java": honest_extension},
+    )
+    candidate = project(
+        {"ProbeTest": extension_test},
+        pom=extension_pom,
+        extra={"src/main/java/probe/GateExtension.java": suppressing_extension},
+    )
+    fx = h.fixture("CTRL-87-candidate-extension-cannot-forge-pass", base, candidate)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-87-candidate-extension-cannot-forge-pass", "red",
+        "candidate production code used as JUnit execution control cannot suppress a trusted failing assertion",
+        "FAIL", result, reason="candidate_junit_control_code",
+    ))
+
+    # Vintage analogue: candidate production code replaces an honest runner
+    # with one that reports proof() green without calling the trusted method.
+    junit4_main_pom = build_pom().replace(
+        """      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.8.1</version>
+      <scope>test</scope>""",
+        """      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.13.2</version>""",
+        1,
+    )
+    trusted_rule_test = """package probe;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestName;
+public class ProbeTest {
+ @Rule public TestName testName = new TestName();
+ @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
+ @Test public void proof() throws Exception {
+  assertEquals("proof", testName.getMethodName());
+  assertTrue(tempFolder.newFolder().isDirectory());
+ }
+}
+"""
+    trusted_rule_project = project({"ProbeTest": trusted_rule_test}, pom=junit4_main_pom)
+    fx = h.fixture("CTRL-96-trusted-junit4-built-in-rules-positive",
+                   trusted_rule_project, trusted_rule_project)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-96-trusted-junit4-built-in-rules-positive", "positive",
+        "current-corpus trusted JUnit4 TestName and TemporaryFolder rules remain executable",
+        "PASS", result, extra_ok=result.get("credit") is True,
+    ))
+
+    candidate_rule_test = """package probe;
+import org.junit.Rule;
+import org.junit.Test;
+public class ProbeTest {
+ @Rule public CandidateRule rule = new CandidateRule();
+ @Test public void proof() { }
+}
+"""
+    candidate_rule = """package probe;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
+public final class CandidateRule implements TestRule {
+ @Override public Statement apply(Statement base, Description description) { return base; }
+}
+"""
+    candidate_rule_project = project(
+        {"ProbeTest": candidate_rule_test},
+        pom=junit4_main_pom,
+        extra={"src/main/java/probe/CandidateRule.java": candidate_rule},
+    )
+    fx = h.fixture("CTRL-97-candidate-origin-junit4-rule-refused",
+                   candidate_rule_project, candidate_rule_project)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-97-candidate-origin-junit4-rule-refused", "red",
+        "candidate production code cannot become JUnit4 Rule execution authority",
+        "FAIL", result, reason="candidate_junit_control_code",
+    ))
+
+    candidate_rule_owner = """package probe;
+import org.junit.Rule;
+import org.junit.rules.TestName;
+public class CandidateRuleOwner {
+ @Rule public TestName name = new TestName();
+}
+"""
+    trusted_inheriting_rule_test = """package probe;
+import org.junit.Test;
+public class ProbeTest extends CandidateRuleOwner {
+ @Test public void proof() { }
+}
+"""
+    candidate_rule_owner_project = project(
+        {"ProbeTest": trusted_inheriting_rule_test},
+        pom=junit4_main_pom,
+        extra={"src/main/java/probe/CandidateRuleOwner.java": candidate_rule_owner},
+    )
+    fx = h.fixture("CTRL-98-candidate-origin-built-in-rule-member-refused",
+                   candidate_rule_owner_project, candidate_rule_owner_project)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-98-candidate-origin-built-in-rule-member-refused", "red",
+        "a candidate production superclass cannot inject even an allowlisted built-in JUnit4 Rule member",
+        "FAIL", result, reason="candidate_junit_control_code",
+    ))
+
+    vintage_test = """package probe;
+import static org.junit.Assert.assertEquals;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+@RunWith(GateRunner.class)
+public class ProbeTest {
+ @Test public void proof() { assertEquals(3, 1 + 1); }
+}
+"""
+    honest_runner = """package probe;
+public final class GateRunner extends org.junit.runners.BlockJUnit4ClassRunner {
+ public GateRunner(Class<?> type) throws org.junit.runners.model.InitializationError { super(type); }
+}
+"""
+    forged_runner = """package probe;
+import org.junit.runner.Description;
+import org.junit.runner.Runner;
+import org.junit.runner.notification.RunNotifier;
+public final class GateRunner extends Runner {
+ private final Class<?> type;
+ public GateRunner(Class<?> type) { this.type = type; }
+ private Description proof() { return Description.createTestDescription(type, "proof"); }
+ @Override public Description getDescription() {
+  Description root = Description.createSuiteDescription(type);
+  root.addChild(proof());
+  return root;
+ }
+ @Override public void run(RunNotifier notifier) {
+  Description proof = proof();
+  notifier.fireTestStarted(proof);
+  notifier.fireTestFinished(proof);
+ }
+}
+"""
+    base = project(
+        {"ProbeTest": vintage_test},
+        pom=junit4_main_pom,
+        extra={"src/main/java/probe/GateRunner.java": honest_runner},
+    )
+    candidate = project(
+        {"ProbeTest": vintage_test},
+        pom=junit4_main_pom,
+        extra={"src/main/java/probe/GateRunner.java": forged_runner},
+    )
+    fx = h.fixture("CTRL-88-candidate-runner-cannot-forge-pass", base, candidate)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-88-candidate-runner-cannot-forge-pass", "red",
+        "candidate production code used as a Vintage runner cannot fabricate success without invoking the trusted test",
+        "FAIL", result, reason="candidate_junit_control_code",
+    ))
+
+    # Independent parent-observer control: even trusted test-side runner code
+    # cannot manufacture credit by entering a failing method, swallowing its
+    # exception and then reporting a green JUnit lifecycle. Entry alone is not
+    # enough; the parent must observe a normal method exit for the active test.
+    catching_test = """package probe;
+import static org.junit.Assert.assertEquals;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+@RunWith(CatchingRunner.class)
+public class ProbeTest {
+ @Test public void proof() { assertEquals(3, 1 + 1); }
+}
+"""
+    catching_runner = """package probe;
+import java.lang.reflect.Method;
+import org.junit.runner.Description;
+import org.junit.runner.Runner;
+import org.junit.runner.notification.RunNotifier;
+public final class CatchingRunner extends Runner {
+ private final Class<?> type;
+ public CatchingRunner(Class<?> type) { this.type = type; }
+ private Description proof() { return Description.createTestDescription(type, "proof"); }
+ @Override public Description getDescription() {
+  Description root = Description.createSuiteDescription(type);
+  root.addChild(proof());
+  return root;
+ }
+ @Override public void run(RunNotifier notifier) {
+  Description proof = proof();
+  notifier.fireTestStarted(proof);
+  try {
+   Object instance = type.getDeclaredConstructor().newInstance();
+   Method method = type.getMethod("proof");
+   method.invoke(instance);
+  } catch (Throwable ignored) { }
+  notifier.fireTestFinished(proof);
+ }
+}
+"""
+    body_attack = project(
+        {"ProbeTest": catching_test, "CatchingRunner": catching_runner},
+        pom=junit4_main_pom,
+    )
+    fx = h.fixture("CTRL-89-parent-requires-normal-test-body-exit", body_attack, body_attack)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-89-parent-requires-normal-test-body-exit", "red",
+        "green lifecycle plus a swallowed failing assertion cannot earn credit without a parent-observed normal method exit",
+        "FAIL", result, reason="required_test_method_bodies_not_completed",
+    ))
+
+    trusted_runner_test = catching_test.replace(
+        "assertEquals(3, 1 + 1)", "assertEquals(2, 1 + 1)"
+    )
+    trusted_runner = project(
+        {"ProbeTest": trusted_runner_test, "CatchingRunner": catching_runner},
+        pom=junit4_main_pom,
+    )
+    fx = h.fixture("CTRL-90-trusted-test-runner-positive", trusted_runner, trusted_runner)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-90-trusted-test-runner-positive", "positive",
+        "a trusted test-side custom runner still earns credit when the trusted method body actually returns normally",
+        "PASS", result, extra_ok=result.get("credit") is True,
+    ))
+
+    test_factory = """package probe;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.TestFactory;
+public class ProbeTest {
+ @TestFactory
+ public Stream<DynamicTest> factoryProof() {
+  return Stream.of(DynamicTest.dynamicTest("child", () -> assertEquals(2, 1 + 1)));
+ }
+}
+"""
+    factory_project = project({"ProbeTest": test_factory})
+    fx = h.fixture("CTRL-95-required-test-factory-body-positive",
+                   factory_project, factory_project)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-95-required-test-factory-body-positive", "positive",
+        "a required Jupiter TestFactory container earns body credit only when the factory method itself enters and returns normally before its dynamic children run",
+        "PASS", result, extra_ok=result.get("credit") is True,
+    ))
+
+    return rows
+
+
+def honest_execution_control(h: Harness) -> dict:
+    """Fast-fail smoke using the exact CTRL-01 production pipeline."""
+    honest = project({"ProbeTest": PASSING_TEST})
+    fx = h.fixture("CTRL-01-honest-execution", honest)
+    return row(
+        "CTRL-01-honest-execution", "positive",
+        "an honest candidate whose tests the trusted launcher actually runs earns credit",
+        "PASS", h.pipeline(fx),
+    )
 
 
 def legacy_controls(h: Harness) -> list[dict]:
     """The report-forgery, suppression, binding and witness controls, on the new pipeline."""
-    rows: list[dict] = []
+    rows: list[dict] = [honest_execution_control(h)]
     honest = project({"ProbeTest": PASSING_TEST})
 
     def run(control, kind, expectation, expected, reason, base, candidate=None, **pipeline_kwargs):
         fx = h.fixture(control, base, candidate)
         rows.append(row(control, kind, expectation, expected, h.pipeline(fx, **pipeline_kwargs), reason=reason))
 
-    run("CTRL-01-honest-execution", "positive",
-        "an honest candidate whose tests the trusted launcher actually runs earns credit", "PASS", None, honest)
     forged_pom = build_pom(extra=ANTRUN_FORGE.format(phase="test"))
     forged = dict(project({"ProbeTest": PASSING_TEST}, pom=forged_pom))
     forged["forged/TEST-probe.ForgedTest.xml"] = FORGED_REPORT
@@ -1552,7 +2677,7 @@ def module_controls(h: Harness) -> list[dict]:
 
     run("CTRL-21-unresolved-module-dependency", "red",
         "a required class that cannot resolve on its module classpath earns no credit and is not skipped",
-        "FAIL", "required_tests_not_compiled", multi, both, classpath_override=without_helper)
+        "FAIL", "required_tests_not_compiled", multi, both, trusted_classpath_override=without_helper)
 
     with_c = dict(multi)
     with_c.update(project({"ModuleCTest": MODULE_C_TEST}, module="modC"))
@@ -1587,6 +2712,108 @@ def module_controls(h: Harness) -> list[dict]:
         "a required class present only in another module's output cannot be credited",
         "FAIL", "required_tests_not_compiled", collision, ["modA", "modB"], classpath_override=sibling_tests)
 
+    # Candidate code in an unrelated test-bearing sibling must not be placed
+    # ahead of the trusted dependency graph. Otherwise it can define the same
+    # FQN as an external dependency and make a trusted failing assertion pass.
+    shadow_base = {}
+    shadow_base.update(project(
+        {"VictimTest": MODULE_VICTIM_SHADOW_TEST}, pom=POM_WITH_HELPER, module="modVictim"))
+    shadow_base.update(project({"ShadowTest": passing("ShadowTest")}, module="modShadow"))
+    shadow_candidate = dict(shadow_base)
+    shadow_candidate["modShadow/src/main/java/helper/OnlyOnB.java"] = SHADOW_HELPER_SOURCE
+    fx = h.fixture("CTRL-91-unrelated-sibling-main-cannot-shadow-dependency",
+                   shadow_base, shadow_candidate)
+    result = h.pipeline(fx, build_modules=["modVictim", "modShadow"])
+    rows.append(row(
+        "CTRL-91-unrelated-sibling-main-cannot-shadow-dependency", "red",
+        "an unrelated sibling main output cannot shadow a trusted external dependency on another module's runtime classpath",
+        "FAIL", result, reason="test_failures",
+    ))
+
+    redirect_base = {}
+    redirect_base.update(project(
+        {"GraphTest": REACTOR_REDIRECT_TEST}, module="modVictim"))
+    redirect_base.update(project(
+        {}, module="modDep",
+        extra={"modDep/src/main/java/dep/Value.java": REACTOR_DEP_SOURCE}))
+    redirect_base.update(project(
+        {}, module="modShadow",
+        extra={"modShadow/src/main/java/dep/Value.java": REACTOR_SHADOW_SOURCE}))
+    fx = h.fixture("CTRL-94-reactor-output-symlink-substitution-refused", redirect_base)
+    redirect_state = {}
+
+    def trusted_dep_edge(_h, _fx, mapping):
+        original = mapping.get("modVictim", "")
+        trusted_dep = str(_fx["repo"] / "modDep" / "target" / "classes")
+        mapping["modVictim"] = os.pathsep.join(
+            [trusted_dep] + ([original] if original else [])
+        )
+        return mapping
+
+    def redirect_dep_output(_h, _fx):
+        dep = h.sandbox_dir / "candidate" / "modDep" / "target" / "classes"
+        shadow = h.sandbox_dir / "candidate" / "modShadow" / "target" / "classes"
+        proc = h.as_candidate(
+            h.sandbox_dir,
+            ["/bin/sh", "-c", 'rm -rf "$1" && ln -s "$2" "$1"',
+             "c12", str(dep), str(shadow)],
+        )
+        redirect_state["applied"] = (
+            proc.returncode == 0
+            and dep.is_symlink()
+            and dep.resolve() == shadow.resolve()
+            and shadow.is_dir()
+        )
+
+    result = h.pipeline(
+        fx,
+        build_modules=["modVictim", "modDep", "modShadow"],
+        trusted_classpath_override=trusted_dep_edge,
+        after_build=redirect_dep_output,
+    )
+    rows.append(row(
+        "CTRL-94-reactor-output-symlink-substitution-refused", "red",
+        "a trusted reactor edge cannot be redirected to a different candidate sibling output whose colliding FQN would make the trusted test pass",
+        "UNKNOWN", result, reason="trusted_reactor_output_path_redirected",
+        extra_ok=redirect_state.get("applied") is True,
+        extra={"reactor_redirect_applied": redirect_state.get("applied")},
+    ))
+
+    escape_files = project(
+        {"ModuleBTest": MODULE_B_USES_MAIN},
+        module="modEscape",
+        extra={"modEscape/src/main/java/probe/LibB.java": LIB_B_ESCAPE_SOURCE},
+    )
+    fx = h.fixture("CTRL-93-module-output-symlink-escape-refused", escape_files)
+    escape_state = {}
+
+    def escape_main_output(_h, _fx):
+        target = h.sandbox_dir / "candidate" / "modEscape" / "target" / "classes"
+        escaped = h.sandbox_dir / "escaped-main"
+        proc = h.as_candidate(
+            h.sandbox_dir,
+            ["/bin/sh", "-c",
+             'rm -rf "$2" && mv "$1" "$2" && ln -s "$2" "$1"',
+             "c12", str(target), str(escaped)],
+        )
+        escape_state["applied"] = (
+            proc.returncode == 0
+            and target.is_symlink()
+            and target.resolve() == escaped.resolve()
+            and escaped.is_dir()
+        )
+
+    result = h.pipeline(
+        fx, build_modules=["modEscape"], after_build=escape_main_output
+    )
+    rows.append(row(
+        "CTRL-93-module-output-symlink-escape-refused", "red",
+        "candidate target/classes cannot escape its contained output prefix through a symlink and thereby lose hostile-bytecode capability checks",
+        "UNKNOWN", result, reason="candidate_module_output_outside_candidate_root",
+        extra_ok=escape_state.get("applied") is True,
+        extra={"symlink_escape_applied": escape_state.get("applied")},
+    ))
+
     empty = {}
     empty.update(project({"ModuleATest": MODULE_A_TEST}, module="modA"))
     empty.update(project({"Helper": "package probe;\n\npublic final class Helper {\n}\n"}, module="modEmpty"))
@@ -1594,6 +2821,12 @@ def module_controls(h: Harness) -> list[dict]:
         "a module with zero required classes contributes nothing and cannot fabricate credit",
         "PASS", None, empty, ["modA", "modEmpty"],
         extra_check=lambda r: r.get("modules_with_witness") == ["modA"])
+
+    dollar = project({"DollarTest": passing("DollarTest")}, module="mod$dollar")
+    run("CTRL-83-dollar-module-owner-positive", "positive",
+        "a legal dollar sign in a Maven module path is preserved when deriving a method owner",
+        "PASS", None, dollar, ["mod$dollar"],
+        extra_check=lambda r: r.get("modules_with_witness") == ["mod$dollar"])
     return rows
 
 
@@ -1620,6 +2853,24 @@ public final class LibB {
     }
 
     public static int five() {
+        return 5;
+    }
+}
+"""
+
+LIB_B_ESCAPE_SOURCE = """package probe;
+
+public final class LibB {
+
+    private LibB() {
+    }
+
+    public static int five() {
+        // If this class is loaded from a candidate-writable directory that is
+        // accidentally omitted from untrustedPrefixes, the property write is
+        // allowed and the trusted test passes. Correct containment refuses the
+        // escaped output path before this code can execute.
+        System.setProperty("c12.symlink.escape", "reached");
         return 5;
     }
 }
@@ -1661,6 +2912,12 @@ def static_controls() -> list[dict]:
         "SANDBOX_PREPARE.json",
         "BUILD_RESULT.json",
         "MODULE_CLASSPATHS.json",
+        "TRUSTED_MODULE_CLASSPATHS.json",
+        "TRUSTED_MODULE_CLASSPATHS_RECORD.json",
+        "${{ env.EVIDENCE_DIR }}/TRUSTED_MODULE_CLASSPATHS.json",
+        "${{ env.EVIDENCE_DIR }}/TRUSTED_MODULE_CLASSPATHS_RECORD.json",
+        "${{ runner.temp }}/c12-seals/before-candidate.json",
+        "${{ runner.temp }}/c12-seals/after-witness.json",
         "TRUSTED_WITNESS.json",
         "INTEGRITY.json",
         "QUALIFICATION_EVIDENCE.json",
@@ -1670,6 +2927,7 @@ def static_controls() -> list[dict]:
         "--integrity",
         "INTEGRITY_EXIT",
         'bin/mvn" -B test-compile dependency:build-classpath',
+        "--trusted-module-classpaths",
         "-Dmaven.compiler.proc=none",
         "--harden-world-writable",
         "--stage-jdk",
@@ -1679,6 +2937,14 @@ def static_controls() -> list[dict]:
     ):
         if required not in text:
             problems.append("trusted workflow is missing {!r}".format(required))
+    expected_classpath_output = "-Dmdep.outputFile=" + resolve_classpaths.CLASSPATH_FILE
+    if text.count(expected_classpath_output) < 2:
+        problems.append(
+            "trusted and candidate classpath producers must both use {!r}".format(
+                resolve_classpaths.CLASSPATH_FILE
+            )
+        )
+
     for forbidden in (
         "--candidate-ref",
         "continue-on-error",
@@ -1693,8 +2959,12 @@ def static_controls() -> list[dict]:
         stripped = line.strip()
         if "python3" in stripped and "$QUALIFICATION_DIR" in stripped and not stripped.startswith("/usr/bin/python3 -I -S -B "):
             problems.append("trusted script not run as /usr/bin/python3 -I -S -B: {}".format(stripped[:80]))
-        if re.search(r"(^|[\s;&|(])mvn\s+-", stripped) and "dependency:get" not in stripped and not stripped.startswith("-- mvn "):
-            problems.append("Maven invoked outside the sandbox: {}".format(stripped[:80]))
+        if (re.search(r"(^|[\s;&|(])mvn\s+-", stripped)
+                and "dependency:get" not in stripped
+                and '-f "$TRUSTED_ROOT/pom.xml"' not in stripped
+                and not stripped.startswith("-- mvn ")):
+            problems.append("Maven invoked outside the sandbox/trusted-validator pre-resolution: {}".format(
+                stripped[:80]))
     rows.append(
         {
             "control": "CTRL-15-workflow-contract",
@@ -1830,6 +3100,8 @@ def main() -> int:
     parser.add_argument("--harden-world-writable", action="store_true",
                         help="hosted runners: remove o+w from non-sticky world-writable directories first")
     parser.add_argument("--out", default="")
+    parser.add_argument("--smoke-honest", action="store_true",
+                        help="run only CTRL-01 through the exact production pipeline for fast diagnostics")
     args = parser.parse_args()
     if args.harden_world_writable:
         print("hardened: {}".format(", ".join(sandbox.harden_world_writable()) or "nothing to harden"))
@@ -1842,11 +3114,25 @@ def main() -> int:
         ("trust", trust_controls),
         ("junit", junit_controls),
         ("corpus", corpus_controls),
+        ("containment", containment_controls),
     )
     try:
-        results = list(static_controls()) + source_lock_controls(tmp)
         available, reason = toolchain_available(harness)
-        for family, runner in families:
+        if args.smoke_honest:
+            if available:
+                results = [honest_execution_control(harness)]
+            else:
+                results = [{
+                    "control": "CTRL-01-honest-execution",
+                    "kind": "not_run",
+                    "expectation": "honest smoke needs a real Maven/JDK toolchain and sandbox: {}".format(reason),
+                    "observed_verdict": "NOT_RUN",
+                    "expected_verdict": "PASS",
+                    "ok": False,
+                }]
+        else:
+            results = list(static_controls()) + source_lock_controls(tmp)
+        for family, runner in (() if args.smoke_honest else families):
             if not available:
                 results.append({
                     "control": "{}-controls".format(family),
@@ -1899,9 +3185,12 @@ def main() -> int:
             item.get("expected_verdict"), item.get("observed_verdict")))
         if not item.get("ok"):
             print("        expectation: {}".format(item.get("expectation")))
-            for key in ("reasons", "witness_notes", "error", "sandbox_error", "witness_stderr"):
+            for key in ("reasons", "witness_notes", "error", "sandbox_error", "witness_stderr",
+                        "module_diagnostics"):
                 if item.get(key):
-                    print("        {}: {}".format(key, str(item[key])[:700]))
+                    limit = 2400 if key == "module_diagnostics" else 700
+                    print("        {}: {}".format(
+                        key, json.dumps(item[key], ensure_ascii=True)[:limit]))
     print("SELFTEST = {} ({}/{} controls ok, {} not run)".format(status, len(passed), len(results), len(not_run)))
     if args.out:
         out = Path(args.out)
