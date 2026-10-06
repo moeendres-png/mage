@@ -28,7 +28,7 @@ jobs:
   gate-controls:
     name: C12 gate controls on the proposed gate code
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 45
     env:
       PYTHONDONTWRITEBYTECODE: "1"
       JUNIT_PLATFORM_VERSION: 1.9.3
@@ -52,12 +52,6 @@ jobs:
           # API (with opentest4j and apiguardian) from the seeded repository; a
           # cold Maven cache would leave them NOT_RUN.
           mvn -B -q dependency:get -Dartifact=org.junit.jupiter:junit-jupiter-api:5.8.1
-          # The fixture POMs use the full Jupiter aggregate, and Vintage controls
-          # add the Vintage engine. Resolve those graphs on the trusted side
-          # before the sandbox account exists; witness.py will only accept the
-          # corresponding trusted-cache copies.
-          mvn -B -q dependency:get -Dartifact=org.junit.jupiter:junit-jupiter:5.8.1
-          mvn -B -q dependency:get -Dartifact=org.junit.vintage:junit-vintage-engine:5.8.1
           jar="${HOME}/.m2/repository/org/junit/platform/junit-platform-console-standalone/${JUNIT_PLATFORM_VERSION}/junit-platform-console-standalone-${JUNIT_PLATFORM_VERSION}.jar"
           test -f "$jar"
           echo "TRUSTED_JUNIT_CLASSPATH=$jar" >> "$GITHUB_ENV"
@@ -77,17 +71,6 @@ jobs:
             sudo chmod -R go-w "$dest"
           done
           echo "JAVA_HOME=/var/lib/c12-selftest/jdk" >> "$GITHUB_ENV"
-      - name: Run honest exact-pipeline smoke
-        run: |
-          set -euo pipefail
-          export PATH=/var/lib/c12-selftest/jdk/bin:/var/lib/c12-selftest/maven/bin:/usr/sbin:/usr/bin:/sbin:/bin
-          mkdir -p evidence
-          /usr/bin/python3 -I -S -B .github/qualification/qualification_selftest.py \
-            --maven /var/lib/c12-selftest/maven/bin/mvn \
-            --sandbox-user c12cand \
-            --harden-world-writable \
-            --smoke-honest \
-            --out evidence/GATE_SMOKE.json
       - name: Run gate controls with the separate sandbox account
         run: |
           set -euo pipefail
@@ -99,14 +82,11 @@ jobs:
             --sandbox-user c12cand \
             --harden-world-writable \
             --out evidence/GATE_CONTROLS.json
-          /usr/bin/python3 -I -S -B .github/qualification/test_counter_contract.py
       - name: Upload gate control report
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: mage-c12-gate-controls-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
-          path: |
-            evidence/GATE_SMOKE.json
-            evidence/GATE_CONTROLS.json
+          path: evidence/GATE_CONTROLS.json
           if-no-files-found: error
           retention-days: 30

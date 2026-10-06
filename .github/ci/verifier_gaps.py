@@ -19,11 +19,6 @@ UTILITY_METHODS = {'list_ChangelogHelper', 'downloadAndPrepareCommanderBracketsD
 def digest(raw):
     return hashlib.sha256(raw).hexdigest()
 
-def c16_method_name(identity):
-    """Adapt C12 full method identities to C16's established name-only schema."""
-    local = str(identity).rsplit('#', 1)[-1]
-    return local.split('(', 1)[0]
-
 def git(repo, *args):
     return subprocess.check_output(['git', '-C', str(repo), *args], stderr=subprocess.DEVNULL)
 
@@ -43,7 +38,7 @@ def inventory(repo, rev):
         files[path] = digest(raw)
         text = raw.decode('utf-8')
         enabled, disabled = corpus_policy.java_test_methods(text)
-        for method in sorted({c16_method_name(identity) for identity in disabled}):
+        for method in sorted(disabled):
             records.append({'kind': 'DISABLED_TEST', 'path': path, 'method': method,
                             'status': 'NOT_RUN', 'evidence_class': 'CODE_DERIVED',
                             'role': 'MAINTENANCE_UTILITY' if method in UTILITY_METHODS else 'VERIFICATION_GAP'})

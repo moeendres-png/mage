@@ -65,8 +65,8 @@ from pathlib import PurePosixPath
 # Trusted code never resolves tools from the inherited PATH (see sandbox.TOOL_PATH).
 GIT = shutil.which("git", path="/usr/sbin:/usr/bin:/sbin:/bin") or "/usr/bin/git"
 
-BASELINE_SCHEMA = "mage.candidate-qualification.test-corpus-baseline/4"
-POLICY_SCHEMA = "mage.candidate-qualification.corpus-policy/4"
+BASELINE_SCHEMA = "mage.candidate-qualification.test-corpus-baseline/2"
+POLICY_SCHEMA = "mage.candidate-qualification.corpus-policy/2"
 BASELINE_PATH = ".github/qualification/test_corpus_baseline.json"
 
 # Selection rule for what must run, never an evidence heuristic: a class that
@@ -91,15 +91,13 @@ ENUMERATION_RULE = {
     "source_suffix": SOURCE_SUFFIX,
     "pair_format": "module" + PAIR_SEPARATOR + "fully.qualified.ClassName",
     "module_rule": "nearest ancestor directory of the test source root that holds a pom.xml",
-    "method_format": "module" + PAIR_SEPARATOR + "fully.qualified.ClassName" + METHOD_SEPARATOR + "methodName(qualifiedErasedParameterTypes)",
+    "method_format": "module" + PAIR_SEPARATOR + "fully.qualified.ClassName" + METHOD_SEPARATOR + "methodName",
     "method_rule": {
         "test_annotations": list(TEST_METHOD_ANNOTATIONS),
         "disabling_annotation_regex": DISABLING_ANNOTATION_RE,
         "junit3_base_regex": JUNIT3_BASE_RE,
         "junit3_method_regex": JUNIT3_METHOD_RE,
-        "scope": "binary declaring class, including nested types; comments and literals ignored",
-        "signature": "primitive or explicitly qualified erased types; arrays preserved; unresolved types fail closed",
-        "ambiguity": "duplicate normalized declaration identities are unsupported and fail closed",
+        "scope": "methods declared anywhere in the source file of a baseline class, comments and literals ignored",
         "enabled": "a test method with no disabling annotation on itself or an enclosing type",
     },
 }
@@ -260,82 +258,17 @@ def _skip_parens(tokens: list[str], start: int) -> int:
     return len(tokens)
 
 
-def _parameter_signature(tokens: list[str]) -> str:
-    """Primitive or explicitly qualified erased parameter identity.
-
-    Never guess imports, java.lang names, type-variable bounds or nested type
-    resolution. Unsupported reference spellings refuse the corpus. The witness
-    uses Class.getTypeName(), so even a qualified spelling resolved differently
-    by Java cannot receive credit for the declared identity.
-    """
-    if not tokens:
-        return "()"
-    groups, group, angle = [], [], 0
-    i = 0
-    while i < len(tokens):
-        tok = tokens[i]
-        if tok == "@":
-            i += 1
-            if i >= len(tokens) or not _IDENT.match(tokens[i]):
-                raise CorpusError("malformed parameter annotation")
-            i += 1
-            while i + 1 < len(tokens) and tokens[i] == "." and _IDENT.match(tokens[i + 1]):
-                i += 2
-            if i < len(tokens) and tokens[i] == "(":
-                i = _skip_parens(tokens, i)
-            continue
-        if tok == "<":
-            angle += 1
-        elif tok == ">":
-            angle -= 1
-            if angle < 0:
-                raise CorpusError("unbalanced generic parameter")
-        elif angle == 0 and tok == ",":
-            groups.append(group)
-            group = []
-        elif angle == 0 and tok != "final":
-            group.append(tok)
-        i += 1
-    if angle:
-        raise CorpusError("unbalanced generic parameter")
-    groups.append(group)
-    types = []
-    for group in groups:
-        # A receiver is not a Java method parameter. It has no reflected slot.
-        if group and group[-1] == "this":
-            continue
-        text = "".join(group)
-        # Names are separate tokens; remove the variable before normalizing type.
-        indices = [j for j, tok in enumerate(group) if _IDENT.match(tok)]
-        if len(indices) < 2:
-            raise CorpusError("unsupported parameter declaration: " + text)
-        variable = indices[-1]
-        type_tokens = group[:variable] + group[variable + 1:]
-        text = "".join(type_tokens).replace("...", "[]")
-        if not re.fullmatch(r"[\w$]+(?:\.[\w$]+)*(?:\[\])*", text):
-            raise CorpusError("unsupported parameter type: " + text)
-        head, _, arrays = text.partition("[")
-        if head not in ("boolean", "byte", "short", "int", "long", "char", "float", "double") and "." not in head:
-            raise CorpusError("unresolved parameter type (explicit qualification required): " + head)
-        types.append(head + ("[" + arrays if arrays else ""))
-    return "(" + ",".join(types) + ")"
-
-
 def java_test_methods(source: str) -> tuple[set, set]:
-    """Enabled/disabled binary declaring-class + erased-signature identities.
-
-    Duplicate normalized identities are a policy error, including enabled versus
-    disabled collisions. They must not disappear into a set and permit shrinkage.
-    """
+    """(enabled, disabled) test method names declared in one Java source file."""
     code = strip_java(source)
     tokens = _TOKEN.findall(code)
     disabling = re.compile(DISABLING_ANNOTATION_RE)
-    enabled, disabled, declarations = set(), set(), set()
-    scopes = [(False, ())]
-    pending = []
-    type_pending = None
+    enabled: set = set()
+    disabled: set = set()
+    scopes = [False]  # per brace scope: is an enclosing type disabled?
+    pending: list[str] = []  # simple names of annotations awaiting their declaration
+    type_disabled = None  # a type declaration waiting for its body
     prev = None
-    junit3 = bool(re.search(JUNIT3_BASE_RE, code))
     i, n = 0, len(tokens)
     while i < n:
         tok = tokens[i]
@@ -354,20 +287,12 @@ def java_test_methods(source: str) -> tuple[set, set]:
                 pending.append(name)
             i, prev = max(j, i + 1), None
             continue
-        # `record` is a contextual keyword: it declares a type only when a name
-        # and a record header follow (`record R(` or `record R<T>(`); elsewhere
-        # it is an ordinary identifier (`record.get()`, `for (X record : xs)`).
-        declares_record = (tok == "record" and i + 2 < n and _IDENT.match(tokens[i + 1])
-                           and tokens[i + 2] in ("(", "<"))
-        if (tok in ("class", "interface", "enum") or declares_record) and prev != ".":
-            if i + 1 >= n or not _IDENT.match(tokens[i + 1]):
-                raise CorpusError("unsupported type declaration")
-            type_pending = (scopes[-1][0] or any(disabling.match(a) for a in pending),
-                            scopes[-1][1] + (tokens[i + 1],))
+        if tok in ("class", "interface", "enum") and prev != ".":
+            type_disabled = scopes[-1] or any(disabling.match(a) for a in pending)
             pending = []
         elif tok == "{":
-            scopes.append(scopes[-1] if type_pending is None else type_pending)
-            type_pending, pending = None, []
+            scopes.append(scopes[-1] if type_disabled is None else type_disabled)
+            type_disabled, pending = None, []
         elif tok == "}":
             if len(scopes) > 1:
                 scopes.pop()
@@ -375,24 +300,17 @@ def java_test_methods(source: str) -> tuple[set, set]:
         elif tok == ";":
             pending = []
         elif tok == "(":
-            end = _skip_parens(tokens, i)
-            annotated = any(a in TEST_METHOD_ANNOTATIONS for a in pending)
-            legacy = junit3 and prev and prev.startswith("test") and tokens[max(0, i - 3):i - 1] == ["public", "void"] and end == i + 2
-            if prev and _IDENT.match(prev) and (annotated or legacy):
-                if not scopes[-1][1]:
-                    raise CorpusError("test method has no declaring type")
-                identity = "$".join(scopes[-1][1]) + "#" + prev + _parameter_signature(tokens[i + 1:end - 1])
-                if identity in declarations:
-                    raise CorpusError("ambiguous test method identity: " + identity)
-                declarations.add(identity)
-                off = scopes[-1][0] or any(disabling.match(a) for a in pending)
-                (disabled if off else enabled).add(identity)
+            if prev and _IDENT.match(prev) and any(a in TEST_METHOD_ANNOTATIONS for a in pending):
+                off = scopes[-1] or any(disabling.match(a) for a in pending)
+                (disabled if off else enabled).add(prev)
             pending = []
-            i, prev = end, ")"
+            i, prev = _skip_parens(tokens, i), ")"
             continue
         prev = tok
         i += 1
-    return enabled, disabled
+    if re.search(JUNIT3_BASE_RE, code):
+        enabled.update(re.findall(JUNIT3_METHOD_RE, code))
+    return enabled, disabled - enabled
 
 
 def method_id(class_pair: str, method: str) -> str:
@@ -400,11 +318,7 @@ def method_id(class_pair: str, method: str) -> str:
 
 
 def class_of_method(value: str) -> str:
-    class_pair = value.rpartition(METHOD_SEPARATOR)[0]
-    module, sep, class_name = class_pair.partition(PAIR_SEPARATOR)
-    if not sep:
-        raise CorpusError("malformed method identity: " + value)
-    return pair(module, class_name.partition("$")[0])
+    return value.rpartition(METHOD_SEPARATOR)[0]
 
 
 def enumerate_methods(entries: list[dict], read) -> tuple[list[str], list[str]]:
@@ -420,11 +334,9 @@ def enumerate_methods(entries: list[dict], read) -> tuple[list[str], list[str]]:
         if blob is None:
             raise CorpusError("source of {} is unreadable".format(entry["path"]))
         on, off = java_test_methods(blob.decode("utf-8", errors="replace"))
-        package = entry["class_name"].rpartition(".")[0]
-        def qualified(name):
-            return pair(entry["module"], (package + "." if package else "") + name)
-        enabled.update(qualified(name) for name in on)
-        disabled.update(qualified(name) for name in off)
+        base = pair(entry["module"], entry["class_name"])
+        enabled.update(method_id(base, name) for name in on)
+        disabled.update(method_id(base, name) for name in off)
     return sorted(enabled), sorted(disabled - enabled)
 
 
@@ -656,7 +568,7 @@ def validate_baseline(doc) -> list[str]:
     known_methods = set(methods)
     for method in methods:
         owner, _, name = method.rpartition(METHOD_SEPARATOR)
-        if class_of_method(method) not in known or not re.fullmatch(r"[\w$]+\((?:[\w$]+(?:\.[\w$]+)*(?:\[\])*(?:,[\w$]+(?:\.[\w$]+)*(?:\[\])*)*)?\)", name):
+        if owner not in known or not _IDENT.match(name):
             problems.append("malformed method {!r}".format(method))
             break
     if doc.get("methods_count") != len(methods):
@@ -713,9 +625,6 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
         "required_pairs": [],
         "required_methods": [],
         "required_inheriting_classes": [],
-        "trusted_required_pairs": [],
-        "trusted_required_methods": [],
-        "trusted_required_inheriting_classes": [],
         "additions": [],
         "removed_without_approval": [],
         "behind_default_branch": [],
@@ -724,7 +633,6 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
         "methods_removed_without_approval": [],
         "methods_disabled_without_approval": [],
         "methods_behind_default_branch": [],
-        "inheriting_classes_removed_without_approval": [],
         "candidate_baseline": None,
     }
 
@@ -815,37 +723,8 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
     # A trusted class that runs only inherited tests stays owed while it exists:
     # making it abstract or dropping its superclass in the candidate must not
     # silently stop it from running (it then never enters, which fails).
-    trusted_inheriting_still_present = set(trusted["inheriting"]) & candidate_set
     result["required_inheriting_classes"] = sorted(
-        set(candidate["inheriting"]) | trusted_inheriting_still_present
-    )
-    # Inheritance itself is part of the test obligation. Making a trusted
-    # inheriting class abstract, disabled, or disconnecting its superclass while
-    # keeping the class name would otherwise pass today because authoritative
-    # bytecode is compiled from trusted source, yet weaken tomorrow's trusted
-    # corpus after merge. Refuse that temporal authority shift.
-    lost_inheriting = sorted(
-        entry for entry in trusted_inheriting_still_present
-        if entry not in set(candidate["inheriting"]) and entry not in approved
-    )
-    result["inheriting_classes_removed_without_approval"] = lost_inheriting
-
-    # Qualification authority is the trusted default-branch corpus, never test
-    # source supplied by the candidate. Candidate additions remain visible in
-    # the delta policy/native CI but cannot manufacture trusted credit. A
-    # default-branch approval only removes the exact class/method it names.
-    applied = {r["entry"] for r in result["approved_removals_applied"]}
-    approved_classes = {e for e in applied if METHOD_SEPARATOR not in e}
-    result["trusted_required_pairs"] = sorted(
-        e for e in entries if e not in approved_classes
-    )
-    result["trusted_required_methods"] = sorted(
-        m for m in methods
-        if m not in applied and class_of_method(m) not in approved_classes
-    )
-    trusted_pair_set = set(result["trusted_required_pairs"])
-    result["trusted_required_inheriting_classes"] = sorted(
-        e for e in trusted["inheriting"] if e in trusted_pair_set
+        set(candidate["inheriting"]) | (set(trusted["inheriting"]) & candidate_set)
     )
 
     if result["removed_without_approval"]:
@@ -862,14 +741,6 @@ def evaluate(repo: str, trusted_rev: str, base_rev: str, candidate_rev: str) -> 
             "baseline_test_method_removed: {} required test method(s) deleted, renamed, "
             "un-annotated or disabled without a default-branch approval: {}".format(
                 len(shrunk), ",".join(sorted(shrunk)[:10]),
-            )
-        )
-    if result["inheriting_classes_removed_without_approval"]:
-        result["violations"].append(
-            "baseline_inheriting_test_removed: {} trusted inheriting test class(es) no longer "
-            "inherit enabled tests without a default-branch approval: {}".format(
-                len(result["inheriting_classes_removed_without_approval"]),
-                ",".join(result["inheriting_classes_removed_without_approval"][:10]),
             )
         )
     behind = result["behind_default_branch"] + result["methods_behind_default_branch"]

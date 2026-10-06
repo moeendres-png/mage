@@ -55,7 +55,7 @@ def render(lock, evidence, witness, audit, build_exit, run_id) -> str:
     lines.append("- evidence origin: `{}`".format((evidence.get("test_evidence") or {}).get("origin")))
     lines.append("- candidate build exit: `{}` (non-zero is an unconditional FAIL)".format(build_exit or "NOT_RECORDED"))
     lines.append("- required test classes (trusted enumeration): `{}`".format(
-        (evidence.get("test_evidence") or {}).get("required_test_class_count", "UNAVAILABLE")
+        len((evidence.get("test_evidence") or {}).get("required_test_classes") or [])
     ))
     lines.append("- classes the trusted launcher never entered: `{}`".format(
         totals and (evidence.get("test_evidence") or {}).get("classes_never_entered") or []
@@ -141,7 +141,7 @@ def main() -> int:
         with open(summary_path, "a", encoding="utf-8") as handle:
             handle.write(text)
     else:
-        print("QUALIFICATION_SUMMARY = " + json.dumps(text, ensure_ascii=True))
+        print(text)
     return 0
 
 

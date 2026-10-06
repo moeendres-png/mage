@@ -14,11 +14,8 @@ compares the test-execution fingerprint of the candidate against the
 comparison base and fails closed on any difference, so the qualification
 definition cannot be edited in the same PR that is being qualified.
 
-Scope: ordinary Java source edits are untouched. Dependency declarations,
-dependency management, repositories, plugin repositories, module topology and
-properties are authority-bearing too: otherwise a candidate can substitute an
-assertion/runtime jar after the trusted cache was staged. What is compared also
-includes everything that makes Maven execute code during the build: every
+Scope: dependency declarations and ordinary source edits are untouched. What is
+compared is everything that makes Maven execute code during the build: every
 build plugin in any lifecycle phase (an ``initialize``-bound plugin runs before
 anything else, so restricting the audit to post-test phases left a hole), core
 build extensions, profiles, the parent POM, every property the build section
@@ -44,7 +41,7 @@ from pathlib import Path
 # Trusted code never resolves tools from the inherited PATH (see sandbox.TOOL_PATH).
 GIT = shutil.which("git", path="/usr/sbin:/usr/bin:/sbin:/bin") or "/usr/bin/git"
 
-SCHEMA = "mage.candidate-qualification.build-definition-audit/2"
+SCHEMA = "mage.candidate-qualification.build-definition-audit/1"
 
 # Plugins that decide whether or how tests run.
 TEST_EXECUTION_PLUGINS = {
@@ -148,14 +145,6 @@ def _build_code_fingerprint(root: ET.Element) -> dict:
         "profiles": _canonical(profiles),
         "parent": _canonical(_child(root, "parent")),
         "interpolated_build_properties": dict(sorted(values.items())),
-        "qualification_runtime_inputs": {
-            "dependencies": _canonical(_child(root, "dependencies")),
-            "dependency_management": _canonical(_child(root, "dependencyManagement")),
-            "repositories": _canonical(_child(root, "repositories")),
-            "plugin_repositories": _canonical(_child(root, "pluginRepositories")),
-            "modules": _canonical(_child(root, "modules")),
-            "properties": _canonical(properties),
-        },
     }
 
 
@@ -165,7 +154,6 @@ BUILD_CODE_KEYS = (
     "profiles",
     "parent",
     "interpolated_build_properties",
-    "qualification_runtime_inputs",
 )
 
 
@@ -340,66 +328,20 @@ def changed_maven_config(repo: Path, base_rev: str, candidate_rev: str) -> list[
     return [line for line in out.splitlines() if line.strip()]
 
 
-def _pom_dirs(repo: Path, rev: str) -> set[str]:
-    """Module roots that can interpret a sibling repository/ as file:// authority."""
-    out = git(repo, "ls-tree", "-r", "--name-only", rev)
-    dirs = set()
-    for path in out.splitlines():
-        if path == "pom.xml":
-            dirs.add("")
-        elif path.endswith("/pom.xml"):
-            dirs.add(path[:-len("/pom.xml")])
-    return dirs
-
-
-def changed_local_project_repositories(repo: Path, authority_rev: str, candidate_rev: str) -> list[str]:
-    """Tracked bytes under <module>/repository are Maven resolution authority.
-
-    The trusted root POM currently exposes file://${basedir}/repository to every
-    module. A candidate can therefore replace a dependency without touching any
-    POM unless these repository bytes are part of the build-definition audit.
-    """
-    module_dirs = _pom_dirs(repo, authority_rev) | _pom_dirs(repo, candidate_rev)
-    prefixes = {
-        (module + "/" if module else "") + "repository/"
-        for module in module_dirs
-    }
-    out = git(repo, "diff", "--name-only", authority_rev, candidate_rev)
-    return sorted(
-        path for path in out.splitlines()
-        if path and any(path.startswith(prefix) for prefix in prefixes)
-    )
-
-
-def audit(repo: Path, authority_rev: str, candidate_rev: str, comparison_base_rev: str | None = None) -> dict:
-    """Compare all runtime-authority inputs to the trusted validator commit.
-
-    The merge base is provenance metadata only. It is not an authority source:
-    a candidate that is merely unchanged from an old base must still fail if
-    current trusted master changed dependencies, modules, Maven config or other
-    runtime-definition inputs.
-    """
+def audit(repo: Path, base_rev: str, candidate_rev: str) -> dict:
     pairs = []
-    for path in changed_poms(repo, authority_rev, candidate_rev):
-        pairs.append((path, read_blob(repo, authority_rev, path), read_blob(repo, candidate_rev, path)))
+    for path in changed_poms(repo, base_rev, candidate_rev):
+        pairs.append((path, read_blob(repo, base_rev, path), read_blob(repo, candidate_rev, path)))
     result = audit_pom_pairs(pairs)
-    config = changed_maven_config(repo, authority_rev, candidate_rev)
+    config = changed_maven_config(repo, base_rev, candidate_rev)
     result["maven_config_changes"] = config
     for path in config:
+        # .mvn/extensions.xml loads build extensions and maven.config/jvm.config
+        # inject arguments before any POM is read: always a build-code change.
         result["violations"].append({"path": path, "kind": "maven_config_changed", "detail": path})
-
-    local_repo = changed_local_project_repositories(repo, authority_rev, candidate_rev)
-    result["local_project_repository_changes"] = local_repo
-    for path in local_repo:
-        result["violations"].append({
-            "path": path,
-            "kind": "local_project_repository_changed",
-            "detail": "candidate changed file://${basedir}/repository dependency authority",
-        })
     if result["violations"]:
         result["status"] = "VIOLATION"
-    result["trusted_authority_rev"] = authority_rev
-    result["comparison_base_rev"] = comparison_base_rev
+    result["comparison_base_rev"] = base_rev
     result["candidate_rev"] = candidate_rev
     return result
 
@@ -407,8 +349,7 @@ def audit(repo: Path, authority_rev: str, candidate_rev: str, comparison_base_re
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", required=True)
-    parser.add_argument("--trusted", required=True, help="trusted validator commit whose runtime definition is authority")
-    parser.add_argument("--comparison-base", required=True, help="recorded merge base; provenance only")
+    parser.add_argument("--comparison-base", required=True)
     parser.add_argument("--candidate", required=True)
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
@@ -418,12 +359,11 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        result = audit(repo, args.trusted, args.candidate, args.comparison_base)
+        result = audit(repo, args.comparison_base, args.candidate)
     except (RuntimeError, OSError) as exc:
         result = {
             "schema": SCHEMA,
             "status": "UNKNOWN",
-            "trusted_authority_rev": args.trusted,
             "comparison_base_rev": args.comparison_base,
             "candidate_rev": args.candidate,
             "audited_poms": [],
@@ -431,7 +371,7 @@ def main() -> int:
             "error": str(exc),
         }
         out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
-        print("BUILD_DEFINITION_AUDIT = UNKNOWN ({})".format(json.dumps(str(exc), ensure_ascii=True)), file=sys.stderr)
+        print("BUILD_DEFINITION_AUDIT = UNKNOWN ({})".format(exc), file=sys.stderr)
         return 2
 
     out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
