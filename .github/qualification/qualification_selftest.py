@@ -1818,6 +1818,7 @@ public final class Attack {
  public static boolean moduleLoaderBlocked() { return true; }
  public static boolean jdkDeclaredMembersBlocked() { return true; }
  public static boolean privilegedLambdaAccessBlocked() { return true; }
+ public static boolean classNewInstanceBlocked() { return true; }
 }
 """
     test = """package probe;
@@ -1851,6 +1852,7 @@ public class ProbeTest {
  @Test public void moduleLoader() { assertTrue(Attack.moduleLoaderBlocked()); }
  @Test public void jdkDeclaredMembers() { assertTrue(Attack.jdkDeclaredMembersBlocked()); }
  @Test public void privilegedLambdaAccess() { assertTrue(Attack.privilegedLambdaAccessBlocked()); }
+ @Test public void classNewInstance() { assertTrue(Attack.classNewInstanceBlocked()); }
 }
 """
     hostile = r"""package probe;
@@ -2174,6 +2176,14 @@ public final class Attack {
    AccessController.doPrivileged((PrivilegedAction<Void>) () -> { target.setAccessible(true); return null; });
   });
  }
+ // Class.newInstance opens the constructor through the same plumbing, action
+ // and owner as the admitted accessor-generator site, but without the
+ // MethodAccessorGenerator caller chain, so it must stay refused.
+ public static final class Target { public Target() { } }
+ @SuppressWarnings("deprecation")
+ public static boolean classNewInstanceBlocked() {
+  return securityBlocked(() -> Target.class.newInstance());
+ }
 }
 """
     base = project({"ProbeTest": test}, extra={"src/main/java/probe/Attack.java": benign})
@@ -2182,7 +2192,7 @@ public final class Attack {
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX management, direct, MethodHandle/new-thread and explicit-doPrivileged-context-laundered process, fd/native/classloader (URLClassLoader, candidate subclass, MethodHandle-laundered, JDK reflection loader, ReflectionFactory)/TCCL/property/shutdown/exit escape paths are denied, and the admitted JDK privileged sites stay unreachable from candidate frames that present only their plumbing (own-member setAccessible, Module.getClassLoader, JDK getDeclaredFields, candidate-lambda doPrivileged)",
+        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX management, direct, MethodHandle/new-thread and explicit-doPrivileged-context-laundered process, fd/native/classloader (URLClassLoader, candidate subclass, MethodHandle-laundered, JDK reflection loader, ReflectionFactory)/TCCL/property/shutdown/exit escape paths are denied, and the admitted JDK privileged sites stay unreachable from candidate frames that present only their plumbing (own-member setAccessible, Module.getClassLoader, JDK getDeclaredFields, candidate-lambda doPrivileged, Class.newInstance without the accessor-generator chain)",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
@@ -2201,6 +2211,12 @@ public final class Honest {
  public static int enumCount() { return EnumSet.allOf(Color.class).size(); }
  public static boolean logger() { return java.util.logging.Logger.getLogger("probe.honest") != null; }
  public static boolean serviceLookup() { return !ServiceLoader.load(Plugin.class).iterator().hasNext(); }
+ public static int reflectiveLoop() throws Exception {
+  java.lang.reflect.Method m = Honest.class.getMethod("lambdaValue");
+  int sum = 0;
+  for (int i = 0; i < 20; i++) sum += (Integer) m.invoke(null);
+  return sum;
+ }
 }
 """
     honest_test = """package probe;
@@ -2212,6 +2228,7 @@ public class ProbeTest {
  @Test public void enumConstants() { assertEquals(2, Honest.enumCount()); }
  @Test public void logger() { assertTrue(Honest.logger()); }
  @Test public void serviceLookup() { assertTrue(Honest.serviceLookup()); }
+ @Test public void reflectiveLoop() throws Exception { assertEquals(840, Honest.reflectiveLoop()); }
 }
 """
     honest_project = project({"ProbeTest": honest_test}, extra={"src/main/java/probe/Honest.java": honest_jdk})
@@ -2219,7 +2236,7 @@ public class ProbeTest {
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-99-honest-jdk-privileged-sites-run", "positive",
-        "ordinary candidate code that makes the JDK run its own privileged actions beneath candidate frames (lambda, EnumSet over a candidate enum, platform Logger, module service lookup) executes and earns credit",
+        "ordinary candidate code that makes the JDK run its own privileged actions beneath candidate frames (lambda, EnumSet over a candidate enum, platform Logger, module service lookup, reflection past the JDK 17 inflation threshold) executes and earns credit",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 

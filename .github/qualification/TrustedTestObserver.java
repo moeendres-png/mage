@@ -334,7 +334,11 @@ public final class TrustedTestObserver {
                     if (activeId != null && !activeId.equals(uniqueId)) {
                         protocolViolations.add("test_finish_id_mismatch:" + activeId + ":" + uniqueId);
                     }
-                    if ("SUCCESSFUL".equals(status) && activeMethod != null) {
+                    // Body credit is owed only for required methods; a test that the
+                    // trusted export still runs but no longer requires (an approved
+                    // removal) earns no credit and owes no body receipt.
+                    if ("SUCCESSFUL".equals(status) && activeMethod != null
+                            && requiredMethods.contains(activeMethod)) {
                         if (bodyEntriesByTest.getOrDefault(uniqueId, 0) < 1
                                 || bodyExitsByTest.getOrDefault(uniqueId, 0) < 1) {
                             controlViolations.add(

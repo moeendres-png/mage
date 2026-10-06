@@ -157,7 +157,7 @@ class MethodContract(unittest.TestCase):
     def test_a_policy_without_methods_is_never_pass(self):
         for broken in (None, "x", [1]):
             witness = copy.deepcopy(WITNESS)
-            witness["corpus_policy"]["required_methods"] = broken
+            witness["corpus_policy"]["trusted_required_methods"] = broken
             self.assertNotEqual(qualify.decide(LOCK, witness)[0], "PASS", broken)
         witness = copy.deepcopy(WITNESS)
         del witness["trusted_execution_witness"]["observed_methods"]
@@ -183,8 +183,8 @@ class RetainedSchema(unittest.TestCase):
 
     def test_an_owed_inheriting_class_must_be_selected_and_entered(self):
         witness = copy.deepcopy(WITNESS)
-        witness["corpus_policy"]["required_pairs"].append(".::probe.SubProbeTest")
-        witness["corpus_policy"]["required_inheriting_classes"] = [".::probe.SubProbeTest"]
+        witness["corpus_policy"]["trusted_required_pairs"].append(".::probe.SubProbeTest")
+        witness["corpus_policy"]["trusted_required_inheriting_classes"] = [".::probe.SubProbeTest"]
         witness["required_test_classes"].append({"module": ".", "class_name": "probe.SubProbeTest"})
         status, reasons = qualify.decide(LOCK, witness)
         self.assertEqual(status, "FAIL")
