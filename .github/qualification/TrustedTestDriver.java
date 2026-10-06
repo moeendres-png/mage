@@ -1,86 +1,120 @@
-// C12 contained test executor.
+// Trusted test-execution driver.
 //
-// This class is trusted default-branch source but it is NOT a witness producer.
-// It runs in the candidate OS identity and contains no secret, signing key,
-// trusted receipt path or qualification verdict authority. A separate trusted
-// parent JVM observes entries into the private observer* hooks through JDI and
-// writes the only receipt that can earn qualification credit.
+// This file is trusted default-branch source. The trusted side compiles it and
+// runs it; the candidate never supplies, edits or observes it. It exists because
+// candidate-authored test evidence cannot be trusted: a candidate POM, plugin,
+// lifecycle hook or test can create, suppress or forge any file under its own
+// tree, including target/surefire-reports/TEST-*.xml.
 //
-// The driver is compiled into a named module with no exported/open packages.
-// Candidate bytecode therefore cannot invoke the private hooks through normal
-// linkage or deep reflection. A containment SecurityManager additionally denies
-// hostile candidate code the capabilities needed to escape the process boundary
-// or discover/tamper with the already-connected observer channel.
+// So the driver, not the candidate's build, owns the execution: it selects the
+// test classes the trusted side enumerated, drives them through the JUnit
+// Platform Launcher, and writes the counts it observed itself. Nothing here
+// parses a candidate-produced report.
+//
+// Residual limit, stated rather than hidden: test bytecode executes in this JVM.
+// A candidate whose test code deliberately drives this listener through
+// reflection is outside what any same-JVM qualification can rule out. That is a
+// semantic-coverage question for C13/C16, not a provenance question C12 can
+// close; see README "Trust boundary and its limits".
 
-package c12.trusted;
-
-import java.io.FileDescriptor;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.lang.reflect.ReflectPermission;
-import java.net.InetAddress;
+import java.io.InputStream;
+import java.security.GeneralSecurityException;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.io.PrintWriter;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.AccessController;
-import java.security.Permission;
-import java.security.Policy;
-import java.security.ProtectionDomain;
-import java.security.SecurityPermission;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 import org.junit.platform.engine.DiscoverySelector;
-import org.junit.platform.engine.TestEngine;
-import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.discovery.DiscoverySelectors;
 import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.Launcher;
-import org.junit.platform.launcher.core.LauncherConfig;
 import org.junit.platform.launcher.LauncherDiscoveryRequest;
+import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
+import org.junit.platform.engine.TestEngine;
+import org.junit.platform.launcher.core.LauncherConfig;
+import org.junit.platform.launcher.core.LauncherFactory;
+import org.junit.platform.launcher.listeners.SummaryGeneratingListener;
+import org.junit.platform.launcher.listeners.TestExecutionSummary;
+import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.launcher.TestExecutionListener;
 import org.junit.platform.launcher.TestIdentifier;
-import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
-import org.junit.platform.launcher.core.LauncherFactory;
 
 public final class TrustedTestDriver {
-    private static final Set<String> ALLOWED_ENGINES =
-            new HashSet<>(java.util.Arrays.asList("junit-jupiter", "junit-vintage"));
-    private static final Set<String> ALLOWED_TRUSTED_JUNIT4_RULE_TYPES =
-            new HashSet<>(java.util.Arrays.asList(
-                    "org.junit.rules.TestName",
-                    "org.junit.rules.TemporaryFolder"));
-    private static final RuntimePermission CAPABILITY_PERMISSION =
-            new RuntimePermission("c12.trustedCapability");
 
-    // JDI observes method ENTRY and reads only immutable primitive/String args.
-    // The bodies intentionally do nothing. They are private and the driver
-    // module is not exported/open to the candidate unnamed module.
-    private static void observerStart() { }
+    private static String classNameOf(TestIdentifier identifier) {
+        // JUnit 5 reports a method-level identifier whose legacy name is the bare
+        // method name, so the typed source is the only reliable way to attribute an
+        // execution to the class the trusted side selected. MethodSource is checked
+        // explicitly because it is the shape seen for JUnit Jupiter test methods.
+        if (identifier.getSource().isPresent()
+                && identifier.getSource().get() instanceof MethodSource) {
+            return ((MethodSource) identifier.getSource().get()).getClassName();
+        }
+        if (identifier.getSource().isPresent()
+                && identifier.getSource().get() instanceof ClassSource) {
+            return ((ClassSource) identifier.getSource().get()).getClassName();
+        }
+        String legacy = identifier.getLegacyReportingName();
+        int hash = legacy.indexOf('#');
+        int paren = legacy.indexOf('(');
+        int cut = legacy.length();
+        if (hash >= 0) {
+            cut = Math.min(cut, hash);
+        }
+        if (paren >= 0) {
+            cut = Math.min(cut, paren);
+        }
+        return legacy.substring(0, cut);
+    }
 
-    private static void observerEvent(
-            String phase,
-            String engine,
-            String uniqueId,
-            boolean isTest,
-            String className,
-            String methodIdentity,
-            String status,
-            String origin,
-            String detail) { }
-
-    private static void observerComplete() { }
+    private static String methodIdentityOf(MethodSource source) {
+        // Attributed to the class that DECLARES the method, as the trusted
+        // baseline reads it from that class's source file; an inherited test runs
+        // under its subclass but is the declaring class's required method. A
+        // JUnit 4 Parameterized invocation is reported as name[index]: the
+        // identity is the method, not the invocation.
+        String declaring;
+        try {
+            declaring = source.getJavaMethod().getDeclaringClass().getName();
+        } catch (RuntimeException exc) {
+            declaring = source.getClassName();
+        }
+        String name = source.getMethodName();
+        int cut = name.length();
+        for (char stop : new char[] {'[', '('}) {
+            int at = name.indexOf(stop);
+            if (at >= 0) {
+                cut = Math.min(cut, at);
+            }
+        }
+        return topLevel(declaring) + "#" + name.substring(0, cut);
+    }
 
     private static final class CodeSourceStub {
         private final String location;
-        private CodeSourceStub(String location) { this.location = location; }
+
+        private CodeSourceStub(String location) {
+            this.location = location;
+        }
     }
 
     private static CodeSourceStub codeSourceOf(Class<?> loaded) {
         try {
-            ProtectionDomain domain = loaded.getProtectionDomain();
+            java.security.ProtectionDomain domain = loaded.getProtectionDomain();
             if (domain == null || domain.getCodeSource() == null
                     || domain.getCodeSource().getLocation() == null) {
                 return new CodeSourceStub(null);
@@ -92,202 +126,61 @@ public final class TrustedTestDriver {
         }
     }
 
-    private static boolean underAny(Path source, List<Path> prefixes) {
-        Path normalized = source.toAbsolutePath().normalize();
-        for (Path prefix : prefixes) {
-            if (normalized.startsWith(prefix.toAbsolutePath().normalize())) return true;
-        }
-        return false;
-    }
-
-    private static boolean untrustedControlType(Class<?> type, List<Path> untrustedPrefixes) {
-        CodeSourceStub stub = codeSourceOf(type);
-        if (stub.location == null) {
-            return type.getClassLoader() != null;
-        }
-        try {
-            return underAny(Paths.get(stub.location), untrustedPrefixes);
-        } catch (RuntimeException exc) {
-            return true;
-        }
-    }
-
-    private static String rejectControlType(
-            String kind, Class<?> type, List<Path> untrustedPrefixes, String where) {
-        if (!untrustedControlType(type, untrustedPrefixes)) return null;
-        CodeSourceStub stub = codeSourceOf(type);
-        return "candidate_junit_control_code:" + kind + ":" + type.getName()
-                + ":" + where + ":origin=" + (stub.location == null ? "UNKNOWN" : stub.location);
-    }
-
-    private static String inspectControlAnnotation(
-            java.lang.annotation.Annotation annotation,
-            List<Path> untrustedPrefixes,
-            String where,
-            Set<Class<?>> seenAnnotations) {
-        Class<?> annotationType = annotation.annotationType();
-        if (!seenAnnotations.add(annotationType)) return null;
-        String name = annotationType.getName();
-        try {
-            if (name.equals("org.junit.runner.RunWith")
-                    || name.equals("org.junit.jupiter.api.extension.ExtendWith")
-                    || name.equals("org.junit.jupiter.params.provider.ArgumentsSource")
-                    || name.equals("org.junit.jupiter.params.converter.ConvertWith")
-                    || name.equals("org.junit.jupiter.params.aggregator.AggregateWith")) {
-                Object value = annotationType.getMethod("value").invoke(annotation);
-                if (value instanceof Class<?>) {
-                    String violation = rejectControlType(
-                            name, (Class<?>) value, untrustedPrefixes, where);
-                    if (violation != null) return violation;
-                } else if (value instanceof Class<?>[]) {
-                    for (Class<?> type : (Class<?>[]) value) {
-                        String violation = rejectControlType(
-                                name, type, untrustedPrefixes, where);
-                        if (violation != null) return violation;
-                    }
-                } else {
-                    return "candidate_junit_control_code:malformed_control_annotation:"
-                            + name + ":" + where;
-                }
-            } else if (name.equals("org.junit.jupiter.params.provider.MethodSource")) {
-                Object value = annotationType.getMethod("value").invoke(annotation);
-                if (!(value instanceof String[])) {
-                    return "candidate_junit_control_code:malformed_method_source:" + where;
-                }
-                for (String ref : (String[]) value) {
-                    int hash = ref.indexOf('#');
-                    if (hash <= 0) continue;
-                    String owner = ref.substring(0, hash);
-                    Class<?> source = Class.forName(
-                            owner, false, Thread.currentThread().getContextClassLoader());
-                    String violation = rejectControlType(
-                            name, source, untrustedPrefixes, where);
-                    if (violation != null) return violation;
-                }
-            }
-
-            for (java.lang.annotation.Annotation meta : annotationType.getDeclaredAnnotations()) {
-                if (meta.annotationType().getName().startsWith("java.lang.annotation.")) continue;
-                String violation = inspectControlAnnotation(
-                        meta, untrustedPrefixes, where + "->@" + name, seenAnnotations);
-                if (violation != null) return violation;
-            }
-            return null;
-        } catch (ReflectiveOperationException | LinkageError | RuntimeException exc) {
-            return "candidate_junit_control_code:unresolved_control_annotation:"
-                    + name + ":" + where + ":" + exc.getClass().getName();
-        }
-    }
-
-    private static String inspectAnnotatedElement(
-            java.lang.reflect.AnnotatedElement element,
-            List<Path> untrustedPrefixes,
-            String where) {
-        try {
-            for (java.lang.annotation.Annotation annotation : element.getDeclaredAnnotations()) {
-                String violation = inspectControlAnnotation(
-                        annotation, untrustedPrefixes, where, new HashSet<Class<?>>());
-                if (violation != null) return violation;
-            }
-            return null;
-        } catch (LinkageError | RuntimeException exc) {
-            return "candidate_junit_control_code:unresolved_annotations:"
-                    + where + ":" + exc.getClass().getName();
-        }
-    }
-
-    private static boolean hasDirectAnnotation(
-            java.lang.reflect.AnnotatedElement element, String annotationName) {
-        for (java.lang.annotation.Annotation annotation : element.getDeclaredAnnotations()) {
-            if (annotationName.equals(annotation.annotationType().getName())) return true;
-        }
-        return false;
-    }
-
-    private static String inspectExecutionControls(
-            Class<?> type, List<Path> untrustedPrefixes, Set<Class<?>> seenTypes) {
-        if (type == null || type == Object.class || !seenTypes.add(type)) return null;
-        String violation = inspectAnnotatedElement(
-                type, untrustedPrefixes, "class:" + type.getName());
-        if (violation != null) return violation;
-        try {
-            for (java.lang.reflect.Field field : type.getDeclaredFields()) {
-                String where = "field:" + type.getName() + "#" + field.getName();
-                violation = inspectAnnotatedElement(field, untrustedPrefixes, where);
-                if (violation != null) return violation;
-                boolean junit4Rule = hasDirectAnnotation(field, "org.junit.Rule")
-                        || hasDirectAnnotation(field, "org.junit.ClassRule");
-                if (junit4Rule) {
-                    String ownerViolation = rejectControlType(
-                            "registered_rule_owner", field.getDeclaringClass(),
-                            untrustedPrefixes, where);
-                    if (ownerViolation != null) return ownerViolation;
-                    Class<?> ruleType = field.getType();
-                    String typeViolation = rejectControlType(
-                            "registered_rule", ruleType, untrustedPrefixes, where);
-                    if (typeViolation != null) return typeViolation;
-                    if (!ALLOWED_TRUSTED_JUNIT4_RULE_TYPES.contains(ruleType.getName())) {
-                        return "candidate_junit_control_code:unapproved_trusted_rule_type:"
-                                + ruleType.getName() + ":" + where;
-                    }
-                }
-                if (hasDirectAnnotation(
-                        field, "org.junit.jupiter.api.extension.RegisterExtension")) {
-                    return "candidate_junit_control_code:registered_member:" + where;
-                }
-            }
-            for (java.lang.reflect.Method method : type.getDeclaredMethods()) {
-                String where = "method:" + type.getName() + "#" + method.getName();
-                violation = inspectAnnotatedElement(method, untrustedPrefixes, where);
-                if (violation != null) return violation;
-                boolean junit4Rule = hasDirectAnnotation(method, "org.junit.Rule")
-                        || hasDirectAnnotation(method, "org.junit.ClassRule");
-                if (junit4Rule) {
-                    String ownerViolation = rejectControlType(
-                            "registered_rule_owner", method.getDeclaringClass(),
-                            untrustedPrefixes, where);
-                    if (ownerViolation != null) return ownerViolation;
-                    Class<?> ruleType = method.getReturnType();
-                    String typeViolation = rejectControlType(
-                            "registered_rule", ruleType, untrustedPrefixes, where);
-                    if (typeViolation != null) return typeViolation;
-                    if (!ALLOWED_TRUSTED_JUNIT4_RULE_TYPES.contains(ruleType.getName())) {
-                        return "candidate_junit_control_code:unapproved_trusted_rule_type:"
-                                + ruleType.getName() + ":" + where;
-                    }
-                }
-                if (hasDirectAnnotation(
-                        method, "org.junit.jupiter.api.extension.RegisterExtension")) {
-                    return "candidate_junit_control_code:registered_member:" + where;
-                }
-            }
-            for (Class<?> iface : type.getInterfaces()) {
-                violation = inspectExecutionControls(iface, untrustedPrefixes, seenTypes);
-                if (violation != null) return violation;
-            }
-            return inspectExecutionControls(type.getSuperclass(), untrustedPrefixes, seenTypes);
-        } catch (LinkageError | RuntimeException exc) {
-            return "candidate_junit_control_code:preflight_unresolved:"
-                    + type.getName() + ":" + exc.getClass().getName();
-        }
-    }
-
-    private static String executionControlViolation(
-            String className, List<Path> untrustedPrefixes) {
-        try {
-            Class<?> type = Class.forName(
-                    className, false, Thread.currentThread().getContextClassLoader());
-            return inspectExecutionControls(type, untrustedPrefixes, new HashSet<Class<?>>());
-        } catch (ClassNotFoundException | LinkageError | RuntimeException exc) {
-            return "candidate_junit_control_code:preflight_unresolved:"
-                    + className + ":" + exc.getClass().getName();
-        }
-    }
-
     private static String topLevel(String className) {
+        // JUnit 5 @Nested classes report as Outer$Inner. The trusted enumeration is
+        // over source files, so credit must be attributed to the enclosing top-level
+        // class; otherwise a required class containing @Nested tests would look
+        // never-entered purely because its own inner tests ran.
         int dollar = className.indexOf('$');
         return dollar > 0 ? className.substring(0, dollar) : className;
     }
+
+    private static String jsonEscape(String value) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            switch (c) {
+                case '"':
+                    out.append("\\\"");
+                    break;
+                case '\\':
+                    out.append("\\\\");
+                    break;
+                case '\n':
+                    out.append("\\n");
+                    break;
+                case '\r':
+                    out.append("\\r");
+                    break;
+                case '\t':
+                    out.append("\\t");
+                    break;
+                default:
+                    if (c < 0x20) {
+                        out.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        out.append(c);
+                    }
+            }
+        }
+        return out.toString();
+    }
+
+    private static String quoted(Set<String> values) {
+        StringBuilder out = new StringBuilder("[");
+        boolean first = true;
+        for (String value : values) {
+            if (!first) {
+                out.append(",");
+            }
+            first = false;
+            out.append("\"").append(jsonEscape(value)).append("\"");
+        }
+        return out.append("]").toString();
+    }
+
+    private static final Set<String> ALLOWED_ENGINES =
+            new java.util.HashSet<>(java.util.Arrays.asList("junit-jupiter", "junit-vintage"));
 
     private static String engineOf(TestIdentifier identifier) {
         try {
@@ -297,128 +190,13 @@ public final class TrustedTestDriver {
         }
     }
 
-    private static boolean hasUniqueIdSegment(TestIdentifier identifier, String type) {
-        try {
-            for (org.junit.platform.engine.UniqueId.Segment segment
-                    : identifier.getUniqueIdObject().getSegments()) {
-                if (type.equals(segment.getType())) return true;
-            }
-        } catch (RuntimeException ignored) {
-            // Unrecognized identifiers fail closed elsewhere.
-        }
-        return false;
-    }
-
-    private static boolean isJupiterFactoryContainer(
-            String engine, TestIdentifier identifier) {
-        return "junit-jupiter".equals(engine)
-                && !identifier.isTest()
-                && hasUniqueIdSegment(identifier, "test-factory");
-    }
-
-    private static boolean isJupiterDynamicTest(
-            String engine, TestIdentifier identifier) {
-        return "junit-jupiter".equals(engine)
-                && identifier.isTest()
-                && hasUniqueIdSegment(identifier, "dynamic-test");
-    }
-
-    private static String classNameOf(TestIdentifier identifier) {
-        if (identifier.getSource().isPresent()
-                && identifier.getSource().get() instanceof MethodSource) {
-            return ((MethodSource)identifier.getSource().get()).getClassName();
-        }
-        if (identifier.getSource().isPresent()
-                && identifier.getSource().get() instanceof ClassSource) {
-            return ((ClassSource)identifier.getSource().get()).getClassName();
-        }
-        String legacy = identifier.getLegacyReportingName();
-        int hash = legacy.indexOf('#');
-        int paren = legacy.indexOf('(');
-        int cut = legacy.length();
-        if (hash >= 0) cut = Math.min(cut, hash);
-        if (paren >= 0) cut = Math.min(cut, paren);
-        return legacy.substring(0, cut);
-    }
-
-    private static String identityOf(java.lang.reflect.Method method) {
-        StringBuilder identity = new StringBuilder(method.getDeclaringClass().getName());
-        identity.append("#").append(method.getName()).append("(");
-        Class<?>[] parameters = method.getParameterTypes();
-        for (int i = 0; i < parameters.length; i++) {
-            if (i > 0) identity.append(",");
-            identity.append(parameters[i].getTypeName());
-        }
-        return identity.append(")").toString();
-    }
-
-    private static String methodIdentityOf(MethodSource source)
-            throws ReflectiveOperationException {
-        try {
-            return identityOf(source.getJavaMethod());
-        } catch (RuntimeException exc) {
-            // Vintage Parameterized may decorate the source method as proof[0].
-            // Strip only the invocation suffix and accept a unique reflected
-            // declaration. Ambiguity earns no observation.
-            String name = source.getMethodName();
-            int bracket = name.indexOf('[');
-            if (bracket >= 0) name = name.substring(0, bracket);
-            Class<?> owner = Class.forName(
-                    source.getClassName(), false,
-                    Thread.currentThread().getContextClassLoader());
-            java.lang.reflect.Method hit = null;
-            for (java.lang.reflect.Method method : owner.getMethods()) {
-                if (!method.getName().equals(name)) continue;
-                if (hit != null) {
-                    throw new IllegalStateException("ambiguous decorated method " + source);
-                }
-                hit = method;
-            }
-            if (hit == null) {
-                for (java.lang.reflect.Method method : owner.getDeclaredMethods()) {
-                    if (!method.getName().equals(name)) continue;
-                    if (hit != null) {
-                        throw new IllegalStateException("ambiguous decorated method " + source);
-                    }
-                    hit = method;
-                }
-            }
-            if (hit == null) throw new NoSuchMethodException(source.toString());
-            return identityOf(hit);
-        }
-    }
-
-    private static String vintageMethodIdentityOf(TestIdentifier identifier)
-            throws ReflectiveOperationException {
-        List<org.junit.platform.engine.UniqueId.Segment> segments =
-                identifier.getUniqueIdObject().getSegments();
-        org.junit.platform.engine.UniqueId.Segment last = segments.get(segments.size() - 1);
-        String value = last.getValue();
-        int open = value.indexOf('(');
-        if (!"test".equals(last.getType()) || open <= 0 || !value.endsWith(")")) {
-            throw new IllegalStateException("not a vintage test id: " + identifier.getUniqueId());
-        }
-        String name = value.substring(0, open);
-        int invocation = name.indexOf('[');
-        if (invocation >= 0) name = name.substring(0, invocation);
-        String className = value.substring(open + 1, value.length() - 1);
-        Class<?> owner = Class.forName(
-                className, false, Thread.currentThread().getContextClassLoader());
-        java.lang.reflect.Method method = owner.getMethod(name);
-        boolean junit4Test = false;
-        for (java.lang.annotation.Annotation annotation : method.getAnnotations()) {
-            junit4Test |= "org.junit.Test".equals(annotation.annotationType().getName());
-        }
-        if (!junit4Test) {
-            throw new IllegalStateException("not a JUnit 4 test method: " + identifier.getUniqueId());
-        }
-        return identityOf(method);
-    }
-
     private static Path trustedJunit() {
+        // The JUnit platform itself must load from the trusted bundle jar: it is
+        // first on the classpath, and this check refuses to run otherwise.
         CodeSourceStub stub = codeSourceOf(LauncherFactory.class);
         if (stub.location == null) {
-            throw new IllegalStateException("JUnit platform origin unknown");
+            System.err.println("TrustedTestDriver: JUnit platform origin unknown");
+            System.exit(3);
         }
         return Paths.get(stub.location);
     }
@@ -429,570 +207,179 @@ public final class TrustedTestDriver {
                 "org.junit.jupiter.engine.JupiterTestEngine",
                 "org.junit.vintage.engine.VintageTestEngine"}) {
             try {
-                Class<?> type = Class.forName(
-                        name, false, TrustedTestDriver.class.getClassLoader());
+                Class<?> type = Class.forName(name, false, TrustedTestDriver.class.getClassLoader());
                 CodeSourceStub origin = codeSourceOf(type);
-                if (origin.location == null
-                        || !Paths.get(origin.location).equals(junitJar)) {
-                    throw new IllegalStateException(
-                            "engine " + name + " not from trusted JUnit jar: " + origin.location);
+                if (origin.location == null || !Paths.get(origin.location).equals(junitJar)) {
+                    System.err.println("TrustedTestDriver: engine " + name + " not from the trusted JUnit jar: "
+                            + origin.location);
+                    System.exit(3);
                 }
-                engines.add((TestEngine)type.getDeclaredConstructor().newInstance());
+                engines.add((TestEngine) type.getDeclaredConstructor().newInstance());
             } catch (ReflectiveOperationException | LinkageError exc) {
-                throw new IllegalStateException("trusted engine unavailable: " + name, exc);
+                // An engine the trusted jar cannot provide is simply absent: its
+                // tests are never entered, which fails closed.
+                System.err.println("TrustedTestDriver: engine " + name + " unavailable: " + exc);
             }
         }
-        if (engines.isEmpty()) throw new IllegalStateException("no trusted test engine");
+        if (engines.isEmpty()) {
+            System.err.println("TrustedTestDriver: no trusted test engine available");
+            System.exit(3);
+        }
         return engines.toArray(new TestEngine[0]);
     }
 
-    @SuppressWarnings("removal")
-    private static final class ContainmentPolicy extends Policy {
-        private final Policy delegate;
-        private final List<Path> untrustedPrefixes;
-
-        ContainmentPolicy(Policy delegate, List<Path> prefixes) {
-            this.delegate = delegate;
-            this.untrustedPrefixes = new ArrayList<>();
-            for (Path path : prefixes) {
-                this.untrustedPrefixes.add(path.toAbsolutePath().normalize());
-            }
+    private static byte[] readWitnessKey() throws IOException {
+        // The witness authentication key arrives on stdin from the trusted parent
+        // and is read before any candidate class is loaded. Stdin is then closed,
+        // and the key is kept only in a local of main(), never in a field that
+        // candidate code could later reach by reflection.
+        InputStream in = System.in;
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        int next;
+        while ((next = in.read()) != -1 && next != '\n' && buffer.size() < 256) {
+            buffer.write(next);
         }
-
-        private boolean untrustedDomain(ProtectionDomain domain) {
-            if (domain == null || domain.getCodeSource() == null
-                    || domain.getCodeSource().getLocation() == null) {
-                return false;
-            }
-            try {
-                Path source = Paths.get(domain.getCodeSource().getLocation().toURI())
-                        .toAbsolutePath().normalize();
-                return underAny(source, untrustedPrefixes);
-            } catch (Exception exc) {
-                // An opaque non-bootstrap application domain cannot gain the
-                // capability marker merely because origin resolution failed.
-                return domain.getClassLoader() != null;
-            }
+        in.close();
+        String hex = new String(buffer.toByteArray(), StandardCharsets.US_ASCII).trim();
+        if (hex.length() < 32 || hex.length() % 2 != 0) {
+            return null;
         }
-
-        @Override
-        public boolean implies(ProtectionDomain domain, Permission permission) {
-            if (CAPABILITY_PERMISSION.equals(permission)) {
-                return !untrustedDomain(domain);
-            }
-            return delegate == null || delegate.implies(domain, permission);
+        byte[] key = new byte[hex.length() / 2];
+        for (int i = 0; i < key.length; i++) {
+            key[i] = (byte) Integer.parseInt(hex.substring(2 * i, 2 * i + 2), 16);
         }
-
-        @Override
-        public void refresh() {
-            if (delegate != null) delegate.refresh();
-        }
+        return key;
     }
 
-    @SuppressWarnings("removal")
-    private static final class ContainmentSecurityManager extends SecurityManager {
-        private final List<Path> untrustedPrefixes;
-        private final ThreadLocal<Boolean> inspecting =
-                ThreadLocal.withInitial(() -> Boolean.FALSE);
-
-        ContainmentSecurityManager(List<Path> prefixes) {
-            this.untrustedPrefixes = new ArrayList<>();
-            for (Path path : prefixes) {
-                this.untrustedPrefixes.add(path.toAbsolutePath().normalize());
-            }
+    private static String hex(byte[] bytes) {
+        StringBuilder out = new StringBuilder();
+        for (byte b : bytes) {
+            out.append(String.format("%02x", b & 0xff));
         }
-
-        private boolean untrustedOnStack() {
-            if (inspecting.get()) return false;
-            inspecting.set(Boolean.TRUE);
-            try {
-                for (Class<?> type : getClassContext()) {
-                    String name = type.getName();
-                    if (name.startsWith("c12.trusted.")) continue;
-                    ProtectionDomain domain;
-                    try {
-                        domain = type.getProtectionDomain();
-                    } catch (SecurityException exc) {
-                        continue;
-                    }
-                    if (domain == null || domain.getCodeSource() == null
-                            || domain.getCodeSource().getLocation() == null) {
-                        continue;
-                    }
-                    try {
-                        Path source = Paths.get(domain.getCodeSource().getLocation().toURI())
-                                .toAbsolutePath().normalize();
-                        for (Path prefix : untrustedPrefixes) {
-                            if (source.startsWith(prefix)) return true;
-                        }
-                    } catch (Exception ignored) { }
-                }
-                return false;
-            } finally {
-                inspecting.set(Boolean.FALSE);
-            }
-        }
-
-        /**
-         * One JDK-internal privileged action that ordinary candidate code reaches
-         * through standard Java (a lambda, an EnumSet, a Logger, a ServiceLoader).
-         * The JDK performs it inside its own AccessController.doPrivileged block
-         * for its own purposes and hands no reflective capability back to the
-         * caller (the enum site returns the enum's constants, as ordinary Java
-         * does, never the accessible Method). Because this boundary deliberately ignores doPrivileged (a
-         * candidate frame anywhere on the stack taints the check), each such
-         * action is admitted individually, and only when the stack names it
-         * exactly: the requested permission, the reflection plumbing that asks
-         * for it, the JDK action class whose own run() is that request, the
-         * AccessController.doPrivileged that runs it, and the JDK owner that
-         * called doPrivileged. Every one of those frames must be loaded by the
-         * bootstrap loader, which candidate code cannot define classes in.
-         */
-        private static final class JdkPrivilegedSite {
-            final String permission;
-            final Set<String> plumbing;
-            final String action;
-            final boolean actionIsLambdaPrefix;
-            final String owner;
-            // Bootstrap frames that must directly follow the owner, in order
-            // (each may repeat for bridge run()/executePrivileged frames).
-            final List<String> callers;
-
-            JdkPrivilegedSite(String permission, Set<String> plumbing, String action,
-                    boolean actionIsLambdaPrefix, String owner) {
-                this(permission, plumbing, action, actionIsLambdaPrefix, owner, List.of());
-            }
-
-            JdkPrivilegedSite(String permission, Set<String> plumbing, String action,
-                    boolean actionIsLambdaPrefix, String owner, List<String> callers) {
-                this.permission = permission;
-                this.plumbing = plumbing;
-                this.action = action;
-                this.actionIsLambdaPrefix = actionIsLambdaPrefix;
-                this.owner = owner;
-                this.callers = callers;
-            }
-
-            boolean isAction(String name) {
-                return actionIsLambdaPrefix ? name.startsWith(action) : name.equals(action);
-            }
-        }
-
-        // JDK 17 (the pinned qualification JDK). A different JDK build that moves
-        // one of these actions simply stops matching and fails closed.
-        private static final List<JdkPrivilegedSite> JDK_PRIVILEGED_SITES = List.of(
-                // Every non-capturing lambda and method reference: the metafactory
-                // reads and opens the constructor of the hidden class it has just
-                // spun for the call site.
-                new JdkPrivilegedSite("accessDeclaredMembers", Set.of("java.lang.Class"),
-                        "java.lang.invoke.InnerClassLambdaMetafactory$1", false,
-                        "java.lang.invoke.InnerClassLambdaMetafactory"),
-                new JdkPrivilegedSite("suppressAccessChecks",
-                        Set.of("java.lang.reflect.AccessibleObject", "java.lang.reflect.Constructor"),
-                        "java.lang.invoke.InnerClassLambdaMetafactory$1", false,
-                        "java.lang.invoke.InnerClassLambdaMetafactory"),
-                // Enum.valueOf, EnumSet and EnumMap: Class.getEnumConstantsShared
-                // opens the enum's own values() method to read its constants.
-                new JdkPrivilegedSite("suppressAccessChecks",
-                        Set.of("java.lang.reflect.AccessibleObject", "java.lang.reflect.Method"),
-                        "java.lang.Class$3", false, "java.lang.Class"),
-                // java.util.logging.Logger.getLogger: the logger finder asks
-                // whether the caller's module is a system module.
-                new JdkPrivilegedSite("getClassLoader", Set.of("java.lang.Module"),
-                        "jdk.internal.logger.DefaultLoggerFinder$1", false,
-                        "jdk.internal.logger.DefaultLoggerFinder"),
-                // ServiceLoader iteration: the lookup reads the loader of each
-                // module it searches for providers.
-                new JdkPrivilegedSite("getClassLoader", Set.of("java.lang.Module"),
-                        "java.util.ServiceLoader$ModuleServicesLookupIterator$$Lambda", true,
-                        "java.util.ServiceLoader$ModuleServicesLookupIterator"),
-                // Generated reflection accessors (JDK 17 inflation, or the driver's
-                // noInflation): MethodAccessorGenerator instantiates the accessor
-                // class it just defined from JDK-generated bytes in the admitted
-                // DelegatingClassLoader. Class.newInstance opens that constructor
-                // only beneath the generator's own doPrivileged; a candidate's own
-                // Class.newInstance or setAccessible never presents this chain.
-                new JdkPrivilegedSite("suppressAccessChecks",
-                        Set.of("java.lang.reflect.AccessibleObject", "java.lang.reflect.Constructor"),
-                        "java.lang.Class$1", false, "java.lang.Class",
-                        List.of("jdk.internal.reflect.MethodAccessorGenerator$1",
-                                "java.security.AccessController",
-                                "jdk.internal.reflect.MethodAccessorGenerator")));
-
-        private boolean jdkPrivilegedSite(String permissionName) {
-            Class<?>[] frames = getClassContext();
-            for (JdkPrivilegedSite site : JDK_PRIVILEGED_SITES) {
-                if (site.permission.equals(permissionName) && matchesSite(site, frames)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        private static boolean bootstrapNamed(Class<?> type, String name) {
-            // Name first: getClassLoader() on a non-JDK frame would itself be a
-            // permission-checked call.
-            return type.getName().equals(name) && type.getClassLoader() == null;
-        }
-
-        private static boolean matchesSite(JdkPrivilegedSite site, Class<?>[] frames) {
-            int i = 0;
-            while (i < frames.length && (frames[i] == ContainmentSecurityManager.class
-                    || frames[i] == SecurityManager.class)) {
-                i++;
-            }
-            int plumbing = 0;
-            while (i < frames.length && site.plumbing.contains(frames[i].getName())
-                    && frames[i].getClassLoader() == null) {
-                i++;
-                plumbing++;
-            }
-            if (plumbing == 0) return false;
-            int actions = 0;
-            while (i < frames.length && site.isAction(frames[i].getName())
-                    && frames[i].getClassLoader() == null) {
-                i++;
-                actions++;
-            }
-            // Every site needs its JDK action frame; on the pinned JDK the
-            // service-loader lambda frame is visible too.
-            if (actions == 0) return false;
-            // JDK 17 doPrivileged delegates to executePrivileged, so the stack
-            // carries two adjacent AccessController frames.
-            int controller = 0;
-            while (i < frames.length && bootstrapNamed(frames[i], "java.security.AccessController")) {
-                i++;
-                controller++;
-            }
-            if (controller == 0) return false;
-            if (!(i < frames.length && bootstrapNamed(frames[i], site.owner))) return false;
-            i++;
-            for (String caller : site.callers) {
-                if (i >= frames.length || !bootstrapNamed(frames[i], caller)) return false;
-                i++;
-                while (i < frames.length && bootstrapNamed(frames[i], caller)) i++;
-            }
-            return true;
-        }
-
-        /**
-         * True only when the class loader under construction is the JDK's own
-         * reflection accessor loader. Core reflection and serialization
-         * (MethodAccessorGenerator, via ObjectStreamClass in JUnit's TestPlan,
-         * for example) create one per generated accessor; it defines only
-         * JDK-generated accessor bytecode in a JDK-chosen domain, so candidate
-         * code can neither choose its bytes nor forge a trusted code source
-         * through it. The type is identified by bootstrap-loader identity and
-         * exact name, which candidate code cannot define. Every other loader,
-         * URLClassLoader and candidate subclasses included, stays denied: a
-         * new loader could define classes under an arbitrary code source and
-         * so launder the provenance this boundary relies on.
-         */
-        private boolean constructingJdkReflectionLoader() {
-            for (Class<?> type : getClassContext()) {
-                if (type == ContainmentSecurityManager.class
-                        || type == SecurityManager.class
-                        || type == ClassLoader.class) {
-                    continue;
-                }
-                // The first frame past ClassLoader's constructor checks is the
-                // constructor of the concrete loader being created.
-                // Name first: getClassLoader() on a non-JDK frame would itself
-                // be a permission-checked call.
-                return "jdk.internal.reflect.DelegatingClassLoader".equals(type.getName())
-                        && type.getClassLoader() == null;
-            }
-            return false;
-        }
-
-        @SuppressWarnings("removal")
-        private void refuse(String capability) {
-            boolean denied = untrustedOnStack();
-            if (!denied) {
-                try {
-                    AccessController.checkPermission(CAPABILITY_PERMISSION);
-                } catch (SecurityException exc) {
-                    denied = true;
-                }
-            }
-            if (denied) {
-                throw new SecurityException("C12 containment denied " + capability);
-            }
-        }
-
-        private void denyAlways(String capability) {
-            // These capabilities are unnecessary to the trusted test launcher
-            // once containment is installed and can directly cross the process
-            // boundary or disable the boundary itself. Do not rely on stack or
-            // AccessControlContext provenance here: AccessController.doPrivileged
-            // and JDK-owned MethodHandle proxies can intentionally truncate the
-            // caller context.
-            throw new SecurityException("C12 containment denied " + capability);
-        }
-
-        @Override public void checkExit(int status) { denyAlways("vm-exit"); }
-        @Override public void checkExec(String cmd) { denyAlways("process-exec"); }
-        @Override public void checkConnect(String host, int port) { denyAlways("socket-connect"); }
-        @Override public void checkConnect(String host, int port, Object context) { denyAlways("socket-connect"); }
-        @Override public void checkListen(int port) { denyAlways("socket-listen"); }
-        @Override public void checkAccept(String host, int port) { denyAlways("socket-accept"); }
-        @Override public void checkMulticast(InetAddress maddr) { denyAlways("socket-multicast"); }
-
-        @Override public void checkRead(String file) {
-            if (file != null) {
-                String normalized = Paths.get(file).toAbsolutePath().normalize().toString();
-                if (normalized.equals("/proc") || normalized.startsWith("/proc/")
-                        || normalized.equals("/sys") || normalized.startsWith("/sys/")
-                        || normalized.equals("/dev/fd") || normalized.startsWith("/dev/fd/")) {
-                    denyAlways("fd-or-kernel-discovery");
-                }
-            }
-        }
-
-        @Override public void checkRead(String file, Object context) { checkRead(file); }
-        @Override public void checkRead(FileDescriptor fd) {
-            // Existing ordinary descriptors are used by trusted runtime code.
-            // Candidate discovery of descriptors by pathname is blocked above.
-        }
-
-        @Override public void checkPermission(Permission permission) {
-            if (permission == null || inspecting.get()) return;
-            String name = permission.getName();
-            String permissionType = permission.getClass().getName();
-            // Public management/attach APIs can cross the ordinary Java call
-            // boundary and, in the case of Attach/JVMTI or DiagnosticCommand
-            // MBeans, can load agents or execute VM diagnostics without calling
-            // Runtime.loadLibrary from candidate code. Unix-domain sockets are
-            // permission-gated separately from TCP checkConnect/checkListen.
-            if ("com.sun.tools.attach.AttachPermission".equals(permissionType)
-                    || "javax.management.MBeanPermission".equals(permissionType)
-                    || "javax.management.MBeanServerPermission".equals(permissionType)
-                    || "javax.management.MBeanTrustPermission".equals(permissionType)
-                    || ("java.lang.management.ManagementPermission".equals(permissionType)
-                        && "control".equals(name))
-                    || ("java.net.NetPermission".equals(permissionType)
-                        && "accessUnixDomainSocket".equals(name))) {
-                denyAlways("capability-permission:" + permissionType + ":" + name);
-                return;
-            }
-            if (permission instanceof ReflectPermission
-                    && "suppressAccessChecks".equals(name)) {
-                if (jdkPrivilegedSite(name)) return;
-                refuse("deep-reflection");
-                return;
-            }
-            if (permission instanceof RuntimePermission) {
-                if ("createClassLoader".equals(name) && constructingJdkReflectionLoader()) {
-                    return;
-                }
-                if ("setSecurityManager".equals(name)
-                        || "shutdownHooks".equals(name)
-                        || "setIO".equals(name)
-                        || "createClassLoader".equals(name)
-                        || "setContextClassLoader".equals(name)
-                        || "enableContextClassLoaderOverride".equals(name)
-                        || "modifyThread".equals(name)
-                        || "modifyThreadGroup".equals(name)
-                        || "manageProcess".equals(name)
-                        || "setDefaultUncaughtExceptionHandler".equals(name)
-                        || "stopThread".equals(name)
-                        || name.startsWith("loadLibrary.")
-                        || name.startsWith("accessClassInPackage.sun.misc")
-                        || name.startsWith("accessClassInPackage.jdk.internal.misc")
-                        || name.startsWith("accessClassInPackage.c12.trusted")
-                        || name.startsWith("defineClassInPackage.c12.trusted")) {
-                    denyAlways("runtime-permission:" + name);
-                    return;
-                }
-                // sun.reflect.ReflectionFactory can allocate objects without
-                // running their constructors' own security checks (a loader
-                // whose createClassLoader check lives in ClassLoader.<init>, for
-                // example). JUnit and serialization use the internal factory,
-                // which needs no permission; candidate access stays refused.
-                if ("accessDeclaredMembers".equals(name)
-                        || "getClassLoader".equals(name)
-                        || "reflectionFactoryAccess".equals(name)) {
-                    // JUnit/trusted tests legitimately need these. Keep the
-                    // provenance check, with the ACC marker as defense in depth.
-                    // ReflectionFactory access is never a JDK privileged site.
-                    if (!"reflectionFactoryAccess".equals(name) && jdkPrivilegedSite(name)) return;
-                    refuse("runtime-permission:" + name);
-                }
-                return;
-            }
-            if (permission instanceof SecurityPermission) {
-                if ("setPolicy".equals(name)
-                        || "createAccessControlContext".equals(name)
-                        || "getDomainCombiner".equals(name)
-                        || name.startsWith("setProperty.")
-                        || name.startsWith("insertProvider")
-                        || name.startsWith("removeProvider")) {
-                    denyAlways("security-permission:" + name);
-                }
-            }
-            if (permission instanceof java.util.PropertyPermission
-                    && permission.getActions().contains("write")) {
-                refuse("property-write:" + name);
-            }
-        }
+        return out.toString();
     }
 
-    private static void initializeTrustedRuntimeBeforeContainment() {
-        // JUnit Platform initializes java.util.logging lazily while building the
-        // discovery request. LogManager's one-time JDK initialization requests
-        // RuntimePermission("shutdownHooks"). Perform that trusted bootstrap
-        // before the containment boundary is installed; shutdown-hook authority
-        // remains unconditionally denied for all post-boundary execution.
-        java.util.logging.LogManager.getLogManager();
-    }
-
-    /**
-     * The JDK reflection-loader admission relies on java.base keeping its
-     * internal packages closed to classpath code: otherwise candidate code
-     * could construct or extend the admitted loader type directly. The trusted
-     * launcher passes no such flags; refuse to run if the JVM was started with
-     * any (for example --add-opens/--add-exports java.base/jdk.internal.*).
-     */
-    private static void requireJdkInternalsSealed() {
-        Module base = Object.class.getModule();
-        Module unnamed = ClassLoader.getSystemClassLoader().getUnnamedModule();
-        for (String pkg : new String[] {
-                "jdk.internal.reflect", "jdk.internal.misc",
-                "jdk.internal.access", "jdk.internal.loader"}) {
-            if (base.isExported(pkg, unnamed) || base.isOpen(pkg, unnamed)) {
-                throw new IllegalStateException(
-                        "C12 containment precondition failed: java.base/" + pkg
-                        + " is exported or opened to classpath code");
-            }
+    public static void main(String[] args) throws IOException {
+        final byte[] witnessKey = readWitnessKey();
+        if (witnessKey == null) {
+            System.err.println("TrustedTestDriver: no witness authentication key on stdin");
+            System.exit(3);
         }
-    }
-
-    @SuppressWarnings("removal")
-    private static void installContainment(List<Path> untrustedPrefixes) {
-        Policy.setPolicy(new ContainmentPolicy(Policy.getPolicy(), untrustedPrefixes));
-        SecurityManager manager = new ContainmentSecurityManager(untrustedPrefixes);
-        SecurityManager ignored = System.getSecurityManager();
-        System.setSecurityManager(manager);
-    }
-
-    public static void main(String[] args) throws Exception {
+        Path evidence = null;
+        String classPath = "";
+        String bindSha = "";
+        String bindTree = "";
+        String moduleId = "";
         String moduleOutput = "";
         List<String> selected = new ArrayList<>();
-        List<Path> untrustedPrefixes = new ArrayList<>();
+
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
-                case "--module-output": moduleOutput = args[++i]; break;
-                case "--select": selected.add(args[++i]); break;
-                case "--untrusted-prefix": untrustedPrefixes.add(Paths.get(args[++i])); break;
-                default: throw new IllegalArgumentException("unknown argument " + args[i]);
+                case "--evidence":
+                    evidence = Paths.get(args[++i]);
+                    break;
+                case "--class-path":
+                    classPath = args[++i];
+                    break;
+                case "--bind-sha":
+                    bindSha = args[++i];
+                    break;
+                case "--bind-tree":
+                    bindTree = args[++i];
+                    break;
+                case "--module-id":
+                    moduleId = args[++i];
+                    break;
+                case "--module-output":
+                    moduleOutput = args[++i];
+                    break;
+                case "--select":
+                    selected.add(args[++i]);
+                    break;
+                default:
+                    System.err.println("TrustedTestDriver: unknown argument " + args[i]);
+                    System.exit(3);
             }
         }
-        if (moduleOutput.isEmpty() || selected.isEmpty() || untrustedPrefixes.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "--module-output, --untrusted-prefix and --select are required");
+
+        if (evidence == null || classPath.isEmpty() || selected.isEmpty()) {
+            System.err.println(
+                "TrustedTestDriver: --evidence, --class-path and at least one --select are required");
+            System.exit(3);
         }
 
-        final Path expectedOutput = Paths.get(moduleOutput).toRealPath();
-        initializeTrustedRuntimeBeforeContainment();
-        requireJdkInternalsSealed();
-        installContainment(untrustedPrefixes);
-        observerStart();
-
-        // A trusted JUnit engine can report SUCCESSFUL without invoking the
-        // trusted test body when candidate-built code supplies a runner,
-        // extension or provider. Refuse that execution authority before
-        // discovery; lifecycle events alone are not qualification proof.
-        for (String className : selected) {
-            String violation = executionControlViolation(className, untrustedPrefixes);
-            if (violation != null) {
-                observerEvent("VIOLATION", "junit-jupiter", "c12-preflight:" + className,
-                        false, className, "", "", "", violation);
-                observerComplete();
-                return;
+        // Per-module execution context. A required class must resolve from its own
+        // module's output directory, never from a sibling module or a jar that
+        // happens to sit earlier on the classpath. Without this check a collision
+        // could credit a required test to the wrong module.
+        Path resolvedOutput = null;
+        if (!moduleOutput.isEmpty()) {
+            try {
+                resolvedOutput = Paths.get(moduleOutput).toRealPath();
+            } catch (IOException exc) {
+                System.err.println("TrustedTestDriver: module output not resolvable: " + exc);
+                System.exit(3);
             }
         }
+        final Path expectedOutput = resolvedOutput;
+
+        // Record which selected classes the launcher actually reached. A class the
+        // trusted side required but the launcher never entered cannot be reported as
+        // green by anything, including a file the candidate wrote.
+        final Set<String> observedClasses = new TreeSet<>();
+        // Every test method the launcher started, test or container (a
+        // parameterized or factory method is a container of invocations). The
+        // trusted side requires each baseline method to appear here.
+        final Set<String> observedMethods = new TreeSet<>();
+        final Map<String, Integer> failuresByClass = new LinkedHashMap<>();
+        final Map<String, String> classOrigins = new LinkedHashMap<>();
+        final Set<String> originViolations = new TreeSet<>();
 
         TestExecutionListener witness = new TestExecutionListener() {
             @Override
             public void executionStarted(TestIdentifier identifier) {
                 String engine = engineOf(identifier);
-                if (!ALLOWED_ENGINES.contains(engine)) {
-                    observerEvent("VIOLATION", engine, identifier.getUniqueId(),
-                            identifier.isTest(), "", "", "", "",
-                            "foreign engine " + engine + " for " + identifier.getUniqueId());
+                boolean trustedEngine = ALLOWED_ENGINES.contains(engine);
+                if (trustedEngine && identifier.getSource().isPresent()
+                        && identifier.getSource().get() instanceof MethodSource) {
+                    observedMethods.add(methodIdentityOf((MethodSource) identifier.getSource().get()));
+                }
+                if (!identifier.isTest()) {
                     return;
                 }
-                boolean factoryContainer = isJupiterFactoryContainer(engine, identifier);
-                boolean dynamicTest = isJupiterDynamicTest(engine, identifier);
-                String method = "";
-                boolean vintageTest = identifier.isTest() && "junit-vintage".equals(engine);
-                if (vintageTest) {
-                    // A Vintage test id names exactly one public no-argument
-                    // @org.junit.Test method. Resolving it from the id is exact
-                    // even when the class inherits same-named overloads (Mage's
-                    // CardTestPlayerAPIImpl.attack(int, TestPlayer, String) next
-                    // to a test method attack()), where the name-only MethodSource
-                    // fallback below is ambiguous and would drop the observation.
-                    try {
-                        method = vintageMethodIdentityOf(identifier);
-                    } catch (ReflectiveOperationException | RuntimeException unresolved) {
-                        method = "";
-                    }
+                if (!trustedEngine) {
+                    // Only the trusted engines this driver instantiated may report.
+                    originViolations.add(identifier.getUniqueId() + " reported by foreign engine " + engine);
+                    return;
                 }
-                if (method.isEmpty()
-                        && !dynamicTest
-                        && identifier.getSource().isPresent()
-                        && identifier.getSource().get() instanceof MethodSource) {
-                    try {
-                        method = methodIdentityOf((MethodSource)identifier.getSource().get());
-                    } catch (ReflectiveOperationException | RuntimeException exc) {
-                        observerEvent("VIOLATION", engine, identifier.getUniqueId(),
-                                identifier.isTest(), "", "", "", "",
-                                "unresolved_method_identity:" + identifier.getUniqueId());
-                    }
+                String className = topLevel(classNameOf(identifier));
+                observedClasses.add(className);
+                if (expectedOutput == null) {
+                    return;
                 }
-                // An unresolved required Vintage method remains unobserved and fails closed.
-
-                String className = "";
-                String origin = "";
-                if (identifier.isTest() || factoryContainer) {
-                    try {
-                        className = topLevel(classNameOf(identifier));
-                        Class<?> loaded = Class.forName(
-                                className, false,
-                                Thread.currentThread().getContextClassLoader());
-                        CodeSourceStub stub = codeSourceOf(loaded);
-                        origin = stub.location == null ? "" : stub.location;
-                    } catch (RuntimeException | ClassNotFoundException exc) {
-                        observerEvent("VIOLATION", engine, identifier.getUniqueId(),
-                                identifier.isTest(), className, method, "", origin,
-                                "class_origin_unverified:" + className + ":" + exc.getClass().getName());
+                try {
+                    ClassLoader loader = Thread.currentThread().getContextClassLoader();
+                    Class<?> loaded = Class.forName(className, false, loader);
+                    CodeSourceStub stub = codeSourceOf(loaded);
+                    classOrigins.put(className, stub.location);
+                    if (stub.location == null || !Paths.get(stub.location).startsWith(expectedOutput)) {
+                        originViolations.add(className + " loaded from " + stub.location
+                                + " (expected under " + expectedOutput + ")");
                     }
+                } catch (ClassNotFoundException | RuntimeException exc) {
+                    originViolations.add(className + " origin could not be verified: " + exc);
                 }
-                observerEvent("STARTED", engine, identifier.getUniqueId(),
-                        identifier.isTest(), className, method, "", origin, "");
             }
 
             @Override
-            public void executionSkipped(TestIdentifier identifier, String reason) {
-                String engine = engineOf(identifier);
-                String className = identifier.isTest() ? topLevel(classNameOf(identifier)) : "";
-                observerEvent("SKIPPED", engine, identifier.getUniqueId(),
-                        identifier.isTest(), className, "", "SKIPPED", "", reason == null ? "" : reason);
-            }
-
-            @Override
-            public void executionFinished(
-                    TestIdentifier identifier, TestExecutionResult result) {
-                String engine = engineOf(identifier);
-                boolean factoryContainer = isJupiterFactoryContainer(engine, identifier);
-                String className = (identifier.isTest() || factoryContainer)
-                        ? topLevel(classNameOf(identifier)) : "";
-                observerEvent("FINISHED", engine, identifier.getUniqueId(),
-                        identifier.isTest(), className, "",
-                        result.getStatus().name(), "", "");
+            public void executionFinished(TestIdentifier identifier, TestExecutionResult result) {
+                if (result.getStatus() != TestExecutionResult.Status.SUCCESSFUL) {
+                    failuresByClass.merge(topLevel(classNameOf(identifier)), 1, Integer::sum);
+                }
             }
         };
+
+        SummaryGeneratingListener summaryListener = new SummaryGeneratingListener();
 
         List<DiscoverySelector> selectors = new ArrayList<>();
         for (String className : selected) {
@@ -1001,12 +388,22 @@ public final class TrustedTestDriver {
 
         LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
                 .selectors(selectors)
+                // The trusted enumeration is the whole world for this campaign. A
+                // candidate cannot widen or narrow it. Implicit configuration
+                // (junit-platform.properties and system properties, which candidate
+                // resources on the classpath could supply) is ignored; the only
+                // parameters are the trusted ones set here.
                 .enableImplicitConfigurationParameters(false)
                 .configurationParameter("junit.jupiter.extensions.autodetection.enabled", "false")
                 .configurationParameter("junit.jupiter.conditions.deactivate", "")
                 .configurationParameter("junit.platform.output.capture.stdout", "false")
                 .build();
 
+        // No auto-registration of any kind: candidate test resources, main
+        // resources or a dependency jar could otherwise register a TestEngine,
+        // PostDiscoveryFilter or listener through META-INF/services and change
+        // what runs or how it is counted. Only the engines instantiated here,
+        // from the trusted JUnit jar, may execute.
         LauncherConfig config = LauncherConfig.builder()
                 .enableTestEngineAutoRegistration(false)
                 .enablePostDiscoveryFilterAutoRegistration(false)
@@ -1015,9 +412,129 @@ public final class TrustedTestDriver {
                 .enableTestExecutionListenerAutoRegistration(false)
                 .addTestEngines(trustedEngines(trustedJunit()))
                 .build();
-
         Launcher launcher = LauncherFactory.create(config);
-        launcher.execute(request, witness);
-        observerComplete();
+        launcher.execute(request, witness, summaryListener);
+
+        TestExecutionSummary summary = summaryListener.getSummary();
+        Set<String> required = new LinkedHashSet<>(selected);
+        Set<String> missing = new LinkedHashSet<>(required);
+        missing.removeAll(observedClasses);
+
+        long testsFound = summary.getTestsFoundCount();
+        long testsRun = summary.getTestsStartedCount();
+        long succeeded = summary.getTestsSucceededCount();
+        long failed = summary.getTestsFailedCount();
+        long aborted = summary.getTestsAbortedCount();
+        long skipped = summary.getTestsSkippedCount();
+        long containersFailed = summary.getContainersFailedCount();
+
+        List<String> failureMessages = new ArrayList<>();
+        for (org.junit.platform.launcher.listeners.TestExecutionSummary.Failure failure : summary.getFailures()) {
+            String message = failure.getException() == null
+                    ? String.valueOf(failure.getException())
+                    : String.valueOf(failure.getException().getMessage());
+            failureMessages.add(failure.getTestIdentifier().getDisplayName() + ": " + message);
+        }
+
+        boolean pass = missing.isEmpty()
+                && originViolations.isEmpty()
+                && testsFound > 0
+                && testsRun > 0
+                && failed == 0
+                && aborted == 0
+                && containersFailed == 0
+                && skipped < testsFound;
+
+        StringBuilder json = new StringBuilder();
+        json.append("{\n");
+        json.append("  \"schema\": \"mage.candidate-qualification.trusted-execution-witness/1\",\n");
+        json.append("  \"producer\": \"TrustedTestDriver\",\n");
+        json.append("  \"evidence_origin\": \"trusted_side_direct_execution\",\n");
+        json.append("  \"candidate_authored_evidence_used\": false,\n");
+        json.append("  \"module_id\": \"").append(jsonEscape(moduleId)).append("\",\n");
+        json.append("  \"module_output\": \"").append(jsonEscape(moduleOutput)).append("\",\n");
+        json.append("  \"code_origin_enforced\": ").append(expectedOutput != null).append(",\n");
+        json.append("  \"bound_candidate_sha\": \"").append(jsonEscape(bindSha)).append("\",\n");
+        json.append("  \"bound_candidate_tree\": \"").append(jsonEscape(bindTree)).append("\",\n");
+        json.append("  \"trusted_selected_classes\": ").append(selected.size()).append(",\n");
+        json.append("  \"trusted_selected_class_names\": ").append(quoted(new TreeSet<>(selected))).append(",\n");
+        json.append("  \"observed_classes\": ").append(quoted(observedClasses)).append(",\n");
+        json.append("  \"classes_never_entered\": ").append(quoted(missing)).append(",\n");
+        json.append("  \"observed_methods\": ").append(quoted(observedMethods)).append(",\n");
+        json.append("  \"class_code_origins\": {");
+        boolean firstOrigin = true;
+        for (Map.Entry<String, String> entry : classOrigins.entrySet()) {
+            if (!firstOrigin) {
+                json.append(",");
+            }
+            firstOrigin = false;
+            json.append("\"").append(jsonEscape(entry.getKey())).append("\": \"")
+                    .append(jsonEscape(entry.getValue())).append("\"");
+        }
+        json.append("},\n");
+        json.append("  \"code_origin_violations\": ").append(quoted(originViolations)).append(",\n");
+        json.append("  \"tests_found\": ").append(testsFound).append(",\n");
+        json.append("  \"tests_started\": ").append(testsRun).append(",\n");
+        json.append("  \"tests_succeeded\": ").append(succeeded).append(",\n");
+        json.append("  \"tests_failed\": ").append(failed).append(",\n");
+        json.append("  \"tests_aborted\": ").append(aborted).append(",\n");
+        json.append("  \"tests_skipped\": ").append(skipped).append(",\n");
+        json.append("  \"containers_failed\": ").append(containersFailed).append(",\n");
+        // Serialized by hand: Map.toString would emit Java's "k=v", which is not JSON.
+        json.append("  \"non_successful_by_class\": {");
+        boolean firstEntry = true;
+        for (Map.Entry<String, Integer> entry : failuresByClass.entrySet()) {
+            if (!firstEntry) {
+                json.append(",");
+            }
+            firstEntry = false;
+            json.append("\"").append(jsonEscape(entry.getKey())).append("\": ").append(entry.getValue());
+        }
+        json.append("},\n");
+        json.append("  \"failures\": [");
+        for (int i = 0; i < failureMessages.size(); i++) {
+            if (i > 0) {
+                json.append(",");
+            }
+            json.append("\"").append(jsonEscape(failureMessages.get(i))).append("\"");
+        }
+        json.append("],\n");
+        json.append("  \"driver_verdict\": \"").append(pass ? "PASS" : "FAIL").append("\"\n");
+        json.append("}\n");
+
+        // The evidence is authenticated with the key only this frame holds. A file
+        // that candidate test code writes into the candidate-writable output
+        // directory carries no valid MAC and is rejected by witness.py.
+        byte[] payload = json.toString().getBytes(StandardCharsets.UTF_8);
+        String mac;
+        try {
+            Mac hmac = Mac.getInstance("HmacSHA256");
+            hmac.init(new SecretKeySpec(witnessKey, "HmacSHA256"));
+            mac = hex(hmac.doFinal(payload));
+            java.util.Arrays.fill(witnessKey, (byte) 0);
+        } catch (GeneralSecurityException exc) {
+            System.err.println("TrustedTestDriver: cannot authenticate the witness: " + exc);
+            System.exit(3);
+            return;
+        }
+        Files.createDirectories(evidence.toAbsolutePath().getParent());
+        Files.write(evidence, payload);
+        Files.write(Paths.get(evidence.toString() + ".mac"), mac.getBytes(StandardCharsets.US_ASCII));
+
+        System.out.println(
+                "TRUSTED_EXECUTION module=" + (moduleId.isEmpty() ? "-" : moduleId)
+                        + " selected=" + selected.size()
+                        + " observed=" + observedClasses.size()
+                        + " never_entered=" + missing.size()
+                        + " origin_violations=" + originViolations.size()
+                        + " found=" + testsFound
+                        + " started=" + testsRun
+                        + " succeeded=" + succeeded
+                        + " failed=" + failed
+                        + " aborted=" + aborted
+                        + " skipped=" + skipped
+                        + " verdict=" + (pass ? "PASS" : "FAIL"));
+
+        System.exit(pass ? 0 : 1);
     }
 }
