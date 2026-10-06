@@ -594,24 +594,32 @@ public final class TrustedTestDriver {
         @Override public void checkConnect(String host, int port, Object context) { checkConnect(host, port); }
         @Override public void checkMulticast(InetAddress maddr) { refuse("socket-multicast"); }
 
-        // JDK libraries whose own initialization path may load them beneath
-        // candidate frames (jdk.net's extnet when any socket is created,
-        // java.management when an MBean server is first touched). The loader
-        // resolves these by name from root-owned java.library.path entries, so
-        // candidate code cannot substitute its own file for them.
-        private static final Set<String> JDK_NATIVE_LIBRARIES = new HashSet<>(
-                java.util.Arrays.asList(
-                        "extnet", "management", "management_ext", "j2pkcs11", "sunec",
-                        "java", "net", "nio", "zip"));
-
         @Override public void checkLink(String lib) {
             // JNI is outside the module system: a candidate native library could
-            // call the private hook methods and fabricate a receipt. Candidate
-            // originated native loads stay denied; JDK libraries and trusted
-            // dependency loads (sqlite) keep working even when candidate frames
-            // are deeper on the stack.
-            if (lib == null || JDK_NATIVE_LIBRARIES.contains(lib)) return;
-            if (candidateInitiatesNativeLoad()) refuse("loadLibrary:" + lib);
+            // call the private hook methods and fabricate a receipt.
+            //
+            // Library *names* resolve only from java.library.path, whose
+            // writability is a fail-closed startup precondition. Absolute loads
+            // are the candidate-controllable shape. A candidate-initiated
+            // absolute load is refused unless the target is a file the candidate
+            // identity cannot write (a root-owned system/JDK library, which
+            // cannot execute candidate code); this keeps JDK internals like
+            // libawt_xawt.so working while blocking candidate-written .so files,
+            // including ones in /tmp. Trusted dependency loads (sqlite's
+            // extracted loader) are not candidate-initiated and stay allowed.
+            if (lib == null) return;
+            if (!new java.io.File(lib).isAbsolute()) return;
+            if (!candidateInitiatesNativeLoad()) return;
+            Path path = Paths.get(lib).toAbsolutePath().normalize();
+            try {
+                path = path.toRealPath();
+            } catch (java.io.IOException ignored) {
+                // Keep the normalized path; isWritable below still decides.
+            }
+            for (Path prefix : untrustedPrefixes) {
+                if (path.startsWith(prefix)) refuse("loadLibrary:" + lib);
+            }
+            if (java.nio.file.Files.isWritable(path)) refuse("loadLibrary:" + lib);
         }
 
         @Override public void checkRead(String file) {
@@ -697,6 +705,38 @@ public final class TrustedTestDriver {
         }
     }
 
+    /**
+     * The native library search path is fixed at JVM startup. If any entry is
+     * writable by the candidate identity (this process runs as that identity) or
+     * inside a candidate prefix, a candidate could plant a same-named library
+     * and have trusted code load it. Fail closed before containment instead.
+     */
+    private static void requireLibraryPathSealed(List<Path> untrustedPrefixes) {
+        String libraryPath = System.getProperty("java.library.path", "");
+        for (String entry : libraryPath.split(java.io.File.pathSeparator)) {
+            if (entry.isBlank()) continue;
+            Path path;
+            try {
+                path = Paths.get(entry).toAbsolutePath().normalize();
+            } catch (RuntimeException exc) {
+                throw new IllegalStateException(
+                        "C12 containment precondition failed: unreadable java.library.path entry");
+            }
+            if (java.nio.file.Files.isWritable(path)) {
+                throw new IllegalStateException(
+                        "C12 containment precondition failed: java.library.path entry is writable: "
+                                + path);
+            }
+            for (Path prefix : untrustedPrefixes) {
+                if (path.startsWith(prefix.toAbsolutePath().normalize())) {
+                    throw new IllegalStateException(
+                            "C12 containment precondition failed: java.library.path entry is under "
+                                    + "a candidate prefix: " + path);
+                }
+            }
+        }
+    }
+
     @SuppressWarnings("removal")
     private static void installContainment(List<Path> untrustedPrefixes) {
         System.setSecurityManager(new ContainmentSecurityManager(untrustedPrefixes));
@@ -722,6 +762,7 @@ public final class TrustedTestDriver {
         final Path expectedOutput = Paths.get(moduleOutput).toRealPath();
         initializeTrustedRuntimeBeforeContainment();
         requireJdkInternalsSealed();
+        requireLibraryPathSealed(untrustedPrefixes);
         installContainment(untrustedPrefixes);
         observerStart();
 
