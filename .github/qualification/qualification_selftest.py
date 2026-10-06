@@ -2192,7 +2192,7 @@ public final class Attack {
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX management, direct, MethodHandle/new-thread and explicit-doPrivileged-context-laundered process, fd/native/classloader (URLClassLoader, candidate subclass, MethodHandle-laundered, JDK reflection loader, ReflectionFactory)/TCCL/property/shutdown/exit escape paths are denied, and the admitted JDK privileged sites stay unreachable from candidate frames that present only their plumbing (own-member setAccessible, Module.getClassLoader, JDK getDeclaredFields, candidate-lambda doPrivileged, Class.newInstance without the accessor-generator chain)",
+        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX and process-handle access (refused at JDK class initialization under candidate frames; the MBean-level and handle-level checks are not reached), direct, MethodHandle/new-thread and explicit-doPrivileged-context-laundered process, fd/native/classloader (URLClassLoader, candidate subclass, MethodHandle-laundered, JDK reflection loader, ReflectionFactory)/TCCL/property/shutdown/exit escape paths are denied, and the admitted JDK privileged sites stay unreachable from candidate frames that present only their plumbing (own-member setAccessible, Module.getClassLoader, JDK getDeclaredFields, candidate-lambda doPrivileged, Class.newInstance without the accessor-generator chain)",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
