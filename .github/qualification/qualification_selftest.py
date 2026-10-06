@@ -1814,6 +1814,7 @@ public final class Attack {
  public static boolean jdkInternalsNotOpen() { return true; }
  public static boolean privateLookupBlocked() { return true; }
  public static boolean nativeLoadBlocked() { return true; }
+ public static boolean nativeReadOnlyLoadBlocked() { return true; }
  public static boolean noAuthoritySecrets() { return true; }
 }
 """
@@ -1840,6 +1841,7 @@ public class ProbeTest {
  @Test public void jdkInternals() { assertTrue(Attack.jdkInternalsNotOpen()); }
  @Test public void privateLookup() { assertTrue(Attack.privateLookupBlocked()); }
  @Test public void nativeLoad() { assertTrue(Attack.nativeLoadBlocked()); }
+ @Test public void nativeReadOnlyLoad() { assertTrue(Attack.nativeReadOnlyLoadBlocked()); }
  @Test public void secrets() { assertTrue(Attack.noAuthoritySecrets()); }
 }
 """
@@ -2117,6 +2119,21 @@ public final class Attack {
    return false;
   }
  }
+ // A candidate can clear the write bit on a file it owns, so current
+ // writability proves nothing about control. A candidate-created file must be
+ // refused even in read-only mode; current-uid/ownership of the target and its
+ // ancestors is the boundary, not the mode bit.
+ public static boolean nativeReadOnlyLoadBlocked() {
+  try {
+   java.nio.file.Path probe = java.nio.file.Files.createTempFile("c12-candidate-native-ro-", ".so");
+   java.nio.file.Files.write(probe, new byte[] {0x7f, 'E', 'L', 'F'});
+   java.nio.file.Files.setPosixFilePermissions(probe,
+       java.nio.file.attribute.PosixFilePermissions.fromString("r--r--r--"));
+   return securityBlocked(() -> System.load(probe.toAbsolutePath().toString()));
+  } catch (java.io.IOException exc) {
+   return false;
+  }
+ }
  public static boolean noAuthoritySecrets() {
   for (Map.Entry<String,String> e : System.getenv().entrySet()) {
    String k = e.getKey().toUpperCase(java.util.Locale.ROOT);
@@ -2136,7 +2153,7 @@ public final class Attack {
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but cannot reach qualification authority: the hook class is unloadable and its package cannot be defined into, Unsafe/ReflectionFactory are absent from the module graph, private JDK internals stay closed, /proc and fd discovery, TCP replay, Unix sockets, Attach/JVMTI, JMX control, process spawn (direct, MethodHandle/new-thread and explicit doPrivileged-context laundered), process handles, manager removal and VM exit are denied, and no witness secret is visible",
+        "hostile candidate production bytecode can execute but cannot reach qualification authority: the hook class is unloadable and its package cannot be defined into, Unsafe/ReflectionFactory are absent from the module graph, private JDK internals stay closed, /proc and fd discovery, TCP replay, Unix sockets, Attach/JVMTI, JMX control, process spawn (direct, MethodHandle/new-thread and explicit doPrivileged-context laundered), process handles, manager removal and VM exit are denied, candidate-initiated native loads are denied for candidate-controlled targets even after the write bit is cleared, and no witness secret is visible",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 

@@ -268,9 +268,9 @@ def decide(lock: dict, witness: dict) -> tuple[str, list[str]]:
         if required_from_policy != required_in_witness:
             fail("required_set_not_policy_derived: witness required set differs from the corpus policy")
         # A class can stay while its methods go. Every method the policy requires
-        # (the candidate's enabled tests plus every baseline method still owed)
-        # must have been started by the trusted driver; a method the static
-        # reading still sees but that never ran is not credit.
+        # (every baseline method still owed) must have been started by the
+        # trusted driver; a method the static reading still sees but that never
+        # ran is not credit. Candidate-added methods are delta-visible only.
         required_methods = corpus.get("trusted_required_methods")
         observed_methods = execution.get("observed_methods")
         if corpus.get("status") == "OK" and (

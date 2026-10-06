@@ -21,7 +21,7 @@ name: Trusted candidate qualification (exact SHA)
 #
 # The verdict reads no candidate-authored report. The required corpus comes from
 # the trusted baseline (corpus_policy.py) and the executed test bytecode is
-# compiled by trusted code from the locked commit (witness.py).
+# compiled by trusted code from the trusted validator commit (witness.py).
 #
 # Runtime boundary: candidate build code runs as the sandbox account. Authoritative
 # test execution is a separate contained JVM with no witness key/state; a trusted

@@ -208,6 +208,20 @@ public final class TrustedTestDriver {
                         annotation, untrustedPrefixes, where, new HashSet<Class<?>>());
                 if (violation != null) return violation;
             }
+            // JUnit parameter-level controls (`@ConvertWith`, `@AggregateWith`)
+            // are declared on method parameters, never on the method itself.
+            if (element instanceof java.lang.reflect.Method) {
+                java.lang.annotation.Annotation[][] parameters =
+                        ((java.lang.reflect.Method) element).getParameterAnnotations();
+                for (int index = 0; index < parameters.length; index++) {
+                    for (java.lang.annotation.Annotation annotation : parameters[index]) {
+                        String violation = inspectControlAnnotation(
+                                annotation, untrustedPrefixes,
+                                where + "#parameter" + index, new HashSet<Class<?>>());
+                        if (violation != null) return violation;
+                    }
+                }
+            }
             return null;
         } catch (LinkageError | RuntimeException exc) {
             return "candidate_junit_control_code:unresolved_annotations:"
@@ -596,30 +610,51 @@ public final class TrustedTestDriver {
 
         @Override public void checkLink(String lib) {
             // JNI is outside the module system: a candidate native library could
-            // call the private hook methods and fabricate a receipt.
+            // reach JVMTI/JDWP and the VM internals, so it must never execute
+            // from a path the candidate identity can control.
             //
-            // Library *names* resolve only from java.library.path, whose
-            // writability is a fail-closed startup precondition. Absolute loads
-            // are the candidate-controllable shape. A candidate-initiated
-            // absolute load is refused unless the target is a file the candidate
-            // identity cannot write (a root-owned system/JDK library, which
-            // cannot execute candidate code); this keeps JDK internals like
-            // libawt_xawt.so working while blocking candidate-written .so files,
-            // including ones in /tmp. Trusted dependency loads (sqlite's
-            // extracted loader) are not candidate-initiated and stay allowed.
+            // Library *names* resolve only from java.library.path and
+            // sun.boot.library.path, whose sealing is a fail-closed startup
+            // precondition. An absolute load is the candidate-influenced shape:
+            // a candidate can plant a file anywhere it can write (for example
+            // /tmp or /var/tmp) and may clear the write bit on it, so current
+            // writability proves nothing about control. Candidate-initiated
+            // absolute loads are therefore allowed only when the exact resolved
+            // target and every ancestor directory are root-owned, non-writable
+            // system paths and the lexical path is not a symlink: then no
+            // component can be replaced between this check and dlopen. JDK
+            // internals (for example libawt_xawt.so under a candidate-triggered
+            // lazy init) keep working; a candidate-written file anywhere
+            // candidate-controllable is refused even after chmod. Trusted
+            // dependency loads (sqlite's extracted loader) are not
+            // candidate-initiated and are unaffected.
             if (lib == null) return;
             if (!new java.io.File(lib).isAbsolute()) return;
             if (!candidateInitiatesNativeLoad()) return;
-            Path path = Paths.get(lib).toAbsolutePath().normalize();
+            Path lexical = Paths.get(lib).toAbsolutePath().normalize();
+            Path real;
             try {
-                path = path.toRealPath();
-            } catch (java.io.IOException ignored) {
-                // Keep the normalized path; isWritable below still decides.
+                real = lexical.toRealPath();
+            } catch (java.io.IOException exc) {
+                refuse("loadLibrary-unresolvable:" + lib);
+                return;
             }
-            for (Path prefix : untrustedPrefixes) {
-                if (path.startsWith(prefix)) refuse("loadLibrary:" + lib);
+            if (underAny(real, untrustedPrefixes)) {
+                refuse("loadLibrary:" + lib);
+                return;
             }
-            if (java.nio.file.Files.isWritable(path)) refuse("loadLibrary:" + lib);
+            if (!real.equals(lexical)) {
+                // The kernel resolves the lexical path at dlopen time; a link
+                // whose component could be rewritten would reopen the window.
+                refuse("loadLibrary-symlink:" + lib);
+                return;
+            }
+            for (Path cursor = real; cursor != null; cursor = cursor.getParent()) {
+                if (!rootOwnedNonWritable(cursor)) {
+                    refuse("loadLibrary-untrusted-path:" + lib);
+                    return;
+                }
+            }
         }
 
         @Override public void checkRead(String file) {
@@ -706,32 +741,93 @@ public final class TrustedTestDriver {
     }
 
     /**
-     * The native library search path is fixed at JVM startup. If any entry is
-     * writable by the candidate identity (this process runs as that identity) or
-     * inside a candidate prefix, a candidate could plant a same-named library
-     * and have trusted code load it. Fail closed before containment instead.
+     * True only when {@code path} is owned by root (uid 0) and cannot be
+     * written by the candidate identity (this process runs as that identity).
+     * Current mode alone is not enough: a candidate-owned file stays
+     * candidate-controlled even after chmod clears its write bit, and a
+     * candidate-writable ancestor directory allows replacing a file between a
+     * check and its use.
+     */
+    private static boolean rootOwnedNonWritable(Path path) {
+        try {
+            Object uid = java.nio.file.Files.getAttribute(
+                    path, "unix:uid", java.nio.file.LinkOption.NOFOLLOW_LINKS);
+            if (!(uid instanceof Integer) || ((Integer) uid).intValue() != 0) {
+                return false;
+            }
+            java.util.Set<java.nio.file.attribute.PosixFilePermission> permissions =
+                    java.nio.file.Files.getPosixFilePermissions(
+                            path, java.nio.file.LinkOption.NOFOLLOW_LINKS);
+            if (permissions.contains(java.nio.file.attribute.PosixFilePermission.GROUP_WRITE)
+                    || permissions.contains(java.nio.file.attribute.PosixFilePermission.OTHERS_WRITE)) {
+                return false;
+            }
+            return !java.nio.file.Files.isWritable(path);
+        } catch (java.io.IOException | RuntimeException exc) {
+            return false;
+        }
+    }
+
+    /**
+     * The native library search paths are fixed at JVM startup. If any entry is
+     * writable by the candidate identity or inside a candidate prefix, a
+     * candidate could plant a same-named library and have trusted code load it.
+     * A missing entry is only safe when its nearest existing ancestor cannot be
+     * written or created into by the candidate; the loader would then find
+     * nothing there and the entry cannot be materialized. Fail closed before
+     * containment instead.
      */
     private static void requireLibraryPathSealed(List<Path> untrustedPrefixes) {
-        String libraryPath = System.getProperty("java.library.path", "");
-        for (String entry : libraryPath.split(java.io.File.pathSeparator)) {
-            if (entry.isBlank()) continue;
-            Path path;
-            try {
-                path = Paths.get(entry).toAbsolutePath().normalize();
-            } catch (RuntimeException exc) {
-                throw new IllegalStateException(
-                        "C12 containment precondition failed: unreadable java.library.path entry");
-            }
-            if (java.nio.file.Files.isWritable(path)) {
-                throw new IllegalStateException(
-                        "C12 containment precondition failed: java.library.path entry is writable: "
-                                + path);
-            }
-            for (Path prefix : untrustedPrefixes) {
-                if (path.startsWith(prefix.toAbsolutePath().normalize())) {
+        for (String property : new String[] {"java.library.path", "sun.boot.library.path"}) {
+            String libraryPath = System.getProperty(property, "");
+            for (String entry : libraryPath.split(java.io.File.pathSeparator)) {
+                if (entry.isBlank()) continue;
+                Path path;
+                try {
+                    path = Paths.get(entry).toAbsolutePath().normalize();
+                } catch (RuntimeException exc) {
                     throw new IllegalStateException(
-                            "C12 containment precondition failed: java.library.path entry is under "
-                                    + "a candidate prefix: " + path);
+                            "C12 containment precondition failed: unreadable " + property + " entry");
+                }
+                for (Path prefix : untrustedPrefixes) {
+                    if (path.startsWith(prefix.toAbsolutePath().normalize())) {
+                        throw new IllegalStateException(
+                                "C12 containment precondition failed: " + property
+                                        + " entry is under a candidate prefix: " + path);
+                    }
+                }
+                Path existing = path;
+                while (existing != null
+                        && !java.nio.file.Files.exists(
+                                existing, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                    existing = existing.getParent();
+                }
+                if (existing == null) {
+                    throw new IllegalStateException(
+                            "C12 containment precondition failed: " + property
+                                    + " entry has no existing ancestor: " + path);
+                }
+                Path realExisting;
+                try {
+                    realExisting = existing.toRealPath();
+                } catch (java.io.IOException exc) {
+                    throw new IllegalStateException(
+                            "C12 containment precondition failed: " + property
+                                    + " entry is unresolvable: " + existing);
+                }
+                for (Path prefix : untrustedPrefixes) {
+                    if (realExisting.startsWith(prefix.toAbsolutePath().normalize())) {
+                        throw new IllegalStateException(
+                                "C12 containment precondition failed: " + property
+                                        + " entry resolves under a candidate prefix: " + path);
+                    }
+                }
+                for (Path cursor = realExisting; cursor != null; cursor = cursor.getParent()) {
+                    if (!rootOwnedNonWritable(cursor)) {
+                        throw new IllegalStateException(
+                                "C12 containment precondition failed: " + property
+                                        + " entry is not a sealed root-owned path: " + path);
+                    }
                 }
             }
         }
