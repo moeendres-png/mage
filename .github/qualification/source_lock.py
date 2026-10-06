@@ -140,7 +140,7 @@ def main() -> int:
             )
             + "\n"
         )
-        print("SOURCE_LOCK = UNKNOWN: {}".format(exc), file=sys.stderr)
+        print("SOURCE_LOCK = UNKNOWN: {}".format(json.dumps(str(exc), ensure_ascii=True)), file=sys.stderr)
         return 2
 
     lock = {

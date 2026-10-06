@@ -1,0 +1,41 @@
+{
+  "command_lines": [
+    "::notice::FORGED-C12-LOG x1"
+  ],
+  "result": {
+    "build_exit": 0,
+    "classes_entered": 1,
+    "corpus": "OK",
+    "credit": false,
+    "integrity": "OK",
+    "integrity_exit": 0,
+    "modules_with_witness": [
+      "."
+    ],
+    "modules_without_witness": [],
+    "qualify_exit": 1,
+    "reasons": [
+      "required_test_methods_not_started: 1 of 1: .::probe.ProbeTest#proof()",
+      "required_tests_never_entered: .::probe.ProbeTest",
+      "class_origin_mismatch: .: candidate\n::notice::FORGED-C12-LOG origin could not be verified: java.lang.ClassNotFoundException: candidate\n::notice::FORGED-C12-LOG",
+      "unexpected_entered_classes: .::candidate\n::notice::FORGED-C12-LOG",
+      "required_pairs_not_entered: .::probe.ProbeTest",
+      "test_failures: 1 failed"
+    ],
+    "reports_parsed": false,
+    "required_selected": 1,
+    "sandbox_error": null,
+    "sandbox_prepared": true,
+    "scorer_verdict": "FAIL",
+    "verdict": "FAIL",
+    "witness_exit": 0,
+    "witness_notes": [],
+    "witness_status": "WITNESSED",
+    "witness_stderr": ""
+  },
+  "source_sha": "05856bec9ca9c158ec67c983ec956b8d5c7a985c",
+  "source_tree": "fc8828cc5375cf5a87c56fd4a72e7bb2bee4a5c8",
+  "witness_stdout": [
+    "TRUSTED_WITNESS = WITNESSED modules=1 required=1 entered=1 started=1 failed=1 corpus=OK\nTRUSTED_WITNESS non-successful: .::candidate\n::notice::FORGED-C12-LOG x1\n"
+  ]
+}

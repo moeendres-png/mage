@@ -1,0 +1,782 @@
+{
+  "qualification_source_sha": "363b70afdc3eca17d4ef8f4883da02ff5a4ad37d",
+  "class": "DIRECTLY_VERIFIED synthetic full-path controls; not Rules or hostile-JVM qualification",
+  "cases": {
+    "unchanged-qualified-type": {
+      "result": {
+        "verdict": "PASS",
+        "scorer_verdict": "PASS",
+        "credit": true,
+        "reasons": [],
+        "integrity": "OK",
+        "integrity_exit": 0,
+        "sandbox_prepared": true,
+        "sandbox_error": null,
+        "reports_parsed": false,
+        "build_exit": 0,
+        "witness_status": "WITNESSED",
+        "witness_notes": [],
+        "corpus": "OK",
+        "modules_with_witness": [
+          "."
+        ],
+        "modules_without_witness": [],
+        "classes_entered": 1,
+        "required_selected": 1,
+        "qualify_exit": 0,
+        "witness_exit": 0,
+        "witness_stderr": ""
+      },
+      "records": {
+        "SOURCE_LOCK.json": {
+          "candidate": {
+            "sha": "7b592e498f2a3ed11e468fefccc25235058af67b",
+            "tree": "d1e657c37590f4a5702563d7c34e47e187facdc9"
+          },
+          "candidate_code_executed_as_validator": false,
+          "comparison_base": {
+            "sha": "340c11201577df73906953390905260a6197c286",
+            "tree": "d1e657c37590f4a5702563d7c34e47e187facdc9"
+          },
+          "default_branch": "master",
+          "pull_request_number": 39,
+          "repository": "moeendres-png/mage",
+          "schema": "mage.candidate-qualification.source-lock/1",
+          "status": "LOCKED",
+          "trusted_validator": {
+            "sha": "340c11201577df73906953390905260a6197c286",
+            "tree": "d1e657c37590f4a5702563d7c34e47e187facdc9"
+          }
+        },
+        "TRUSTED_WITNESS.json": {
+          "build_definition_audit": {
+            "audited_files": [],
+            "status": "CLEAN",
+            "violations": []
+          },
+          "candidate": {
+            "sha": "7b592e498f2a3ed11e468fefccc25235058af67b",
+            "tree": "d1e657c37590f4a5702563d7c34e47e187facdc9"
+          },
+          "candidate_authored_evidence_used": false,
+          "candidate_build_exit_code": 0,
+          "candidate_build_exit_code_semantics": "recorded by trusted code around the sandboxed build; a non-zero exit is an unconditional qualification failure",
+          "candidate_execution_identity": "nobody",
+          "candidate_reports_parsed": false,
+          "candidate_test_classes_used": false,
+          "comparison_base": {
+            "sha": "340c11201577df73906953390905260a6197c286",
+            "tree": "d1e657c37590f4a5702563d7c34e47e187facdc9"
+          },
+          "corpus_classes_without_required_methods": [],
+          "corpus_policy": {
+            "additions": [],
+            "approved_removals_applied": [],
+            "baseline_path": ".github/qualification/test_corpus_baseline.json",
+            "behind_default_branch": [],
+            "candidate_baseline": {
+              "consistent": true,
+              "listed_but_absent": [],
+              "listed_methods_absent": [],
+              "present": true,
+              "problems": [],
+              "unlisted": [],
+              "unlisted_methods": []
+            },
+            "candidate_rev": "7b592e498f2a3ed11e468fefccc25235058af67b",
+            "comparison_base_rev": "340c11201577df73906953390905260a6197c286",
+            "enumeration_rule": {
+              "class_regex": "(Test|Tests|TestCase|Spec|IT)$",
+              "method_format": "module::fully.qualified.ClassName#methodName(erasedSimpleParameterTypes)",
+              "method_rule": {
+                "ambiguity": "duplicate normalized declaration identities are unsupported and fail closed",
+                "disabling_annotation_regex": "^(Ignore|Disabled\\w*|Enabled\\w*)$",
+                "enabled": "a test method with no disabling annotation on itself or an enclosing type",
+                "junit3_base_regex": "\\bextends\\s+(?:junit\\.framework\\.)?TestCase\\b",
+                "junit3_method_regex": "\\bpublic\\s+void\\s+(test[\\w$]*)\\s*\\(\\s*\\)",
+                "scope": "binary declaring class, including nested types; comments and literals ignored",
+                "signature": "erased simple parameter types, arrays preserved, varargs as array",
+                "test_annotations": [
+                  "Test",
+                  "ParameterizedTest",
+                  "RepeatedTest",
+                  "TestFactory",
+                  "TestTemplate"
+                ]
+              },
+              "module_rule": "nearest ancestor directory of the test source root that holds a pom.xml",
+              "pair_format": "module::fully.qualified.ClassName",
+              "source_markers": [
+                "src/test/java",
+                "src/test/kotlin",
+                "src/test/groovy"
+              ],
+              "source_suffix": ".java"
+            },
+            "method_additions": [],
+            "methods_behind_default_branch": [],
+            "methods_disabled_without_approval": [],
+            "methods_removed_without_approval": [],
+            "removed_without_approval": [],
+            "required_inheriting_classes": [],
+            "required_methods": [
+              ".::probe.ProbeTest#proof(Foo)"
+            ],
+            "required_pairs": [
+              ".::probe.ProbeTest"
+            ],
+            "schema": "mage.candidate-qualification.corpus-policy/3",
+            "status": "OK",
+            "trusted_baseline": {
+              "entries_count": 1,
+              "entries_sha256": "47185a322908fdc39cf0242c6b02116d1d28cc8a8abe7e96e55b41be96ca6b03",
+              "methods_count": 1,
+              "methods_sha256": "6e1a345c1bdee909f2419f01dd231999485dd06c5927f3249e160ea96106eb9f",
+              "present": true,
+              "problems": []
+            },
+            "trusted_rev": "340c11201577df73906953390905260a6197c286",
+            "unknowns": [],
+            "violations": []
+          },
+          "driver": {
+            "name": "TrustedTestDriver.java",
+            "sha256": "ad6b598e1770b38e91567bc2bcebb9adad85e62ded50d855d8df986c9d64069d"
+          },
+          "execution_mode": "per_module_trusted_driver",
+          "module_classpath_completeness": {
+            "complete": true,
+            "modules_missing_classpath": [],
+            "modules_with_classpath": [
+              "."
+            ],
+            "modules_with_required_tests": [
+              "."
+            ]
+          },
+          "module_classpaths_are_authority": false,
+          "module_execution": [
+            {
+              "driver_exit_code": 0,
+              "driver_stderr": "",
+              "driver_stdout": "TRUSTED_EXECUTION module=. selected=1 observed=1 never_entered=0 origin_violations=0 found=1 started=1 succeeded=1 failed=0 aborted=0 skipped=0 verdict=PASS",
+              "executed": true,
+              "module": ".",
+              "reason": null,
+              "required_classes": 1,
+              "witness": {
+                "bound_candidate_sha": "7b592e498f2a3ed11e468fefccc25235058af67b",
+                "bound_candidate_tree": "d1e657c37590f4a5702563d7c34e47e187facdc9",
+                "candidate_authored_evidence_used": false,
+                "class_code_origins": {
+                  "probe.ProbeTest": "/var/lib/c12-qualified-parameters-before-20261004/bundle/tests/000-_"
+                },
+                "classes_never_entered": [],
+                "code_origin_enforced": true,
+                "code_origin_violations": [],
+                "containers_failed": 0,
+                "driver_verdict": "PASS",
+                "evidence_origin": "trusted_side_direct_execution",
+                "failures": [],
+                "module_id": ".",
+                "module_output": "/var/lib/c12-qualified-parameters-before-20261004/bundle/tests/000-_",
+                "non_successful_by_class": {},
+                "observed_classes": [
+                  "probe.ProbeTest"
+                ],
+                "observed_methods": [
+                  "probe.ProbeTest#proof(Foo)"
+                ],
+                "producer": "TrustedTestDriver",
+                "schema": "mage.candidate-qualification.trusted-execution-witness/2",
+                "tests_aborted": 0,
+                "tests_failed": 0,
+                "tests_found": 1,
+                "tests_skipped": 0,
+                "tests_started": 1,
+                "tests_succeeded": 1,
+                "trusted_selected_class_names": [
+                  "probe.ProbeTest"
+                ],
+                "trusted_selected_classes": 1
+              }
+            }
+          ],
+          "modules": [
+            {
+              "module": ".",
+              "not_compiled": [],
+              "required_class_count": 1,
+              "stale_sibling_entries_dropped": []
+            }
+          ],
+          "notes": [],
+          "observed_candidate_sha": "7b592e498f2a3ed11e468fefccc25235058af67b",
+          "required_test_classes": [
+            {
+              "class_name": "probe.ProbeTest",
+              "module": "."
+            }
+          ],
+          "schema": "mage.candidate-qualification.witness/4",
+          "selected_test_classes": [
+            {
+              "class_name": "probe.ProbeTest",
+              "module": "."
+            }
+          ],
+          "source_binding_ok": true,
+          "stale_sibling_artifacts_dropped": [],
+          "status": "WITNESSED",
+          "test_bytecode_origin": "trusted_compile_of_locked_git_export",
+          "trusted_execution_witness": {
+            "bound_candidate_sha": "7b592e498f2a3ed11e468fefccc25235058af67b",
+            "bound_candidate_shas": [
+              "7b592e498f2a3ed11e468fefccc25235058af67b"
+            ],
+            "bound_candidate_tree": "d1e657c37590f4a5702563d7c34e47e187facdc9",
+            "candidate_authored_evidence_used": false,
+            "class_code_origins": {
+              ".::probe.ProbeTest": "/var/lib/c12-qualified-parameters-before-20261004/bundle/tests/000-_"
+            },
+            "classes_entered_total": 1,
+            "classes_never_entered": [],
+            "code_origin_violations": [],
+            "containers_failed": 0,
+            "driver_verdict": "PENDING",
+            "entered_pairs": [
+              ".::probe.ProbeTest"
+            ],
+            "evidence_origin": "trusted_side_direct_execution",
+            "execution_mode": "per_module_trusted_driver",
+            "modules_with_required_tests": [
+              "."
+            ],
+            "modules_with_witness": [
+              "."
+            ],
+            "modules_without_witness": [],
+            "observed_methods": [
+              ".::probe.ProbeTest#proof(Foo)"
+            ],
+            "producer": "witness.py per-module aggregation",
+            "schema": "mage.candidate-qualification.trusted-execution-witness/2",
+            "tests_aborted": 0,
+            "tests_failed": 0,
+            "tests_found": 1,
+            "tests_skipped": 0,
+            "tests_started": 1,
+            "tests_succeeded": 1,
+            "totals": {
+              "containers_failed": 0,
+              "tests_aborted": 0,
+              "tests_failed": 0,
+              "tests_found": 1,
+              "tests_skipped": 0,
+              "tests_started": 1,
+              "tests_succeeded": 1
+            },
+            "trusted_selected_classes": 1
+          },
+          "trusted_test_compilation": [
+            {
+              "dropped_test_resources": [],
+              "exit_code": 0,
+              "module": ".",
+              "sources": 1,
+              "stderr_tail": ""
+            }
+          ],
+          "trusted_validator": {
+            "sha": "340c11201577df73906953390905260a6197c286",
+            "tree": "d1e657c37590f4a5702563d7c34e47e187facdc9"
+          }
+        },
+        "INTEGRITY.json": {
+          "candidate_writable_trusted_paths": [],
+          "schema": "mage.candidate-qualification.integrity/1",
+          "seals": [
+            {
+              "problems": [],
+              "seal": "/var/lib/c12-qualified-parameters-before-20261004/unchanged-qualified-type/work/seal-before.json"
+            },
+            {
+              "problems": [],
+              "seal": "/var/lib/c12-qualified-parameters-before-20261004/unchanged-qualified-type/work/seal-after.json"
+            }
+          ],
+          "status": "OK",
+          "surviving_candidate_processes": [],
+          "trusted_sha": "340c11201577df73906953390905260a6197c286",
+          "trusted_tree": {
+            "files_checked": 8,
+            "head": "340c11201577df73906953390905260a6197c286",
+            "head_matches_trusted_sha": true,
+            "mismatched": [],
+            "missing": [],
+            "ok": true,
+            "untracked": []
+          },
+          "violations": []
+        },
+        "QUALIFICATION_EVIDENCE.json": {
+          "candidate": {
+            "sha": "7b592e498f2a3ed11e468fefccc25235058af67b",
+            "tree": "d1e657c37590f4a5702563d7c34e47e187facdc9"
+          },
+          "candidate_authored_evidence_used": false,
+          "candidate_build_exit_code": 0,
+          "candidate_code_executed_as_validator": false,
+          "candidate_reports_parsed": false,
+          "comparison_base": {
+            "sha": "340c11201577df73906953390905260a6197c286",
+            "tree": "d1e657c37590f4a5702563d7c34e47e187facdc9"
+          },
+          "guard": {
+            "path": "/var/lib/c12-qualified-parameters-before-20261004/unchanged-qualified-type/repo/.github/qualification/qualify.py",
+            "sha256": "7d1dac0921ebb3a2458c8420bd46ae428e0cb88565da959b633e5241ec684ffa",
+            "witness_driver_sha256": "ad6b598e1770b38e91567bc2bcebb9adad85e62ded50d855d8df986c9d64069d"
+          },
+          "mergeability_influenced_verdict": false,
+          "notes": [],
+          "pull_request_number": 39,
+          "qualification_credit": true,
+          "reasons": [],
+          "repository": "moeendres-png/mage",
+          "schema": "mage.candidate-qualification.evidence/4",
+          "synthetic_merge_influenced_verdict": false,
+          "test_evidence": {
+            "classes_entered_total": 1,
+            "classes_never_entered": [],
+            "code_origin_violations": [],
+            "execution_mode": "per_module_trusted_driver",
+            "failures": null,
+            "module_classpath_completeness": {
+              "complete": true,
+              "modules_missing_classpath": [],
+              "modules_with_classpath": [
+                "."
+              ],
+              "modules_with_required_tests": [
+                "."
+              ]
+            },
+            "modules_with_required_tests": [
+              "."
+            ],
+            "modules_with_witness": [
+              "."
+            ],
+            "modules_without_witness": [],
+            "origin": "trusted_side_direct_execution",
+            "required_test_class_count": 1,
+            "totals": {
+              "aborted": 0,
+              "containers_failed": 0,
+              "failed": 0,
+              "found": 1,
+              "skipped": 0,
+              "started": 1,
+              "succeeded": 1
+            },
+            "trusted_selected_classes": 1
+          },
+          "trusted_state_integrity": "OK",
+          "trusted_validator": {
+            "sha": "340c11201577df73906953390905260a6197c286",
+            "tree": "d1e657c37590f4a5702563d7c34e47e187facdc9"
+          },
+          "verdict": "PASS"
+        }
+      }
+    },
+    "replaced-qualified-type": {
+      "result": {
+        "verdict": "PASS",
+        "scorer_verdict": "PASS",
+        "credit": true,
+        "reasons": [],
+        "integrity": "OK",
+        "integrity_exit": 0,
+        "sandbox_prepared": true,
+        "sandbox_error": null,
+        "reports_parsed": false,
+        "build_exit": 0,
+        "witness_status": "WITNESSED",
+        "witness_notes": [],
+        "corpus": "OK",
+        "modules_with_witness": [
+          "."
+        ],
+        "modules_without_witness": [],
+        "classes_entered": 1,
+        "required_selected": 1,
+        "qualify_exit": 0,
+        "witness_exit": 0,
+        "witness_stderr": ""
+      },
+      "records": {
+        "SOURCE_LOCK.json": {
+          "candidate": {
+            "sha": "307044c52f9c1fee29b9443965f57e62c562ff8c",
+            "tree": "a9e25a044cacd2d32536b80c6100bbd42f69dfea"
+          },
+          "candidate_code_executed_as_validator": false,
+          "comparison_base": {
+            "sha": "71361dbf88d24e3a2c2d97ee58b56477dcefa5a0",
+            "tree": "d1e657c37590f4a5702563d7c34e47e187facdc9"
+          },
+          "default_branch": "master",
+          "pull_request_number": 39,
+          "repository": "moeendres-png/mage",
+          "schema": "mage.candidate-qualification.source-lock/1",
+          "status": "LOCKED",
+          "trusted_validator": {
+            "sha": "71361dbf88d24e3a2c2d97ee58b56477dcefa5a0",
+            "tree": "d1e657c37590f4a5702563d7c34e47e187facdc9"
+          }
+        },
+        "TRUSTED_WITNESS.json": {
+          "build_definition_audit": {
+            "audited_files": [],
+            "status": "CLEAN",
+            "violations": []
+          },
+          "candidate": {
+            "sha": "307044c52f9c1fee29b9443965f57e62c562ff8c",
+            "tree": "a9e25a044cacd2d32536b80c6100bbd42f69dfea"
+          },
+          "candidate_authored_evidence_used": false,
+          "candidate_build_exit_code": 0,
+          "candidate_build_exit_code_semantics": "recorded by trusted code around the sandboxed build; a non-zero exit is an unconditional qualification failure",
+          "candidate_execution_identity": "nobody",
+          "candidate_reports_parsed": false,
+          "candidate_test_classes_used": false,
+          "comparison_base": {
+            "sha": "71361dbf88d24e3a2c2d97ee58b56477dcefa5a0",
+            "tree": "d1e657c37590f4a5702563d7c34e47e187facdc9"
+          },
+          "corpus_classes_without_required_methods": [],
+          "corpus_policy": {
+            "additions": [],
+            "approved_removals_applied": [],
+            "baseline_path": ".github/qualification/test_corpus_baseline.json",
+            "behind_default_branch": [],
+            "candidate_baseline": {
+              "consistent": true,
+              "listed_but_absent": [],
+              "listed_methods_absent": [],
+              "present": true,
+              "problems": [],
+              "unlisted": [],
+              "unlisted_methods": []
+            },
+            "candidate_rev": "307044c52f9c1fee29b9443965f57e62c562ff8c",
+            "comparison_base_rev": "71361dbf88d24e3a2c2d97ee58b56477dcefa5a0",
+            "enumeration_rule": {
+              "class_regex": "(Test|Tests|TestCase|Spec|IT)$",
+              "method_format": "module::fully.qualified.ClassName#methodName(erasedSimpleParameterTypes)",
+              "method_rule": {
+                "ambiguity": "duplicate normalized declaration identities are unsupported and fail closed",
+                "disabling_annotation_regex": "^(Ignore|Disabled\\w*|Enabled\\w*)$",
+                "enabled": "a test method with no disabling annotation on itself or an enclosing type",
+                "junit3_base_regex": "\\bextends\\s+(?:junit\\.framework\\.)?TestCase\\b",
+                "junit3_method_regex": "\\bpublic\\s+void\\s+(test[\\w$]*)\\s*\\(\\s*\\)",
+                "scope": "binary declaring class, including nested types; comments and literals ignored",
+                "signature": "erased simple parameter types, arrays preserved, varargs as array",
+                "test_annotations": [
+                  "Test",
+                  "ParameterizedTest",
+                  "RepeatedTest",
+                  "TestFactory",
+                  "TestTemplate"
+                ]
+              },
+              "module_rule": "nearest ancestor directory of the test source root that holds a pom.xml",
+              "pair_format": "module::fully.qualified.ClassName",
+              "source_markers": [
+                "src/test/java",
+                "src/test/kotlin",
+                "src/test/groovy"
+              ],
+              "source_suffix": ".java"
+            },
+            "method_additions": [],
+            "methods_behind_default_branch": [],
+            "methods_disabled_without_approval": [],
+            "methods_removed_without_approval": [],
+            "removed_without_approval": [],
+            "required_inheriting_classes": [],
+            "required_methods": [
+              ".::probe.ProbeTest#proof(Foo)"
+            ],
+            "required_pairs": [
+              ".::probe.ProbeTest"
+            ],
+            "schema": "mage.candidate-qualification.corpus-policy/3",
+            "status": "OK",
+            "trusted_baseline": {
+              "entries_count": 1,
+              "entries_sha256": "47185a322908fdc39cf0242c6b02116d1d28cc8a8abe7e96e55b41be96ca6b03",
+              "methods_count": 1,
+              "methods_sha256": "6e1a345c1bdee909f2419f01dd231999485dd06c5927f3249e160ea96106eb9f",
+              "present": true,
+              "problems": []
+            },
+            "trusted_rev": "71361dbf88d24e3a2c2d97ee58b56477dcefa5a0",
+            "unknowns": [],
+            "violations": []
+          },
+          "driver": {
+            "name": "TrustedTestDriver.java",
+            "sha256": "ad6b598e1770b38e91567bc2bcebb9adad85e62ded50d855d8df986c9d64069d"
+          },
+          "execution_mode": "per_module_trusted_driver",
+          "module_classpath_completeness": {
+            "complete": true,
+            "modules_missing_classpath": [],
+            "modules_with_classpath": [
+              "."
+            ],
+            "modules_with_required_tests": [
+              "."
+            ]
+          },
+          "module_classpaths_are_authority": false,
+          "module_execution": [
+            {
+              "driver_exit_code": 0,
+              "driver_stderr": "",
+              "driver_stdout": "TRUSTED_EXECUTION module=. selected=1 observed=1 never_entered=0 origin_violations=0 found=1 started=1 succeeded=1 failed=0 aborted=0 skipped=0 verdict=PASS",
+              "executed": true,
+              "module": ".",
+              "reason": null,
+              "required_classes": 1,
+              "witness": {
+                "bound_candidate_sha": "307044c52f9c1fee29b9443965f57e62c562ff8c",
+                "bound_candidate_tree": "a9e25a044cacd2d32536b80c6100bbd42f69dfea",
+                "candidate_authored_evidence_used": false,
+                "class_code_origins": {
+                  "probe.ProbeTest": "/var/lib/c12-qualified-parameters-before-20261004/bundle/tests/000-_"
+                },
+                "classes_never_entered": [],
+                "code_origin_enforced": true,
+                "code_origin_violations": [],
+                "containers_failed": 0,
+                "driver_verdict": "PASS",
+                "evidence_origin": "trusted_side_direct_execution",
+                "failures": [],
+                "module_id": ".",
+                "module_output": "/var/lib/c12-qualified-parameters-before-20261004/bundle/tests/000-_",
+                "non_successful_by_class": {},
+                "observed_classes": [
+                  "probe.ProbeTest"
+                ],
+                "observed_methods": [
+                  "probe.ProbeTest#proof(Foo)"
+                ],
+                "producer": "TrustedTestDriver",
+                "schema": "mage.candidate-qualification.trusted-execution-witness/2",
+                "tests_aborted": 0,
+                "tests_failed": 0,
+                "tests_found": 1,
+                "tests_skipped": 0,
+                "tests_started": 1,
+                "tests_succeeded": 1,
+                "trusted_selected_class_names": [
+                  "probe.ProbeTest"
+                ],
+                "trusted_selected_classes": 1
+              }
+            }
+          ],
+          "modules": [
+            {
+              "module": ".",
+              "not_compiled": [],
+              "required_class_count": 1,
+              "stale_sibling_entries_dropped": []
+            }
+          ],
+          "notes": [],
+          "observed_candidate_sha": "307044c52f9c1fee29b9443965f57e62c562ff8c",
+          "required_test_classes": [
+            {
+              "class_name": "probe.ProbeTest",
+              "module": "."
+            }
+          ],
+          "schema": "mage.candidate-qualification.witness/4",
+          "selected_test_classes": [
+            {
+              "class_name": "probe.ProbeTest",
+              "module": "."
+            }
+          ],
+          "source_binding_ok": true,
+          "stale_sibling_artifacts_dropped": [],
+          "status": "WITNESSED",
+          "test_bytecode_origin": "trusted_compile_of_locked_git_export",
+          "trusted_execution_witness": {
+            "bound_candidate_sha": "307044c52f9c1fee29b9443965f57e62c562ff8c",
+            "bound_candidate_shas": [
+              "307044c52f9c1fee29b9443965f57e62c562ff8c"
+            ],
+            "bound_candidate_tree": "a9e25a044cacd2d32536b80c6100bbd42f69dfea",
+            "candidate_authored_evidence_used": false,
+            "class_code_origins": {
+              ".::probe.ProbeTest": "/var/lib/c12-qualified-parameters-before-20261004/bundle/tests/000-_"
+            },
+            "classes_entered_total": 1,
+            "classes_never_entered": [],
+            "code_origin_violations": [],
+            "containers_failed": 0,
+            "driver_verdict": "PENDING",
+            "entered_pairs": [
+              ".::probe.ProbeTest"
+            ],
+            "evidence_origin": "trusted_side_direct_execution",
+            "execution_mode": "per_module_trusted_driver",
+            "modules_with_required_tests": [
+              "."
+            ],
+            "modules_with_witness": [
+              "."
+            ],
+            "modules_without_witness": [],
+            "observed_methods": [
+              ".::probe.ProbeTest#proof(Foo)"
+            ],
+            "producer": "witness.py per-module aggregation",
+            "schema": "mage.candidate-qualification.trusted-execution-witness/2",
+            "tests_aborted": 0,
+            "tests_failed": 0,
+            "tests_found": 1,
+            "tests_skipped": 0,
+            "tests_started": 1,
+            "tests_succeeded": 1,
+            "totals": {
+              "containers_failed": 0,
+              "tests_aborted": 0,
+              "tests_failed": 0,
+              "tests_found": 1,
+              "tests_skipped": 0,
+              "tests_started": 1,
+              "tests_succeeded": 1
+            },
+            "trusted_selected_classes": 1
+          },
+          "trusted_test_compilation": [
+            {
+              "dropped_test_resources": [],
+              "exit_code": 0,
+              "module": ".",
+              "sources": 1,
+              "stderr_tail": ""
+            }
+          ],
+          "trusted_validator": {
+            "sha": "71361dbf88d24e3a2c2d97ee58b56477dcefa5a0",
+            "tree": "d1e657c37590f4a5702563d7c34e47e187facdc9"
+          }
+        },
+        "INTEGRITY.json": {
+          "candidate_writable_trusted_paths": [],
+          "schema": "mage.candidate-qualification.integrity/1",
+          "seals": [
+            {
+              "problems": [],
+              "seal": "/var/lib/c12-qualified-parameters-before-20261004/replaced-qualified-type/work/seal-before.json"
+            },
+            {
+              "problems": [],
+              "seal": "/var/lib/c12-qualified-parameters-before-20261004/replaced-qualified-type/work/seal-after.json"
+            }
+          ],
+          "status": "OK",
+          "surviving_candidate_processes": [],
+          "trusted_sha": "71361dbf88d24e3a2c2d97ee58b56477dcefa5a0",
+          "trusted_tree": {
+            "files_checked": 8,
+            "head": "71361dbf88d24e3a2c2d97ee58b56477dcefa5a0",
+            "head_matches_trusted_sha": true,
+            "mismatched": [],
+            "missing": [],
+            "ok": true,
+            "untracked": []
+          },
+          "violations": []
+        },
+        "QUALIFICATION_EVIDENCE.json": {
+          "candidate": {
+            "sha": "307044c52f9c1fee29b9443965f57e62c562ff8c",
+            "tree": "a9e25a044cacd2d32536b80c6100bbd42f69dfea"
+          },
+          "candidate_authored_evidence_used": false,
+          "candidate_build_exit_code": 0,
+          "candidate_code_executed_as_validator": false,
+          "candidate_reports_parsed": false,
+          "comparison_base": {
+            "sha": "71361dbf88d24e3a2c2d97ee58b56477dcefa5a0",
+            "tree": "d1e657c37590f4a5702563d7c34e47e187facdc9"
+          },
+          "guard": {
+            "path": "/var/lib/c12-qualified-parameters-before-20261004/replaced-qualified-type/repo/.github/qualification/qualify.py",
+            "sha256": "7d1dac0921ebb3a2458c8420bd46ae428e0cb88565da959b633e5241ec684ffa",
+            "witness_driver_sha256": "ad6b598e1770b38e91567bc2bcebb9adad85e62ded50d855d8df986c9d64069d"
+          },
+          "mergeability_influenced_verdict": false,
+          "notes": [],
+          "pull_request_number": 39,
+          "qualification_credit": true,
+          "reasons": [],
+          "repository": "moeendres-png/mage",
+          "schema": "mage.candidate-qualification.evidence/4",
+          "synthetic_merge_influenced_verdict": false,
+          "test_evidence": {
+            "classes_entered_total": 1,
+            "classes_never_entered": [],
+            "code_origin_violations": [],
+            "execution_mode": "per_module_trusted_driver",
+            "failures": null,
+            "module_classpath_completeness": {
+              "complete": true,
+              "modules_missing_classpath": [],
+              "modules_with_classpath": [
+                "."
+              ],
+              "modules_with_required_tests": [
+                "."
+              ]
+            },
+            "modules_with_required_tests": [
+              "."
+            ],
+            "modules_with_witness": [
+              "."
+            ],
+            "modules_without_witness": [],
+            "origin": "trusted_side_direct_execution",
+            "required_test_class_count": 1,
+            "totals": {
+              "aborted": 0,
+              "containers_failed": 0,
+              "failed": 0,
+              "found": 1,
+              "skipped": 0,
+              "started": 1,
+              "succeeded": 1
+            },
+            "trusted_selected_classes": 1
+          },
+          "trusted_state_integrity": "OK",
+          "trusted_validator": {
+            "sha": "71361dbf88d24e3a2c2d97ee58b56477dcefa5a0",
+            "tree": "d1e657c37590f4a5702563d7c34e47e187facdc9"
+          },
+          "verdict": "PASS"
+        }
+      }
+    }
+  }
+}

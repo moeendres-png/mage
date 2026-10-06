@@ -23,9 +23,9 @@ name: Trusted candidate qualification (exact SHA)
 # the trusted baseline (corpus_policy.py) and the executed test bytecode is
 # compiled by trusted code from the locked commit (witness.py).
 #
-# Runtime risk, stated: candidate build code runs (as the sandbox account) with
-# runner network egress. The job is read-only, persists no credentials and
-# references no secret.
+# Runtime boundary: candidate build code runs as the sandbox account. Authoritative
+# test execution is a separate contained JVM with no witness key/state; a trusted
+# parent JDI observer writes the receipt. The job is read-only and persists no credentials.
 
 on:
   pull_request_target:
@@ -86,7 +86,11 @@ jobs:
           test -f "$jar"
           echo "TRUSTED_JUNIT_CLASSPATH=$jar" >> "$GITHUB_ENV"
           # CTRL-62 and CTRL-66 compile forged bytecode against the Jupiter API.
+          # Resolve the full Jupiter/Vintage fixture runtime on the trusted side
+          # so candidate-local Maven downloads can never become witness authority.
           mvn -B -q dependency:get -Dartifact=org.junit.jupiter:junit-jupiter-api:5.8.1
+          mvn -B -q dependency:get -Dartifact=org.junit.jupiter:junit-jupiter:5.8.1
+          mvn -B -q dependency:get -Dartifact=org.junit.vintage:junit-vintage-engine:5.8.1
       - name: Stage a root-owned read-only JDK and Maven for the controls
         # As in the self-test workflow: the hosted tool cache is writable by any
         # account, so the controls' trusted side runs only root-owned copies.
@@ -113,6 +117,7 @@ jobs:
             --sandbox-user "$C12_SANDBOX_USER" \
             --harden-world-writable \
             --out "$EVIDENCE_DIR/GUARD_CONTROLS.json"
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/test_counter_contract.py"
       - name: Upload guard control report
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -174,12 +179,37 @@ jobs:
         run: |
           set -uo pipefail
           base="$(/usr/bin/python3 -I -S -c "import json,sys;print(json.load(open(sys.argv[1]))['comparison_base']['sha'])" "$EVIDENCE_DIR/SOURCE_LOCK.json")"
+          trusted="$(/usr/bin/python3 -I -S -c "import json,sys;print(json.load(open(sys.argv[1]))['trusted_validator']['sha'])" "$EVIDENCE_DIR/SOURCE_LOCK.json")"
           /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/build_definition_audit.py" \
             --repo "$TRUSTED_ROOT" \
+            --trusted "$trusted" \
             --comparison-base "$base" \
             --candidate "${{ github.event.pull_request.head.sha }}" \
             --out "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" || true
           test -s "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json"
+      - name: Resolve trusted reactor and dependency classpaths
+        # Candidate dependency/build-definition changes are authority-bearing and
+        # rejected by build_definition_audit.py. Resolve the complete trusted
+        # validator test/reactor graph before any candidate code executes.
+        # Candidate classpath files remain observation only; witness.py maps the
+        # trusted reactor paths onto candidate main outputs and executes external
+        # artifacts only from this candidate-inaccessible trusted Maven cache.
+        run: |
+          set -euo pipefail
+          mvn -B -q -f "$TRUSTED_ROOT/pom.xml" test-compile dependency:build-classpath \
+            -DincludeScope=test \
+            -Dmdep.outputFile=target/c12-test-classpath.txt \
+            -DskipTests=true \
+            -Dmaven.test.skip.exec=true \
+            -Dmaven.compiler.proc=none \
+            -Dxmage.dataCollectors.printGameLogs=false
+          /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/resolve_classpaths.py" \
+            --git-repo "$TRUSTED_ROOT" \
+            --candidate-sha "${{ github.sha }}" \
+            --candidate-root "$TRUSTED_ROOT" \
+            --out "$EVIDENCE_DIR/TRUSTED_MODULE_CLASSPATHS.json" \
+            --record "$EVIDENCE_DIR/TRUSTED_MODULE_CLASSPATHS_RECORD.json"
+          test -s "$EVIDENCE_DIR/TRUSTED_MODULE_CLASSPATHS.json"
       - name: Prepare candidate sandbox (separate OS identity)
         env:
           CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
@@ -216,6 +246,8 @@ jobs:
             --out "$RUNNER_TEMP/c12-seals/before-candidate.json" \
             "$EVIDENCE_DIR/SOURCE_LOCK.json" \
             "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" \
+            "$EVIDENCE_DIR/TRUSTED_MODULE_CLASSPATHS.json" \
+            "$EVIDENCE_DIR/TRUSTED_MODULE_CLASSPATHS_RECORD.json" \
             "$EVIDENCE_DIR/SANDBOX_PREPARE.json" \
             "$TRUSTED_JUNIT_CLASSPATH"
       - name: Build candidate as the sandbox account
@@ -269,6 +301,8 @@ jobs:
             --build-result "$EVIDENCE_DIR/BUILD_RESULT.json" \
             --build-definition-audit "$EVIDENCE_DIR/BUILD_DEFINITION_AUDIT.json" \
             --module-classpaths "$EVIDENCE_DIR/MODULE_CLASSPATHS.json" \
+            --trusted-module-classpaths "$EVIDENCE_DIR/TRUSTED_MODULE_CLASSPATHS.json" \
+            --trusted-maven-repo "$HOME/.m2/repository" \
             --out "$EVIDENCE_DIR/TRUSTED_WITNESS.json" || true
           /usr/bin/python3 -I -S -B "$QUALIFICATION_DIR/sandbox.py" seal \
             --out "$RUNNER_TEMP/c12-seals/after-witness.json" \
@@ -322,9 +356,13 @@ jobs:
             ${{ env.EVIDENCE_DIR }}/BUILD_RESULT.json
             ${{ env.EVIDENCE_DIR }}/MODULE_CLASSPATHS.json
             ${{ env.EVIDENCE_DIR }}/MODULE_CLASSPATHS_RECORD.json
+            ${{ env.EVIDENCE_DIR }}/TRUSTED_MODULE_CLASSPATHS.json
+            ${{ env.EVIDENCE_DIR }}/TRUSTED_MODULE_CLASSPATHS_RECORD.json
             ${{ env.EVIDENCE_DIR }}/TRUSTED_WITNESS.json
             ${{ env.EVIDENCE_DIR }}/INTEGRITY.json
             ${{ env.EVIDENCE_DIR }}/QUALIFICATION_EVIDENCE.json
+            ${{ runner.temp }}/c12-seals/before-candidate.json
+            ${{ runner.temp }}/c12-seals/after-witness.json
           if-no-files-found: error
           retention-days: 30
       - name: Publish source-bound qualification summary
