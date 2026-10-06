@@ -2134,7 +2134,17 @@ public final class Attack {
  // ReflectionFactory allocates objects without running their constructors'
  // security checks; candidate access to it must be refused.
  public static boolean reflectionFactoryBlocked() {
-  return securityBlocked(() -> sun.reflect.ReflectionFactory.getReflectionFactory());
+  try {
+   sun.reflect.ReflectionFactory.getReflectionFactory();
+   return false;
+  } catch (NoClassDefFoundError absent) {
+   // The driver runs as a named module (-m), so jdk.unsupported is not in the
+   // resolved module graph and the class does not exist for candidate code:
+   // unreachable, which is stronger than refused. Only this exact class counts.
+   return "sun/reflect/ReflectionFactory".equals(absent.getMessage()) || refused(absent);
+  } catch (Throwable other) {
+   return refused(other);
+  }
  }
  public static boolean processHandleBlocked() {
   return securityBlocked(() -> ProcessHandle.allProcesses().count());
@@ -2192,7 +2202,7 @@ public final class Attack {
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX and process-handle access (refused at JDK class initialization under candidate frames; the MBean-level and handle-level checks are not reached), direct, MethodHandle/new-thread and explicit-doPrivileged-context-laundered process, fd/native/classloader (URLClassLoader, candidate subclass, MethodHandle-laundered, JDK reflection loader, ReflectionFactory)/TCCL/property/shutdown/exit escape paths are denied, and the admitted JDK privileged sites stay unreachable from candidate frames that present only their plumbing (own-member setAccessible, Module.getClassLoader, JDK getDeclaredFields, candidate-lambda doPrivileged, Class.newInstance without the accessor-generator chain)",
+        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX and process-handle access (refused at JDK class initialization under candidate frames; the MBean-level and handle-level checks are not reached), direct, MethodHandle/new-thread and explicit-doPrivileged-context-laundered process, fd/native/classloader (URLClassLoader, candidate subclass, MethodHandle-laundered, JDK reflection loader, ReflectionFactory unresolved or refused)/TCCL/property/shutdown/exit escape paths are denied, and the admitted JDK privileged sites stay unreachable from candidate frames that present only their plumbing (own-member setAccessible, Module.getClassLoader, JDK getDeclaredFields, candidate-lambda doPrivileged, Class.newInstance without the accessor-generator chain)",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
