@@ -4,15 +4,29 @@
 // this class and never receives a receipt key or writable receipt channel. It
 // listens for the exact child JVM launched by witness.py through JDWP, disables
 // the listening socket as soon as that VM connects, and observes entries into
-// private hooks in the non-exported c12.trusted driver module.
+// private hooks in the non-exported c12.trusted driver module plus entries into
+// the required test methods.
 //
 // The child can make qualification fail by crashing, hanging or corrupting its
 // own execution. It cannot manufacture PASS: the receipt is written only here,
 // by the trusted parent, from JDI events whose hook class/method identity is
 // fixed by trusted source.
+//
+// Observation uses *breakpoints*, not JVMTI method entry/exit requests. HotSpot
+// disables JIT compilation globally while a method entry or exit request is
+// enabled, which made the pre-repair gate run the real corpus ~30x slower and
+// time out (Mage #493: 5h09m witness step, 18000s per-module timeout). A
+// breakpoint only deoptimizes the exact method whose location it covers, and
+// this observer sets breakpoints on the three trusted hook methods and on the
+// entry of each required test method. Body completion is the trusted driver's
+// FINISHED/SUCCESSFUL hook for a test whose required method entry was observed:
+// JVMTI method exit events cannot be used without the same global JIT penalty,
+// and an exceptional exit never emits a FINISHED/SUCCESSFUL hook.
 
 import com.sun.jdi.BooleanValue;
 import com.sun.jdi.IncompatibleThreadStateException;
+import com.sun.jdi.Location;
+import com.sun.jdi.ReferenceType;
 import com.sun.jdi.StringReference;
 import com.sun.jdi.Value;
 import com.sun.jdi.VirtualMachine;
@@ -23,14 +37,16 @@ import com.sun.jdi.connect.ListeningConnector;
 import com.sun.jdi.event.Event;
 import com.sun.jdi.event.EventQueue;
 import com.sun.jdi.event.EventSet;
+import com.sun.jdi.event.BreakpointEvent;
+import com.sun.jdi.event.ClassPrepareEvent;
 import com.sun.jdi.event.MethodEntryEvent;
-import com.sun.jdi.event.MethodExitEvent;
 import com.sun.jdi.event.VMDeathEvent;
 import com.sun.jdi.event.VMDisconnectEvent;
+import com.sun.jdi.request.BreakpointRequest;
+import com.sun.jdi.request.ClassPrepareRequest;
+import com.sun.jdi.request.MethodEntryRequest;
 import com.sun.jdi.request.EventRequest;
 import com.sun.jdi.request.EventRequestManager;
-import com.sun.jdi.request.MethodEntryRequest;
-import com.sun.jdi.request.MethodExitRequest;
 import com.sun.jdi.StackFrame;
 
 import javax.crypto.Mac;
@@ -44,6 +60,7 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -55,8 +72,10 @@ import java.util.TreeSet;
 
 public final class TrustedTestObserver {
     private static final String SCHEMA =
-            "mage.candidate-qualification.trusted-execution-witness/5";
+            "mage.candidate-qualification.trusted-execution-witness/6";
     private static final String HOOK_CLASS = "c12.trusted.TrustedTestDriver";
+    private static final Set<String> HOOK_METHODS =
+            Set.of("observerStart", "observerEvent", "observerComplete");
 
     private static String esc(String value) {
         if (value == null) return "";
@@ -124,7 +143,7 @@ public final class TrustedTestObserver {
         return value instanceof BooleanValue && ((BooleanValue)value).value();
     }
 
-    private static List<Value> args(MethodEntryEvent event)
+    private static List<Value> args(com.sun.jdi.event.LocatableEvent event)
             throws IncompatibleThreadStateException {
         StackFrame frame = event.thread().frame(0);
         return frame.getArgumentValues();
@@ -215,8 +234,9 @@ public final class TrustedTestObserver {
         final Set<String> bodyCompletedMethods = new TreeSet<>();
         final Map<Long, String> activeTestIds = new TreeMap<>();
         final Map<Long, String> activeMethods = new TreeMap<>();
+        final Map<String, String> factoryMethodById = new TreeMap<>();
         final Map<String, Integer> bodyEntriesByTest = new TreeMap<>();
-        final Map<String, Integer> bodyExitsByTest = new TreeMap<>();
+        final Map<String, Integer> bodyCompletionsByTest = new TreeMap<>();
         final Set<String> originViolations = new TreeSet<>();
         final Set<String> controlViolations = new TreeSet<>();
         final Map<String, String> classOrigins = new TreeMap<>();
@@ -248,25 +268,6 @@ public final class TrustedTestObserver {
             if (uniqueId != null && identity.equals(expected)) {
                 bodyEnteredMethods.add(identity);
                 bodyEntriesByTest.put(uniqueId, bodyEntriesByTest.getOrDefault(uniqueId, 0) + 1);
-            }
-        }
-
-        void bodyExit(long threadId, String identity) {
-            String expected = activeMethods.get(threadId);
-            String uniqueId = activeTestIds.get(threadId);
-            if (uniqueId != null && identity.equals(expected)
-                    && bodyEntriesByTest.getOrDefault(uniqueId, 0) > 0) {
-                bodyCompletedMethods.add(identity);
-                bodyExitsByTest.put(uniqueId, bodyExitsByTest.getOrDefault(uniqueId, 0) + 1);
-                // A TestFactory container stays active while its dynamic children
-                // execute. Its authority-bearing method body, however, is complete
-                // as soon as the factory method returns normally. Close the
-                // correlation window here so dynamic child lifecycle events cannot
-                // inherit or overwrite factory-method body credit.
-                if (isJupiterFactoryUniqueId(uniqueId)) {
-                    activeTestIds.remove(threadId);
-                    activeMethods.remove(threadId);
-                }
             }
         }
 
@@ -309,9 +310,26 @@ public final class TrustedTestObserver {
                         && isJupiterFactoryUniqueId(uniqueId)
                         && !method.isEmpty()
                         && requiredMethods.contains(method);
+                if (factoryMethod) {
+                    factoryMethodById.put(uniqueId, method);
+                }
                 if ((isTest || factoryMethod) && !method.isEmpty()) {
-                    if (activeTestIds.containsKey(threadId)) {
-                        protocolViolations.add("overlapping_test_on_thread:" + threadId);
+                    String previous = activeTestIds.get(threadId);
+                    if (previous != null) {
+                        // A Jupiter TestFactory container stays active while its
+                        // dynamic children execute. Its own method body returns
+                        // before the children start, so a child on the same
+                        // thread closes the factory window instead of being an
+                        // overlap. No body-exit event is needed: the factory's
+                        // completion is credited from its body entry plus the
+                        // container FINISHED status below.
+                        if (isJupiterFactoryUniqueId(previous)
+                                && bodyEntriesByTest.containsKey(previous)) {
+                            activeTestIds.remove(threadId);
+                            activeMethods.remove(threadId);
+                        } else {
+                            protocolViolations.add("overlapping_test_on_thread:" + threadId);
+                        }
                     }
                     activeTestIds.put(threadId, uniqueId);
                     activeMethods.put(threadId, method);
@@ -336,13 +354,19 @@ public final class TrustedTestObserver {
                     }
                     // Body credit is owed only for required methods; a test that the
                     // trusted export still runs but no longer requires (an approved
-                    // removal) earns no credit and owes no body receipt.
+                    // removal) earns no credit and owes no body receipt. Completion
+                    // is the required method body entry observed by this parent plus
+                    // the trusted driver's FINISHED/SUCCESSFUL report: an exceptional
+                    // exit never reports SUCCESSFUL.
                     if ("SUCCESSFUL".equals(status) && activeMethod != null
                             && requiredMethods.contains(activeMethod)) {
-                        if (bodyEntriesByTest.getOrDefault(uniqueId, 0) < 1
-                                || bodyExitsByTest.getOrDefault(uniqueId, 0) < 1) {
+                        if (bodyEntriesByTest.getOrDefault(uniqueId, 0) < 1) {
                             controlViolations.add(
-                                    "required_method_body_not_completed:" + activeMethod + ":" + uniqueId);
+                                    "required_method_body_not_entered:" + activeMethod + ":" + uniqueId);
+                        } else {
+                            bodyCompletedMethods.add(activeMethod);
+                            bodyCompletionsByTest.put(uniqueId,
+                                    bodyCompletionsByTest.getOrDefault(uniqueId, 0) + 1);
                         }
                     }
                     if ("SUCCESSFUL".equals(status)) testsSucceeded++;
@@ -354,12 +378,22 @@ public final class TrustedTestObserver {
                         String activeId = activeTestIds.get(threadId);
                         if (uniqueId.equals(activeId)) {
                             activeTestIds.remove(threadId);
-                            String activeMethod = activeMethods.remove(threadId);
-                            if ("SUCCESSFUL".equals(status) && activeMethod != null
-                                    && (bodyEntriesByTest.getOrDefault(uniqueId, 0) < 1
-                                        || bodyExitsByTest.getOrDefault(uniqueId, 0) < 1)) {
+                            activeMethods.remove(threadId);
+                        }
+                        // The factory method identity is tracked by the STARTED
+                        // hook even after the window closed for its children.
+                        // Recover the required method from the per-test entry
+                        // bookkeeping below.
+                        String factoryMethod = factoryMethodById.get(uniqueId);
+                        if ("SUCCESSFUL".equals(status) && factoryMethod != null
+                                && requiredMethods.contains(factoryMethod)) {
+                            if (bodyEntriesByTest.getOrDefault(uniqueId, 0) < 1) {
                                 controlViolations.add(
-                                        "required_method_body_not_completed:" + activeMethod + ":" + uniqueId);
+                                        "required_method_body_not_entered:" + factoryMethod + ":" + uniqueId);
+                            } else {
+                                bodyCompletedMethods.add(factoryMethod);
+                                bodyCompletionsByTest.put(uniqueId,
+                                        bodyCompletionsByTest.getOrDefault(uniqueId, 0) + 1);
                             }
                         }
                     }
@@ -432,7 +466,7 @@ public final class TrustedTestObserver {
             out.append("  \"body_completed_methods\": ").append(jsonStrings(bodyCompletedMethods)).append(",\n");
             out.append("  \"methods_never_body_completed\": ").append(jsonStrings(missingBodies)).append(",\n");
             out.append("  \"method_body_entries_by_test\": ").append(jsonMap(bodyEntriesByTest)).append(",\n");
-            out.append("  \"method_body_exits_by_test\": ").append(jsonMap(bodyExitsByTest)).append(",\n");
+            out.append("  \"method_body_completions_by_test\": ").append(jsonMap(bodyCompletionsByTest)).append(",\n");
             out.append("  \"class_code_origins\": ").append(jsonMap(classOrigins)).append(",\n");
             out.append("  \"code_origin_violations\": ").append(jsonStrings(originViolations)).append(",\n");
             out.append("  \"control_violations\": ").append(jsonStrings(controlViolations)).append(",\n");
@@ -448,6 +482,49 @@ public final class TrustedTestObserver {
             out.append("  \"driver_verdict\": ").append(jsonString(pass ? "PASS" : "FAIL")).append("\n");
             out.append("}\n");
             return out.toString();
+        }
+    }
+
+    private static void installBreakpoints(
+            ReferenceType type,
+            EventRequestManager manager,
+            Set<String> handledClasses,
+            Set<String> requiredMethods,
+            Set<Location> hookLocations,
+            Map<Location, String> bodyLocations,
+            State state) {
+        if (!handledClasses.add(type.name())) return;
+        if (HOOK_CLASS.equals(type.name())) {
+            for (com.sun.jdi.Method method : type.methods()) {
+                if (!HOOK_METHODS.contains(method.name())) continue;
+                Location location = method.location();
+                if (location == null) {
+                    state.protocolViolations.add("hook_location_unavailable:" + method.name());
+                    continue;
+                }
+                if (hookLocations.contains(location)) continue;
+                BreakpointRequest request = manager.createBreakpointRequest(location);
+                request.setSuspendPolicy(EventRequest.SUSPEND_EVENT_THREAD);
+                request.enable();
+                hookLocations.add(location);
+            }
+            return;
+        }
+        for (com.sun.jdi.Method method : type.methods()) {
+            String identity;
+            try {
+                identity = methodIdentity(method);
+            } catch (RuntimeException exc) {
+                continue;
+            }
+            if (!requiredMethods.contains(identity)) continue;
+            Location location = method.location();
+            if (location == null) continue;
+            if (bodyLocations.containsKey(location)) continue;
+            BreakpointRequest request = manager.createBreakpointRequest(location);
+            request.setSuspendPolicy(EventRequest.SUSPEND_EVENT_THREAD);
+            request.enable();
+            bodyLocations.put(location, identity);
         }
     }
 
@@ -501,23 +578,38 @@ public final class TrustedTestObserver {
             vmDescription = vm.name() + " " + vm.version();
 
             EventRequestManager manager = vm.eventRequestManager();
-            MethodEntryRequest entries = manager.createMethodEntryRequest();
-            entries.addClassFilter(HOOK_CLASS);
-            entries.setSuspendPolicy(EventRequest.SUSPEND_ALL);
-            entries.enable();
 
+            // Only required test classes are prepared with a filter. ClassPrepare
+            // stops the VM so every body breakpoint is in place before any of the
+            // class's code can run. Each class gets its own request: HotSpot does
+            // not match a ClassPrepare request that carries more than one class
+            // filter (observed on JDK 17.0.20; a single-filter request works).
+            // The hook class is in a named module and does not match a
+            // ClassPrepare class filter at all, so it is bootstrapped below.
             Set<String> requiredDeclaringClasses = new TreeSet<>();
             for (String identity : requiredMethods) requiredDeclaringClasses.add(declaringClass(identity));
             for (String className : requiredDeclaringClasses) {
-                MethodEntryRequest bodyEntries = manager.createMethodEntryRequest();
-                bodyEntries.addClassFilter(className);
-                bodyEntries.setSuspendPolicy(EventRequest.SUSPEND_ALL);
-                bodyEntries.enable();
-                MethodExitRequest bodyExits = manager.createMethodExitRequest();
-                bodyExits.addClassFilter(className);
-                bodyExits.setSuspendPolicy(EventRequest.SUSPEND_ALL);
-                bodyExits.enable();
+                ClassPrepareRequest prepare = manager.createClassPrepareRequest();
+                prepare.addClassFilter(className);
+                prepare.setSuspendPolicy(EventRequest.SUSPEND_ALL);
+                prepare.enable();
             }
+
+            // The hook class is loaded by the module layer and its ClassPrepare
+            // event cannot be filtered by name. A method-entry request on the
+            // hook class is observed until its first event, which hands us the
+            // ReferenceType; the observer then installs the hook breakpoints and
+            // disables the method-entry request immediately. The request exists
+            // for a few driver-startup methods only, so the global JIT penalty of
+            // method-entry events (the original hang) lasts microseconds.
+            MethodEntryRequest hookBootstrap = manager.createMethodEntryRequest();
+            hookBootstrap.addClassFilter(HOOK_CLASS);
+            hookBootstrap.setSuspendPolicy(EventRequest.SUSPEND_ALL);
+            hookBootstrap.enable();
+
+            Set<Location> hookLocations = new LinkedHashSet<>();
+            Map<Location, String> bodyLocations = new LinkedHashMap<>();
+            Set<String> handledClasses = new LinkedHashSet<>();
 
             vm.resume();
             EventQueue queue = vm.eventQueue();
@@ -530,62 +622,83 @@ public final class TrustedTestObserver {
                 }
                 try {
                     // EventSet is a Set, not a causally ordered list. HotSpot may
-                    // batch the trusted STARTED hook, body entry/exit and FINISHED
-                    // hook in one set. Processing FINISHED first would erase the
-                    // thread correlation before the body exit is observed and
-                    // fabricate a "body not completed" failure. Re-impose only
-                    // the causal partial order that qualification needs:
-                    // STARTED -> body ENTRY -> body EXIT -> other hooks -> VM end.
-                    List<MethodEntryEvent> hookStarted = new ArrayList<>();
-                    List<MethodEntryEvent> bodyEntered = new ArrayList<>();
-                    List<MethodExitEvent> bodyExited = new ArrayList<>();
-                    List<MethodEntryEvent> otherHooks = new ArrayList<>();
+                    // batch the trusted STARTED hook, the required body entry and
+                    // the FINISHED hook in one set. Processing FINISHED first
+                    // would erase the thread correlation before the body entry is
+                    // observed and fabricate a "body not entered" failure.
+                    // Re-impose only the causal partial order qualification needs:
+                    // class prepare -> STARTED -> body ENTRY -> other hooks -> VM end.
+                    List<ClassPrepareEvent> prepared = new ArrayList<>();
+                    List<BreakpointEvent> hookStarted = new ArrayList<>();
+                    List<BreakpointEvent> bodyEntered = new ArrayList<>();
+                    List<BreakpointEvent> otherHooks = new ArrayList<>();
                     List<Event> terminalEvents = new ArrayList<>();
 
                     for (Event event : set) {
-                        if (event instanceof MethodEntryEvent) {
-                            MethodEntryEvent entered = (MethodEntryEvent) event;
-                            String name = entered.method().name();
-                            if (HOOK_CLASS.equals(entered.method().declaringType().name())
-                                    && name.startsWith("observer")) {
-                                List<Value> values = args(entered);
-                                if ("observerEvent".equals(name)
-                                        && values.size() == 9
-                                        && "STARTED".equals(text(values.get(0)))) {
-                                    hookStarted.add(entered);
+                        if (event instanceof ClassPrepareEvent) {
+                            prepared.add((ClassPrepareEvent) event);
+                        } else if (event instanceof MethodEntryEvent) {
+                            // Hook-class bootstrap: the first method entry in the
+                            // driver gives us its ReferenceType. Install the hook
+                            // breakpoints and drop the method-entry request in the
+                            // same stop-the-world window, before any hook runs.
+                            MethodEntryEvent entry = (MethodEntryEvent) event;
+                            ReferenceType type = entry.method().declaringType();
+                            if (HOOK_CLASS.equals(type.name())) {
+                                hookBootstrap.disable();
+                                installBreakpoints(type, manager, handledClasses, requiredMethods,
+                                        hookLocations, bodyLocations, state);
+                                if (HOOK_METHODS.contains(entry.method().name())) {
+                                    state.hook(entry.method().name(), args(entry),
+                                            entry.thread().uniqueID());
+                                }
+                            }
+                        } else if (event instanceof BreakpointEvent) {
+                            BreakpointEvent hit = (BreakpointEvent) event;
+                            Location location = hit.location();
+                            if (hookLocations.contains(location)) {
+                                String name = hit.location().method().name();
+                                if ("observerEvent".equals(name)) {
+                                    List<Value> values;
+                                    try {
+                                        values = args(hit);
+                                    } catch (IncompatibleThreadStateException exc) {
+                                        state.protocolViolations.add(
+                                                "hook_arguments_unavailable:" + name);
+                                        continue;
+                                    }
+                                    if (values.size() == 9 && "STARTED".equals(text(values.get(0)))) {
+                                        hookStarted.add(hit);
+                                    } else {
+                                        otherHooks.add(hit);
+                                    }
                                 } else {
-                                    otherHooks.add(entered);
+                                    otherHooks.add(hit);
                                 }
                             } else {
-                                bodyEntered.add(entered);
+                                bodyEntered.add(hit);
                             }
-                        } else if (event instanceof MethodExitEvent) {
-                            bodyExited.add((MethodExitEvent) event);
                         } else if (event instanceof VMDeathEvent
                                 || event instanceof VMDisconnectEvent) {
                             terminalEvents.add(event);
                         }
                     }
 
-                    for (MethodEntryEvent entered : hookStarted) {
-                        state.hook(entered.method().name(), args(entered),
-                                entered.thread().uniqueID());
+                    for (ClassPrepareEvent event : prepared) {
+                        installBreakpoints(event.referenceType(), manager, handledClasses,
+                                requiredMethods, hookLocations, bodyLocations, state);
                     }
-                    for (MethodEntryEvent entered : bodyEntered) {
-                        String identity = methodIdentity(entered.method());
-                        if (requiredMethods.contains(identity)) {
-                            state.bodyEntry(entered.thread().uniqueID(), identity);
+                    for (BreakpointEvent hit : hookStarted) {
+                        state.hook(hit.location().method().name(), args(hit), hit.thread().uniqueID());
+                    }
+                    for (BreakpointEvent hit : bodyEntered) {
+                        String identity = bodyLocations.get(hit.location());
+                        if (identity != null && requiredMethods.contains(identity)) {
+                            state.bodyEntry(hit.thread().uniqueID(), identity);
                         }
                     }
-                    for (MethodExitEvent exited : bodyExited) {
-                        String identity = methodIdentity(exited.method());
-                        if (requiredMethods.contains(identity)) {
-                            state.bodyExit(exited.thread().uniqueID(), identity);
-                        }
-                    }
-                    for (MethodEntryEvent entered : otherHooks) {
-                        state.hook(entered.method().name(), args(entered),
-                                entered.thread().uniqueID());
+                    for (BreakpointEvent hit : otherHooks) {
+                        state.hook(hit.location().method().name(), args(hit), hit.thread().uniqueID());
                     }
                     for (Event event : terminalEvents) {
                         if (event instanceof VMDeathEvent

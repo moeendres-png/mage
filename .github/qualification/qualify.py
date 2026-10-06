@@ -50,7 +50,7 @@ import corpus_policy  # noqa: E402
 
 SCHEMA = "mage.candidate-qualification.evidence/7"
 WITNESS_SCHEMA = "mage.candidate-qualification.witness/7"
-EXEC_WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/5"
+EXEC_WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/6"
 INTEGRITY_SCHEMA = "mage.candidate-qualification.integrity/1"
 
 PASS = "PASS"

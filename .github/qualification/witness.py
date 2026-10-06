@@ -59,7 +59,7 @@ import corpus_policy  # noqa: E402
 import sandbox  # noqa: E402
 
 SCHEMA = "mage.candidate-qualification.witness/7"
-WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/5"
+WITNESS_SCHEMA = "mage.candidate-qualification.trusted-execution-witness/6"
 DRIVER = "TrustedTestDriver.java"
 OBSERVER = "TrustedTestObserver.java"
 MAIN_CLASSES_DIR = "target/classes"
@@ -394,11 +394,35 @@ def _observer_address(proc: subprocess.Popen, timeout: float = 30.0) -> str:
     return address
 
 
+def system_modules_without_unsafe() -> list:
+    """Every observable system module except jdk.unsupported.
+
+    The repaired containment allows ordinary deep reflection because the real
+    trusted corpus needs it (JAXB config loading). sun.misc.Unsafe and
+    sun.reflect.ReflectionFactory live in jdk.unsupported, and Unsafe is itself
+    enough to read MethodHandles.Lookup.IMPL_LOOKUP and reach the trusted hook
+    module. Excluding the module removes that path entirely; nothing the corpus
+    executes needs it (verified on the real Mage.Tests corpus).
+    """
+    proc = run([jdk_tool("java"), "--list-modules"], Path("/"))
+    if proc.returncode != 0:
+        raise RuntimeError("cannot enumerate system modules: {}".format(proc.stderr.strip()[:500]))
+    names = []
+    for line in proc.stdout.splitlines():
+        name = line.split("@", 1)[0].strip()
+        if name and name != "jdk.unsupported":
+            names.append(name)
+    if not names or "java.base" not in names or "jdk.unsupported" in names:
+        raise RuntimeError("system module enumeration looks wrong: {}".format(names[:5]))
+    return names
+
+
 def module_witnesses(user, sandbox_dir, candidate_root, modules, bundle, outputs, locked_sha, locked_tree):
     """Run each module in a candidate JVM observed by a trusted parent JVM."""
     results = []
     home = sandbox.sandbox_home(sandbox_dir)
     outputs.mkdir(parents=True, exist_ok=True)
+    system_modules = ",".join(system_modules_without_unsafe())
     for module in sorted(modules):
         entry = modules[module]
         classes = entry["selected_classes"]
@@ -440,10 +464,17 @@ def module_witnesses(user, sandbox_dir, candidate_root, modules, bundle, outputs
         )
         proc = None
         failure = None
+        captured_stdout = ""
+        captured_stderr = ""
         try:
             address = _observer_address(observer)
             cmd = [
                 jdk_tool("java"),
+                # jdk.unsupported is excluded: sun.misc.Unsafe would otherwise
+                # let candidate code reach the trusted hook module through
+                # MethodHandles.Lookup.IMPL_LOOKUP.
+                "--limit-modules", system_modules,
+                "--add-modules", system_modules,
                 "-XX:+DisableAttachMechanism",
                 # JDK 17 reflection first calls test methods through a native
                 # accessor; HotSpot skips an empty method body there without a
@@ -472,6 +503,9 @@ def module_witnesses(user, sandbox_dir, candidate_root, modules, bundle, outputs
                 failure = "trusted_observer_did_not_terminate"
         except (sandbox.SandboxError, OSError, RuntimeError) as exc:
             failure = "contained_execution_failure: {}".format(exc)
+            if isinstance(exc, sandbox.SandboxError):
+                captured_stdout = exc.stdout
+                captured_stderr = exc.stderr
             try:
                 observer.kill()
                 observer.wait(timeout=5)
@@ -494,10 +528,10 @@ def module_witnesses(user, sandbox_dir, candidate_root, modules, bundle, outputs
             "required_classes": len(classes),
             "executed": witness is not None,
             "driver_exit_code": proc.returncode if proc is not None else None,
-            "driver_stdout": (proc.stdout if proc is not None else "").strip()[-2000:],
-            "driver_stderr": (proc.stderr if proc is not None else "").strip()[-2000:],
-            "driver_stderr_head": (proc.stderr if proc is not None else "").strip()[:4000],
-            "driver_stderr_tail": (proc.stderr if proc is not None else "").strip()[-4000:],
+            "driver_stdout": ((proc.stdout if proc is not None else captured_stdout) or "").strip()[-2000:],
+            "driver_stderr": ((proc.stderr if proc is not None else captured_stderr) or "").strip()[-2000:],
+            "driver_stderr_head": ((proc.stderr if proc is not None else captured_stderr) or "").strip()[:4000],
+            "driver_stderr_tail": ((proc.stderr if proc is not None else captured_stderr) or "").strip()[-4000:],
             "observer_exit_code": observer.returncode,
             "observer_stdout": observer_stdout,
             "observer_stderr": observer_stderr,

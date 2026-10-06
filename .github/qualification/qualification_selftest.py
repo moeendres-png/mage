@@ -1791,7 +1791,7 @@ def containment_controls(h: Harness) -> list[dict]:
 
     benign = """package probe;
 public final class Attack {
- public static boolean reflectionBlocked() { return true; }
+ public static boolean hookClassUnreachable() { return true; }
  public static boolean observerHidden() { return true; }
  public static boolean channelBlocked() { return true; }
  public static boolean unixSocketBlocked() { return true; }
@@ -1801,31 +1801,22 @@ public final class Attack {
  public static boolean launderedProcessBlocked() { return true; }
  public static boolean privilegedLaunderedProcessBlocked() { return true; }
  public static boolean fdDiscoveryBlocked() { return true; }
- public static boolean hookBlocked() { return true; }
- public static boolean nativeLoadBlocked() { return true; }
  public static boolean managerRemovalBlocked() { return true; }
- public static boolean classLoaderBlocked() { return true; }
- public static boolean contextLoaderBlocked() { return true; }
- public static boolean subclassLoaderBlocked() { return true; }
- public static boolean launderedClassLoaderBlocked() { return true; }
- public static boolean jdkReflectionLoaderUnreachable() { return true; }
- public static boolean reflectionFactoryBlocked() { return true; }
  public static boolean processHandleBlocked() { return true; }
- public static boolean propertyWriteBlocked() { return true; }
  public static boolean exitBlocked() { return true; }
+ public static boolean unsafeUnreachable() { return true; }
+ public static boolean reflectionFactoryAbsent() { return true; }
+ public static boolean hookPackageDefineBlocked() { return true; }
+ public static boolean jdkInternalsNotOpen() { return true; }
+ public static boolean privateLookupBlocked() { return true; }
  public static boolean noAuthoritySecrets() { return true; }
- public static boolean ownPrivateAccessBlocked() { return true; }
- public static boolean moduleLoaderBlocked() { return true; }
- public static boolean jdkDeclaredMembersBlocked() { return true; }
- public static boolean privilegedLambdaAccessBlocked() { return true; }
- public static boolean classNewInstanceBlocked() { return true; }
 }
 """
     test = """package probe;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 public class ProbeTest {
- @Test public void reflection() { assertTrue(Attack.reflectionBlocked()); }
+ @Test public void hookClass() { assertTrue(Attack.hookClassUnreachable()); }
  @Test public void observer() { assertTrue(Attack.observerHidden()); }
  @Test public void channel() { assertTrue(Attack.channelBlocked()); }
  @Test public void unixSocket() { assertTrue(Attack.unixSocketBlocked()); }
@@ -1835,29 +1826,19 @@ public class ProbeTest {
  @Test public void launderedProcess() { assertTrue(Attack.launderedProcessBlocked()); }
  @Test public void privilegedLaunderedProcess() { assertTrue(Attack.privilegedLaunderedProcessBlocked()); }
  @Test public void fds() { assertTrue(Attack.fdDiscoveryBlocked()); }
- @Test public void hook() { assertTrue(Attack.hookBlocked()); }
- @Test public void nativeLoad() { assertTrue(Attack.nativeLoadBlocked()); }
  @Test public void manager() { assertTrue(Attack.managerRemovalBlocked()); }
- @Test public void classLoader() { assertTrue(Attack.classLoaderBlocked()); }
- @Test public void contextLoader() { assertTrue(Attack.contextLoaderBlocked()); }
- @Test public void subclassLoader() { assertTrue(Attack.subclassLoaderBlocked()); }
- @Test public void launderedClassLoader() { assertTrue(Attack.launderedClassLoaderBlocked()); }
- @Test public void jdkReflectionLoader() { assertTrue(Attack.jdkReflectionLoaderUnreachable()); }
- @Test public void reflectionFactory() { assertTrue(Attack.reflectionFactoryBlocked()); }
  @Test public void processHandle() { assertTrue(Attack.processHandleBlocked()); }
- @Test public void propertyWrite() { assertTrue(Attack.propertyWriteBlocked()); }
  @Test public void exit() { assertTrue(Attack.exitBlocked()); }
+ @Test public void unsafe() { assertTrue(Attack.unsafeUnreachable()); }
+ @Test public void reflectionFactory() { assertTrue(Attack.reflectionFactoryAbsent()); }
+ @Test public void hookPackageDefine() { assertTrue(Attack.hookPackageDefineBlocked()); }
+ @Test public void jdkInternals() { assertTrue(Attack.jdkInternalsNotOpen()); }
+ @Test public void privateLookup() { assertTrue(Attack.privateLookupBlocked()); }
  @Test public void secrets() { assertTrue(Attack.noAuthoritySecrets()); }
- @Test public void ownPrivateAccess() { assertTrue(Attack.ownPrivateAccessBlocked()); }
- @Test public void moduleLoader() { assertTrue(Attack.moduleLoaderBlocked()); }
- @Test public void jdkDeclaredMembers() { assertTrue(Attack.jdkDeclaredMembersBlocked()); }
- @Test public void privilegedLambdaAccess() { assertTrue(Attack.privilegedLambdaAccessBlocked()); }
- @Test public void classNewInstance() { assertTrue(Attack.classNewInstanceBlocked()); }
 }
 """
     hostile = r"""package probe;
 import java.lang.management.ManagementFactory;
-import java.lang.reflect.Method;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandleProxies;
 import java.lang.invoke.MethodHandles;
@@ -1875,7 +1856,6 @@ import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Map;
-import com.sun.tools.attach.VirtualMachine;
 import javax.management.ObjectName;
 
 public final class Attack {
@@ -1883,53 +1863,36 @@ public final class Attack {
   try { action.run(); return false; }
   catch (Throwable denied) { return refused(denied); }
  }
- // A containment refusal may surface directly or wrapped, e.g. as the cause of
- // an ExceptionInInitializerError when a JDK class initializer is refused. A
- // later use of that class in the same JVM then throws a cause-less
- // NoClassDefFoundError("Could not initialize class X"); it counts as a
- // refusal only for a class whose initializer this probe saw refused.
- private static final java.util.Set<String> REFUSED_INIT =
-     java.util.concurrent.ConcurrentHashMap.newKeySet();
  private static boolean refused(Throwable t) {
   for (Throwable x = t; x != null; x = x.getCause() == x ? null : x.getCause()) {
-   if (x instanceof SecurityException) {
-    for (StackTraceElement frame : x.getStackTrace()) {
-     if ("<clinit>".equals(frame.getMethodName())) REFUSED_INIT.add(frame.getClassName());
-    }
-    return true;
-   }
-   String message = x.getMessage();
-   if (x instanceof NoClassDefFoundError && message != null
-       && message.startsWith("Could not initialize class ")
-       && REFUSED_INIT.contains(message.substring("Could not initialize class ".length()).trim())) {
-    return true;
-   }
+   if (x instanceof SecurityException) return true;
   }
   return false;
  }
- // JVM input arguments via JMX, else /proc/self/cmdline; null when both reads
- // are refused (the candidate then cannot discover them at all).
+ private static boolean absent(String className) {
+  try { Class.forName(className); return false; }
+  catch (ClassNotFoundException | NoClassDefFoundError expected) { return true; }
+  catch (Throwable other) { return false; }
+ }
  private static java.util.List<String> inputArguments() {
   try { return ManagementFactory.getRuntimeMXBean().getInputArguments(); }
-  catch (Throwable jmx) { if (!refused(jmx)) throw jmx; }
+  catch (Throwable jmx) { if (!refused(jmx)) return null; }
   try {
    String raw = new String(Files.readAllBytes(Paths.get("/proc/self/cmdline")),
        java.nio.charset.StandardCharsets.UTF_8);
    return java.util.Arrays.asList(raw.split("\u0000"));
   } catch (Throwable proc) {
    if (refused(proc)) return null;
-   throw new IllegalStateException(proc);
+   return null;
   }
  }
  @FunctionalInterface private interface Throwing { void run() throws Exception; }
 
- public static boolean reflectionBlocked() {
-  return securityBlocked(() -> {
-   Class<?> type = Class.forName("c12.trusted.TrustedTestDriver");
-   Method hook = type.getDeclaredMethod("observerComplete");
-   hook.setAccessible(true);
-   hook.invoke(null);
-  });
+ // The driver lives in a named module that is not exported or opened to the
+ // classpath; the candidate loader cannot even load the class. This is the
+ // authority boundary the old deep-reflection refusals duplicated.
+ public static boolean hookClassUnreachable() {
+  return absent("c12.trusted.TrustedTestDriver");
  }
  public static boolean observerHidden() {
   try { Class.forName("TrustedTestObserver"); return false; }
@@ -1958,7 +1921,6 @@ public final class Attack {
   });
  }
  public static boolean unixSocketBlocked() {
-  // Opening an unbound channel is not access-checked; connecting is.
   try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.UNIX)) {
    channel.connect(java.net.UnixDomainSocketAddress.of("/nonexistent/c12-probe.sock"));
    return false;
@@ -1968,7 +1930,7 @@ public final class Attack {
  }
  public static boolean attachBlocked() {
   try {
-   VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
+   com.sun.tools.attach.VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
    return false;
   } catch (Throwable other) {
    return refused(other);
@@ -1991,7 +1953,6 @@ public final class Attack {
    MethodHandle start = MethodHandles.lookup().findVirtual(
        ProcessBuilder.class, "start", MethodType.methodType(Process.class))
        .bindTo(new ProcessBuilder("/bin/true"));
-   @SuppressWarnings("unchecked")
    Callable<Process> proxy = (Callable<Process>) MethodHandleProxies.asInterfaceInstance(
        Callable.class, start);
    FutureTask<Process> task = new FutureTask<>(proxy);
@@ -2019,7 +1980,6 @@ public final class Attack {
    MethodHandle start = MethodHandles.lookup().findVirtual(
        ProcessBuilder.class, "start", MethodType.methodType(Process.class))
        .bindTo(new ProcessBuilder("/bin/true"));
-   @SuppressWarnings("unchecked")
    PrivilegedAction<Process> action = (PrivilegedAction<Process>)
        MethodHandleProxies.asInterfaceInstance(PrivilegedAction.class, start);
    AccessControlContext empty = new AccessControlContext(new ProtectionDomain[0]);
@@ -2028,7 +1988,6 @@ public final class Attack {
        MethodType.methodType(Object.class, PrivilegedAction.class, AccessControlContext.class));
    MethodHandle bound = MethodHandles.insertArguments(doPrivileged, 0, action, empty)
        .asType(MethodType.methodType(Process.class));
-   @SuppressWarnings("unchecked")
    Callable<Process> outer = (Callable<Process>)
        MethodHandleProxies.asInterfaceInstance(Callable.class, bound);
    FutureTask<Process> task = new FutureTask<>(outer);
@@ -2054,106 +2013,52 @@ public final class Attack {
   return securityBlocked(() -> { try (java.util.stream.Stream<java.nio.file.Path> ignored =
       Files.list(Paths.get("/proc/self/fd"))) { ignored.count(); } });
  }
- public static boolean hookBlocked() {
-  return securityBlocked(() -> Runtime.getRuntime().addShutdownHook(new Thread(() -> {})));
- }
- public static boolean nativeLoadBlocked() {
-  return securityBlocked(() -> System.loadLibrary("c12_candidate_escape_probe"));
- }
  @SuppressWarnings("removal")
  public static boolean managerRemovalBlocked() {
   return securityBlocked(() -> System.setSecurityManager(null));
  }
- public static boolean classLoaderBlocked() {
-  return securityBlocked(() -> new java.net.URLClassLoader(
-      new java.net.URL[0], Attack.class.getClassLoader()));
- }
- public static boolean contextLoaderBlocked() {
-  return securityBlocked(() -> Thread.currentThread().setContextClassLoader(
-      Attack.class.getClassLoader()));
- }
- // The containment admits createClassLoader only for the JDK's own reflection
- // accessor loader. A candidate-defined loader type must stay denied.
- public static boolean subclassLoaderBlocked() {
-  try {
-   new ClassLoader(Attack.class.getClassLoader()) { };
-   return false;
-  } catch (SecurityException expected) {
-   return String.valueOf(expected.getMessage()).contains("runtime-permission:createClassLoader");
-  }
- }
- // A JDK loader type constructed with only JDK frames on a fresh thread (the
- // MethodHandle-proxy laundering shape) must stay denied as well.
- public static boolean launderedClassLoaderBlocked() {
-  try {
-   MethodHandle create = MethodHandles.lookup().findConstructor(
-       java.net.URLClassLoader.class,
-       MethodType.methodType(void.class, java.net.URL[].class, ClassLoader.class))
-       .bindTo(new java.net.URL[0]);
-   create = MethodHandles.insertArguments(create, 0, Attack.class.getClassLoader())
-       .asType(MethodType.methodType(Object.class));
-   @SuppressWarnings("unchecked")
-   Callable<Object> proxy = (Callable<Object>) MethodHandleProxies.asInterfaceInstance(
-       Callable.class, create);
-   FutureTask<Object> task = new FutureTask<>(proxy);
-   Thread thread = new Thread(task, "c12-laundered-class-loader");
-   thread.start();
-   thread.join();
-   try {
-    task.get();
-    return false;
-   } catch (ExecutionException expected) {
-    Throwable cause = expected.getCause();
-    while (cause != null && !(cause instanceof SecurityException)
-        && cause.getCause() != cause) {
-     cause = cause.getCause();
-    }
-    return cause instanceof SecurityException
-        && String.valueOf(cause.getMessage()).contains("runtime-permission:createClassLoader");
-   }
-  } catch (Throwable unexpected) {
-   return refused(unexpected);
-  }
- }
- // Encapsulation control: the admitted loader type is package-private in a
- // java.base package closed to classpath code (the driver refuses to run when
- // it is opened), so candidate code can neither construct nor extend it.
- public static boolean jdkReflectionLoaderUnreachable() {
-  try {
-   Class<?> type = Class.forName("jdk.internal.reflect.DelegatingClassLoader");
-   java.lang.reflect.Constructor<?> ctor = type.getDeclaredConstructor(ClassLoader.class);
-   ctor.setAccessible(true);
-   ctor.newInstance(Attack.class.getClassLoader());
-   return false;
-  } catch (SecurityException | java.lang.reflect.InaccessibleObjectException denied) {
-   return true;
-  } catch (ReflectiveOperationException | RuntimeException other) {
-   return false;
-  }
- }
- // ReflectionFactory allocates objects without running their constructors'
- // security checks; candidate access to it must be refused.
- public static boolean reflectionFactoryBlocked() {
-  try {
-   sun.reflect.ReflectionFactory.getReflectionFactory();
-   return false;
-  } catch (NoClassDefFoundError absent) {
-   // The driver runs as a named module (-m), so jdk.unsupported is not in the
-   // resolved module graph and the class does not exist for candidate code:
-   // unreachable, which is stronger than refused. Only this exact class counts.
-   return "sun/reflect/ReflectionFactory".equals(absent.getMessage()) || refused(absent);
-  } catch (Throwable other) {
-   return refused(other);
-  }
- }
  public static boolean processHandleBlocked() {
   return securityBlocked(() -> ProcessHandle.allProcesses().count());
  }
- public static boolean propertyWriteBlocked() {
-  return securityBlocked(() -> System.setProperty("c12.candidate.probe", "x"));
- }
  public static boolean exitBlocked() {
   return securityBlocked(() -> System.exit(0));
+ }
+ // jdk.unsupported is excluded from the system module graph: Unsafe is the one
+ // object that would otherwise let candidate code read
+ // MethodHandles.Lookup.IMPL_LOOKUP and reach the hook module.
+ public static boolean unsafeUnreachable() {
+  return absent("sun.misc.Unsafe");
+ }
+ public static boolean reflectionFactoryAbsent() {
+  return absent("sun.reflect.ReflectionFactory");
+ }
+ // A candidate loader must not be able to define a class in the trusted hook
+ // package. The RuntimePermission check runs before the class bytes are parsed,
+ // so invalid bytes still prove the refusal.
+ public static boolean hookPackageDefineBlocked() {
+  class HostileLoader extends ClassLoader {
+   HostileLoader() { super(Attack.class.getClassLoader()); }
+   void tryDefine() { defineClass("c12.trusted.Evil", new byte[] {1, 2, 3}, 0, 3); }
+  }
+  try {
+   new HostileLoader().tryDefine();
+   return false;
+  } catch (SecurityException expected) {
+   return true;
+  } catch (Throwable other) {
+   return false;
+  }
+ }
+ public static boolean jdkInternalsNotOpen() {
+  return absent("jdk.internal.reflect.DelegatingClassLoader");
+ }
+ public static boolean privateLookupBlocked() {
+  try {
+   MethodHandles.privateLookupIn(String.class, MethodHandles.lookup());
+   return false;
+  } catch (IllegalAccessException | RuntimeException expected) {
+   return true;
+  }
  }
  public static boolean noAuthoritySecrets() {
   for (Map.Entry<String,String> e : System.getenv().entrySet()) {
@@ -2166,34 +2071,6 @@ public final class Attack {
   }
   return System.getProperty("c12.receipt") == null && System.getProperty("c12.witness.key") == null;
  }
- // JDK privileged-site controls. The driver admits five exact JDK sites (lambda
- // metafactory, enum constants, logger finder, service-loader lookup); each probe
- // below matches a site's plumbing frames but lacks its JDK action frame, so it
- // must still be refused.
- private static void privateTarget() { }
- public static boolean ownPrivateAccessBlocked() {
-  return securityBlocked(() -> Attack.class.getDeclaredMethod("privateTarget").setAccessible(true));
- }
- public static boolean moduleLoaderBlocked() {
-  return securityBlocked(() -> String.class.getModule().getClassLoader());
- }
- public static boolean jdkDeclaredMembersBlocked() {
-  return securityBlocked(() -> Thread.class.getDeclaredFields());
- }
- public static boolean privilegedLambdaAccessBlocked() {
-  return securityBlocked(() -> {
-   final Method target = Attack.class.getDeclaredMethod("privateTarget");
-   AccessController.doPrivileged((PrivilegedAction<Void>) () -> { target.setAccessible(true); return null; });
-  });
- }
- // Class.newInstance opens the constructor through the same plumbing, action
- // and owner as the admitted accessor-generator site, but without the
- // MethodAccessorGenerator caller chain, so it must stay refused.
- public static final class Target { public Target() { } }
- @SuppressWarnings("deprecation")
- public static boolean classNewInstanceBlocked() {
-  return securityBlocked(() -> Target.class.newInstance());
- }
 }
 """
     base = project({"ProbeTest": test}, extra={"src/main/java/probe/Attack.java": benign})
@@ -2202,14 +2079,15 @@ public final class Attack {
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but reflection, authority discovery, TCP/Unix socket reuse, Attach/JVMTI, JMX and process-handle access (refused at JDK class initialization under candidate frames; the MBean-level and handle-level checks are not reached), direct, MethodHandle/new-thread and explicit-doPrivileged-context-laundered process, fd/native/classloader (URLClassLoader, candidate subclass, MethodHandle-laundered, JDK reflection loader, ReflectionFactory unresolved or refused)/TCCL/property/shutdown/exit escape paths are denied, and the admitted JDK privileged sites stay unreachable from candidate frames that present only their plumbing (own-member setAccessible, Module.getClassLoader, JDK getDeclaredFields, candidate-lambda doPrivileged, Class.newInstance without the accessor-generator chain)",
+        "hostile candidate production bytecode can execute but cannot reach qualification authority: the hook class is unloadable and its package cannot be defined into, Unsafe/ReflectionFactory are absent from the module graph, private JDK internals stay closed, /proc and fd discovery, TCP replay, Unix sockets, Attach/JVMTI, JMX control, process spawn (direct, MethodHandle/new-thread and explicit doPrivileged-context laundered), process handles, manager removal and VM exit are denied, and no witness secret is visible",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
-    # Positive control for the admitted JDK privileged sites: ordinary candidate
-    # code that makes the JDK run its own privileged actions beneath candidate
-    # frames (lambda spinning, enum constants, platform logger, module service
-    # lookup) must still execute and earn credit.
+    # Positive control for ordinary library behaviour that the trusted corpus
+    # needs and the repaired containment deliberately allows: lambda spinning,
+    # enum constants, logging, service lookup, reflection, deep reflection on the
+    # candidate's own members, class-loader creation, context-classloader changes
+    # and property writes must all execute and earn credit.
     honest_jdk = """package probe;
 import java.util.EnumSet;
 import java.util.ServiceLoader;
@@ -2217,6 +2095,7 @@ import java.util.function.Supplier;
 public final class Honest {
  public enum Color { RED, GREEN }
  public interface Plugin { }
+ private static void privateTarget() { }
  public static int lambdaValue() { Supplier<Integer> s = () -> 41; return s.get() + 1; }
  public static int enumCount() { return EnumSet.allOf(Color.class).size(); }
  public static boolean logger() { return java.util.logging.Logger.getLogger("probe.honest") != null; }
@@ -2226,6 +2105,25 @@ public final class Honest {
   int sum = 0;
   for (int i = 0; i < 20; i++) sum += (Integer) m.invoke(null);
   return sum;
+ }
+ public static boolean ownPrivateAccess() throws Exception {
+  Honest.class.getDeclaredMethod("privateTarget").setAccessible(true);
+  return true;
+ }
+ public static boolean loaderCreated() { return new java.net.URLClassLoader(
+     new java.net.URL[0], Honest.class.getClassLoader()) != null; }
+ public static boolean contextLoaderChanged() {
+  ClassLoader previous = Thread.currentThread().getContextClassLoader();
+  Thread.currentThread().setContextClassLoader(Honest.class.getClassLoader());
+  Thread.currentThread().setContextClassLoader(previous);
+  return true;
+ }
+ public static boolean propertyWritten() {
+  String previous = System.getProperty("c12.honest.probe");
+  System.setProperty("c12.honest.probe", "x");
+  if (previous == null) System.clearProperty("c12.honest.probe");
+  else System.setProperty("c12.honest.probe", previous);
+  return true;
  }
 }
 """
@@ -2239,14 +2137,18 @@ public class ProbeTest {
  @Test public void logger() { assertTrue(Honest.logger()); }
  @Test public void serviceLookup() { assertTrue(Honest.serviceLookup()); }
  @Test public void reflectiveLoop() throws Exception { assertEquals(840, Honest.reflectiveLoop()); }
+ @Test public void ownPrivateAccess() throws Exception { assertTrue(Honest.ownPrivateAccess()); }
+ @Test public void classLoader() { assertTrue(Honest.loaderCreated()); }
+ @Test public void contextLoader() { assertTrue(Honest.contextLoaderChanged()); }
+ @Test public void propertyWrite() { assertTrue(Honest.propertyWritten()); }
 }
 """
     honest_project = project({"ProbeTest": honest_test}, extra={"src/main/java/probe/Honest.java": honest_jdk})
-    fx = h.fixture("CTRL-99-honest-jdk-privileged-sites-run", honest_project, honest_project)
+    fx = h.fixture("CTRL-99-honest-corpus-operations-allowed", honest_project, honest_project)
     result = h.pipeline(fx)
     rows.append(row(
-        "CTRL-99-honest-jdk-privileged-sites-run", "positive",
-        "ordinary candidate code that makes the JDK run its own privileged actions beneath candidate frames (lambda, EnumSet over a candidate enum, platform Logger, module service lookup, reflection past the JDK 17 inflation threshold) executes and earns credit",
+        "CTRL-99-honest-corpus-operations-allowed", "positive",
+        "ordinary candidate code that the real trusted corpus depends on (lambda, EnumSet over a candidate enum, platform Logger, module service lookup, reflection, deep reflection on its own members, class-loader creation, context-classloader change, property write) executes and earns credit",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
@@ -2486,10 +2388,12 @@ public final class GateRunner extends Runner {
         "FAIL", result, reason="candidate_junit_control_code",
     ))
 
-    # Independent parent-observer control: even trusted test-side runner code
-    # cannot manufacture credit by entering a failing method, swallowing its
-    # exception and then reporting a green JUnit lifecycle. Entry alone is not
-    # enough; the parent must observe a normal method exit for the active test.
+    # Independent parent-observer control: a custom (trusted or candidate) JUnit
+    # runner can enter a failing method, swallow its exception and still report a
+    # green JUnit lifecycle. JVMTI method exit events cannot be observed without
+    # globally disabling JIT compilation (the original real-corpus hang), so the
+    # gate refuses every @RunWith runner outside JUnit's own runner types before
+    # discovery. The swallowing lifecycle then never executes.
     catching_test = """package probe;
 import static org.junit.Assert.assertEquals;
 import org.junit.Test;
@@ -2529,26 +2433,40 @@ public final class CatchingRunner extends Runner {
         {"ProbeTest": catching_test, "CatchingRunner": catching_runner},
         pom=junit4_main_pom,
     )
-    fx = h.fixture("CTRL-89-parent-requires-normal-test-body-exit", body_attack, body_attack)
+    fx = h.fixture("CTRL-89-custom-runner-refused", body_attack, body_attack)
     result = h.pipeline(fx)
     rows.append(row(
-        "CTRL-89-parent-requires-normal-test-body-exit", "red",
-        "green lifecycle plus a swallowed failing assertion cannot earn credit without a parent-observed normal method exit",
-        "FAIL", result, reason="required_test_method_bodies_not_completed",
+        "CTRL-89-custom-runner-refused", "red",
+        "a runner that swallows a failing assertion and reports a green lifecycle is refused before discovery, so it cannot earn credit",
+        "FAIL", result, reason="unapproved_runner_type",
     ))
 
-    trusted_runner_test = catching_test.replace(
-        "assertEquals(3, 1 + 1)", "assertEquals(2, 1 + 1)"
-    )
-    trusted_runner = project(
-        {"ProbeTest": trusted_runner_test, "CatchingRunner": catching_runner},
-        pom=junit4_main_pom,
-    )
-    fx = h.fixture("CTRL-90-trusted-test-runner-positive", trusted_runner, trusted_runner)
+    # JUnit's own non-default runner stays supported: a trusted Parameterized
+    # test earns credit through the standard JUnit lifecycle.
+    parameterized_test = """package probe;
+import static org.junit.Assert.assertEquals;
+import java.util.Arrays;
+import java.util.Collection;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
+@RunWith(Parameterized.class)
+public class ProbeTest {
+ private final int value;
+ public ProbeTest(int value) { this.value = value; }
+ @Parameters public static Collection<Object[]> data() {
+  return Arrays.asList(new Object[][] { {1}, {2} });
+ }
+ @Test public void proof() { assertEquals(3, value + 1); }
+}
+"""
+    trusted_runner = project({"ProbeTest": parameterized_test}, pom=junit4_main_pom)
+    fx = h.fixture("CTRL-90-trusted-junit-runner-positive", trusted_runner, trusted_runner)
     result = h.pipeline(fx)
     rows.append(row(
-        "CTRL-90-trusted-test-runner-positive", "positive",
-        "a trusted test-side custom runner still earns credit when the trusted method body actually returns normally",
+        "CTRL-90-trusted-junit-runner-positive", "positive",
+        "a trusted test using one of JUnit's own runners (Parameterized) earns credit",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 

@@ -53,7 +53,7 @@ def synthetic_current_witness():
     )
 
     execution = witness["trusted_execution_witness"]
-    execution["schema"] = "mage.candidate-qualification.trusted-execution-witness/5"
+    execution["schema"] = "mage.candidate-qualification.trusted-execution-witness/6"
     execution["evidence_origin"] = "trusted_parent_jdi_observation"
     execution["candidate_witness_authority"] = False
     execution["execution_mode"] = "per_module_external_observer"
@@ -67,7 +67,7 @@ def synthetic_current_witness():
 
     for entry in witness.get("module_execution") or []:
         record = entry.get("witness") or {}
-        record["schema"] = "mage.candidate-qualification.trusted-execution-witness/5"
+        record["schema"] = "mage.candidate-qualification.trusted-execution-witness/6"
         record["evidence_origin"] = "trusted_parent_jdi_observation"
         record["candidate_witness_authority"] = False
         record["observer_status"] = "COMPLETE"

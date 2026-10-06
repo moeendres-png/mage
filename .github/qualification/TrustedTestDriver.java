@@ -21,9 +21,7 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.AccessController;
 import java.security.Permission;
-import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.security.SecurityPermission;
 import java.util.ArrayList;
@@ -52,9 +50,18 @@ public final class TrustedTestDriver {
             new HashSet<>(java.util.Arrays.asList(
                     "org.junit.rules.TestName",
                     "org.junit.rules.TemporaryFolder"));
-    private static final RuntimePermission CAPABILITY_PERMISSION =
-            new RuntimePermission("c12.trustedCapability");
-
+    // JUnit's own runners only. A custom runner can swallow a failing assertion
+    // and still fire a green lifecycle, so custom runners (trusted or candidate)
+    // are refused before discovery. The current trusted corpus contains no
+    // @RunWith at all; a future default-branch baseline that adds one has to
+    // update this allowlist explicitly, which fails closed until it does.
+    private static final Set<String> ALLOWED_TRUSTED_JUNIT4_RUNNERS =
+            new HashSet<>(java.util.Arrays.asList(
+                    "org.junit.runners.BlockJUnit4ClassRunner",
+                    "org.junit.runners.Parameterized",
+                    "org.junit.runners.Suite",
+                    "org.junit.experimental.theories.Theories",
+                    "org.junit.internal.runners.JUnit38ClassRunner"));
     // JDI observes method ENTRY and reads only immutable primitive/String args.
     // The bodies intentionally do nothing. They are private and the driver
     // module is not exported/open to the candidate unnamed module.
@@ -139,11 +146,23 @@ public final class TrustedTestDriver {
                     String violation = rejectControlType(
                             name, (Class<?>) value, untrustedPrefixes, where);
                     if (violation != null) return violation;
+                    if (name.equals("org.junit.runner.RunWith")) {
+                        String runner = ((Class<?>) value).getName();
+                        if (!ALLOWED_TRUSTED_JUNIT4_RUNNERS.contains(runner)) {
+                            return "candidate_junit_control_code:unapproved_runner_type:"
+                                    + runner + ":" + where;
+                        }
+                    }
                 } else if (value instanceof Class<?>[]) {
                     for (Class<?> type : (Class<?>[]) value) {
                         String violation = rejectControlType(
                                 name, type, untrustedPrefixes, where);
                         if (violation != null) return violation;
+                        if (name.equals("org.junit.runner.RunWith")
+                                && !ALLOWED_TRUSTED_JUNIT4_RUNNERS.contains(type.getName())) {
+                            return "candidate_junit_control_code:unapproved_runner_type:"
+                                    + type.getName() + ":" + where;
+                        }
                     }
                 } else {
                     return "candidate_junit_control_code:malformed_control_annotation:"
@@ -446,297 +465,68 @@ public final class TrustedTestDriver {
         return engines.toArray(new TestEngine[0]);
     }
 
-    @SuppressWarnings("removal")
-    private static final class ContainmentPolicy extends Policy {
-        private final Policy delegate;
-        private final List<Path> untrustedPrefixes;
-
-        ContainmentPolicy(Policy delegate, List<Path> prefixes) {
-            this.delegate = delegate;
-            this.untrustedPrefixes = new ArrayList<>();
-            for (Path path : prefixes) {
-                this.untrustedPrefixes.add(path.toAbsolutePath().normalize());
-            }
-        }
-
-        private boolean untrustedDomain(ProtectionDomain domain) {
-            if (domain == null || domain.getCodeSource() == null
-                    || domain.getCodeSource().getLocation() == null) {
-                return false;
-            }
-            try {
-                Path source = Paths.get(domain.getCodeSource().getLocation().toURI())
-                        .toAbsolutePath().normalize();
-                return underAny(source, untrustedPrefixes);
-            } catch (Exception exc) {
-                // An opaque non-bootstrap application domain cannot gain the
-                // capability marker merely because origin resolution failed.
-                return domain.getClassLoader() != null;
-            }
-        }
-
-        @Override
-        public boolean implies(ProtectionDomain domain, Permission permission) {
-            if (CAPABILITY_PERMISSION.equals(permission)) {
-                return !untrustedDomain(domain);
-            }
-            return delegate == null || delegate.implies(domain, permission);
-        }
-
-        @Override
-        public void refresh() {
-            if (delegate != null) delegate.refresh();
-        }
-    }
-
+    /**
+     * Containment after the repair is deliberately narrow. Its job is to protect
+     * qualification authority, not to jail ordinary candidate code.
+     *
+     * What it protects, and why nothing weaker works:
+     *
+     * - {@code defineClassInPackage.c12.trusted} /
+     *   {@code accessClassInPackage.c12.trusted}: candidate class loaders cannot
+     *   create or address classes in the trusted hook package. Independent of
+     *   this check the driver lives in a non-exported, non-open named module that
+     *   the classpath loader cannot even load, so portable reflection
+     *   ({@code Class.forName}, {@code setAccessible}, {@code MethodHandles
+     *   .privateLookupIn}) cannot reach the hooks either; this is belt and
+     *   braces.
+     * - {@code setSecurityManager} / {@code setPolicy} /
+     *   {@code createAccessControlContext}: the guard cannot be removed or its
+     *   policy rewritten by candidate code.
+     * - process exec, VM exit, non-loopback connect, multicast, Attach/JVMTI,
+     *   JMX control and Unix-domain sockets: the candidate JVM cannot cross into
+     *   the runner or the observer process.
+     * - {@code /proc}, {@code /sys}, {@code /dev/fd} reads: candidate code cannot
+     *   discover or inject into the already-connected JDWP socket or inspect
+     *   other processes.
+     *
+     * What it deliberately no longer does: the pre-repair policy denied deep
+     * reflection, class-loader creation, thread-group modification, context
+     * class-loader changes, native library loading, context-classloader override,
+     * property writes and socket listen/accept under any candidate frame. The
+     * real trusted corpus needs every one of those in ordinary library code
+     * (JAXB context creation, Mage's plugin class loader, H2 AUTO_SERVER native
+     * sockets, thread pools). Those denials made the gate unable to execute the
+     * trusted baseline at all (Mage #493: every Mage.Tests container failed with
+     * ExceptionInInitializerError, and the witness died at the 18000s timeout),
+     * so they were a correctness defect, not a security control. None of them
+     * grants authority over the hook channel or over evidence; the authority
+     * boundary is the module graph plus the trusted parent observer.
+     *
+     * Unsafe/ReflectionFactory: the JVM launches with the system module graph
+     * minus {@code jdk.unsupported}, so {@code sun.misc.Unsafe} and
+     * {@code sun.reflect.ReflectionFactory} cannot be loaded at all. Without
+     * that exclusion, allowing deep reflection would let candidate code obtain
+     * {@code MethodHandles.Lookup.IMPL_LOOKUP} through Unsafe and reach the
+     * hooks.
+     */
     @SuppressWarnings("removal")
     private static final class ContainmentSecurityManager extends SecurityManager {
-        private final List<Path> untrustedPrefixes;
-        private final ThreadLocal<Boolean> inspecting =
-                ThreadLocal.withInitial(() -> Boolean.FALSE);
-
-        ContainmentSecurityManager(List<Path> prefixes) {
-            this.untrustedPrefixes = new ArrayList<>();
-            for (Path path : prefixes) {
-                this.untrustedPrefixes.add(path.toAbsolutePath().normalize());
-            }
+        private static boolean loopback(String host) {
+            return host == null || "localhost".equals(host) || "127.0.0.1".equals(host)
+                    || "::1".equals(host) || "0:0:0:0:0:0:0:1".equals(host);
         }
 
-        private boolean untrustedOnStack() {
-            if (inspecting.get()) return false;
-            inspecting.set(Boolean.TRUE);
-            try {
-                for (Class<?> type : getClassContext()) {
-                    String name = type.getName();
-                    if (name.startsWith("c12.trusted.")) continue;
-                    ProtectionDomain domain;
-                    try {
-                        domain = type.getProtectionDomain();
-                    } catch (SecurityException exc) {
-                        continue;
-                    }
-                    if (domain == null || domain.getCodeSource() == null
-                            || domain.getCodeSource().getLocation() == null) {
-                        continue;
-                    }
-                    try {
-                        Path source = Paths.get(domain.getCodeSource().getLocation().toURI())
-                                .toAbsolutePath().normalize();
-                        for (Path prefix : untrustedPrefixes) {
-                            if (source.startsWith(prefix)) return true;
-                        }
-                    } catch (Exception ignored) { }
-                }
-                return false;
-            } finally {
-                inspecting.set(Boolean.FALSE);
-            }
-        }
-
-        /**
-         * One JDK-internal privileged action that ordinary candidate code reaches
-         * through standard Java (a lambda, an EnumSet, a Logger, a ServiceLoader).
-         * The JDK performs it inside its own AccessController.doPrivileged block
-         * for its own purposes and hands no reflective capability back to the
-         * caller (the enum site returns the enum's constants, as ordinary Java
-         * does, never the accessible Method). Because this boundary deliberately ignores doPrivileged (a
-         * candidate frame anywhere on the stack taints the check), each such
-         * action is admitted individually, and only when the stack names it
-         * exactly: the requested permission, the reflection plumbing that asks
-         * for it, the JDK action class whose own run() is that request, the
-         * AccessController.doPrivileged that runs it, and the JDK owner that
-         * called doPrivileged. Every one of those frames must be loaded by the
-         * bootstrap loader, which candidate code cannot define classes in.
-         */
-        private static final class JdkPrivilegedSite {
-            final String permission;
-            final Set<String> plumbing;
-            final String action;
-            final boolean actionIsLambdaPrefix;
-            final String owner;
-            // Bootstrap frames that must directly follow the owner, in order
-            // (each may repeat for bridge run()/executePrivileged frames).
-            final List<String> callers;
-
-            JdkPrivilegedSite(String permission, Set<String> plumbing, String action,
-                    boolean actionIsLambdaPrefix, String owner) {
-                this(permission, plumbing, action, actionIsLambdaPrefix, owner, List.of());
-            }
-
-            JdkPrivilegedSite(String permission, Set<String> plumbing, String action,
-                    boolean actionIsLambdaPrefix, String owner, List<String> callers) {
-                this.permission = permission;
-                this.plumbing = plumbing;
-                this.action = action;
-                this.actionIsLambdaPrefix = actionIsLambdaPrefix;
-                this.owner = owner;
-                this.callers = callers;
-            }
-
-            boolean isAction(String name) {
-                return actionIsLambdaPrefix ? name.startsWith(action) : name.equals(action);
-            }
-        }
-
-        // JDK 17 (the pinned qualification JDK). A different JDK build that moves
-        // one of these actions simply stops matching and fails closed.
-        private static final List<JdkPrivilegedSite> JDK_PRIVILEGED_SITES = List.of(
-                // Every non-capturing lambda and method reference: the metafactory
-                // reads and opens the constructor of the hidden class it has just
-                // spun for the call site.
-                new JdkPrivilegedSite("accessDeclaredMembers", Set.of("java.lang.Class"),
-                        "java.lang.invoke.InnerClassLambdaMetafactory$1", false,
-                        "java.lang.invoke.InnerClassLambdaMetafactory"),
-                new JdkPrivilegedSite("suppressAccessChecks",
-                        Set.of("java.lang.reflect.AccessibleObject", "java.lang.reflect.Constructor"),
-                        "java.lang.invoke.InnerClassLambdaMetafactory$1", false,
-                        "java.lang.invoke.InnerClassLambdaMetafactory"),
-                // Enum.valueOf, EnumSet and EnumMap: Class.getEnumConstantsShared
-                // opens the enum's own values() method to read its constants.
-                new JdkPrivilegedSite("suppressAccessChecks",
-                        Set.of("java.lang.reflect.AccessibleObject", "java.lang.reflect.Method"),
-                        "java.lang.Class$3", false, "java.lang.Class"),
-                // java.util.logging.Logger.getLogger: the logger finder asks
-                // whether the caller's module is a system module.
-                new JdkPrivilegedSite("getClassLoader", Set.of("java.lang.Module"),
-                        "jdk.internal.logger.DefaultLoggerFinder$1", false,
-                        "jdk.internal.logger.DefaultLoggerFinder"),
-                // ServiceLoader iteration: the lookup reads the loader of each
-                // module it searches for providers.
-                new JdkPrivilegedSite("getClassLoader", Set.of("java.lang.Module"),
-                        "java.util.ServiceLoader$ModuleServicesLookupIterator$$Lambda", true,
-                        "java.util.ServiceLoader$ModuleServicesLookupIterator"),
-                // Generated reflection accessors (JDK 17 inflation, or the driver's
-                // noInflation): MethodAccessorGenerator instantiates the accessor
-                // class it just defined from JDK-generated bytes in the admitted
-                // DelegatingClassLoader. Class.newInstance opens that constructor
-                // only beneath the generator's own doPrivileged; a candidate's own
-                // Class.newInstance or setAccessible never presents this chain.
-                new JdkPrivilegedSite("suppressAccessChecks",
-                        Set.of("java.lang.reflect.AccessibleObject", "java.lang.reflect.Constructor"),
-                        "java.lang.Class$1", false, "java.lang.Class",
-                        List.of("jdk.internal.reflect.MethodAccessorGenerator$1",
-                                "java.security.AccessController",
-                                "jdk.internal.reflect.MethodAccessorGenerator")));
-
-        private boolean jdkPrivilegedSite(String permissionName) {
-            Class<?>[] frames = getClassContext();
-            for (JdkPrivilegedSite site : JDK_PRIVILEGED_SITES) {
-                if (site.permission.equals(permissionName) && matchesSite(site, frames)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        private static boolean bootstrapNamed(Class<?> type, String name) {
-            // Name first: getClassLoader() on a non-JDK frame would itself be a
-            // permission-checked call.
-            return type.getName().equals(name) && type.getClassLoader() == null;
-        }
-
-        private static boolean matchesSite(JdkPrivilegedSite site, Class<?>[] frames) {
-            int i = 0;
-            while (i < frames.length && (frames[i] == ContainmentSecurityManager.class
-                    || frames[i] == SecurityManager.class)) {
-                i++;
-            }
-            int plumbing = 0;
-            while (i < frames.length && site.plumbing.contains(frames[i].getName())
-                    && frames[i].getClassLoader() == null) {
-                i++;
-                plumbing++;
-            }
-            if (plumbing == 0) return false;
-            int actions = 0;
-            while (i < frames.length && site.isAction(frames[i].getName())
-                    && frames[i].getClassLoader() == null) {
-                i++;
-                actions++;
-            }
-            // Every site needs its JDK action frame; on the pinned JDK the
-            // service-loader lambda frame is visible too.
-            if (actions == 0) return false;
-            // JDK 17 doPrivileged delegates to executePrivileged, so the stack
-            // carries two adjacent AccessController frames.
-            int controller = 0;
-            while (i < frames.length && bootstrapNamed(frames[i], "java.security.AccessController")) {
-                i++;
-                controller++;
-            }
-            if (controller == 0) return false;
-            if (!(i < frames.length && bootstrapNamed(frames[i], site.owner))) return false;
-            i++;
-            for (String caller : site.callers) {
-                if (i >= frames.length || !bootstrapNamed(frames[i], caller)) return false;
-                i++;
-                while (i < frames.length && bootstrapNamed(frames[i], caller)) i++;
-            }
-            return true;
-        }
-
-        /**
-         * True only when the class loader under construction is the JDK's own
-         * reflection accessor loader. Core reflection and serialization
-         * (MethodAccessorGenerator, via ObjectStreamClass in JUnit's TestPlan,
-         * for example) create one per generated accessor; it defines only
-         * JDK-generated accessor bytecode in a JDK-chosen domain, so candidate
-         * code can neither choose its bytes nor forge a trusted code source
-         * through it. The type is identified by bootstrap-loader identity and
-         * exact name, which candidate code cannot define. Every other loader,
-         * URLClassLoader and candidate subclasses included, stays denied: a
-         * new loader could define classes under an arbitrary code source and
-         * so launder the provenance this boundary relies on.
-         */
-        private boolean constructingJdkReflectionLoader() {
-            for (Class<?> type : getClassContext()) {
-                if (type == ContainmentSecurityManager.class
-                        || type == SecurityManager.class
-                        || type == ClassLoader.class) {
-                    continue;
-                }
-                // The first frame past ClassLoader's constructor checks is the
-                // constructor of the concrete loader being created.
-                // Name first: getClassLoader() on a non-JDK frame would itself
-                // be a permission-checked call.
-                return "jdk.internal.reflect.DelegatingClassLoader".equals(type.getName())
-                        && type.getClassLoader() == null;
-            }
-            return false;
-        }
-
-        @SuppressWarnings("removal")
         private void refuse(String capability) {
-            boolean denied = untrustedOnStack();
-            if (!denied) {
-                try {
-                    AccessController.checkPermission(CAPABILITY_PERMISSION);
-                } catch (SecurityException exc) {
-                    denied = true;
-                }
-            }
-            if (denied) {
-                throw new SecurityException("C12 containment denied " + capability);
-            }
-        }
-
-        private void denyAlways(String capability) {
-            // These capabilities are unnecessary to the trusted test launcher
-            // once containment is installed and can directly cross the process
-            // boundary or disable the boundary itself. Do not rely on stack or
-            // AccessControlContext provenance here: AccessController.doPrivileged
-            // and JDK-owned MethodHandle proxies can intentionally truncate the
-            // caller context.
             throw new SecurityException("C12 containment denied " + capability);
         }
 
-        @Override public void checkExit(int status) { denyAlways("vm-exit"); }
-        @Override public void checkExec(String cmd) { denyAlways("process-exec"); }
-        @Override public void checkConnect(String host, int port) { denyAlways("socket-connect"); }
-        @Override public void checkConnect(String host, int port, Object context) { denyAlways("socket-connect"); }
-        @Override public void checkListen(int port) { denyAlways("socket-listen"); }
-        @Override public void checkAccept(String host, int port) { denyAlways("socket-accept"); }
-        @Override public void checkMulticast(InetAddress maddr) { denyAlways("socket-multicast"); }
+        @Override public void checkExit(int status) { refuse("vm-exit"); }
+        @Override public void checkExec(String cmd) { refuse("process-exec"); }
+        @Override public void checkConnect(String host, int port) {
+            if (!loopback(host)) refuse("socket-connect");
+        }
+        @Override public void checkConnect(String host, int port, Object context) { checkConnect(host, port); }
+        @Override public void checkMulticast(InetAddress maddr) { refuse("socket-multicast"); }
 
         @Override public void checkRead(String file) {
             if (file != null) {
@@ -744,26 +534,19 @@ public final class TrustedTestDriver {
                 if (normalized.equals("/proc") || normalized.startsWith("/proc/")
                         || normalized.equals("/sys") || normalized.startsWith("/sys/")
                         || normalized.equals("/dev/fd") || normalized.startsWith("/dev/fd/")) {
-                    denyAlways("fd-or-kernel-discovery");
+                    refuse("fd-or-kernel-discovery");
                 }
             }
         }
 
         @Override public void checkRead(String file, Object context) { checkRead(file); }
-        @Override public void checkRead(FileDescriptor fd) {
-            // Existing ordinary descriptors are used by trusted runtime code.
-            // Candidate discovery of descriptors by pathname is blocked above.
-        }
 
         @Override public void checkPermission(Permission permission) {
-            if (permission == null || inspecting.get()) return;
+            if (permission == null) return;
             String name = permission.getName();
             String permissionType = permission.getClass().getName();
-            // Public management/attach APIs can cross the ordinary Java call
-            // boundary and, in the case of Attach/JVMTI or DiagnosticCommand
-            // MBeans, can load agents or execute VM diagnostics without calling
-            // Runtime.loadLibrary from candidate code. Unix-domain sockets are
-            // permission-gated separately from TCP checkConnect/checkListen.
+            // Public management/attach APIs can load agents or execute VM
+            // diagnostics; Unix-domain sockets are gated separately from TCP.
             if ("com.sun.tools.attach.AttachPermission".equals(permissionType)
                     || "javax.management.MBeanPermission".equals(permissionType)
                     || "javax.management.MBeanServerPermission".equals(permissionType)
@@ -772,50 +555,15 @@ public final class TrustedTestDriver {
                         && "control".equals(name))
                     || ("java.net.NetPermission".equals(permissionType)
                         && "accessUnixDomainSocket".equals(name))) {
-                denyAlways("capability-permission:" + permissionType + ":" + name);
-                return;
-            }
-            if (permission instanceof ReflectPermission
-                    && "suppressAccessChecks".equals(name)) {
-                if (jdkPrivilegedSite(name)) return;
-                refuse("deep-reflection");
+                refuse("capability-permission:" + permissionType + ":" + name);
                 return;
             }
             if (permission instanceof RuntimePermission) {
-                if ("createClassLoader".equals(name) && constructingJdkReflectionLoader()) {
-                    return;
-                }
                 if ("setSecurityManager".equals(name)
-                        || "shutdownHooks".equals(name)
-                        || "setIO".equals(name)
-                        || "createClassLoader".equals(name)
-                        || "setContextClassLoader".equals(name)
-                        || "enableContextClassLoaderOverride".equals(name)
-                        || "modifyThread".equals(name)
-                        || "modifyThreadGroup".equals(name)
                         || "manageProcess".equals(name)
-                        || "setDefaultUncaughtExceptionHandler".equals(name)
                         || "stopThread".equals(name)
-                        || name.startsWith("loadLibrary.")
-                        || name.startsWith("accessClassInPackage.sun.misc")
-                        || name.startsWith("accessClassInPackage.jdk.internal.misc")
                         || name.startsWith("accessClassInPackage.c12.trusted")
                         || name.startsWith("defineClassInPackage.c12.trusted")) {
-                    denyAlways("runtime-permission:" + name);
-                    return;
-                }
-                // sun.reflect.ReflectionFactory can allocate objects without
-                // running their constructors' own security checks (a loader
-                // whose createClassLoader check lives in ClassLoader.<init>, for
-                // example). JUnit and serialization use the internal factory,
-                // which needs no permission; candidate access stays refused.
-                if ("accessDeclaredMembers".equals(name)
-                        || "getClassLoader".equals(name)
-                        || "reflectionFactoryAccess".equals(name)) {
-                    // JUnit/trusted tests legitimately need these. Keep the
-                    // provenance check, with the ACC marker as defense in depth.
-                    // ReflectionFactory access is never a JDK privileged site.
-                    if (!"reflectionFactoryAccess".equals(name) && jdkPrivilegedSite(name)) return;
                     refuse("runtime-permission:" + name);
                 }
                 return;
@@ -827,12 +575,8 @@ public final class TrustedTestDriver {
                         || name.startsWith("setProperty.")
                         || name.startsWith("insertProvider")
                         || name.startsWith("removeProvider")) {
-                    denyAlways("security-permission:" + name);
+                    refuse("security-permission:" + name);
                 }
-            }
-            if (permission instanceof java.util.PropertyPermission
-                    && permission.getActions().contains("write")) {
-                refuse("property-write:" + name);
             }
         }
     }
@@ -868,11 +612,8 @@ public final class TrustedTestDriver {
     }
 
     @SuppressWarnings("removal")
-    private static void installContainment(List<Path> untrustedPrefixes) {
-        Policy.setPolicy(new ContainmentPolicy(Policy.getPolicy(), untrustedPrefixes));
-        SecurityManager manager = new ContainmentSecurityManager(untrustedPrefixes);
-        SecurityManager ignored = System.getSecurityManager();
-        System.setSecurityManager(manager);
+    private static void installContainment() {
+        System.setSecurityManager(new ContainmentSecurityManager());
     }
 
     public static void main(String[] args) throws Exception {
@@ -895,7 +636,7 @@ public final class TrustedTestDriver {
         final Path expectedOutput = Paths.get(moduleOutput).toRealPath();
         initializeTrustedRuntimeBeforeContainment();
         requireJdkInternalsSealed();
-        installContainment(untrustedPrefixes);
+        installContainment();
         observerStart();
 
         // A trusted JUnit engine can report SUCCESSFUL without invoking the

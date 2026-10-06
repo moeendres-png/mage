@@ -81,7 +81,14 @@ def tool(name: str) -> str:
 
 
 class SandboxError(RuntimeError):
-    pass
+    def __init__(self, message, stdout="", stderr="", timed_out=False):
+        super().__init__(message)
+        # Bounded candidate output that already exists when the failure is
+        # raised. A timeout must never erase the evidence of where the candidate
+        # execution stopped.
+        self.stdout = stdout or ""
+        self.stderr = stderr or ""
+        self.timed_out = bool(timed_out)
 
 
 def _priv(cmd: list[str]) -> list[str]:
@@ -212,7 +219,12 @@ def run_candidate(user: str, home: Path, cwd: Path, cmd: list[str], timeout: int
             reap(user)
             child.kill()
             child.wait()
-            raise SandboxError("candidate execution timed out after {}s".format(timeout))
+            # Read the bounded output the candidate produced before it was
+            # killed; the caller records it as evidence instead of losing it.
+            stdout = _tail(out)
+            stderr = _tail(err)
+            raise SandboxError("candidate execution timed out after {}s".format(timeout),
+                               stdout=stdout, stderr=stderr, timed_out=True)
         reap(user)
         stdout = _tail(out)
         stderr = _tail(err)
