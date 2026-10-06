@@ -587,16 +587,6 @@ public final class TrustedTestDriver {
         }
 
         /**
-         * True when the code that initiated the current native-library load is
-         * candidate code. JDK frames (jrt: code source) are skipped: trusted JDK
-         * internals and trusted dependencies routinely load their own native
-         * libraries beneath candidate frames (H2 sockets load jdk.net's extnet),
-         * and those loads must keep working. The first non-JDK frame decides:
-         * direct candidate {@code System.loadLibrary}/MethodHandle-laundered
-         * loads have a candidate frame first; a JDK-internal load triggered by
-         * trusted code has a trusted dependency or JDK frame first.
-         */
-        /**
          * The first class in the current call chain that is not trusted-driver
          * or JDK-internal code, or null when every frame is JDK code.
          * Structural classification comes first: a frame whose defining loader
@@ -638,7 +628,7 @@ public final class TrustedTestDriver {
             return null;
         }
 
-        private boolean candidateInitiatesNativeLoad() {
+        private boolean initiatorIsCandidate() {
             Class<?> initiator = initiatingFrame();
             if (initiator == null) return false;
             ClassLoader loader = initiator.getClassLoader();
@@ -661,6 +651,27 @@ public final class TrustedTestDriver {
             } catch (RuntimeException exc) {
                 return true;
             }
+        }
+
+        /**
+         * True when the frame directly below the containment manager belongs to
+         * {@code java.lang.invoke.MethodHandles}, i.e. the permission request
+         * comes from {@code MethodHandles.privateLookupIn}. {@code setAccessible}
+         * requests the same ReflectPermission from
+         * {@code java.lang.reflect.AccessibleObject}, which the trusted corpus
+         * needs, so the two paths must be distinguished.
+         */
+        private boolean methodHandlesLookupPath() {
+            for (Class<?> type : getClassContext()) {
+                if (type == ContainmentSecurityManager.class
+                        || type == SecurityManager.class) {
+                    continue;
+                }
+                String name = type.getName();
+                return name.equals("java.lang.invoke.MethodHandles")
+                        || name.equals("java.lang.invoke.MethodHandles$Lookup");
+            }
+            return false;
         }
 
         @Override public void checkExit(int status) { refuse("vm-exit"); }
@@ -698,7 +709,7 @@ public final class TrustedTestDriver {
             // candidate-initiated and are unaffected.
             if (lib == null) return;
             boolean absolute = new java.io.File(lib).isAbsolute();
-            if (!candidateInitiatesNativeLoad()) return;
+            if (!initiatorIsCandidate()) return;
             if (!absolute) {
                 Class<?> initiator = initiatingFrame();
                 if (initiator == null || !builtinLoader(initiator.getClassLoader())) {
@@ -762,7 +773,29 @@ public final class TrustedTestDriver {
                 refuse("capability-permission:" + permissionType + ":" + name);
                 return;
             }
+            if (permission instanceof java.lang.reflect.ReflectPermission) {
+                // MethodHandles.privateLookupIn requests suppressAccessChecks.
+                // A candidate caller must not obtain a full-privilege lookup on
+                // a trusted class: Lookup.defineClass would then mint
+                // candidate bytecode carrying the trusted class's class loader
+                // and ProtectionDomain, which defeats frame classification and
+                // the native-load provenance rule. setAccessible requests the
+                // same permission from AccessibleObject and stays allowed.
+                if ("suppressAccessChecks".equals(name)
+                        && methodHandlesLookupPath() && initiatorIsCandidate()) {
+                    refuse("reflect-permission:privateLookupIn");
+                }
+                return;
+            }
             if (permission instanceof RuntimePermission) {
+                // Lookup.in(trustedClass).defineClass requests RuntimePermission
+                // "defineClass"; a candidate caller could otherwise mint a class
+                // with the trusted class's loader and ProtectionDomain. Trusted
+                // dependency callers stay allowed.
+                if ("defineClass".equals(name) && initiatorIsCandidate()) {
+                    refuse("runtime-permission:defineClass");
+                    return;
+                }
                 if ("setSecurityManager".equals(name)
                         || "manageProcess".equals(name)
                         || "stopThread".equals(name)

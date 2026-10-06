@@ -1816,7 +1816,9 @@ public final class Attack {
  public static boolean nativeLoadBlocked() { return true; }
  public static boolean nativeReadOnlyLoadBlocked() { return true; }
  public static boolean customLoaderFindLibraryBlocked() { return true; }
+ public static boolean methodHandleFindLibraryBlocked() { return true; }
  public static boolean forgedCodeSourceLoadBlocked() { return true; }
+ public static boolean mintingBlocked() { return true; }
  public static boolean noAuthoritySecrets() { return true; }
 }
 """
@@ -1845,7 +1847,9 @@ public class ProbeTest {
  @Test public void nativeLoad() { assertTrue(Attack.nativeLoadBlocked()); }
  @Test public void nativeReadOnlyLoad() { assertTrue(Attack.nativeReadOnlyLoadBlocked()); }
  @Test public void customLoaderFindLibrary() { assertTrue(Attack.customLoaderFindLibraryBlocked()); }
+ @Test public void methodHandleFindLibrary() { assertTrue(Attack.methodHandleFindLibraryBlocked()); }
  @Test public void forgedCodeSourceLoad() { assertTrue(Attack.forgedCodeSourceLoadBlocked()); }
+ @Test public void minting() { assertTrue(Attack.mintingBlocked()); }
  @Test public void secrets() { assertTrue(Attack.noAuthoritySecrets()); }
 }
 """
@@ -1906,6 +1910,12 @@ public final class Attack {
  public static String forgedTarget = "";
  public static final class FindLibraryRunnable implements Runnable {
   @Override public void run() { System.loadLibrary("c12probe"); }
+ }
+ public static final class HandleEvil {
+  public static java.lang.invoke.MethodHandle arm() throws Exception {
+   return java.lang.invoke.MethodHandles.lookup().findStatic(System.class, "loadLibrary",
+       java.lang.invoke.MethodType.methodType(void.class, String.class));
+  }
  }
  public static final class ForgedCallable implements java.util.concurrent.Callable<Object> {
   @Override public Object call() { System.load(forgedTarget); return null; }
@@ -2183,6 +2193,57 @@ public final class Attack {
    return refused(unexpected);
   }
  }
+ // A caller-sensitive System.loadLibrary handle armed inside the
+ // candidate-defined loader binds the caller to that loader while the stack
+ // shows the method-handle machinery; the load must still be refused.
+ public static boolean methodHandleFindLibraryBlocked() {
+  try {
+   java.nio.file.Path probe = java.nio.file.Files.createTempFile("c12-candidate-mh-findlibrary-", ".so");
+   java.nio.file.Files.write(probe, new byte[] {0x7f, 'E', 'L', 'F'});
+   final byte[] bytes = readResource("Attack$HandleEvil.class");
+   class EvilLoader extends ClassLoader {
+    EvilLoader() { super(Attack.class.getClassLoader()); }
+    @Override protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+     if ("probe.Attack$HandleEvil".equals(name)) {
+      Class<?> found = findLoadedClass(name);
+      if (found == null) found = defineClass(name, bytes, 0, bytes.length);
+      if (resolve) resolveClass(found);
+      return found;
+     }
+     return super.loadClass(name, resolve);
+    }
+    @Override protected String findLibrary(String name) { return probe.toAbsolutePath().toString(); }
+   }
+   Class<?> evil = new EvilLoader().loadClass("probe.Attack$HandleEvil");
+   java.lang.invoke.MethodHandle handle = (java.lang.invoke.MethodHandle) evil.getMethod("arm").invoke(null);
+   try {
+    handle.invokeExact("c12probe");
+    return false;
+   } catch (Throwable thrown) {
+    return refused(thrown);
+   }
+  } catch (Throwable unexpected) {
+   return refused(unexpected);
+  }
+ }
+ // MethodHandles.lookup().in(Test.class).defineClass(...) would mint candidate
+ // bytecode carrying the trusted class's loader and ProtectionDomain; the
+ // containment must refuse the defineClass permission for a candidate caller.
+ public static boolean mintingBlocked() {
+  try {
+   byte[] bytes = readResource("/org/junit/jupiter/api/C12Mint.class");
+   Class<?> helper = Class.forName("org.junit.jupiter.api.C12MintHelper");
+   try {
+    helper.getMethod("mint", byte[].class).invoke(null, (Object) bytes);
+    return false;
+   } catch (Throwable thrown) {
+    Throwable cause = thrown.getCause() != null ? thrown.getCause() : thrown;
+    return refused(cause);
+   }
+  } catch (Throwable unexpected) {
+   return refused(unexpected);
+  }
+ }
  // defineClass accepts a caller-supplied ProtectionDomain; a forged jrt:
  // CodeSource must not make the frame look like JDK code. The load runs on a
  // fresh thread so no genuine candidate frame sits above the forged class.
@@ -2241,13 +2302,31 @@ public final class Attack {
  }
 }
 """
+    mint_class = """package org.junit.jupiter.api;
+public class C12Mint implements Runnable {
+ @Override public void run() { System.load(System.getProperty("c12.mint.target")); }
+}
+"""
+    mint_helper = """package org.junit.jupiter.api;
+import java.lang.invoke.MethodHandles;
+public class C12MintHelper {
+ public static Class<?> mint(byte[] bytes) throws Exception {
+  Class<?> test = Class.forName("org.junit.jupiter.api.Test");
+  return MethodHandles.lookup().in(test).defineClass(bytes);
+ }
+}
+"""
     base = project({"ProbeTest": test}, extra={"src/main/java/probe/Attack.java": benign})
-    candidate = project({"ProbeTest": test}, extra={"src/main/java/probe/Attack.java": hostile})
+    candidate = project({"ProbeTest": test}, extra={
+        "src/main/java/probe/Attack.java": hostile,
+        "src/main/java/org/junit/jupiter/api/C12Mint.java": mint_class,
+        "src/main/java/org/junit/jupiter/api/C12MintHelper.java": mint_helper,
+    })
     fx = h.fixture("CTRL-84-hostile-bytecode-contained", base, candidate)
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but cannot reach qualification authority: the hook class is unloadable and its package cannot be defined into, Unsafe/ReflectionFactory are absent from the module graph, private JDK internals stay closed, /proc and fd discovery, TCP replay, Unix sockets, Attach/JVMTI, JMX control, process spawn (direct, MethodHandle/new-thread and explicit doPrivileged-context laundered), process handles, manager removal and VM exit are denied, candidate-initiated native loads are denied for candidate-controlled targets even after the write bit is cleared, through a candidate-defined loader overriding findLibrary, and from a class carrying a forged jrt: ProtectionDomain, and no witness secret is visible",
+        "hostile candidate production bytecode can execute but cannot reach qualification authority: the hook class is unloadable and its package cannot be defined into, Unsafe/ReflectionFactory are absent from the module graph, private JDK internals stay closed, /proc and fd discovery, TCP replay, Unix sockets, Attach/JVMTI, JMX control, process spawn (direct, MethodHandle/new-thread and explicit doPrivileged-context laundered), process handles, manager removal and VM exit are denied, candidate-initiated native loads are denied for candidate-controlled targets even after the write bit is cleared, through a candidate-defined loader overriding findLibrary, through a caller-sensitive System.loadLibrary method handle armed in that loader, and from a class carrying a forged jrt: ProtectionDomain, candidate Lookup.in(trusted).defineClass minting is refused, and no witness secret is visible",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
