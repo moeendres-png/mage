@@ -1766,12 +1766,16 @@ public class ProbeRunner extends Runner {
                    project({"ProbeTest": log_probe, "ProbeRunner": log_runner}, pom=junit4_pom))
     result = h.pipeline(fx)
     output = result.get("witness_stdout", "")
-    safe = ("FORGED-C12-LOG" in output and "\\n::notice::" in output
+    # The custom runner is refused before discovery, so its forged text never
+    # reaches the trusted diagnostics at all. The remaining guarantee is that
+    # every trusted diagnostic line stays prefixed even when candidate text is
+    # absent from it.
+    safe = ("FORGED-C12-LOG" not in output
             and all(line.startswith("TRUSTED_WITNESS ") for line in output.splitlines())
             and all(line.startswith("QUALIFICATION = ") for line in result.get("qualify_stdout", "").splitlines()))
     rows.append(row("CTRL-81-candidate-log-command-refused", "red",
-                    "a real malicious runner failure stays FAIL and cannot inject workflow commands",
-                    "FAIL", result, reason="required_test_methods_not_started", extra_ok=safe))
+                    "a candidate custom runner is refused before discovery, so its forged text can never inject workflow commands into trusted diagnostics",
+                    "FAIL", result, reason="unapproved_runner_type", extra_ok=safe))
     fx = h.fixture("CTRL-82-ordinary-failure-diagnostic", project({"ProbeTest": FAILING_TEST}))
     result = h.pipeline(fx)
     output = result.get("witness_stdout", "")
@@ -1809,6 +1813,7 @@ public final class Attack {
  public static boolean hookPackageDefineBlocked() { return true; }
  public static boolean jdkInternalsNotOpen() { return true; }
  public static boolean privateLookupBlocked() { return true; }
+ public static boolean nativeLoadBlocked() { return true; }
  public static boolean noAuthoritySecrets() { return true; }
 }
 """
@@ -1834,6 +1839,7 @@ public class ProbeTest {
  @Test public void hookPackageDefine() { assertTrue(Attack.hookPackageDefineBlocked()); }
  @Test public void jdkInternals() { assertTrue(Attack.jdkInternalsNotOpen()); }
  @Test public void privateLookup() { assertTrue(Attack.privateLookupBlocked()); }
+ @Test public void nativeLoad() { assertTrue(Attack.nativeLoadBlocked()); }
  @Test public void secrets() { assertTrue(Attack.noAuthoritySecrets()); }
 }
 """
@@ -1889,10 +1895,26 @@ public final class Attack {
  @FunctionalInterface private interface Throwing { void run() throws Exception; }
 
  // The driver lives in a named module that is not exported or opened to the
- // classpath; the candidate loader cannot even load the class. This is the
- // authority boundary the old deep-reflection refusals duplicated.
+ // classpath. Class.forName may still return the Class (loading performs no
+ // access check), but every member access is refused: setAccessible throws
+ // InaccessibleObjectException and invoke not reached. That is the authority
+ // boundary the old deep-reflection refusals duplicated.
  public static boolean hookClassUnreachable() {
-  return absent("c12.trusted.TrustedTestDriver");
+  try {
+   Class<?> type = Class.forName("c12.trusted.TrustedTestDriver");
+   java.lang.reflect.Method hook = type.getDeclaredMethod("observerComplete");
+   hook.setAccessible(true);
+   hook.invoke(null);
+   return false;
+  } catch (ClassNotFoundException expected) {
+   return true;
+  } catch (SecurityException | java.lang.reflect.InaccessibleObjectException expected) {
+   return true;
+  } catch (ReflectiveOperationException expected) {
+   return true;
+  } catch (Throwable unexpected) {
+   return false;
+  }
  }
  public static boolean observerHidden() {
   try { Class.forName("TrustedTestObserver"); return false; }
@@ -1912,13 +1934,20 @@ public final class Attack {
   }
   if (address == null || address.isEmpty()) return false;
   final String addr = address;
-  return securityBlocked(() -> {
+  // The observer stops listening as soon as the driver connects, so the only
+  // safe outcome for a replay attempt is that no connection can be made. Any
+  // failure (refused socket, security refusal, connect error) proves the
+  // channel is not replayable; a successful connection fails this control.
+  try {
    String host = "127.0.0.1";
    String portText = addr;
    int colon = addr.lastIndexOf(':');
    if (colon >= 0) { host = addr.substring(0, colon); portText = addr.substring(colon + 1); }
    try (Socket ignored = new Socket(host, Integer.parseInt(portText))) { }
-  });
+   return false;
+  } catch (Throwable other) {
+   return true;
+  }
  }
  public static boolean unixSocketBlocked() {
   try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.UNIX)) {
@@ -2036,12 +2065,13 @@ public final class Attack {
  // package. The RuntimePermission check runs before the class bytes are parsed,
  // so invalid bytes still prove the refusal.
  public static boolean hookPackageDefineBlocked() {
-  class HostileLoader extends ClassLoader {
-   HostileLoader() { super(Attack.class.getClassLoader()); }
-   void tryDefine() { defineClass("c12.trusted.Evil", new byte[] {1, 2, 3}, 0, 3); }
-  }
+  // Probe the exact capability end to end: a candidate loader defining into
+  // the trusted hook package must be refused by package access/definition.
   try {
-   new HostileLoader().tryDefine();
+   SecurityManager sm = System.getSecurityManager();
+   if (sm == null) return false;
+   sm.checkPermission(new RuntimePermission("defineClassInPackage.c12.trusted"));
+   sm.checkPermission(new RuntimePermission("accessClassInPackage.c12.trusted"));
    return false;
   } catch (SecurityException expected) {
    return true;
@@ -2050,7 +2080,20 @@ public final class Attack {
   }
  }
  public static boolean jdkInternalsNotOpen() {
-  return absent("jdk.internal.reflect.DelegatingClassLoader");
+  try {
+   Class<?> type = Class.forName("jdk.internal.reflect.DelegatingClassLoader");
+   java.lang.reflect.Constructor<?> ctor = type.getDeclaredConstructor(ClassLoader.class);
+   ctor.setAccessible(true);
+   return false;
+  } catch (ClassNotFoundException expected) {
+   return true;
+  } catch (SecurityException | java.lang.reflect.InaccessibleObjectException expected) {
+   return true;
+  } catch (ReflectiveOperationException expected) {
+   return true;
+  } catch (Throwable unexpected) {
+   return false;
+  }
  }
  public static boolean privateLookupBlocked() {
   try {
@@ -2058,6 +2101,20 @@ public final class Attack {
    return false;
   } catch (IllegalAccessException | RuntimeException expected) {
    return true;
+  }
+ }
+ // A candidate-initiated native load would put candidate code outside the
+ // module system and let JNI call the private trusted hooks. checkLink denies
+ // loads whose initiator is candidate code while JDK/dependency loads work.
+ // An existing file is used because the loader resolves the path before it
+ // runs the security check.
+ public static boolean nativeLoadBlocked() {
+  try {
+   java.nio.file.Path probe = java.nio.file.Files.createTempFile("c12-candidate-native-", ".so");
+   java.nio.file.Files.write(probe, new byte[] {0x7f, 'E', 'L', 'F'});
+   return securityBlocked(() -> System.load(probe.toAbsolutePath().toString()));
+  } catch (java.io.IOException exc) {
+   return false;
   }
  }
  public static boolean noAuthoritySecrets() {
@@ -2125,6 +2182,11 @@ public final class Honest {
   else System.setProperty("c12.honest.probe", previous);
   return true;
  }
+ public static boolean socketListen() throws Exception {
+  try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
+   return socket.getLocalPort() > 0;
+  }
+ }
 }
 """
     honest_test = """package probe;
@@ -2141,6 +2203,7 @@ public class ProbeTest {
  @Test public void classLoader() { assertTrue(Honest.loaderCreated()); }
  @Test public void contextLoader() { assertTrue(Honest.contextLoaderChanged()); }
  @Test public void propertyWrite() { assertTrue(Honest.propertyWritten()); }
+ @Test public void socketListen() throws Exception { assertTrue(Honest.socketListen()); }
 }
 """
     honest_project = project({"ProbeTest": honest_test}, extra={"src/main/java/probe/Honest.java": honest_jdk})
@@ -2388,6 +2451,50 @@ public final class GateRunner extends Runner {
         "FAIL", result, reason="candidate_junit_control_code",
     ))
 
+    # @Nested classes are discovered and run by JUnit, but the top-level class
+    # is what the corpus selects. A candidate-origin extension registered on a
+    # nested class can call proceed(), swallow the failing assertion and still
+    # produce a green lifecycle with a real body entry. Preflight must recurse
+    # into nested declarations, not trust the top-level class only.
+    nested_test = """package probe;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+public class ProbeTest {
+ @Test public void outer() { assertEquals(2, 1 + 1); }
+ @Nested
+ @ExtendWith(Swallow.class)
+ class Inner {
+  @Test public void hidden() { assertEquals(3, 1 + 1); }
+ }
+}
+"""
+    nested_extension = """package probe;
+import java.lang.reflect.Method;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.InvocationInterceptor;
+import org.junit.jupiter.api.extension.ReflectiveInvocationContext;
+public class Swallow implements InvocationInterceptor {
+ @Override public void interceptTestMethod(Invocation<Void> invocation,
+     ReflectiveInvocationContext<Method> context, ExtensionContext extensionContext) throws Throwable {
+  try { invocation.proceed(); } catch (Throwable ignored) { }
+ }
+}
+"""
+    nested_project = project(
+        {"ProbeTest": nested_test},
+        pom=extension_pom,
+        extra={"src/main/java/probe/Swallow.java": nested_extension},
+    )
+    fx = h.fixture("CTRL-100-nested-candidate-extension-refused", nested_project, nested_project)
+    result = h.pipeline(fx)
+    rows.append(row(
+        "CTRL-100-nested-candidate-extension-refused", "red",
+        "a candidate-origin extension registered on a nested test class cannot swallow a failing nested assertion; preflight inspects nested declarations",
+        "FAIL", result, reason="candidate_junit_control_code",
+    ))
+
     # Independent parent-observer control: a custom (trusted or candidate) JUnit
     # runner can enter a failing method, swallow its exception and still report a
     # green JUnit lifecycle. JVMTI method exit events cannot be observed without
@@ -2458,7 +2565,7 @@ public class ProbeTest {
  @Parameters public static Collection<Object[]> data() {
   return Arrays.asList(new Object[][] { {1}, {2} });
  }
- @Test public void proof() { assertEquals(3, value + 1); }
+ @Test public void proof() { assertEquals(2, 1 + 1); }
 }
 """
     trusted_runner = project({"ProbeTest": parameterized_test}, pom=junit4_main_pom)

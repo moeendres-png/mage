@@ -215,6 +215,12 @@ public final class TrustedTestObserver {
                 && uniqueId.contains("/[test-factory:");
     }
 
+    private static boolean isJupiterDynamicUniqueId(String uniqueId) {
+        return uniqueId != null
+                && uniqueId.startsWith("[engine:junit-jupiter]")
+                && uniqueId.contains("/[dynamic-test:");
+    }
+
     private static String hmacHex(byte[] key, byte[] data) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(key, "HmacSHA256"));
@@ -313,7 +319,12 @@ public final class TrustedTestObserver {
                 if (factoryMethod) {
                     factoryMethodById.put(uniqueId, method);
                 }
-                if ((isTest || factoryMethod) && !method.isEmpty()) {
+                // A dynamic child carries no method of its own, but it is still a
+                // started test whose FINISHED must match its own STARTED, and it
+                // is the event that closes an active TestFactory window on this
+                // thread.
+                boolean dynamicTest = isJupiterDynamicUniqueId(uniqueId);
+                if ((isTest || factoryMethod) && (!method.isEmpty() || dynamicTest)) {
                     String previous = activeTestIds.get(threadId);
                     if (previous != null) {
                         // A Jupiter TestFactory container stays active while its
@@ -482,6 +493,21 @@ public final class TrustedTestObserver {
             out.append("  \"driver_verdict\": ").append(jsonString(pass ? "PASS" : "FAIL")).append("\n");
             out.append("}\n");
             return out.toString();
+        }
+    }
+
+    private static boolean hookCallerTrusted(BreakpointEvent event) {
+        // The frame below a hook entry must be the trusted driver itself: its
+        // main method for start/complete, or its anonymous JUnit listener for
+        // events. JNI can call a private static method and bypass Java access
+        // control, but it cannot manufacture that caller frame, so a native
+        // forgery attempt is refused before any argument is credited.
+        try {
+            StackFrame caller = event.thread().frame(1);
+            String name = caller.location().declaringType().name();
+            return HOOK_CLASS.equals(name) || (HOOK_CLASS + "$1").equals(name);
+        } catch (IncompatibleThreadStateException | RuntimeException exc) {
+            return false;
         }
     }
 
@@ -658,6 +684,11 @@ public final class TrustedTestObserver {
                             Location location = hit.location();
                             if (hookLocations.contains(location)) {
                                 String name = hit.location().method().name();
+                                if (!hookCallerTrusted(hit)) {
+                                    state.protocolViolations.add(
+                                            "hook_called_outside_driver:" + name);
+                                    continue;
+                                }
                                 if ("observerEvent".equals(name)) {
                                     List<Value> values;
                                     try {

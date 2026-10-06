@@ -284,6 +284,13 @@ public final class TrustedTestDriver {
                 violation = inspectExecutionControls(iface, untrustedPrefixes, seenTypes);
                 if (violation != null) return violation;
             }
+            // JUnit discovery also runs @Nested classes, and their annotations
+            // can register candidate-origin extensions/runners. Inspect them
+            // with the same rules instead of trusting the top-level class only.
+            for (Class<?> nested : type.getDeclaredClasses()) {
+                violation = inspectExecutionControls(nested, untrustedPrefixes, seenTypes);
+                if (violation != null) return violation;
+            }
             return inspectExecutionControls(type.getSuperclass(), untrustedPrefixes, seenTypes);
         } catch (LinkageError | RuntimeException exc) {
             return "candidate_junit_control_code:preflight_unresolved:"
@@ -511,6 +518,14 @@ public final class TrustedTestDriver {
      */
     @SuppressWarnings("removal")
     private static final class ContainmentSecurityManager extends SecurityManager {
+        private final List<Path> untrustedPrefixes = new ArrayList<>();
+
+        ContainmentSecurityManager(List<Path> prefixes) {
+            for (Path path : prefixes) {
+                this.untrustedPrefixes.add(path.toAbsolutePath().normalize());
+            }
+        }
+
         private static boolean loopback(String host) {
             return host == null || "localhost".equals(host) || "127.0.0.1".equals(host)
                     || "::1".equals(host) || "0:0:0:0:0:0:0:1".equals(host);
@@ -520,6 +535,57 @@ public final class TrustedTestDriver {
             throw new SecurityException("C12 containment denied " + capability);
         }
 
+        private static boolean underAny(Path source, List<Path> prefixes) {
+            for (Path prefix : prefixes) {
+                if (source.startsWith(prefix)) return true;
+            }
+            return false;
+        }
+
+        /**
+         * True when the code that initiated the current native-library load is
+         * candidate code. JDK frames (jrt: code source) are skipped: trusted JDK
+         * internals and trusted dependencies routinely load their own native
+         * libraries beneath candidate frames (H2 sockets load jdk.net's extnet),
+         * and those loads must keep working. The first non-JDK frame decides:
+         * direct candidate {@code System.loadLibrary}/MethodHandle-laundered
+         * loads have a candidate frame first; a JDK-internal load triggered by
+         * trusted code has a trusted dependency or JDK frame first.
+         */
+        private boolean candidateInitiatesNativeLoad() {
+            for (Class<?> type : getClassContext()) {
+                if (type == ContainmentSecurityManager.class
+                        || type == SecurityManager.class
+                        || type.getName().startsWith("c12.trusted.")) {
+                    continue;
+                }
+                String location;
+                try {
+                    java.security.ProtectionDomain domain = type.getProtectionDomain();
+                    if (domain == null || domain.getCodeSource() == null
+                            || domain.getCodeSource().getLocation() == null) {
+                        // JDK bootstrap frames carry no code source; application
+                        // frames without one fail closed as candidate-origin.
+                        if (type.getClassLoader() == null) continue;
+                        return true;
+                    }
+                    location = java.net.URI.create(
+                            domain.getCodeSource().getLocation().toString()).toString();
+                } catch (RuntimeException exc) {
+                    return type.getClassLoader() != null;
+                }
+                if (location.startsWith("jrt:")) continue;
+                try {
+                    Path source = Paths.get(java.net.URI.create(location))
+                            .toAbsolutePath().normalize();
+                    return underAny(source, untrustedPrefixes);
+                } catch (RuntimeException exc) {
+                    return type.getClassLoader() != null;
+                }
+            }
+            return false;
+        }
+
         @Override public void checkExit(int status) { refuse("vm-exit"); }
         @Override public void checkExec(String cmd) { refuse("process-exec"); }
         @Override public void checkConnect(String host, int port) {
@@ -527,6 +593,26 @@ public final class TrustedTestDriver {
         }
         @Override public void checkConnect(String host, int port, Object context) { checkConnect(host, port); }
         @Override public void checkMulticast(InetAddress maddr) { refuse("socket-multicast"); }
+
+        // JDK libraries whose own initialization path may load them beneath
+        // candidate frames (jdk.net's extnet when any socket is created,
+        // java.management when an MBean server is first touched). The loader
+        // resolves these by name from root-owned java.library.path entries, so
+        // candidate code cannot substitute its own file for them.
+        private static final Set<String> JDK_NATIVE_LIBRARIES = new HashSet<>(
+                java.util.Arrays.asList(
+                        "extnet", "management", "management_ext", "j2pkcs11", "sunec",
+                        "java", "net", "nio", "zip"));
+
+        @Override public void checkLink(String lib) {
+            // JNI is outside the module system: a candidate native library could
+            // call the private hook methods and fabricate a receipt. Candidate
+            // originated native loads stay denied; JDK libraries and trusted
+            // dependency loads (sqlite) keep working even when candidate frames
+            // are deeper on the stack.
+            if (lib == null || JDK_NATIVE_LIBRARIES.contains(lib)) return;
+            if (candidateInitiatesNativeLoad()) refuse("loadLibrary:" + lib);
+        }
 
         @Override public void checkRead(String file) {
             if (file != null) {
@@ -612,8 +698,8 @@ public final class TrustedTestDriver {
     }
 
     @SuppressWarnings("removal")
-    private static void installContainment() {
-        System.setSecurityManager(new ContainmentSecurityManager());
+    private static void installContainment(List<Path> untrustedPrefixes) {
+        System.setSecurityManager(new ContainmentSecurityManager(untrustedPrefixes));
     }
 
     public static void main(String[] args) throws Exception {
@@ -636,7 +722,7 @@ public final class TrustedTestDriver {
         final Path expectedOutput = Paths.get(moduleOutput).toRealPath();
         initializeTrustedRuntimeBeforeContainment();
         requireJdkInternalsSealed();
-        installContainment();
+        installContainment(untrustedPrefixes);
         observerStart();
 
         // A trusted JUnit engine can report SUCCESSFUL without invoking the
