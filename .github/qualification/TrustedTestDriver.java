@@ -107,7 +107,27 @@ public final class TrustedTestDriver {
         return false;
     }
 
+    /**
+     * True when the defining loader is a JVM builtin loader: bootstrap, the
+     * platform loader or the system/application loader. Only these loaders
+     * have the JDK's default {@code findLibrary} (returns null) and cannot
+     * attach a caller-supplied ProtectionDomain; a class defined by any other
+     * loader is candidate-origin even when it asserts a jrt:/trusted
+     * CodeSource, because {@code defineClass(..., ProtectionDomain)} accepts
+     * whatever PD the candidate passes.
+     */
+    private static boolean builtinLoader(ClassLoader loader) {
+        return loader == null
+                || loader == ClassLoader.getSystemClassLoader()
+                || loader == ClassLoader.getPlatformClassLoader();
+    }
+
     private static boolean untrustedControlType(Class<?> type, List<Path> untrustedPrefixes) {
+        // Structural classification first: a class defined by a non-builtin
+        // loader is candidate-origin regardless of the ProtectionDomain it
+        // asserts (defineClass accepts a caller-supplied PD, including a
+        // forged jrt: CodeSource).
+        if (!builtinLoader(type.getClassLoader())) return true;
         CodeSourceStub stub = codeSourceOf(type);
         if (stub.location == null) {
             return type.getClassLoader() != null;
@@ -209,10 +229,15 @@ public final class TrustedTestDriver {
                 if (violation != null) return violation;
             }
             // JUnit parameter-level controls (`@ConvertWith`, `@AggregateWith`)
-            // are declared on method parameters, never on the method itself.
+            // are declared on method (or constructor) parameters, never on the
+            // element itself.
+            java.lang.annotation.Annotation[][] parameters = null;
             if (element instanceof java.lang.reflect.Method) {
-                java.lang.annotation.Annotation[][] parameters =
-                        ((java.lang.reflect.Method) element).getParameterAnnotations();
+                parameters = ((java.lang.reflect.Method) element).getParameterAnnotations();
+            } else if (element instanceof java.lang.reflect.Constructor) {
+                parameters = ((java.lang.reflect.Constructor<?>) element).getParameterAnnotations();
+            }
+            if (parameters != null) {
                 for (int index = 0; index < parameters.length; index++) {
                     for (java.lang.annotation.Annotation annotation : parameters[index]) {
                         String violation = inspectControlAnnotation(
@@ -223,7 +248,7 @@ public final class TrustedTestDriver {
                 }
             }
             return null;
-        } catch (LinkageError | RuntimeException exc) {
+        } catch (LinkageError | RuntimeException | java.lang.annotation.AnnotationFormatError exc) {
             return "candidate_junit_control_code:unresolved_annotations:"
                     + where + ":" + exc.getClass().getName();
         }
@@ -268,6 +293,11 @@ public final class TrustedTestDriver {
                         field, "org.junit.jupiter.api.extension.RegisterExtension")) {
                     return "candidate_junit_control_code:registered_member:" + where;
                 }
+            }
+            for (java.lang.reflect.Constructor<?> constructor : type.getDeclaredConstructors()) {
+                String where = "constructor:" + type.getName();
+                violation = inspectAnnotatedElement(constructor, untrustedPrefixes, where);
+                if (violation != null) return violation;
             }
             for (java.lang.reflect.Method method : type.getDeclaredMethods()) {
                 String where = "method:" + type.getName() + "#" + method.getName();
@@ -566,11 +596,28 @@ public final class TrustedTestDriver {
          * loads have a candidate frame first; a JDK-internal load triggered by
          * trusted code has a trusted dependency or JDK frame first.
          */
-        private boolean candidateInitiatesNativeLoad() {
+        /**
+         * The first class in the current call chain that is not trusted-driver
+         * or JDK-internal code, or null when every frame is JDK code.
+         * Structural classification comes first: a frame whose defining loader
+         * is not a builtin loader is returned immediately, so a forged jrt:
+         * CodeSource cannot make a candidate-defined class look like a JDK
+         * frame. Only builtin-loader frames may use the jrt:/code-source rule
+         * to be skipped.
+         */
+        private Class<?> initiatingFrame() {
             for (Class<?> type : getClassContext()) {
                 if (type == ContainmentSecurityManager.class
                         || type == SecurityManager.class
                         || type.getName().startsWith("c12.trusted.")) {
+                    continue;
+                }
+                ClassLoader loader = type.getClassLoader();
+                if (!builtinLoader(loader)) {
+                    return type;
+                }
+                if (loader == null) {
+                    // Bootstrap-loader classes are JDK internals.
                     continue;
                 }
                 String location;
@@ -578,26 +625,42 @@ public final class TrustedTestDriver {
                     java.security.ProtectionDomain domain = type.getProtectionDomain();
                     if (domain == null || domain.getCodeSource() == null
                             || domain.getCodeSource().getLocation() == null) {
-                        // JDK bootstrap frames carry no code source; application
-                        // frames without one fail closed as candidate-origin.
-                        if (type.getClassLoader() == null) continue;
-                        return true;
+                        return type;
                     }
                     location = java.net.URI.create(
                             domain.getCodeSource().getLocation().toString()).toString();
                 } catch (RuntimeException exc) {
-                    return type.getClassLoader() != null;
+                    return type;
                 }
                 if (location.startsWith("jrt:")) continue;
-                try {
-                    Path source = Paths.get(java.net.URI.create(location))
-                            .toAbsolutePath().normalize();
-                    return underAny(source, untrustedPrefixes);
-                } catch (RuntimeException exc) {
-                    return type.getClassLoader() != null;
-                }
+                return type;
             }
-            return false;
+            return null;
+        }
+
+        private boolean candidateInitiatesNativeLoad() {
+            Class<?> initiator = initiatingFrame();
+            if (initiator == null) return false;
+            ClassLoader loader = initiator.getClassLoader();
+            if (!builtinLoader(loader)) return true;
+            if (loader == null) return false;
+            try {
+                java.security.ProtectionDomain domain = initiator.getProtectionDomain();
+                if (domain == null || domain.getCodeSource() == null
+                        || domain.getCodeSource().getLocation() == null) {
+                    // Builtin-loader application frames without a code source
+                    // fail closed as candidate-origin.
+                    return true;
+                }
+                String location = java.net.URI.create(
+                        domain.getCodeSource().getLocation().toString()).toString();
+                if (location.startsWith("jrt:")) return false;
+                Path source = Paths.get(java.net.URI.create(location))
+                        .toAbsolutePath().normalize();
+                return underAny(source, untrustedPrefixes);
+            } catch (RuntimeException exc) {
+                return true;
+            }
         }
 
         @Override public void checkExit(int status) { refuse("vm-exit"); }
@@ -614,23 +677,35 @@ public final class TrustedTestDriver {
             // from a path the candidate identity can control.
             //
             // Library *names* resolve only from java.library.path and
-            // sun.boot.library.path, whose sealing is a fail-closed startup
-            // precondition. An absolute load is the candidate-influenced shape:
-            // a candidate can plant a file anywhere it can write (for example
-            // /tmp or /var/tmp) and may clear the write bit on it, so current
-            // writability proves nothing about control. Candidate-initiated
-            // absolute loads are therefore allowed only when the exact resolved
-            // target and every ancestor directory are root-owned, non-writable
-            // system paths and the lexical path is not a symlink: then no
-            // component can be replaced between this check and dlopen. JDK
-            // internals (for example libawt_xawt.so under a candidate-triggered
-            // lazy init) keep working; a candidate-written file anywhere
+            // sun.boot.library.path through a builtin loader's default
+            // findLibrary, whose sealing is a fail-closed startup
+            // precondition; a candidate-defined loader can override
+            // findLibrary and return any file, which NativeLibraries then
+            // dlopen's without another checkLink, so name loads from
+            // non-builtin loaders are refused. An absolute load is the other
+            // candidate-influenced shape: a candidate can plant a file
+            // anywhere it can write (for example /tmp or /var/tmp) and may
+            // clear the write bit on it, so current writability proves nothing
+            // about control. Candidate-initiated absolute loads are therefore
+            // allowed only when the exact resolved target and every ancestor
+            // directory are root-owned, non-writable system paths and the
+            // lexical path is not a symlink: then no component can be
+            // replaced between this check and dlopen. JDK internals (for
+            // example libawt_xawt.so under a candidate-triggered lazy init)
+            // keep working; a candidate-written file anywhere
             // candidate-controllable is refused even after chmod. Trusted
             // dependency loads (sqlite's extracted loader) are not
             // candidate-initiated and are unaffected.
             if (lib == null) return;
-            if (!new java.io.File(lib).isAbsolute()) return;
+            boolean absolute = new java.io.File(lib).isAbsolute();
             if (!candidateInitiatesNativeLoad()) return;
+            if (!absolute) {
+                Class<?> initiator = initiatingFrame();
+                if (initiator == null || !builtinLoader(initiator.getClassLoader())) {
+                    refuse("loadLibrary-custom-loader:" + lib);
+                }
+                return;
+            }
             Path lexical = Paths.get(lib).toAbsolutePath().normalize();
             Path real;
             try {

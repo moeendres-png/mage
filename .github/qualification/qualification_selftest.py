@@ -1815,6 +1815,8 @@ public final class Attack {
  public static boolean privateLookupBlocked() { return true; }
  public static boolean nativeLoadBlocked() { return true; }
  public static boolean nativeReadOnlyLoadBlocked() { return true; }
+ public static boolean customLoaderFindLibraryBlocked() { return true; }
+ public static boolean forgedCodeSourceLoadBlocked() { return true; }
  public static boolean noAuthoritySecrets() { return true; }
 }
 """
@@ -1842,6 +1844,8 @@ public class ProbeTest {
  @Test public void privateLookup() { assertTrue(Attack.privateLookupBlocked()); }
  @Test public void nativeLoad() { assertTrue(Attack.nativeLoadBlocked()); }
  @Test public void nativeReadOnlyLoad() { assertTrue(Attack.nativeReadOnlyLoadBlocked()); }
+ @Test public void customLoaderFindLibrary() { assertTrue(Attack.customLoaderFindLibraryBlocked()); }
+ @Test public void forgedCodeSourceLoad() { assertTrue(Attack.forgedCodeSourceLoadBlocked()); }
  @Test public void secrets() { assertTrue(Attack.noAuthoritySecrets()); }
 }
 """
@@ -1895,6 +1899,23 @@ public final class Attack {
   }
  }
  @FunctionalInterface private interface Throwing { void run() throws Exception; }
+
+ // Candidate-defined helper classes for the loader-mediated probes. They are
+ // compiled into the candidate build but defined by a candidate custom loader
+ // at runtime, so their defining loader is not a JVM builtin loader.
+ public static String forgedTarget = "";
+ public static final class FindLibraryRunnable implements Runnable {
+  @Override public void run() { System.loadLibrary("c12probe"); }
+ }
+ public static final class ForgedCallable implements java.util.concurrent.Callable<Object> {
+  @Override public Object call() { System.load(forgedTarget); return null; }
+ }
+ private static byte[] readResource(String name) throws java.io.IOException {
+  try (java.io.InputStream in = Attack.class.getResourceAsStream(name)) {
+   if (in == null) throw new java.io.IOException("missing resource " + name);
+   return in.readAllBytes();
+  }
+ }
 
  // The driver lives in a named module that is not exported or opened to the
  // classpath. Class.forName may still return the Class (loading performs no
@@ -2134,6 +2155,79 @@ public final class Attack {
    return false;
   }
  }
+ // A candidate-defined loader can override findLibrary and return any file
+ // for a name load; checkLink sees only the relative name, so a builtin-loader
+ // requirement is the boundary, not the name itself.
+ public static boolean customLoaderFindLibraryBlocked() {
+  try {
+   java.nio.file.Path probe = java.nio.file.Files.createTempFile("c12-candidate-findlibrary-", ".so");
+   java.nio.file.Files.write(probe, new byte[] {0x7f, 'E', 'L', 'F'});
+   final byte[] bytes = readResource("Attack$FindLibraryRunnable.class");
+   class EvilLoader extends ClassLoader {
+    EvilLoader() { super(Attack.class.getClassLoader()); }
+    @Override protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+     if ("probe.Attack$FindLibraryRunnable".equals(name)) {
+      Class<?> found = findLoadedClass(name);
+      if (found == null) found = defineClass(name, bytes, 0, bytes.length);
+      if (resolve) resolveClass(found);
+      return found;
+     }
+     return super.loadClass(name, resolve);
+    }
+    @Override protected String findLibrary(String name) { return probe.toAbsolutePath().toString(); }
+   }
+   Runnable runnable = (Runnable) new EvilLoader().loadClass("probe.Attack$FindLibraryRunnable")
+       .getDeclaredConstructor().newInstance();
+   return securityBlocked(runnable::run);
+  } catch (Throwable unexpected) {
+   return refused(unexpected);
+  }
+ }
+ // defineClass accepts a caller-supplied ProtectionDomain; a forged jrt:
+ // CodeSource must not make the frame look like JDK code. The load runs on a
+ // fresh thread so no genuine candidate frame sits above the forged class.
+ public static boolean forgedCodeSourceLoadBlocked() {
+  try {
+   java.nio.file.Path probe = java.nio.file.Files.createTempFile("c12-candidate-forged-pd-", ".so");
+   java.nio.file.Files.write(probe, new byte[] {0x7f, 'E', 'L', 'F'});
+   forgedTarget = probe.toAbsolutePath().toString();
+   final byte[] bytes = readResource("Attack$ForgedCallable.class");
+   java.security.CodeSource forged = new java.security.CodeSource(
+       new java.net.URL(null, "jrt:/c12-forged", new java.net.URLStreamHandler() {
+        @Override protected java.net.URLConnection openConnection(java.net.URL url) {
+         throw new UnsupportedOperationException();
+        }
+       }), (java.security.cert.Certificate[]) null);
+   java.security.ProtectionDomain pd = new java.security.ProtectionDomain(forged, null);
+   class ForgedLoader extends ClassLoader {
+    ForgedLoader() { super(Attack.class.getClassLoader()); }
+    @Override protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+     if ("probe.Attack$ForgedCallable".equals(name)) {
+      Class<?> found = findLoadedClass(name);
+      if (found == null) found = defineClass(name, bytes, 0, bytes.length, pd);
+      if (resolve) resolveClass(found);
+      return found;
+     }
+     return super.loadClass(name, resolve);
+    }
+   }
+   java.util.concurrent.Callable<?> callable = (java.util.concurrent.Callable<?>)
+       new ForgedLoader().loadClass("probe.Attack$ForgedCallable").getDeclaredConstructor().newInstance();
+   java.util.concurrent.FutureTask<Object> task = new java.util.concurrent.FutureTask<>(
+       (java.util.concurrent.Callable<Object>) callable);
+   Thread thread = new Thread(task, "c12-forged-code-source");
+   thread.start();
+   thread.join();
+   try {
+    task.get();
+    return false;
+   } catch (java.util.concurrent.ExecutionException expected) {
+    return refused(expected.getCause());
+   }
+  } catch (Throwable unexpected) {
+   return refused(unexpected);
+  }
+ }
  public static boolean noAuthoritySecrets() {
   for (Map.Entry<String,String> e : System.getenv().entrySet()) {
    String k = e.getKey().toUpperCase(java.util.Locale.ROOT);
@@ -2153,7 +2247,7 @@ public final class Attack {
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but cannot reach qualification authority: the hook class is unloadable and its package cannot be defined into, Unsafe/ReflectionFactory are absent from the module graph, private JDK internals stay closed, /proc and fd discovery, TCP replay, Unix sockets, Attach/JVMTI, JMX control, process spawn (direct, MethodHandle/new-thread and explicit doPrivileged-context laundered), process handles, manager removal and VM exit are denied, candidate-initiated native loads are denied for candidate-controlled targets even after the write bit is cleared, and no witness secret is visible",
+        "hostile candidate production bytecode can execute but cannot reach qualification authority: the hook class is unloadable and its package cannot be defined into, Unsafe/ReflectionFactory are absent from the module graph, private JDK internals stay closed, /proc and fd discovery, TCP replay, Unix sockets, Attach/JVMTI, JMX control, process spawn (direct, MethodHandle/new-thread and explicit doPrivileged-context laundered), process handles, manager removal and VM exit are denied, candidate-initiated native loads are denied for candidate-controlled targets even after the write bit is cleared, through a candidate-defined loader overriding findLibrary, and from a class carrying a forged jrt: ProtectionDomain, and no witness secret is visible",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
