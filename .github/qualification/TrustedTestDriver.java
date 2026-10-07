@@ -696,6 +696,7 @@ public final class TrustedTestDriver {
         }
         @Override public void checkConnect(String host, int port, Object context) { checkConnect(host, port); }
         @Override public void checkMulticast(InetAddress maddr) { refuse("socket-multicast"); }
+        @Override public void checkMulticast(InetAddress maddr, byte ttl) { refuse("socket-multicast"); }
 
         @Override public void checkLink(String lib) {
             // JNI is outside the module system: a candidate native library could
