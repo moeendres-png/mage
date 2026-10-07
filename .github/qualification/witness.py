@@ -16,9 +16,9 @@ What the candidate controls, and what it does not
   test method, and ``qualify.py`` requires the driver to report every one of
   them started.
 * The executed test bytecode is NOT the candidate's build output. Test sources
-  are exported from the locked commit through Git and compiled here, by trusted
-  code, with annotation processing disabled (``-proc:none``), so no candidate
-  code runs during that compilation and a build that rewrites
+  are exported from the trusted validator commit through Git and compiled here,
+  by trusted code, with annotation processing disabled (``-proc:none``), so no
+  candidate code runs during that compilation and a build that rewrites
   ``target/test-classes`` changes nothing that executes. Test resources are
   copied next to that bytecode without any ``.class`` file, and the compiled
   classes are verified byte-identical afterwards.
