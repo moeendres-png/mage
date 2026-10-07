@@ -533,12 +533,21 @@ public final class TrustedTestDriver {
      * - {@code setSecurityManager} / {@code setPolicy} /
      *   {@code createAccessControlContext}: the guard cannot be removed or its
      *   policy rewritten by candidate code.
-     * - process exec, VM exit, non-loopback connect, multicast, Attach/JVMTI,
+     * - process exec, VM exit, multicast, Attach/JVMTI,
      *   JMX control and Unix-domain sockets: the candidate JVM cannot cross into
      *   the runner or the observer process.
      * - {@code /proc}, {@code /sys}, {@code /dev/fd} reads: candidate code cannot
      *   discover or inject into the already-connected JDWP socket or inspect
      *   other processes.
+     *
+     * Network egress is deliberately allowed. The trusted corpus needs it
+     * (Mage.Verify downloads its card-data reference at test runtime), and the
+     * JDK probes {@code checkConnect(host, -1)} while enumerating local
+     * interfaces, so denying non-loopback connects both failed honest corpus
+     * tests and hid non-loopback local addresses from
+     * {@code NetworkInterface}. Network access grants no qualification
+     * authority: the receipt is produced by the separate trusted observer and
+     * native loading stays denied.
      *
      * What it deliberately no longer does: the pre-repair policy denied deep
      * reflection, class-loader creation, thread-group modification, context
@@ -568,11 +577,6 @@ public final class TrustedTestDriver {
             for (Path path : prefixes) {
                 this.untrustedPrefixes.add(path.toAbsolutePath().normalize());
             }
-        }
-
-        private static boolean loopback(String host) {
-            return host == null || "localhost".equals(host) || "127.0.0.1".equals(host)
-                    || "::1".equals(host) || "0:0:0:0:0:0:0:1".equals(host);
         }
 
         private void refuse(String capability) {
@@ -683,7 +687,12 @@ public final class TrustedTestDriver {
         @Override public void checkExit(int status) { refuse("vm-exit"); }
         @Override public void checkExec(String cmd) { refuse("process-exec"); }
         @Override public void checkConnect(String host, int port) {
-            if (!loopback(host)) refuse("socket-connect");
+            // Network egress is allowed: the trusted corpus needs it
+            // (Mage.Verify downloads its card-data reference at test runtime)
+            // and the JDK probes checkConnect(host, -1) while enumerating local
+            // interfaces, so denying non-loopback connects fails honest tests
+            // and hides local addresses. It grants no qualification authority;
+            // the receipt is produced by the separate trusted observer.
         }
         @Override public void checkConnect(String host, int port, Object context) { checkConnect(host, port); }
         @Override public void checkMulticast(InetAddress maddr) { refuse("socket-multicast"); }
