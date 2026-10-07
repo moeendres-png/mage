@@ -23,15 +23,18 @@ import com.sun.jdi.connect.ListeningConnector;
 import com.sun.jdi.event.Event;
 import com.sun.jdi.event.EventQueue;
 import com.sun.jdi.event.EventSet;
-import com.sun.jdi.event.MethodEntryEvent;
-import com.sun.jdi.event.MethodExitEvent;
+import com.sun.jdi.event.BreakpointEvent;
+import com.sun.jdi.event.ClassPrepareEvent;
 import com.sun.jdi.event.VMDeathEvent;
 import com.sun.jdi.event.VMDisconnectEvent;
 import com.sun.jdi.request.EventRequest;
+import com.sun.jdi.request.BreakpointRequest;
+import com.sun.jdi.request.ClassPrepareRequest;
 import com.sun.jdi.request.EventRequestManager;
-import com.sun.jdi.request.MethodEntryRequest;
-import com.sun.jdi.request.MethodExitRequest;
+import com.sun.jdi.Location;
+import com.sun.jdi.ReferenceType;
 import com.sun.jdi.StackFrame;
+import com.sun.jdi.ThreadReference;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -44,6 +47,8 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -57,6 +62,14 @@ public final class TrustedTestObserver {
     private static final String SCHEMA =
             "mage.candidate-qualification.trusted-execution-witness/5";
     private static final String HOOK_CLASS = "c12.trusted.TrustedTestDriver";
+    private static final String HOOK_MODULE = "c12.trusted";
+    private static final Set<String> HOOK_METHODS =
+            Set.of("observerStart", "observerEvent", "observerComplete");
+    private static final String KIND = "c12.kind";
+    private static final String KIND_HOOK = "hook";
+    private static final String KIND_ENTRY = "body-entry";
+    private static final String KIND_RETURN = "body-return";
+    private static final String IDENTITY = "c12.identity";
 
     private static String esc(String value) {
         if (value == null) return "";
@@ -124,7 +137,7 @@ public final class TrustedTestObserver {
         return value instanceof BooleanValue && ((BooleanValue)value).value();
     }
 
-    private static List<Value> args(MethodEntryEvent event)
+    private static List<Value> args(BreakpointEvent event)
             throws IncompatibleThreadStateException {
         StackFrame frame = event.thread().frame(0);
         return frame.getArgumentValues();
@@ -242,19 +255,26 @@ public final class TrustedTestObserver {
             this.requiredMethods = new TreeSet<>(requiredMethods);
         }
 
-        void bodyEntry(long threadId, String identity) {
+        /** Returns the active test credited with this entry, or null. */
+        String bodyEntry(long threadId, String identity) {
             String expected = activeMethods.get(threadId);
             String uniqueId = activeTestIds.get(threadId);
             if (uniqueId != null && identity.equals(expected)) {
                 bodyEnteredMethods.add(identity);
                 bodyEntriesByTest.put(uniqueId, bodyEntriesByTest.getOrDefault(uniqueId, 0) + 1);
+                return uniqueId;
             }
+            return null;
         }
 
-        void bodyExit(long threadId, String identity) {
+        /**
+         * A normal return of the very frame whose entry was credited to
+         * {@code enteredFor}. Credit only while that same test is still active.
+         */
+        void bodyExit(long threadId, String identity, String enteredFor) {
             String expected = activeMethods.get(threadId);
             String uniqueId = activeTestIds.get(threadId);
-            if (uniqueId != null && identity.equals(expected)
+            if (uniqueId != null && uniqueId.equals(enteredFor) && identity.equals(expected)
                     && bodyEntriesByTest.getOrDefault(uniqueId, 0) > 0) {
                 bodyCompletedMethods.add(identity);
                 bodyExitsByTest.put(uniqueId, bodyExitsByTest.getOrDefault(uniqueId, 0) + 1);
@@ -451,6 +471,232 @@ public final class TrustedTestObserver {
         }
     }
 
+    /**
+     * Instruction length of the JVM opcode at {@code pc} (JVMS chapter 6).
+     * Unknown or reserved opcodes throw, so a method that cannot be decoded is
+     * never armed and its body stays unproven (fail closed).
+     */
+    private static int instructionLength(byte[] code, int pc) {
+        int op = code[pc] & 0xff;
+        if (op <= 0x0f) return 1;
+        switch (op) {
+            case 0x10: case 0x12: case 0x15: case 0x16: case 0x17: case 0x18: case 0x19:
+            case 0x36: case 0x37: case 0x38: case 0x39: case 0x3a: case 0xa9: case 0xbc:
+                return 2;
+            case 0x11: case 0x13: case 0x14: case 0x84: case 0xb2: case 0xb3: case 0xb4:
+            case 0xb5: case 0xb6: case 0xb7: case 0xb8: case 0xbb: case 0xbd: case 0xc0:
+            case 0xc1: case 0xc6: case 0xc7:
+                return 3;
+            case 0xc5:
+                return 4;
+            case 0xb9: case 0xba: case 0xc8: case 0xc9:
+                return 5;
+            case 0xc4:
+                return (code[pc + 1] & 0xff) == 0x84 ? 6 : 4;
+            case 0xaa: {
+                int base = (pc + 4) & ~3;
+                int low = readInt(code, base + 4);
+                int high = readInt(code, base + 8);
+                long length = base - pc + 12 + 4L * ((long) high - low + 1);
+                if (high < low || length > code.length) {
+                    throw new IllegalArgumentException("bad tableswitch at " + pc);
+                }
+                return (int) length;
+            }
+            case 0xab: {
+                int base = (pc + 4) & ~3;
+                int pairs = readInt(code, base + 4);
+                long length = base - pc + 8 + 8L * pairs;
+                if (pairs < 0 || length > code.length) {
+                    throw new IllegalArgumentException("bad lookupswitch at " + pc);
+                }
+                return (int) length;
+            }
+            default:
+                if ((op >= 0x1a && op <= 0x35) || (op >= 0x3b && op <= 0x83)
+                        || (op >= 0x85 && op <= 0x98) || (op >= 0xac && op <= 0xb1)
+                        || op == 0xbe || op == 0xbf || op == 0xc2 || op == 0xc3) {
+                    return 1;
+                }
+                if (op >= 0x99 && op <= 0xa8) return 3;
+                throw new IllegalArgumentException("undecodable opcode 0x"
+                        + Integer.toHexString(op) + " at " + pc);
+        }
+    }
+
+    private static int readInt(byte[] code, int at) {
+        return ((code[at] & 0xff) << 24) | ((code[at + 1] & 0xff) << 16)
+                | ((code[at + 2] & 0xff) << 8) | (code[at + 3] & 0xff);
+    }
+
+    /** Code indices of every return instruction (ireturn..return) in a method. */
+    static List<Long> returnIndices(byte[] code) {
+        List<Long> out = new ArrayList<>();
+        int pc = 0;
+        while (pc < code.length) {
+            int op = code[pc] & 0xff;
+            if (op >= 0xac && op <= 0xb1) out.add((long) pc);
+            int length = instructionLength(code, pc);
+            if (length <= 0 || pc + length > code.length) {
+                throw new IllegalArgumentException("truncated instruction at " + pc);
+            }
+            pc += length;
+        }
+        return out;
+    }
+
+    /**
+     * Arms breakpoints on the trusted hooks and on every required method body as
+     * each class is prepared, and pairs each body return with its own entry.
+     */
+    private static final class Arming {
+        private static final class Pending {
+            final com.sun.jdi.Method method;
+            final String identity;
+            final int depth;
+            final String enteredFor;
+            Pending(com.sun.jdi.Method method, String identity, int depth, String enteredFor) {
+                this.method = method;
+                this.identity = identity;
+                this.depth = depth;
+                this.enteredFor = enteredFor;
+            }
+        }
+
+        final EventRequestManager manager;
+        final Set<String> requiredMethods;
+        final State state;
+        final Set<String> watchedClasses = new HashSet<>();
+        final Set<ReferenceType> armedTypes = new HashSet<>();
+        final Map<Long, List<Pending>> pending = new HashMap<>();
+        int hookMethodsArmed;
+
+        Arming(EventRequestManager manager, Set<String> requiredMethods, State state) {
+            this.manager = manager;
+            this.requiredMethods = requiredMethods;
+            this.state = state;
+        }
+
+        /** One exact-name ClassPrepare request per class: cost is per class load only. */
+        void watch(String className) {
+            if (!watchedClasses.add(className)) return;
+            ClassPrepareRequest prepare = manager.createClassPrepareRequest();
+            prepare.addClassFilter(className);
+            prepare.setSuspendPolicy(EventRequest.SUSPEND_ALL);
+            prepare.enable();
+        }
+
+        private void breakpoint(Location location, String kind, String identity) {
+            BreakpointRequest request = manager.createBreakpointRequest(location);
+            request.putProperty(KIND, kind);
+            if (identity != null) request.putProperty(IDENTITY, identity);
+            request.setSuspendPolicy(EventRequest.SUSPEND_ALL);
+            request.enable();
+        }
+
+        void arm(ReferenceType type) {
+            String name = type.name();
+            if (!watchedClasses.contains(name) || !type.isPrepared() || !armedTypes.add(type)) return;
+            if (HOOK_CLASS.equals(name)) {
+                // Only the class of the trusted, closed driver module carries the
+                // hooks; a same-named class anywhere else is not the driver.
+                com.sun.jdi.ModuleReference module = type.module();
+                if (module == null || !HOOK_MODULE.equals(module.name())) {
+                    state.protocolViolations.add("foreign_hook_class_loaded:"
+                            + (module == null ? "?" : module.name()));
+                } else {
+                    for (com.sun.jdi.Method method : type.methods()) {
+                        if (HOOK_METHODS.contains(method.name()) && method.isStatic()
+                                && method.isPrivate()) {
+                            breakpoint(method.locationOfCodeIndex(0), KIND_HOOK, null);
+                            hookMethodsArmed++;
+                        }
+                    }
+                }
+            }
+            for (com.sun.jdi.Method method : type.methods()) {
+                if (method.isAbstract() || method.isNative()) continue;
+                String identity;
+                try {
+                    identity = methodIdentity(method);
+                } catch (IllegalArgumentException exc) {
+                    continue;
+                }
+                if (!requiredMethods.contains(identity)) continue;
+                try {
+                    List<Long> returns = returnIndices(method.bytecodes());
+                    Location entry = method.locationOfCodeIndex(0);
+                    if (entry == null) throw new IllegalStateException("no code index 0");
+                    List<Location> exits = new ArrayList<>();
+                    for (long index : returns) {
+                        Location exit = method.locationOfCodeIndex(index);
+                        if (exit == null) throw new IllegalStateException("no code index " + index);
+                        exits.add(exit);
+                    }
+                    breakpoint(entry, KIND_ENTRY, identity);
+                    for (Location exit : exits) breakpoint(exit, KIND_RETURN, identity);
+                } catch (RuntimeException exc) {
+                    state.protocolViolations.add("required_method_not_armed:" + identity
+                            + ":" + exc.getClass().getName());
+                }
+            }
+        }
+
+        private static boolean onStack(ThreadReference thread, Pending entry, int count)
+                throws IncompatibleThreadStateException {
+            return count >= entry.depth
+                    && entry.method.equals(thread.frame(count - entry.depth).location().method());
+        }
+
+        /** Drop entries whose frame has left the stack without a normal return. */
+        void forgetUnwound(ThreadReference thread) throws IncompatibleThreadStateException {
+            List<Pending> open = pending.get(thread.uniqueID());
+            if (open == null || open.isEmpty()) return;
+            int count = thread.frameCount();
+            open.removeIf(entry -> {
+                try {
+                    return !onStack(thread, entry, count);
+                } catch (IncompatibleThreadStateException exc) {
+                    return true;
+                }
+            });
+        }
+
+        void entered(BreakpointEvent hit) throws IncompatibleThreadStateException {
+            ThreadReference thread = hit.thread();
+            com.sun.jdi.Method method = hit.location().method();
+            String identity = (String) hit.request().getProperty(IDENTITY);
+            forgetUnwound(thread);
+            int depth = thread.frameCount();
+            List<Pending> open = pending.computeIfAbsent(thread.uniqueID(), k -> new ArrayList<>());
+            for (Pending entry : open) {
+                // Code index 0 can be a loop head: the same frame passing it
+                // again is not a new invocation.
+                if (entry.depth == depth && entry.method.equals(method)) return;
+            }
+            String enteredFor = state.bodyEntry(thread.uniqueID(), identity);
+            open.add(new Pending(method, identity, depth, enteredFor));
+        }
+
+        void returned(BreakpointEvent hit) throws IncompatibleThreadStateException {
+            ThreadReference thread = hit.thread();
+            com.sun.jdi.Method method = hit.location().method();
+            List<Pending> open = pending.get(thread.uniqueID());
+            if (open == null) return;
+            int depth = thread.frameCount();
+            for (int i = open.size() - 1; i >= 0; i--) {
+                Pending entry = open.get(i);
+                if (entry.depth == depth && entry.method.equals(method)) {
+                    open.remove(i);
+                    if (entry.enteredFor != null) {
+                        state.bodyExit(thread.uniqueID(), entry.identity, entry.enteredFor);
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
     public static void main(String[] argv) throws Exception {
         String module = "";
         String sha = "";
@@ -500,24 +746,31 @@ public final class TrustedTestObserver {
             connector.stopListening(listenArgs);
             vmDescription = vm.name() + " " + vm.version();
 
+            // Breakpoints, never MethodEntry/MethodExit requests. JDWP turns any
+            // MethodEntry/MethodExit request into a VM-wide JVMTI event: HotSpot
+            // then runs EVERY thread in interpreter-only mode and posts EVERY
+            // method call and return in the JVM to the agent, which evaluates
+            // every request's class filter for each of them. With one entry and
+            // one exit request per required declaring class (about 2,000 in
+            // Mage.Tests) that is thousands of filter evaluations per Java call,
+            // interpreted, and the real-corpus witness ran for hours. A breakpoint
+            // costs nothing outside its own location, and HotSpot keeps compiling
+            // everything else.
+            //
+            // The proof is unchanged: a body ENTRY is the first bytecode of the
+            // exact required method executing (code index 0); a body EXIT is that
+            // same frame (same thread, same method, same stack depth) reaching one
+            // of the method's own return instructions, i.e. a normal return.
+            // Exceptional exits never execute a return instruction, exactly like
+            // JDWP MethodExit, which does not report exception-popped frames.
             EventRequestManager manager = vm.eventRequestManager();
-            MethodEntryRequest entries = manager.createMethodEntryRequest();
-            entries.addClassFilter(HOOK_CLASS);
-            entries.setSuspendPolicy(EventRequest.SUSPEND_ALL);
-            entries.enable();
-
-            Set<String> requiredDeclaringClasses = new TreeSet<>();
-            for (String identity : requiredMethods) requiredDeclaringClasses.add(declaringClass(identity));
-            for (String className : requiredDeclaringClasses) {
-                MethodEntryRequest bodyEntries = manager.createMethodEntryRequest();
-                bodyEntries.addClassFilter(className);
-                bodyEntries.setSuspendPolicy(EventRequest.SUSPEND_ALL);
-                bodyEntries.enable();
-                MethodExitRequest bodyExits = manager.createMethodExitRequest();
-                bodyExits.addClassFilter(className);
-                bodyExits.setSuspendPolicy(EventRequest.SUSPEND_ALL);
-                bodyExits.enable();
+            if (!vm.canGetBytecodes()) {
+                throw new IllegalStateException("target VM cannot report bytecodes");
             }
+            Arming arming = new Arming(manager, requiredMethods, state);
+            arming.watch(HOOK_CLASS);
+            for (String identity : requiredMethods) arming.watch(declaringClass(identity));
+            for (com.sun.jdi.ReferenceType loaded : vm.allClasses()) arming.arm(loaded);
 
             vm.resume();
             EventQueue queue = vm.eventQueue();
@@ -529,63 +782,54 @@ public final class TrustedTestObserver {
                     break;
                 }
                 try {
-                    // EventSet is a Set, not a causally ordered list. HotSpot may
-                    // batch the trusted STARTED hook, body entry/exit and FINISHED
-                    // hook in one set. Processing FINISHED first would erase the
-                    // thread correlation before the body exit is observed and
-                    // fabricate a "body not completed" failure. Re-impose only
-                    // the causal partial order that qualification needs:
-                    // STARTED -> body ENTRY -> body EXIT -> other hooks -> VM end.
-                    List<MethodEntryEvent> hookStarted = new ArrayList<>();
-                    List<MethodEntryEvent> bodyEntered = new ArrayList<>();
-                    List<MethodExitEvent> bodyExited = new ArrayList<>();
-                    List<MethodEntryEvent> otherHooks = new ArrayList<>();
+                    // EventSet is a Set, not a causally ordered list. Breakpoints at
+                    // one location share a set (an empty body's entry and return are
+                    // both code index 0). Re-impose the causal partial order:
+                    // class arming -> STARTED -> body ENTRY -> body RETURN -> other
+                    // hooks -> VM end.
+                    List<BreakpointEvent> hookStarted = new ArrayList<>();
+                    List<BreakpointEvent> bodyEntered = new ArrayList<>();
+                    List<BreakpointEvent> bodyReturned = new ArrayList<>();
+                    List<BreakpointEvent> otherHooks = new ArrayList<>();
                     List<Event> terminalEvents = new ArrayList<>();
 
                     for (Event event : set) {
-                        if (event instanceof MethodEntryEvent) {
-                            MethodEntryEvent entered = (MethodEntryEvent) event;
-                            String name = entered.method().name();
-                            if (HOOK_CLASS.equals(entered.method().declaringType().name())
-                                    && name.startsWith("observer")) {
-                                List<Value> values = args(entered);
-                                if ("observerEvent".equals(name)
+                        if (event instanceof ClassPrepareEvent) {
+                            arming.arm(((ClassPrepareEvent) event).referenceType());
+                        } else if (event instanceof BreakpointEvent) {
+                            BreakpointEvent hit = (BreakpointEvent) event;
+                            Object kind = hit.request().getProperty(KIND);
+                            if (KIND_HOOK.equals(kind)) {
+                                List<Value> values = args(hit);
+                                if ("observerEvent".equals(hit.location().method().name())
                                         && values.size() == 9
                                         && "STARTED".equals(text(values.get(0)))) {
-                                    hookStarted.add(entered);
+                                    hookStarted.add(hit);
                                 } else {
-                                    otherHooks.add(entered);
+                                    otherHooks.add(hit);
                                 }
-                            } else {
-                                bodyEntered.add(entered);
+                            } else if (KIND_ENTRY.equals(kind)) {
+                                bodyEntered.add(hit);
+                            } else if (KIND_RETURN.equals(kind)) {
+                                bodyReturned.add(hit);
                             }
-                        } else if (event instanceof MethodExitEvent) {
-                            bodyExited.add((MethodExitEvent) event);
                         } else if (event instanceof VMDeathEvent
                                 || event instanceof VMDisconnectEvent) {
                             terminalEvents.add(event);
                         }
                     }
 
-                    for (MethodEntryEvent entered : hookStarted) {
-                        state.hook(entered.method().name(), args(entered),
-                                entered.thread().uniqueID());
+                    for (BreakpointEvent hit : hookStarted) {
+                        arming.forgetUnwound(hit.thread());
+                        state.hook(hit.location().method().name(), args(hit),
+                                hit.thread().uniqueID());
                     }
-                    for (MethodEntryEvent entered : bodyEntered) {
-                        String identity = methodIdentity(entered.method());
-                        if (requiredMethods.contains(identity)) {
-                            state.bodyEntry(entered.thread().uniqueID(), identity);
-                        }
-                    }
-                    for (MethodExitEvent exited : bodyExited) {
-                        String identity = methodIdentity(exited.method());
-                        if (requiredMethods.contains(identity)) {
-                            state.bodyExit(exited.thread().uniqueID(), identity);
-                        }
-                    }
-                    for (MethodEntryEvent entered : otherHooks) {
-                        state.hook(entered.method().name(), args(entered),
-                                entered.thread().uniqueID());
+                    for (BreakpointEvent hit : bodyEntered) arming.entered(hit);
+                    for (BreakpointEvent hit : bodyReturned) arming.returned(hit);
+                    for (BreakpointEvent hit : otherHooks) {
+                        arming.forgetUnwound(hit.thread());
+                        state.hook(hit.location().method().name(), args(hit),
+                                hit.thread().uniqueID());
                     }
                     for (Event event : terminalEvents) {
                         if (event instanceof VMDeathEvent
@@ -597,6 +841,9 @@ public final class TrustedTestObserver {
                 } finally {
                     try { set.resume(); } catch (VMDisconnectedException ignored) { }
                 }
+            }
+            if (arming.hookMethodsArmed != 3) {
+                state.protocolViolations.add("observer_hooks_not_armed:" + arming.hookMethodsArmed);
             }
             if (!"COMPLETE".equals(observerStatus) && state.completeSeen) observerStatus = "COMPLETE";
         } catch (VMDisconnectedException exc) {

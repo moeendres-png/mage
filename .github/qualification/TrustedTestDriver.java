@@ -502,30 +502,47 @@ public final class TrustedTestDriver {
             }
         }
 
+        // The verdict for one frame depends only on that frame's class: its
+        // name and its ProtectionDomain's CodeSource are fixed when the class is
+        // defined, and the prefixes are fixed at install. Computing it once per
+        // class (instead of a URI parse and path normalization for every frame
+        // of every permission check) keeps the same rule at a constant cost.
+        private final ClassValue<Boolean> untrustedFrame = new ClassValue<Boolean>() {
+            @Override
+            protected Boolean computeValue(Class<?> type) {
+                return untrustedFrameClass(type);
+            }
+        };
+
+        private boolean untrustedFrameClass(Class<?> type) {
+            String name = type.getName();
+            if (name.startsWith("c12.trusted.")) return false;
+            ProtectionDomain domain;
+            try {
+                domain = type.getProtectionDomain();
+            } catch (SecurityException exc) {
+                return false;
+            }
+            if (domain == null || domain.getCodeSource() == null
+                    || domain.getCodeSource().getLocation() == null) {
+                return false;
+            }
+            try {
+                Path source = Paths.get(domain.getCodeSource().getLocation().toURI())
+                        .toAbsolutePath().normalize();
+                for (Path prefix : untrustedPrefixes) {
+                    if (source.startsWith(prefix)) return true;
+                }
+            } catch (Exception ignored) { }
+            return false;
+        }
+
         private boolean untrustedOnStack() {
             if (inspecting.get()) return false;
             inspecting.set(Boolean.TRUE);
             try {
                 for (Class<?> type : getClassContext()) {
-                    String name = type.getName();
-                    if (name.startsWith("c12.trusted.")) continue;
-                    ProtectionDomain domain;
-                    try {
-                        domain = type.getProtectionDomain();
-                    } catch (SecurityException exc) {
-                        continue;
-                    }
-                    if (domain == null || domain.getCodeSource() == null
-                            || domain.getCodeSource().getLocation() == null) {
-                        continue;
-                    }
-                    try {
-                        Path source = Paths.get(domain.getCodeSource().getLocation().toURI())
-                                .toAbsolutePath().normalize();
-                        for (Path prefix : untrustedPrefixes) {
-                            if (source.startsWith(prefix)) return true;
-                        }
-                    } catch (Exception ignored) { }
+                    if (untrustedFrame.get(type)) return true;
                 }
                 return false;
             } finally {

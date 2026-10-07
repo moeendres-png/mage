@@ -108,7 +108,12 @@ auto-detected extension, shipped in test resources, main resources or a new depe
 The candidate JVM is **not a witness producer**. It contains no signing key, receipt path
 or qualification verdict authority. A separate trusted parent JVM opens a one-shot JDI
 listener, accepts the exact sandboxed child, closes the listener, and observes the private
-`observer*` hooks plus required trusted-test method entry/exit events. For each module the
+`observer*` hooks plus the entry and normal return of every required trusted-test method.
+It observes them only through breakpoints (code index 0 of each hook and required method,
+and each return instruction of a required method, matched to its entry by thread, method
+and stack depth), never through JDWP MethodEntry/MethodExit requests: those force every
+thread of the child into interpreter-only mode and post every Java call in the JVM to the
+agent, which made the real-corpus witness run for hours (#50/#51). For each module the
 trusted parent owns a fresh HMAC-SHA256 key in trusted-only storage; that key is passed only
 to the observer JVM, never to the candidate JVM. The observer signs its receipt, the trusted
 aggregator verifies it and deletes the key, and only then can the receipt contribute credit.
