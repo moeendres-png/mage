@@ -1,0 +1,20 @@
+{
+  "candidate": {
+    "sha": "b989bd842f9f268bc80edf6518bc00d83816945c",
+    "tree": "ce31d3b2360bf06b22aea94dd362235b5f9bd1cf"
+  },
+  "candidate_code_executed_as_validator": false,
+  "comparison_base": {
+    "sha": "a28a03995229688d320d4b1f28304190094949aa",
+    "tree": "ce31d3b2360bf06b22aea94dd362235b5f9bd1cf"
+  },
+  "default_branch": "master",
+  "pull_request_number": 39,
+  "repository": "moeendres-png/mage",
+  "schema": "mage.candidate-qualification.source-lock/1",
+  "status": "LOCKED",
+  "trusted_validator": {
+    "sha": "a28a03995229688d320d4b1f28304190094949aa",
+    "tree": "ce31d3b2360bf06b22aea94dd362235b5f9bd1cf"
+  }
+}

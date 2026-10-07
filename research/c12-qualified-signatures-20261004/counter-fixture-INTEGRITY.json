@@ -1,0 +1,27 @@
+{
+  "candidate_writable_trusted_paths": [],
+  "schema": "mage.candidate-qualification.integrity/1",
+  "seals": [
+    {
+      "problems": [],
+      "seal": "/var/lib/c12-current-counter-20261004/counter-positive/work/seal-before.json"
+    },
+    {
+      "problems": [],
+      "seal": "/var/lib/c12-current-counter-20261004/counter-positive/work/seal-after.json"
+    }
+  ],
+  "status": "OK",
+  "surviving_candidate_processes": [],
+  "trusted_sha": "a28a03995229688d320d4b1f28304190094949aa",
+  "trusted_tree": {
+    "files_checked": 8,
+    "head": "a28a03995229688d320d4b1f28304190094949aa",
+    "head_matches_trusted_sha": true,
+    "mismatched": [],
+    "missing": [],
+    "ok": true,
+    "untracked": []
+  },
+  "violations": []
+}
