@@ -1820,6 +1820,7 @@ public final class Attack {
  public static boolean forgedCodeSourceLoadBlocked() { return true; }
  public static boolean mintingBlocked() { return true; }
  public static boolean privateLookupMintingBlocked() { return true; }
+ public static boolean impersonatedTrustedFrameBlocked() { return true; }
  public static boolean noAuthoritySecrets() { return true; }
 }
 """
@@ -1852,6 +1853,7 @@ public class ProbeTest {
  @Test public void forgedCodeSourceLoad() { assertTrue(Attack.forgedCodeSourceLoadBlocked()); }
  @Test public void minting() { assertTrue(Attack.mintingBlocked()); }
  @Test public void privateLookupMinting() { assertTrue(Attack.privateLookupMintingBlocked()); }
+ @Test public void impersonatedTrustedFrame() { assertTrue(Attack.impersonatedTrustedFrameBlocked()); }
  @Test public void secrets() { assertTrue(Attack.noAuthoritySecrets()); }
 }
 """
@@ -2096,9 +2098,11 @@ public final class Attack {
  public static boolean reflectionFactoryAbsent() {
   return absent("sun.reflect.ReflectionFactory");
  }
- // A candidate loader must not be able to define a class in the trusted hook
- // package. The RuntimePermission check runs before the class bytes are parsed,
- // so invalid bytes still prove the refusal.
+ // A candidate loader cannot access the trusted hook class: the driver is a
+ // non-exported, non-open named module, and the containment additionally
+ // denies the c12.trusted package permissions below (defence in depth). The
+ // JDK does not call checkPackageDefinition for classpath loaders, so this
+ // probe checks the deny rules directly rather than a defineClass path.
  public static boolean hookPackageDefineBlocked() {
   // Probe the exact capability end to end: a candidate loader defining into
   // the trusted hook package must be refused by package access/definition.
@@ -2260,6 +2264,43 @@ public final class Attack {
    return refused(thrown);
   }
  }
+ // A candidate-defined class impersonating the trusted driver package name
+ // (c12.trusted.Run) must not be skipped as a trusted frame: the driver is a
+ // named module, the impostor is in the unnamed module. The load runs on a
+ // fresh thread so the impostor is the only non-bootstrap frame.
+ public static boolean impersonatedTrustedFrameBlocked() {
+  try {
+   java.nio.file.Path probe = java.nio.file.Files.createTempFile("c12-candidate-imp-", ".so");
+   java.nio.file.Files.write(probe, new byte[] {0x7f, 'E', 'L', 'F'});
+   System.setProperty("c12.imp.target", probe.toAbsolutePath().toString());
+   final byte[] bytes = readResource("/c12/trusted/Run.class");
+   class EvilLoader extends ClassLoader {
+    EvilLoader() { super(Attack.class.getClassLoader()); }
+    @Override protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+     if ("c12.trusted.Run".equals(name)) {
+      Class<?> found = findLoadedClass(name);
+      if (found == null) found = defineClass(name, bytes, 0, bytes.length);
+      if (resolve) resolveClass(found);
+      return found;
+     }
+     return super.loadClass(name, resolve);
+    }
+   }
+   Runnable runnable = (Runnable) new EvilLoader().loadClass("c12.trusted.Run")
+       .getDeclaredConstructor().newInstance();
+   final java.util.concurrent.atomic.AtomicReference<Throwable> failure =
+       new java.util.concurrent.atomic.AtomicReference<>();
+   Thread thread = new Thread(runnable, "c12-impersonated-trusted");
+   thread.setUncaughtExceptionHandler((dying, thrown) -> failure.set(thrown));
+   thread.start();
+   thread.join();
+   Throwable thrown = failure.get();
+   if (thrown == null) return false;
+   return refused(thrown);
+  } catch (Throwable unexpected) {
+   return refused(unexpected);
+  }
+ }
  // defineClass accepts a caller-supplied ProtectionDomain; a forged jrt:
  // CodeSource must not make the frame look like JDK code. The load runs on a
  // fresh thread so no genuine candidate frame sits above the forged class.
@@ -2332,17 +2373,23 @@ public class C12MintHelper {
  }
 }
 """
+    impersonator = """package c12.trusted;
+public class Run implements Runnable {
+ @Override public void run() { System.load(System.getProperty("c12.imp.target")); }
+}
+"""
     base = project({"ProbeTest": test}, extra={"src/main/java/probe/Attack.java": benign})
     candidate = project({"ProbeTest": test}, extra={
         "src/main/java/probe/Attack.java": hostile,
         "src/main/java/org/junit/jupiter/api/C12Mint.java": mint_class,
         "src/main/java/org/junit/jupiter/api/C12MintHelper.java": mint_helper,
+        "src/main/java/c12/trusted/Run.java": impersonator,
     })
     fx = h.fixture("CTRL-84-hostile-bytecode-contained", base, candidate)
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but cannot reach qualification authority: the hook class is unloadable and its package cannot be defined into, Unsafe/ReflectionFactory are absent from the module graph, private JDK internals stay closed, /proc and fd discovery, TCP replay, Unix sockets, Attach/JVMTI, JMX control, process spawn (direct, MethodHandle/new-thread and explicit doPrivileged-context laundered), process handles, manager removal and VM exit are denied, candidate-initiated native loads are denied for candidate-controlled targets even after the write bit is cleared, through a candidate-defined loader overriding findLibrary, through a caller-sensitive System.loadLibrary method handle armed in that loader, and from a class carrying a forged jrt: ProtectionDomain, candidate Lookup.in(trusted).defineClass minting and candidate MethodHandles.privateLookupIn(trusted) are refused, and no witness secret is visible",
+        "hostile candidate production bytecode can execute but cannot reach qualification authority: the hook class is unloadable and its package cannot be defined into, Unsafe/ReflectionFactory are absent from the module graph, private JDK internals stay closed, /proc and fd discovery, TCP replay, Unix sockets, Attach/JVMTI, JMX control, process spawn (direct, MethodHandle/new-thread and explicit doPrivileged-context laundered), process handles, manager removal and VM exit are denied, candidate-initiated native loads are denied for candidate-controlled targets even after the write bit is cleared, through a candidate-defined loader overriding findLibrary, through a caller-sensitive System.loadLibrary method handle armed in that loader, and from a class carrying a forged jrt: ProtectionDomain, candidate Lookup.in(trusted).defineClass minting and candidate MethodHandles.privateLookupIn(trusted) are refused, a candidate class impersonating the c12.trusted package name is not skipped as a trusted frame, and no witness secret is visible",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 

@@ -598,8 +598,14 @@ public final class TrustedTestDriver {
         private Class<?> initiatingFrame() {
             for (Class<?> type : getClassContext()) {
                 if (type == ContainmentSecurityManager.class
-                        || type == SecurityManager.class
-                        || type.getName().startsWith("c12.trusted.")) {
+                        || type == SecurityManager.class) {
+                    continue;
+                }
+                // The trusted driver is a named module. A candidate class that
+                // merely mimics the c12.trusted package name lives in the
+                // unnamed module (or a candidate-created module layer) and must
+                // be classified as candidate-origin, never skipped by name.
+                if (type.getModule() == TrustedTestDriver.class.getModule()) {
                     continue;
                 }
                 ClassLoader loader = type.getClassLoader();
