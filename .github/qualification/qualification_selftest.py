@@ -1819,6 +1819,7 @@ public final class Attack {
  public static boolean methodHandleFindLibraryBlocked() { return true; }
  public static boolean forgedCodeSourceLoadBlocked() { return true; }
  public static boolean mintingBlocked() { return true; }
+ public static boolean privateLookupMintingBlocked() { return true; }
  public static boolean noAuthoritySecrets() { return true; }
 }
 """
@@ -1850,6 +1851,7 @@ public class ProbeTest {
  @Test public void methodHandleFindLibrary() { assertTrue(Attack.methodHandleFindLibraryBlocked()); }
  @Test public void forgedCodeSourceLoad() { assertTrue(Attack.forgedCodeSourceLoadBlocked()); }
  @Test public void minting() { assertTrue(Attack.mintingBlocked()); }
+ @Test public void privateLookupMinting() { assertTrue(Attack.privateLookupMintingBlocked()); }
  @Test public void secrets() { assertTrue(Attack.noAuthoritySecrets()); }
 }
 """
@@ -2244,6 +2246,20 @@ public final class Attack {
    return refused(unexpected);
   }
  }
+ // MethodHandles.privateLookupIn on a trusted class in the same unnamed module
+ // requests ReflectPermission suppressAccessChecks; the containment must refuse
+ // a candidate caller, or the full-privilege lookup could mint with the trusted
+ // ProtectionDomain. The String-based privateLookupBlocked probe cannot see
+ // this branch (java.base is not open, so it fails before the permission check).
+ public static boolean privateLookupMintingBlocked() {
+  try {
+   java.lang.invoke.MethodHandles.privateLookupIn(
+       Class.forName("org.junit.jupiter.api.Test"), java.lang.invoke.MethodHandles.lookup());
+   return false;
+  } catch (Throwable thrown) {
+   return refused(thrown);
+  }
+ }
  // defineClass accepts a caller-supplied ProtectionDomain; a forged jrt:
  // CodeSource must not make the frame look like JDK code. The load runs on a
  // fresh thread so no genuine candidate frame sits above the forged class.
@@ -2326,7 +2342,7 @@ public class C12MintHelper {
     result = h.pipeline(fx)
     rows.append(row(
         "CTRL-84-hostile-bytecode-contained", "positive",
-        "hostile candidate production bytecode can execute but cannot reach qualification authority: the hook class is unloadable and its package cannot be defined into, Unsafe/ReflectionFactory are absent from the module graph, private JDK internals stay closed, /proc and fd discovery, TCP replay, Unix sockets, Attach/JVMTI, JMX control, process spawn (direct, MethodHandle/new-thread and explicit doPrivileged-context laundered), process handles, manager removal and VM exit are denied, candidate-initiated native loads are denied for candidate-controlled targets even after the write bit is cleared, through a candidate-defined loader overriding findLibrary, through a caller-sensitive System.loadLibrary method handle armed in that loader, and from a class carrying a forged jrt: ProtectionDomain, candidate Lookup.in(trusted).defineClass minting is refused, and no witness secret is visible",
+        "hostile candidate production bytecode can execute but cannot reach qualification authority: the hook class is unloadable and its package cannot be defined into, Unsafe/ReflectionFactory are absent from the module graph, private JDK internals stay closed, /proc and fd discovery, TCP replay, Unix sockets, Attach/JVMTI, JMX control, process spawn (direct, MethodHandle/new-thread and explicit doPrivileged-context laundered), process handles, manager removal and VM exit are denied, candidate-initiated native loads are denied for candidate-controlled targets even after the write bit is cleared, through a candidate-defined loader overriding findLibrary, through a caller-sensitive System.loadLibrary method handle armed in that loader, and from a class carrying a forged jrt: ProtectionDomain, candidate Lookup.in(trusted).defineClass minting and candidate MethodHandles.privateLookupIn(trusted) are refused, and no witness secret is visible",
         "PASS", result, extra_ok=result.get("credit") is True,
     ))
 
