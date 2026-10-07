@@ -26,6 +26,7 @@
 import com.sun.jdi.BooleanValue;
 import com.sun.jdi.IncompatibleThreadStateException;
 import com.sun.jdi.Location;
+import com.sun.jdi.ModuleReference;
 import com.sun.jdi.ReferenceType;
 import com.sun.jdi.StringReference;
 import com.sun.jdi.Value;
@@ -497,24 +498,24 @@ public final class TrustedTestObserver {
     }
 
     private static boolean hookCallerTrusted(
-            BreakpointEvent event, ReferenceType hookClass, Set<ReferenceType> accepted) {
-        // The frame below a hook entry must be the trusted driver itself (or one
-        // of its nested types, e.g. the anonymous JUnit listener): its identity
-        // is the ReferenceType captured from the module layer, not a class
-        // name. JNI can call a private static method and bypass Java access
-        // control, but a candidate class that merely carries a c12.trusted.*
-        // name is a different ReferenceType and is refused before any argument
+            BreakpointEvent event, ReferenceType hookClass) {
+        // The frame below a hook entry must be the trusted driver itself or one
+        // of its nested types (the anonymous JUnit listener). Trust is module
+        // identity, not a class name: only classes in the driver's named module
+        // are accepted, and a candidate class cannot join that module (a
+        // classpath c12.trusted.* class lands in the unnamed module, and a
+        // candidate-created module layer is a different module). JNI can call a
+        // private static method and bypass Java access control, but a native
+        // forgery attempt from any other module is refused before any argument
         // is credited.
         try {
             StackFrame caller = event.thread().frame(1);
             ReferenceType callerType = caller.location().declaringType();
-            if (accepted.contains(callerType)) return true;
-            // The listener nested type may have been loaded after bootstrap;
-            // refresh the accepted identity set on the first unknown caller.
-            for (ReferenceType nested : hookClass.nestedTypes()) {
-                accepted.add(nested);
-            }
-            return accepted.contains(callerType);
+            if (callerType.equals(hookClass)) return true;
+            ModuleReference callerModule = callerType.module();
+            ModuleReference hookModule = hookClass.module();
+            return callerModule != null && hookModule != null
+                    && callerModule.equals(hookModule);
         } catch (IncompatibleThreadStateException | RuntimeException exc) {
             return false;
         }
@@ -646,10 +647,8 @@ public final class TrustedTestObserver {
             Map<Location, String> bodyLocations = new LinkedHashMap<>();
             Set<String> handledClasses = new LinkedHashSet<>();
             // Identity of the genuine hook class, captured from the module layer
-            // at bootstrap; nested driver types are accepted by ReferenceType
-            // identity only.
+            // at bootstrap; hook callers are accepted by module identity only.
             ReferenceType hookClassType = null;
-            Set<ReferenceType> hookCallerTypes = new LinkedHashSet<>();
 
             vm.resume();
             EventQueue queue = vm.eventQueue();
@@ -687,7 +686,6 @@ public final class TrustedTestObserver {
                             if (HOOK_CLASS.equals(type.name())) {
                                 hookBootstrap.disable();
                                 hookClassType = type;
-                                hookCallerTypes.add(type);
                                 installBreakpoints(type, manager, handledClasses, requiredMethods,
                                         hookLocations, bodyLocations, state);
                                 if (HOOK_METHODS.contains(entry.method().name())) {
@@ -701,7 +699,7 @@ public final class TrustedTestObserver {
                             if (hookLocations.contains(location)) {
                                 String name = hit.location().method().name();
                                 if (hookClassType == null
-                                        || !hookCallerTrusted(hit, hookClassType, hookCallerTypes)) {
+                                        || !hookCallerTrusted(hit, hookClassType)) {
                                     state.protocolViolations.add(
                                             "hook_called_outside_driver:" + name);
                                     continue;
