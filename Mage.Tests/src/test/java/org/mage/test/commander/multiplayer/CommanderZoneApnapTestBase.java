@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * F-18 (Commander Simulator Next): simultaneous Commander-zone choices.
@@ -57,6 +58,8 @@ public abstract class CommanderZoneApnapTestBase extends CardTestPlayerAPIImpl {
     /** Answer per "Owner:Commander": true = move to command zone. */
     protected final Map<String, Boolean> answers = new HashMap<>();
     protected final List<TestPlayer> seats = new ArrayList<>();
+    /** Campaign commanders in each owner's graveyard, in graveyard order, at that owner's first ask. */
+    protected final Map<String, List<String>> graveyardAtFirstAsk = new HashMap<>();
 
     protected abstract int playerCount();
 
@@ -143,6 +146,29 @@ public abstract class CommanderZoneApnapTestBase extends CardTestPlayerAPIImpl {
                 + movedBeforeAllChose, new ArrayList<String>(), movedBeforeAllChose);
     }
 
+    /**
+     * Lab #720: one owner's commanders are asked in a deterministic order, graveyard order
+     * for the graveyard path and name order for the exile path. A hash-ordered set made this
+     * order vary between JVMs, which broke twin replay of otherwise identical games.
+     */
+    protected void assertPartnerAskOrder(TestPlayer owner, boolean exilePath) {
+        List<String> ownerAsks = new ArrayList<>();
+        for (String ask : asks) {
+            if (ask.startsWith(owner.getName() + ":")) {
+                ownerAsks.add(ask.substring(ask.indexOf(':') + 1));
+            }
+        }
+        List<String> expected;
+        if (exilePath) {
+            expected = new ArrayList<>(ownerAsks);
+            expected.sort(String::compareTo);
+        } else {
+            expected = graveyardAtFirstAsk.get(owner.getName());
+        }
+        Assert.assertEquals("partner commanders are asked in a deterministic order; asks=" + asks,
+                expected, ownerAsks);
+    }
+
     // ------------------------------------------------------------ scenarios
 
     /**
@@ -183,6 +209,7 @@ public abstract class CommanderZoneApnapTestBase extends CardTestPlayerAPIImpl {
         }
         assertAskOrder(namesOf(apnap));
         Assert.assertEquals("one ask per dying commander: " + asks, seats.size() + 1, asks.size());
+        assertPartnerAskOrder(seats.get(1), exilePath);
         for (Map.Entry<TestPlayer, List<String>> entry : commanders.entrySet()) {
             for (String commander : entry.getValue()) {
                 boolean moved = answers.get(entry.getKey().getName() + ":" + commander);
@@ -249,6 +276,7 @@ public abstract class CommanderZoneApnapTestBase extends CardTestPlayerAPIImpl {
                 for (String commander : CAMPAIGN_COMMANDERS) {
                     Boolean answer = test.answers.get(getName() + ":" + commander);
                     if (message.contains(commander) && answer != null) {
+                        test.graveyardAtFirstAsk.computeIfAbsent(getName(), name -> campaignGraveyard(game));
                         test.asks.add(getName() + ":" + commander);
                         test.movedBeforeAllChose.addAll(test.campaignCommandersInCommandZone(game));
                         return answer;
@@ -257,6 +285,17 @@ public abstract class CommanderZoneApnapTestBase extends CardTestPlayerAPIImpl {
                 Assert.fail("unexpected Commander-zone choice for " + getName() + ": " + message);
             }
             return super.chooseUse(outcome, message, secondMessage, trueText, falseText, source, game);
+        }
+
+        private List<String> campaignGraveyard(Game game) {
+            List<String> names = new ArrayList<>();
+            for (UUID cardId : getGraveyard()) {
+                Card card = game.getCard(cardId);
+                if (card != null && CAMPAIGN_COMMANDERS.contains(card.getName())) {
+                    names.add(card.getName());
+                }
+            }
+            return names;
         }
 
         @Override

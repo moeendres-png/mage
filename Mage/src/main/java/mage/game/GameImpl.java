@@ -2576,7 +2576,11 @@ public abstract class GameImpl implements Game {
             if (commanderIds.isEmpty()) {
                 continue;
             }
-            Set<Card> commanders = new HashSet<>();
+            // One owner's commanders are asked in a deterministic order: graveyard order first,
+            // then exiled commanders by name. Card has identity hashing and commander ids are
+            // random UUIDs, so a hash-ordered set made the order of these questions differ from
+            // one JVM to the next for an owner with two commanders (partners).
+            Set<Card> commanders = new LinkedHashSet<>();
             Cards toMove = new CardsImpl();
             player.getGraveyard()
                     .stream()
@@ -2588,6 +2592,7 @@ public abstract class GameImpl implements Game {
                     .stream()
                     .map(uuid -> getExile().getCard(uuid, this))
                     .filter(Objects::nonNull)
+                    .sorted(Comparator.comparing(Card::getName))
                     .forEach(commanders::add);
             commanders.removeIf(card -> state.checkCommanderShouldStay(card, this));
             for (Card card : commanders) {
