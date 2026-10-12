@@ -487,7 +487,18 @@ public class Combat implements Serializable, Copyable<Combat> {
                     }
                     mustAttack = true;
                     for (Ability ability : entry.getValue()) {
-                        UUID defenderId = effect.mustAttackDefender(ability, game);
+                        Set<UUID> defenderIds = effect.mustAttackDefenders(ability, game);
+                        if (defenderIds != null && defenderIds.size() > 1) {
+                            // must attack one of several defenders (still in the game)
+                            for (UUID defenderId : defenderIds) {
+                                Player defendingPlayer = game.getPlayer(defenderId);
+                                if (defenders.contains(defenderId) && (defendingPlayer == null || !defendingPlayer.hasLost())) {
+                                    defendersForcedToAttack.add(defenderId);
+                                }
+                            }
+                            break;
+                        }
+                        UUID defenderId = defenderIds == null || defenderIds.isEmpty() ? null : defenderIds.iterator().next();
 
                         if (defenderId != null) {
                             // creature is not forced to attack players that are no longer in the game

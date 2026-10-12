@@ -1,6 +1,8 @@
 
 package mage.abilities.effects;
 
+import java.util.Collections;
+import java.util.Set;
 import java.util.UUID;
 
 import mage.abilities.Ability;
@@ -66,6 +68,18 @@ public abstract class RequirementEffect extends ContinuousEffectImpl {
      */
     public UUID mustAttackDefender(Ability source, Game game) {
         return null;
+    }
+
+    /**
+     * Defines the set of defenders of which the attacker has to attack one
+     * (e.g. "attacks an opponent with the most life among your opponents").
+     * Defaults to the single {@link #mustAttackDefender(Ability, Game)}.
+     *
+     * @return null if any defender may be attacked
+     */
+    public Set<UUID> mustAttackDefenders(Ability source, Game game) {
+        UUID defenderId = mustAttackDefender(source, game);
+        return defenderId == null ? null : Collections.singleton(defenderId);
     }
 
     public UUID mustBlockAttacker(Ability source, Game game) {

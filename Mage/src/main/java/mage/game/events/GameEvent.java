@@ -94,6 +94,12 @@ public class GameEvent implements Serializable {
         DISCARD_CARD,
         DISCARDED_CARD,
         DISCARDED_CARDS,
+        /* CONNIVED (after a permanent connived)
+         targetId    the id of the permanent that connived (LKI if it left the battlefield)
+         playerId    the id of its controller
+         amount      the connive amount
+         */
+        CONNIVED,
         CYCLE_CARD, CYCLED_CARD, CYCLE_DRAW,
         /* CLASHED (one event fired for each player involved)
          playerId    the id of the clashing player
