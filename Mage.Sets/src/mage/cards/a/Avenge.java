@@ -34,7 +34,7 @@ public final class Avenge extends CardImpl {
 
         // This spell costs {2} less to cast if a player attacked you during their last turn.
         this.addAbility(new SimpleStaticAbility(
-                Zone.ALL, new SpellCostReductionSourceEffect(2, AvengeCondition.instance).setCanWorksOnStackOnly(true)
+                Zone.ALL, new SpellCostReductionSourceEffect(2, AvengeCondition.instance)
         ).setRuleAtTheTop(true), new AvengeWatcher());
 
         // Destroy all creatures. You gain 1 life for each creature destroyed this way.

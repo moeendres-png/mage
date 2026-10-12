@@ -29,7 +29,7 @@ import java.util.UUID;
 public final class HeroicReturn extends CardImpl {
 
     private static final Condition condition = new PermanentsOnTheBattlefieldCondition(
-            new FilterCreatureAttackingYou("a creature is attacking you")
+            new FilterCreatureAttackingYou("a creature is attacking you"), false
     );
 
     public HeroicReturn(UUID ownerId, CardSetInfo setInfo) {
@@ -37,7 +37,7 @@ public final class HeroicReturn extends CardImpl {
 
         // This spell costs {2} less to cast if a creature is attacking you.
         this.addAbility(new SimpleStaticAbility(
-                Zone.ALL, new SpellCostReductionSourceEffect(2, condition).setCanWorksOnStackOnly(true)
+                Zone.ALL, new SpellCostReductionSourceEffect(2, condition)
         ).setRuleAtTheTop(true));
 
         // Return target creature card from your graveyard to the battlefield. If a Hero enters this way, it enters with two additional +1/+1 counters on it.

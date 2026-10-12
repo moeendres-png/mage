@@ -12,11 +12,12 @@ public class PowerPackTest extends CardTestPlayerBase {
 
     @Test
     public void testFreeCastNextUpkeep() {
+        setStrictChooseMode(true);
         addCard(Zone.BATTLEFIELD, playerA, "Power Pack");
         addCard(Zone.GRAVEYARD, playerA, "Divination");
 
         attack(1, playerA, "Power Pack", playerB);
-        addTarget(playerA, "Divination");
+        // the target is chosen at random by the engine (single candidate here), no addTarget
         setChoice(playerA, true); // cast it next upkeep
 
         setStopAt(3, PhaseStep.PRECOMBAT_MAIN);

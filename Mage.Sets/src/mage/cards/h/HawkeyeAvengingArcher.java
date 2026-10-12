@@ -65,6 +65,7 @@ class HawkeyeAvengingArcherTriggeredAbility extends TriggeredAbilityImpl {
 
     HawkeyeAvengingArcherTriggeredAbility() {
         super(Zone.BATTLEFIELD, new DrawCardSourceControllerEffect(1), false);
+        setLeavesTheBattlefieldTrigger(true);
         setTriggerPhrase("Whenever a creature an opponent controls dies, if {this} dealt damage to it this turn, ");
     }
 

@@ -19,6 +19,7 @@ public class HERBIELovableRobotTest extends CardTestPlayerBase {
 
         // {1}, {T}: any color pays for the green spell
         castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Llanowar Elves");
+        setChoice(playerA, "Green"); // color for the {1}, {T} ability
 
         setStopAt(1, PhaseStep.BEGIN_COMBAT);
         execute();
@@ -42,5 +43,25 @@ public class HERBIELovableRobotTest extends CardTestPlayerBase {
         execute();
 
         assertGraveyardCount(playerA, "Hill Giant", 1);
+    }
+
+    @Test
+    public void testNoSurveilAfterOnlyCreatureSpell() {
+        setStrictChooseMode(true);
+        skipInitShuffling();
+        addCard(Zone.BATTLEFIELD, playerA, "H.E.R.B.I.E., Lovable Robot");
+        addCard(Zone.BATTLEFIELD, playerA, "Forest");
+        addCard(Zone.HAND, playerA, "Llanowar Elves");
+        addCard(Zone.LIBRARY, playerA, "Hill Giant");
+
+        // a creature spell does not satisfy "if you've cast a noncreature spell this turn":
+        // strict mode would fail on an unexpected surveil choice
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Llanowar Elves");
+
+        setStopAt(1, PhaseStep.DECLARE_ATTACKERS);
+        execute();
+
+        assertGraveyardCount(playerA, "Hill Giant", 0);
+        assertLibraryCount(playerA, "Hill Giant", 1);
     }
 }

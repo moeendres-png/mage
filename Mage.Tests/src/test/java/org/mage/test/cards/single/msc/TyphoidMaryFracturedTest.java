@@ -13,13 +13,14 @@ public class TyphoidMaryFracturedTest extends CardTestPlayerBase {
 
     @Test
     public void testChooseAfterDiscard() {
+        setStrictChooseMode(true);
         addCard(Zone.BATTLEFIELD, playerA, "Typhoid Mary, Fractured");
         addCard(Zone.BATTLEFIELD, playerA, "Mountain");
         addCard(Zone.HAND, playerA, "Faithless Looting");
 
         castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Faithless Looting");
         attack(1, playerA, "Typhoid Mary, Fractured", playerB);
-        setChoice(playerA, "Bloody Mary");
+        setChoice(playerA, "Bloody Mary — Each opponent loses 2 life and you gain 2 life.");
 
         setStopAt(1, PhaseStep.END_TURN);
         execute();

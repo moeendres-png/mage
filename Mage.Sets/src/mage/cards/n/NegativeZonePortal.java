@@ -60,8 +60,17 @@ enum NegativeZonePortalCondition implements Condition {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        ExileZone exile = game.getExile().getExileZone(CardUtil.getExileZoneId(game, source));
+        ExileZone exile = game.getExile().getExileZone(NegativeZonePortalCondition.exileZoneId(game, source));
         return exile != null && exile.count(StaticFilters.FILTER_CARD_CREATURE, game) >= 4;
+    }
+
+    /**
+     * The zone of cards exiled with this permanent. Uses the permanent's current zone change
+     * counter: the intervening-if check runs before the trigger is on the stack.
+     */
+    static UUID exileZoneId(Game game, Ability source) {
+        return CardUtil.getExileZoneId(game, source.getSourceId(),
+                game.getState().getZoneChangeCounter(source.getSourceId()));
     }
 
     @Override
@@ -128,7 +137,7 @@ class NegativeZonePortalFlipEffect extends OneShotEffect {
         if (controller.flipCoin(source, game, true)) {
             return true;
         }
-        ExileZone exile = game.getExile().getExileZone(CardUtil.getExileZoneId(game, source));
+        ExileZone exile = game.getExile().getExileZone(NegativeZonePortalCondition.exileZoneId(game, source));
         Permanent permanent = source.getSourcePermanentIfItStillExists(game);
         if (permanent != null) {
             permanent.sacrifice(source, game);
