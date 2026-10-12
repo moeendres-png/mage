@@ -741,5 +741,19 @@ public final class MarvelSuperHeroesCommander extends ExpansionSet {
         cards.add(new SetCardInfo("Zarda, the Power Princess", 615, Rarity.UNCOMMON, mage.cards.z.ZardaThePowerPrincess.class));
         cards.add(new SetCardInfo("Zuri, Warrior of Wakanda", 389, Rarity.RARE, mage.cards.z.ZuriWarriorOfWakanda.class, NON_FULL_USE_VARIOUS));
         cards.add(new SetCardInfo("Zuri, Warrior of Wakanda", 72, Rarity.RARE, mage.cards.z.ZuriWarriorOfWakanda.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("Avengers Quinjet", 102, Rarity.RARE, mage.cards.a.AvengersQuinjet.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("Avengers Quinjet", 426, Rarity.RARE, mage.cards.a.AvengersQuinjet.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("Batroc the Leaper", 49, Rarity.RARE, mage.cards.b.BatrocTheLeaper.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("Batroc the Leaper", 357, Rarity.RARE, mage.cards.b.BatrocTheLeaper.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("Black Bolt, Inhuman King", 394, Rarity.RARE, mage.cards.b.BlackBoltInhumanKing.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("Black Bolt, Inhuman King", 76, Rarity.RARE, mage.cards.b.BlackBoltInhumanKing.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("Council of Reeds", 28, Rarity.RARE, mage.cards.c.CouncilOfReeds.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("Council of Reeds", 327, Rarity.RARE, mage.cards.c.CouncilOfReeds.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("Damocles Base, Sword of Kang", 347, Rarity.RARE, mage.cards.d.DamoclesBaseSwordOfKang.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("Damocles Base, Sword of Kang", 42, Rarity.RARE, mage.cards.d.DamoclesBaseSwordOfKang.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("The Frightful Four", 349, Rarity.RARE, mage.cards.t.TheFrightfulFour.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("The Frightful Four", 44, Rarity.RARE, mage.cards.t.TheFrightfulFour.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("West Coast Expansion", 345, Rarity.RARE, mage.cards.w.WestCoastExpansion.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("West Coast Expansion", 40, Rarity.RARE, mage.cards.w.WestCoastExpansion.class, NON_FULL_USE_VARIOUS));
     }
 }
