@@ -44,10 +44,14 @@ from the pinned XMage in this fork, test each card, then repin the lab and requa
 1. Build + run tests (do NOT `mvn install`: it overwrites the ~/.m2 1.4.61 jars the bridge uses):
    `mvn -o -q -pl Mage,Mage.Sets,Mage.Tests test -Dmaven.test.skip=false -Dtest='org.mage.test.cards.single.msc.*Test' -Dsurefire.failIfNoSpecifiedTests=false`
 2. Fix failing cards/tests; report PARTIAL cards honestly (never count as PASS).
-3. Card smoke test against the new jar (card DB must be regenerated).
+3. Card smoke test against the new jar (card DB must be regenerated); harness + previous results in `commander-lab/smoke/`.
 4. Review of the engine hooks, then PR in moeendres-png/mage.
 5. Lab repin PR (pattern #522): XMAGE_COMMIT in external-engine-integration,
    xmage-full-game-conformance, xmage-real-4p-smoke, meta-qualification workflows +
    config/rules_engines.json; then requalify (PB-03 on main -> seal.py ->
    assemble_freeze_record -> current_qualification). Bundle with the other thread's
    efficiency PR (getManaAvailable) if it has merged.
+
+## Related work already merged in the lab (no action needed)
+- #757 (issue #755): bridge advances hybrid / colorless-hybrid costs from the pool.
+- #758 (issue #756): bridge handles mana abilities that need their own source tapped.
