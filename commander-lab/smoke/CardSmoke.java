@@ -55,12 +55,32 @@ public final class CardSmoke {
         return info == null ? card : info.getName();
     }
 
+    /** Spells P1 casts first, so a card that needs a spell on the stack has one to answer. */
+    static final java.util.Map<String, String> BAIT = java.util.Map.of(
+            "stack-creature", "Grizzly Bears",
+            "stack-noncreature", "Divination");
+    static final String[] VARIANTS = {"stack-creature", "stack-noncreature", "combat"};
+
     static void smoke(String card, String tag, JsonObject row) {
-        smoke(card, tag, row, Zone.HAND);
+        smoke(card, tag, row, Zone.HAND, "plain");
+        for (String variant : VARIANTS) {
+            if (!"NOT_OFFERED".equals(row.has("status") ? row.get("status").getAsString() : "")) break;
+            JsonObject retry = new JsonObject();
+            try {
+                smoke(card, tag + "-" + variant, retry, Zone.HAND, variant);
+            } catch (Throwable e) {
+                retry.addProperty("status", "HARNESS_ERROR");
+                retry.addProperty("detail", String.valueOf(e).replace('\n', ' '));
+            }
+            if (!"NOT_OFFERED".equals(retry.has("status") ? retry.get("status").getAsString() : "")) {
+                for (String key : retry.keySet()) row.add(key, retry.get(key));
+                row.addProperty("variant", variant);
+            }
+        }
         if ("BATTLEFIELD".equals(row.has("zone") ? row.get("zone").getAsString() : "")) {
             JsonObject placed = new JsonObject();
             try {
-                smoke(card, tag + "-bf", placed, Zone.BATTLEFIELD);
+                smoke(card, tag + "-bf", placed, Zone.BATTLEFIELD, "plain");
             } catch (Throwable e) {
                 placed.addProperty("status", "HARNESS_ERROR");
                 placed.addProperty("detail", String.valueOf(e).replace('\n', ' '));
@@ -69,12 +89,12 @@ public final class CardSmoke {
         }
     }
 
-    static void smoke(String card, String tag, JsonObject row, Zone start) {
+    static void smoke(String card, String tag, JsonObject row, Zone start, String variant) {
         List<XmageNativeStateRestoration.RequestedObject> objects = new ArrayList<>();
         objects.add(XmageMultiplayerScenario.obj("P1", card, 0, start));
         int n = 0;
         for (String basic : BASICS) {
-            for (int k = 0; k < 4; k++) {
+            for (int k = 0; k < 6; k++) {
                 objects.add(XmageMultiplayerScenario.obj("P1", basic, n++, Zone.BATTLEFIELD));
             }
         }
@@ -84,12 +104,25 @@ public final class CardSmoke {
         objects.add(XmageMultiplayerScenario.obj("P2", "Ornithopter", 1, Zone.BATTLEFIELD));
         objects.add(XmageMultiplayerScenario.obj("P2", "Forest", 2, Zone.BATTLEFIELD));
         objects.add(XmageMultiplayerScenario.obj("P2", "Grizzly Bears", 3, Zone.GRAVEYARD));
+        // Targets for color-, type- and graveyard-restricted cards.
+        objects.add(XmageMultiplayerScenario.obj("P2", "Walking Corpse", 4, Zone.BATTLEFIELD));
+        objects.add(XmageMultiplayerScenario.obj("P2", "Raging Goblin", 5, Zone.BATTLEFIELD));
+        objects.add(XmageMultiplayerScenario.obj("P2", "Savannah Lions", 6, Zone.BATTLEFIELD));
+        objects.add(XmageMultiplayerScenario.obj("P2", "Watchwolf", 7, Zone.BATTLEFIELD));
+        objects.add(XmageMultiplayerScenario.obj("P2", "Mind Stone", 8, Zone.BATTLEFIELD));
+        objects.add(XmageMultiplayerScenario.obj("P2", "Glorious Anthem", 9, Zone.BATTLEFIELD));
+        objects.add(XmageMultiplayerScenario.obj("P1", "Ornithopter", 102, Zone.GRAVEYARD));
+        objects.add(XmageMultiplayerScenario.obj("P1", "Lightning Bolt", 103, Zone.GRAVEYARD));
+        objects.add(XmageMultiplayerScenario.obj("P1", "Mind Stone", 104, Zone.BATTLEFIELD));
+        if (BAIT.containsKey(variant)) {
+            objects.add(XmageMultiplayerScenario.obj("P1", BAIT.get(variant), 105, Zone.HAND));
+        }
         XmageMultiplayerScenario s = XmageMultiplayerScenario.start(tag, 2, "P1", objects);
         try {
             if (start == Zone.BATTLEFIELD) {
                 activations(card, s, row);
                 row.addProperty("status", "PLACED");
-            } else {
+            } else if (prepare(variant, s, row)) {
                 run(card, s, row);
             }
         } finally {
@@ -107,7 +140,7 @@ public final class CardSmoke {
             if (!"priority".equals(s.decisionClass()) || !"P1".equals(s.actor())) {
                 // let the opponent pass back
                 if (pending.get("decision") == null || pending.get("decision").isJsonNull()) break;
-                s.session.submitAction(FullGameTestPilot.choose(s.session.legalActionsPayload()));
+                s.session.submitAction(choose(s.session.legalActionsPayload()));
                 continue;
             }
             JsonObject legal = s.session.legalActionsPayload();
@@ -141,7 +174,7 @@ public final class CardSmoke {
                 if (game.getStack().isEmpty() && "priority".equals(s.decisionClass()) && "P1".equals(s.actor())) break;
                 if (p.get("decision") == null || p.get("decision").isJsonNull()) { outcome = "NO_DECISION"; break; }
                 JsonObject l2 = s.session.legalActionsPayload();
-                JsonObject ch = FullGameTestPilot.choose(l2);
+                JsonObject ch = choose(l2);
                 if (System.getenv("SMOKE_DEBUG") != null) {
                     String picked = "";
                     for (JsonElement e : l2.getAsJsonArray("actions")) if (e.getAsJsonObject().get("action_id").getAsString().equals(ch.get("legal_action_id").getAsString())) picked = FullGameTestPilot.label(e.getAsJsonObject());
@@ -221,11 +254,107 @@ public final class CardSmoke {
                 }
                 System.out.println(sb);
             }
-            s.session.submitAction(FullGameTestPilot.choose(l));
+            s.session.submitAction(choose(l));
         }
         Zone zone = game.getState().getZone(cardId);
         row.addProperty("status", zone == Zone.HAND ? "NOT_CAST" : "STUCK");
         row.addProperty("zone", String.valueOf(zone));
         row.addProperty("decisions", String.join(",", classes.subList(Math.max(0, classes.size() - 20), classes.size())));
+    }
+
+    /**
+     * FullGameTestPilot.choose plus what it leaves out: a multi-select decision gets its minimum
+     * number of options (smallest semantic keys of the same option type), and a target_amount
+     * decision assigns everything that remains to the chosen target.
+     */
+    static JsonObject choose(JsonObject legal) {
+        JsonObject proposal = FullGameTestPilot.choose(legal);
+        JsonObject choices = proposal.getAsJsonObject("choices");
+        List<JsonObject> actions = new ArrayList<>();
+        legal.getAsJsonArray("actions").forEach(e -> actions.add(e.getAsJsonObject()));
+        actions.sort(java.util.Comparator.comparing(FullGameTestPilot::key));
+        String chosenId = proposal.get("legal_action_id").getAsString();
+        JsonObject chosen = actions.stream()
+                .filter(a -> chosenId.equals(a.get("action_id").getAsString())).findFirst().orElse(null);
+        if (chosen == null) return proposal;
+        JsonObject md = chosen.getAsJsonObject("metadata");
+        int min = md.has("minimum_selections") ? md.get("minimum_selections").getAsInt() : 1;
+        if (min > 1 && !choices.has("selected_option_ids")) {
+            com.google.gson.JsonArray ids = new com.google.gson.JsonArray();
+            ids.add(optionId(chosen));
+            for (JsonObject a : actions) {
+                if (ids.size() >= min) break;
+                if (a == chosen || !FullGameTestPilot.type(a).equals(FullGameTestPilot.type(chosen))) continue;
+                ids.add(optionId(a));
+            }
+            choices.add("selected_option_ids", ids);
+        }
+        JsonObject context = legal.getAsJsonObject("decision").getAsJsonObject("context");
+        if ("target_amount".equals(legal.get("decision_class").getAsString())
+                && context.has("numeric_max") && !choices.has("numeric_choice")
+                && !choices.has("numeric_choices")) {
+            choices.addProperty("numeric_choice", context.get("numeric_max").getAsInt());
+        }
+        return proposal;
+    }
+
+    static String optionId(JsonObject action) {
+        String id = action.get("action_id").getAsString();
+        return id.substring(id.indexOf(':') + 1);
+    }
+
+    /**
+     * Bring the position to where the card can be cast: with a bait spell of P1 on the stack, or
+     * with P1's Grizzly Bears attacking. Returns false (and records why) when it cannot.
+     */
+    static boolean prepare(String variant, XmageMultiplayerScenario s, JsonObject row) {
+        if ("plain".equals(variant)) return true;
+        Game game = s.session.restorationGame();
+        if (BAIT.containsKey(variant)) {
+            JsonObject legal = s.session.legalActionsPayload();
+            List<JsonObject> offers = XmageExternalRiskSignalTest.spellOffers(legal, BAIT.get(variant));
+            if (offers.isEmpty()) { row.addProperty("status", "VARIANT_SETUP_FAILED"); return false; }
+            s.session.submitAction(FullGameTestPilot.proposal(legal, offers.get(0)));
+            for (int d = 0; d < 60; d++) {
+                if (!game.getStack().isEmpty() && "priority".equals(s.decisionClass()) && "P1".equals(s.actor())) {
+                    return true;
+                }
+                JsonObject pending = s.session.pendingDecisionPayload();
+                if (pending.get("decision") == null || pending.get("decision").isJsonNull()) break;
+                s.session.submitAction(choose(s.session.legalActionsPayload()));
+            }
+            row.addProperty("status", "VARIANT_SETUP_FAILED");
+            return false;
+        }
+        // combat: pass to declare attackers, attack P2 with P1's Grizzly Bears
+        for (int d = 0; d < 40; d++) {
+            if (!game.getCombat().getAttackers().isEmpty() && "priority".equals(s.decisionClass())
+                    && "P1".equals(s.actor())) {
+                return true;
+            }
+            JsonObject pending = s.session.pendingDecisionPayload();
+            if (pending.get("decision") == null || pending.get("decision").isJsonNull()) break;
+            JsonObject legal = s.session.legalActionsPayload();
+            String cls = legal.get("decision_class").getAsString();
+            JsonObject pick = null;
+            if ("declare_attacker".equals(cls)) {
+                for (JsonElement e : legal.getAsJsonArray("actions")) {
+                    if (FullGameTestPilot.label(e.getAsJsonObject()).contains("Grizzly Bears")) {
+                        pick = e.getAsJsonObject();
+                        break;
+                    }
+                }
+            } else if ("priority".equals(cls) && "P1".equals(s.actor())) {
+                for (JsonElement e : legal.getAsJsonArray("actions")) {
+                    if ("pass_priority".equals(FullGameTestPilot.type(e.getAsJsonObject()))) {
+                        pick = e.getAsJsonObject();
+                        break;
+                    }
+                }
+            }
+            s.session.submitAction(pick == null ? choose(legal) : FullGameTestPilot.proposal(legal, pick));
+        }
+        row.addProperty("status", "VARIANT_SETUP_FAILED");
+        return false;
     }
 }
