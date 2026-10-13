@@ -1,5 +1,6 @@
 package mage.cards.m;
 
+import mage.abilities.hint.common.MonarchHint;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.TriggeredAbilityImpl;
@@ -42,6 +43,7 @@ public final class MBakuJabariChieftain extends CardImpl {
         Ability ability = new BeginningOfEndStepTriggeredAbility(new BecomesMonarchTargetEffect())
                 .withInterveningIf(MonarchIsNotSetCondition.instance);
         ability.addTarget(new TargetOpponent());
+        ability.addHint(MonarchHint.instance);
         this.addAbility(ability);
 
         // Whenever a creature attacks one of your opponents, if that player is the monarch, that creature gets +1/+1 and gains trample until end of turn.

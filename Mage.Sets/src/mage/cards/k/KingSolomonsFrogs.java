@@ -1,5 +1,6 @@
 package mage.cards.k;
 
+import mage.abilities.hint.common.MonarchHint;
 import mage.abilities.Ability;
 import mage.abilities.common.EntersBattlefieldTriggeredAbility;
 import mage.abilities.common.SimpleActivatedAbility;
@@ -59,6 +60,7 @@ public final class KingSolomonsFrogs extends CardImpl {
         ability = new SimpleActivatedAbility(new BecomesMonarchSourceEffect(), new GenericManaCost(3));
         ability.addCost(new TapSourceCost());
         ability.addCost(new ExileSourceCost());
+        ability.addHint(MonarchHint.instance);
         this.addAbility(ability);
     }
 

@@ -1,5 +1,6 @@
 package mage.cards.t;
 
+import mage.abilities.hint.common.MonarchHint;
 import mage.abilities.Ability;
 import mage.abilities.TriggeredAbilityImpl;
 import mage.abilities.common.EntersBattlefieldTriggeredAbility;
@@ -48,7 +49,8 @@ public final class TheSpearOfBashenga extends CardImpl {
 
         // When The Spear of Bashenga enters, if there is no monarch, you become the monarch.
         this.addAbility(new EntersBattlefieldTriggeredAbility(new BecomesMonarchSourceEffect())
-                .withInterveningIf(MonarchIsNotSetCondition.instance));
+                .withInterveningIf(MonarchIsNotSetCondition.instance)
+                .addHint(MonarchHint.instance));
 
         // Equipped creature gets +2/+2 and has vigilance.
         Ability ability = new SimpleStaticAbility(new BoostEquippedEffect(2, 2));

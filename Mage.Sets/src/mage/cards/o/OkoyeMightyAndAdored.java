@@ -1,5 +1,6 @@
 package mage.cards.o;
 
+import mage.abilities.hint.common.MonarchHint;
 import mage.MageInt;
 import mage.MageObjectReference;
 import mage.abilities.Ability;
@@ -43,7 +44,7 @@ public final class OkoyeMightyAndAdored extends CardImpl {
         this.toughness = new MageInt(3);
 
         // When Okoye enters, you become the monarch.
-        this.addAbility(new EntersBattlefieldTriggeredAbility(new BecomesMonarchSourceEffect()));
+        this.addAbility(new EntersBattlefieldTriggeredAbility(new BecomesMonarchSourceEffect()).addHint(MonarchHint.instance));
 
         // At the beginning of combat on your turn, put a +1/+1 counter on target creature. Whenever that creature attacks the monarch this turn, it gains double strike and trample until end of turn.
         Ability ability = new BeginningOfCombatTriggeredAbility(new OkoyeMightyAndAdoredEffect());

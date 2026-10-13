@@ -1,5 +1,6 @@
 package mage.cards.h;
 
+import mage.abilities.hint.common.MonarchHint;
 import mage.abilities.Ability;
 import mage.abilities.common.SimpleActivatedAbility;
 import mage.abilities.common.SimpleStaticAbility;
@@ -41,6 +42,7 @@ public final class HeartShapedHerb extends CardImpl {
         Ability ability = new SimpleActivatedAbility(new HeartShapedHerbEffect(), new GenericManaCost(2));
         ability.addCost(new TapSourceCost());
         ability.addCost(new SacrificeSourceCost());
+        ability.addHint(MonarchHint.instance);
         this.addAbility(ability);
     }
 

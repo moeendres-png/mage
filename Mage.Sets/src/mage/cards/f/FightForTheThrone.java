@@ -1,5 +1,6 @@
 package mage.cards.f;
 
+import mage.abilities.hint.common.MonarchHint;
 import mage.MageObjectReference;
 import mage.abilities.Ability;
 import mage.abilities.DelayedTriggeredAbility;
@@ -39,6 +40,7 @@ public final class FightForTheThrone extends CardImpl {
                 .setText("Then it fights target creature an opponent controls"));
         this.getSpellAbility().addTarget(new TargetControlledCreaturePermanent());
         this.getSpellAbility().addTarget(new TargetOpponentsCreaturePermanent());
+        this.getSpellAbility().addHint(MonarchHint.instance);
     }
 
     private FightForTheThrone(final FightForTheThrone card) {
