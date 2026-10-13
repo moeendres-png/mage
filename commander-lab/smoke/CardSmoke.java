@@ -58,8 +58,9 @@ public final class CardSmoke {
     /** Spells P1 casts first, so a card that needs a spell on the stack has one to answer. */
     static final java.util.Map<String, String> BAIT = java.util.Map.of(
             "stack-creature", "Grizzly Bears",
-            "stack-noncreature", "Divination");
-    static final String[] VARIANTS = {"stack-creature", "stack-noncreature", "combat"};
+            "stack-noncreature", "Divination",
+            "stack-instant", "Shock");
+    static final String[] VARIANTS = {"stack-creature", "stack-noncreature", "stack-instant", "combat"};
 
     static void smoke(String card, String tag, JsonObject row) {
         smoke(card, tag, row, Zone.HAND, "plain");
@@ -114,6 +115,7 @@ public final class CardSmoke {
         objects.add(XmageMultiplayerScenario.obj("P1", "Ornithopter", 102, Zone.GRAVEYARD));
         objects.add(XmageMultiplayerScenario.obj("P1", "Lightning Bolt", 103, Zone.GRAVEYARD));
         objects.add(XmageMultiplayerScenario.obj("P1", "Mind Stone", 104, Zone.BATTLEFIELD));
+        objects.add(XmageMultiplayerScenario.obj("P1", "Isamaru, Hound of Konda", 106, Zone.BATTLEFIELD));
         if (BAIT.containsKey(variant)) {
             objects.add(XmageMultiplayerScenario.obj("P1", BAIT.get(variant), 105, Zone.HAND));
         }
@@ -200,22 +202,52 @@ public final class CardSmoke {
         if (cardId == null) { row.addProperty("status", "NOT_IN_HAND"); return; }
         JsonObject legal = s.session.legalActionsPayload();
         JsonObject offer = null;
-        List<JsonObject> offers = XmageExternalRiskSignalTest.spellOffers(legal, card);
+        List<JsonObject> offers = new ArrayList<>(XmageExternalRiskSignalTest.spellOffers(legal, card));
+        if (offers.isEmpty() && card.contains(" // ")) {
+            // split and adventure-style cards are offered per half
+            for (String half : card.split(" // ")) {
+                offers.addAll(XmageExternalRiskSignalTest.spellOffers(legal, half));
+            }
+        }
         if (!offers.isEmpty()) {
             offers.sort(java.util.Comparator.comparing(FullGameTestPilot::key));
+            // the scenario's commander may share the name (Rograkh): cast the copy from hand
+            offers.sort(java.util.Comparator.comparing((JsonObject a) -> {
+                JsonObject m = a.getAsJsonObject("metadata").getAsJsonObject("xmage_option_metadata");
+                return m != null && m.has("source_object_id")
+                        && p1.getHand().contains(UUID.fromString(m.get("source_object_id").getAsString())) ? 0 : 1;
+            }));
             offer = offers.get(0);
             row.addProperty("offers", offers.size());
+            // track the copy the offer casts, not another copy of the same card in hand
+            JsonObject md = offer.getAsJsonObject("metadata").getAsJsonObject("xmage_option_metadata");
+            if (md != null && md.has("source_object_id")) {
+                UUID offered = UUID.fromString(md.get("source_object_id").getAsString());
+                if (p1.getHand().contains(offered)) {
+                    cardId = offered;
+                }
+            }
         } else {
             for (JsonElement e : legal.getAsJsonArray("actions")) {
                 JsonObject a = e.getAsJsonObject();
                 if (FullGameTestPilot.label(a).contains("Play " + card)) offer = a;
             }
-            if (offer == null) { row.addProperty("status", "NOT_OFFERED"); return; }
+            if (offer == null) {
+                if (System.getenv("SMOKE_DEBUG") != null) {
+                    for (JsonElement e : legal.getAsJsonArray("actions")) {
+                        System.out.println("DBGO " + FullGameTestPilot.label(e.getAsJsonObject()) + " :: "
+                                + e.getAsJsonObject().getAsJsonObject("metadata").get("xmage_option_metadata"));
+                    }
+                }
+                row.addProperty("status", "NOT_OFFERED");
+                return;
+            }
             row.addProperty("land", true);
         }
         s.session.submitAction(FullGameTestPilot.proposal(legal, offer));
         List<String> classes = new ArrayList<>();
         boolean left = false;
+        boolean wasOnStack = false;
         for (int d = 0; d < 200; d++) {
             JsonObject pending = s.session.pendingDecisionPayload();
             if (pending.has("failure") && !pending.get("failure").isJsonNull()) {
@@ -225,10 +257,14 @@ public final class CardSmoke {
                 return;
             }
             Zone zone = game.getState().getZone(cardId);
+            if (zone == Zone.STACK) {
+                wasOnStack = true;
+            }
             if (zone != Zone.HAND && zone != Zone.STACK) {
                 left = true;
             }
-            if (game.getStack().isEmpty() && left) {
+            // a spell that returns itself to its owner's hand (Cerebral Eruption) also resolved
+            if (game.getStack().isEmpty() && (left || (wasOnStack && zone == Zone.HAND))) {
                 row.addProperty("status", "RESOLVED");
                 row.addProperty("zone", String.valueOf(zone));
                 row.addProperty("decisions", String.join(",", classes));
@@ -339,7 +375,7 @@ public final class CardSmoke {
             JsonObject pick = null;
             if ("declare_attacker".equals(cls)) {
                 for (JsonElement e : legal.getAsJsonArray("actions")) {
-                    if (FullGameTestPilot.label(e.getAsJsonObject()).contains("Grizzly Bears")) {
+                    if (FullGameTestPilot.label(e.getAsJsonObject()).startsWith("Grizzly Bears attacks")) {
                         pick = e.getAsJsonObject();
                         break;
                     }
@@ -352,7 +388,17 @@ public final class CardSmoke {
                     }
                 }
             }
-            s.session.submitAction(pick == null ? choose(legal) : FullGameTestPilot.proposal(legal, pick));
+            JsonObject submit = pick == null ? choose(legal) : FullGameTestPilot.proposal(legal, pick);
+            if (System.getenv("SMOKE_DEBUG") != null) {
+                String picked = "";
+                for (JsonElement e : legal.getAsJsonArray("actions")) {
+                    if (e.getAsJsonObject().get("action_id").getAsString().equals(submit.get("legal_action_id").getAsString())) {
+                        picked = FullGameTestPilot.label(e.getAsJsonObject());
+                    }
+                }
+                System.out.println("DBGC " + cls + " " + s.actor() + " " + game.getTurnStepType() + " -> " + picked);
+            }
+            s.session.submitAction(submit);
         }
         row.addProperty("status", "VARIANT_SETUP_FAILED");
         return false;

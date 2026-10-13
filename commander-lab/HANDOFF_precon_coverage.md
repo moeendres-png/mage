@@ -89,3 +89,27 @@ from the pinned XMage in this fork, test each card, then repin the lab and requa
 - "Cornus Enforcer (unklar, Cornus-Eintreiberin)" in the inventory matches no real card; Owner to
   confirm the name.
 - Harness limits above are not card defects but are also not PASS evidence for those cards.
+
+## Update 2026-10-13 (later): every open smoke card resolved or covered by a test
+
+The 89 cards that did not resolve in the 2026-10-13 smoke (precon, collection, extra) were rerun
+with the extended harness against jars built from this branch and a regenerated card DB
+(`smoke/2026-10-13/rerun_open_cards.jsonl`): 85 RESOLVED.
+
+The earlier failures were harness gaps, not engine gaps:
+- multi-select and damage division: the pilot answered with one option and no number;
+- counterspells and combat tricks: there was no spell on the stack and no attacking creature,
+  now retried with a bait spell (creature, sorcery, instant) and with an attack;
+- split cards: they are offered per half;
+- Rograkh: the scenario commander shares the name, so the harness cast the commander;
+- Cerebral Eruption: it returns itself to hand when it reveals a land;
+- prepare cards and Durnan: the card DB was stale.
+
+The 4 cards the smoke position cannot set up are covered by Mage.Tests instead:
+- Consuming Aberration: the restoration places it before game start, a harness limit. Covered by
+  `gtc/ConsumingAberrationTest`.
+- Cut the Earthly Bond: needs an enchanted permanent. Covered by `bok/CutTheEarthlyBondTest`.
+- Feast of Blood: needs two Vampires. Covered by `zen/FeastOfBloodTest`.
+- Runic Repetition: needs an exiled flashback card. Covered upstream by `FlashbackTest`.
+
+Open: the Owner's inventory line "Cornus Enforcer (unklar, Cornus-Eintreiberin)" matches no card.
