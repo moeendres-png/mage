@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * @author North
@@ -51,9 +52,14 @@ public final class CardScanner {
         ExpansionRepository.instance.saveSets(setsToAdd, setsToUpdate, ExpansionRepository.instance.getContentVersionConstant());
 
         // check cards (only add mode, without updates)
+        // one query for all stored cards instead of one per set card (falls back to per-card queries)
+        Set<String> storedCards = CardRepository.instance.findAllSetCodeAndCardNumberKeys();
         for (ExpansionSet set : Sets.getInstance().values()) {
             for (ExpansionSet.SetCardInfo setInfo : set.getSetCardInfo()) {
-                if (CardRepository.instance.findCard(set.getCode(), setInfo.getCardNumber(), false) == null) {
+                boolean stored = storedCards != null
+                        ? storedCards.contains(CardRepository.setCodeAndCardNumberKey(set.getCode(), setInfo.getCardNumber()))
+                        : CardRepository.instance.findCard(set.getCode(), setInfo.getCardNumber(), false) != null;
+                if (!stored) {
                     // found new card
                     Card card = CardImpl.createCard(
                             setInfo.getCardClass(),

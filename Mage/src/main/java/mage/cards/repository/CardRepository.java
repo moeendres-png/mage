@@ -755,6 +755,32 @@ public enum CardRepository {
     /**
      * Exec any SQL query and return result table as string values
      */
+    /**
+     * Keys (see {@link #setCodeAndCardNumberKey}) of every stored card, day and night sides,
+     * read in one query. Lets the card scanner test which set cards are already stored
+     * without one database query per set card. Null if the database can't be read.
+     */
+    public Set<String> findAllSetCodeAndCardNumberKeys() {
+        try {
+            QueryBuilder<CardInfo, Object> queryBuilder = cardsDao.queryBuilder();
+            queryBuilder.selectColumns("setCode", "cardNumber");
+            Set<String> keys = new HashSet<>();
+            try (GenericRawResults<String[]> rows = cardsDao.queryRaw(queryBuilder.prepareStatementString())) {
+                for (String[] row : rows) {
+                    keys.add(setCodeAndCardNumberKey(row[0], row[1]));
+                }
+            }
+            return keys;
+        } catch (Exception e) {
+            Logger.getLogger(CardRepository.class).error("Error reading card keys from DB: " + e, e);
+            return null;
+        }
+    }
+
+    public static String setCodeAndCardNumberKey(String setCode, String cardNumber) {
+        return setCode + '\u0000' + cardNumber;
+    }
+
     public List<List<String>> querySQL(String sql) {
         try {
             GenericRawResults<String[]> query = cardsDao.queryRaw(sql);
