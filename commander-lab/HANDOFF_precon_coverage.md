@@ -55,3 +55,37 @@ from the pinned XMage in this fork, test each card, then repin the lab and requa
 ## Related work already merged in the lab (no action needed)
 - #757 (issue #755): bridge advances hybrid / colorless-hybrid costs from the pool.
 - #758 (issue #756): bridge handles mana abilities that need their own source tapped.
+
+## Update 2026-10-13 (second session)
+
+### Done
+- All 32 original MSC tests green after four card fixes found by them: Hawkeye (dies trigger
+  registration), Avenge and Heroic Return (cost reduction applied/ignored wrongly), Negative Zone
+  Portal (exile-zone id in the intervening-if). Tests made strict, negative controls added.
+- New tests: Glorious Purpose 6th plan counter, Silver Surfer and Galactus in 4-player games
+  (Galactus tie test fails when the multi-defender branch is disabled), all 11 ported cards,
+  Iron Monger.
+- Independent read-only reviews: engine hooks PASS (CONNIVED, mustAttackDefenders, MageIdentifier).
+  Findings fixed: Kang Dynasty read only the first per-opponent target (now EachTargetPointer, 4P
+  test); Combat.checkAttackRequirements returned from the whole method when one creature's
+  required defender had left the game (MustAttackLeftPlayerTest fails on the old code).
+- Missed before: the Wakanda Forever precon (opponent deck in the pod scenarios) had 12 cards not
+  in XMage. All 12 written and tested (oracle text: oracle_wakanda12.md).
+- Card smoke over every card named in the Lab inventory/opponent lists found five more missing
+  cards: the six SOC prepare cards were disabled ("unfinished"; enabled as upstream, Yavimaya
+  Bloomsage corrected to power 7) and Durnan of the Yawning Portal (new).
+- Lab: bridge fix for card-name choices (Sorcerous Spyglass OOM, quadratic projection), Lab #762.
+
+### Smoke 2026-10-13 (new jars, Lab bridge with #757/#758; results in smoke/2026-10-13/)
+- precon: 533/539 RESOLVED (was 480). Remaining 6 are harness limits (multi-select, counterspell
+  without a stack target).
+- collection: 1189/1254 (was 1176; the 13 hybrid-mana STUCK are fixed by #757). Remaining are
+  harness limits (damage division ABORT, multi-select, needs-a-stack NOT_OFFERED).
+- extra.txt (401 names in Lab data never smoked before): 383 RESOLVED; the five UNKNOWN_CARD_NAME
+  are fixed in this branch; Sorcerous Spyglass fixed by Lab #762; rest harness limits.
+- No card regressed against the previous run.
+
+### Open
+- "Cornus Enforcer (unklar, Cornus-Eintreiberin)" in the inventory matches no real card; Owner to
+  confirm the name.
+- Harness limits above are not card defects but are also not PASS evidence for those cards.
