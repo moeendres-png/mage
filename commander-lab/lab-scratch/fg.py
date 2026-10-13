@@ -1,0 +1,3636 @@
+from __future__ import annotations
+
+import contextlib
+import hashlib
+import json
+import logging
+import os
+import queue
+import random
+import re
+import shlex
+import subprocess
+import threading
+import uuid
+from collections.abc import Callable
+from dataclasses import dataclass
+from functools import wraps
+from pathlib import Path
+from typing import Any, Literal, NamedTuple, cast
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from commander_lab.agents import BasePilot, build_pilot
+from commander_lab.candidates.models import FutureXmageScenario
+from commander_lab.engine.rules.base import resolve_engine_working_directory
+from commander_lab.engine.rules.failure_privacy import (
+    PUBLIC_FAILURE_CODES,
+    public_full_game_exception_message,
+    public_full_game_message,
+    redacted_exception,
+    redacted_exception_message,
+    redacted_summary,
+)
+from commander_lab.models import (
+    ENGINE_PROTOCOL_VERSION,
+    CardRole,
+    EngineProtocolResponse,
+    PilotActionView,
+    PilotCommanderView,
+    PilotConfig,
+    PilotOpponentView,
+    PilotStateView,
+    RulesDeckInput,
+)
+from commander_lab.semantic_replay.canonicalization import canonical_hash
+from commander_lab.semantic_replay.tape_helpers import selected_fingerprints_for_response
+
+FULL_GAME_DECISION_PROTOCOL_VERSION = "xmage-external-decision-protocol-1.0.0"
+FULL_GAME_LANE = "xmage_full_game_external_pilots"
+FULL_GAME_EVIDENCE_CLASS: Literal["technical_conformance_only"] = "technical_conformance_only"
+XMAGE_FULL_GAME_COMMAND_ENV = "COMMANDER_LAB_XMAGE_FULL_GAME_BRIDGE_CMD"
+
+# Bridge-process shutdown dispositions observed by close(). Only
+# graceful_shutdown may back a clean-shutdown evidence claim; every other
+# outcome must fail closed where such a claim matters.
+FULL_GAME_SHUTDOWN_GRACEFUL: Literal["graceful_shutdown"] = "graceful_shutdown"
+FULL_GAME_SHUTDOWN_UNACKED_EXIT = "unacked_exit"
+FULL_GAME_SHUTDOWN_FORCED_KILL = "forced_kill"
+FULL_GAME_SHUTDOWN_ALREADY_EXITED = "already_exited"
+
+# WS229 forced-move audit channel. Forced moves (no pilot discretion) are
+# auto-submitted only with a structured log record; discretionary actions
+# are never hidden from the pilot.
+_LOG = logging.getLogger(__name__)
+
+# Boolean outcomes whose "No" answer the pilot treats as aligned. The engine's
+# Outcome on a may-prompt is a polarity hint about the choice itself:
+# DETRIMENT means accepting hurts the controller. AIDontUseIt is deliberately
+# NOT one of them. In XMage that outcome is a label for the engine's own AI
+# declining a prompt whose acceptance cannot be judged safely (the repeatable
+# multikicker offer, whose affordability check covers one payment only); it is
+# not a statement about a player's preference. Reading it as "decline" made
+# this Lab refuse every single kicker, buyback, dredge, replicate and squad
+# prompt, which is an engine-AI label deciding for a player (F-RULES-03). Its
+# loop is bounded instead by the multikicker-chain guard in _decide_boolean.
+DECLINE_ALIGNED_BOOLEAN_OUTCOMES = frozenset({"detriment", "detriment_to_controller"})
+
+# Liveness bound for the one may-offer the engine actually repeats.
+# ``KickerAbility.addOptionalAdditionalCosts`` phrases it as
+# ``"Pay " + (activatedCount + 1) + (" time "|" times ") + cost + " ?"``, so
+# "Pay N times" names the ORDINAL of the offer being made -- not a declared
+# total -- and N grows by exactly one each time the engine re-offers inside a
+# single cast. That ordinal is the only thing that distinguishes the repeating
+# offer from an ordinary "Pay {1}?" may-trigger (Mentor of the Meek asks that
+# once per creature entering), so the guard in _decide_boolean counts only
+# while one ability re-offers with N = previous N + 1, and never caps a prompt
+# it cannot parse.
+_BOOLEAN_MULTIKICKER_RE = re.compile(r"\bpay\s+(\d+)\s+times?\b", re.IGNORECASE)
+
+# Bridge cost-fact keys (enrichAbilityCostFacts) rendered back into the mana
+# symbol text mana_payment_fit already parses. This translates the engine's own
+# numbers; it never invents a cost, and an absent fact renders as nothing.
+_MANA_COST_COLORS: tuple[tuple[str, str], ...] = (
+    ("mana_cost_white", "W"),
+    ("mana_cost_blue", "U"),
+    ("mana_cost_black", "B"),
+    ("mana_cost_red", "R"),
+    ("mana_cost_green", "G"),
+    ("mana_cost_colorless", "C"),
+)
+
+
+def _cost_amount(metadata: dict[str, Any], key: str) -> float | None:
+    """One engine cost fact, or None when the bridge did not report it."""
+    value = metadata.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _mana_cost_text(metadata: dict[str, Any]) -> str:
+    """Render the bridge's mana-cost facts as the symbols the engine printed.
+
+    Used only to order the pilot's mana sources against an action's cost
+    (``mana_payment_fit``); the engine remains the authority on what a payment
+    actually costs and on whether it can be made at all.
+    """
+    parts: list[str] = []
+    for key, letter in _MANA_COST_COLORS:
+        amount = _cost_amount(metadata, key)
+        if amount is not None and amount > 0:
+            parts.extend([f"{{{letter}}}"] * int(amount))
+    generic = _cost_amount(metadata, "mana_cost_generic")
+    if generic is not None and generic > 0:
+        parts.append(f"{{{int(generic)}}}")
+    return "".join(parts)
+
+
+_MANA_SYMBOL = re.compile(r"\{([^}]*)\}")
+_COLOR_LETTERS = frozenset("wubrgc")
+
+# The bridge's ``enrichAbilityCostFacts`` mana breakdown, as the engine
+# publishes it on every ability option. Summing them is the cost's non-X mana
+# value: XMage builds an ``X`` symbol as a ``VariableManaCost`` whose own
+# ``cost`` Mana is empty, so the announced value never appears in any of
+# these numbers. The bridge publishes no X count on any frame, so the count
+# is read from the engine's own prompt instead (#700).
+_PRIORITY_MANACOST_KEYS: tuple[str, ...] = (
+    "mana_cost_white",
+    "mana_cost_blue",
+    "mana_cost_black",
+    "mana_cost_red",
+    "mana_cost_green",
+    "mana_cost_generic",
+    "mana_cost_colorless",
+)
+
+# ``Player.announceX`` serves two engine call sites, and only one of them is a
+# mana cost. ``AbilityImpl.handleManaXCosts`` prompts "Announce the value for "
+# + ``VariableManaCost.getText()``, which prints every X symbol of the cost as
+# its own mana symbol and nothing else: "{X}", or "{X}{X}" for ``{X}{X}`` (it
+# never folds two symbols into "2{X}"). ``VariableCostImpl.announce`` with
+# ``isManaPay == false`` prompts "Announce the value for {X} (" + actionText
+# + ")" for a non-mana X, so its prompt carries a "{X}" as well but keeps
+# going afterwards. A mana budget is only a statement about a mana X, so the
+# engine's own printed prompt is the discriminator, and it is matched WHOLE:
+# only a prompt that is exactly the prefix followed by one or more "{X}" and
+# nothing else is a mana X. Matching it whole is also what makes the same
+# prompt the X count. Engine text, never a Lab-invented one.
+_MANA_X_PROMPT = re.compile(r"\AAnnounce the value for (?P<symbols>(?:\{X\})+)\Z", re.IGNORECASE)
+_X_SYMBOL_TOKEN = re.compile(r"\{X\}", re.IGNORECASE)
+
+
+def mana_x_prompt_symbols(prompt: str) -> int | None:
+    """How many X symbols the engine's own mana-X prompt prints, else None.
+
+    None means the prompt is not that exact mana shape: a non-mana X, which the
+    engine words further after its "{X}", or anything else the engine says.
+    Only the whole-prompt match counts, so the returned number is the X count
+    of the announced cost (CR 601.2b, 107.3a) and never a guess about a prompt
+    that merely mentions the symbol.
+    """
+    match = _MANA_X_PROMPT.match((prompt or "").strip())
+    if match is None:
+        return None
+    return len(_X_SYMBOL_TOKEN.findall(match.group("symbols")))
+
+
+def mana_payment_fit(label: str, unpaid_mana: str) -> int:
+    """Order mana abilities inside a payment by what their mana can pay.
+
+    2: the ability makes mana of a color the unpaid cost names, or any color;
+    1: it can only pay a generic part; 0: the unpaid cost has no generic part
+    and none of its colors. This reads the engine's own ability text
+    ("{T}: Add {U}.") and the unpaid cost the engine reports. It only orders
+    the pilot's options and never removes one: an unreadable label ranks 1,
+    and the engine still applies (or refuses) whatever mana is produced.
+    Without it the pilot broke the tie by label order, tapping a Plains-side
+    {W} for a {U/R} cost and stranding the payment.
+    """
+    text = label.casefold()
+    produced_text = text.partition(": add ")[2]
+    if not produced_text:
+        return 1
+    if "any color" in produced_text or "any type" in produced_text:
+        return 2
+    produced = {
+        letter
+        for symbol in _MANA_SYMBOL.findall(produced_text)
+        for letter in symbol
+        if letter in _COLOR_LETTERS
+    }
+    if not produced:
+        return 1
+    needed: set[str] = set()
+    generic = False
+    for symbol in _MANA_SYMBOL.findall(unpaid_mana.casefold()):
+        letters = {part for part in symbol.split("/") if part in _COLOR_LETTERS}
+        needed |= letters
+        if not letters or any(part.isdigit() or part == "x" for part in symbol.split("/")):
+            generic = True
+    if produced & needed:
+        return 2
+    return 1 if generic else 0
+
+
+class _MultikickerOffer(NamedTuple):
+    """One "Pay N times" offer, as the pinned engine phrased it.
+
+    ``ordinal`` is ``activatedCount + 1`` in
+    ``KickerAbility.addOptionalAdditionalCosts``: the number of the offer
+    being made, which advances by one per payment. ``per_payment`` is the
+    mana value of the cost the prompt prints ("{2}"), or None when the prompt
+    prints no mana symbol the pilot could divide by.
+    """
+
+    ordinal: int
+    per_payment: int | None
+
+
+def _prompt_mana_value(prompt: str) -> int | None:
+    """Mana value of the symbols a prompt prints, or None if it prints none.
+
+    "{2}" is two and a colored symbol is one (CR 106.4c). A prompt that
+    prints no symbol states no per-payment cost, so it returns None rather
+    than inventing one.
+    """
+    total = 0
+    for symbol in _MANA_SYMBOL.findall(prompt or ""):
+        text = symbol.strip()
+        if not text:
+            continue
+        try:
+            total += max(1, int(text))
+        except ValueError:
+            total += 1
+    return total or None
+
+
+def _multikicker_offer(prompt: str) -> _MultikickerOffer | None:
+    """The engine's repeatable multikicker offer, or None for any other prompt.
+
+    Anything the engine phrases without a "Pay N times" ordinal -- a plain
+    kicker, buyback, dredge, replicate, squad or "Pay {1}?" may-trigger -- is
+    a single discretionary question and returns None, so no liveness guard can
+    ever cap it.
+    """
+    match = _BOOLEAN_MULTIKICKER_RE.search(prompt or "")
+    if match is None:
+        return None
+    try:
+        ordinal = int(match.group(1))
+    except ValueError:  # pragma: no cover - the regex admits only digits
+        return None
+    if ordinal < 1:
+        return None
+    return _MultikickerOffer(ordinal=ordinal, per_payment=_prompt_mana_value(prompt))
+
+
+class FullGameProtocolError(RuntimeError):
+    """Fail-closed full-game bridge or external-pilot protocol error.
+
+    ``str(exc)`` is the public message and is safe to persist: Lab-authored
+    text plus, for transport failures, a stable ``code``. Raw bridge output
+    (protocol lines, engine error text, stderr) lives only in
+    ``diagnostics`` in memory and never reaches the message (C4).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str | None = None,
+        diagnostics: tuple[str, ...] = (),
+    ) -> None:
+        public = public_full_game_message(message, code=code)
+        super().__init__(public)
+        self.__suppress_context__ = True
+        self.public_message = public
+        self.code = (
+            code
+            if code is None or (type(code) is str and code in PUBLIC_FAILURE_CODES)
+            else "ENGINE_FAILURE"
+        )
+        self.diagnostics = diagnostics
+
+
+class FullGameConformanceError(RuntimeError):
+    """A run violated a full-game conformance invariant.
+
+    Every message is Lab-authored; engine-supplied text is reduced with
+    ``redacted_summary`` before it is interpolated (C4).
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(public_full_game_message(message))
+        self.__suppress_context__ = True
+
+    @property
+    def public_message(self) -> str:
+        return str(self)
+
+
+def _option_non_x_mana_value(metadata: dict[str, Any]) -> int | None:
+    """A priority option's engine-reported cost as a non-X mana value.
+
+    ``non_x`` is the sum of the bridge's ``mana_cost_*`` breakdown. XMage holds
+    an ``{X}`` symbol as a ``VariableManaCost`` whose own ``cost`` Mana is
+    empty and whose value is only fixed once the player announces it, so the
+    announced X is absent from every one of those numbers and the sum is the
+    rest of the cost alone (CR 601.2b, 107.3a). ``mana_cost_generic`` counts
+    generic symbols only, never the colored ones alongside them.
+
+    No X count comes with it: the bridge publishes none on any frame, and the
+    cost's own count is in the engine's prompt, so the caller reads it there.
+
+    ``None`` means the bridge reported no breakdown, or one the Lab cannot
+    read as a non-negative integer: an unknown cost is never turned into a
+    number.
+    """
+    non_x = 0
+    for key in _PRIORITY_MANACOST_KEYS:
+        raw = metadata.get(key)
+        if isinstance(raw, bool) or not isinstance(raw, int) or raw < 0:
+            return None
+        non_x += raw
+    return non_x
+
+
+def offers_mana_ability(rule_text: str) -> bool:
+    """Whether a public permanent's own ability text reads as a mana ability.
+
+    Same public text convention ``mana_payment_fit`` already orders by: the
+    engine prints a mana ability as "``{T}: Add {W}.``", so the produced part
+    after ": add " names what it adds. This is a pilot-side affordability
+    reading over the actor's own board, never a legality verdict: the Rules
+    Core still decides whether any payment succeeds.
+
+    It is deliberately conservative. Text that does not literally read "add"
+    followed by a color/type letter in braces ("Add {W}", "Add {C}{C}",
+    "Add {G/W}") is not recognised, so an unrecognised mana source lowers the
+    pilot's own budget estimate and it announces a smaller value rather than
+    one it may not be able to pay.
+    """
+    produced = str(rule_text).casefold().partition(": add ")[2]
+    if not produced:
+        return False
+    if "any color" in produced or "any type" in produced:
+        return True
+    return any(
+        part in _COLOR_LETTERS
+        for symbol in _MANA_SYMBOL.findall(produced)
+        for part in symbol.split("/")
+    )
+
+
+def public_full_game_errors[**P, T](operation: Callable[P, T]) -> Callable[P, T]:
+    """Keep engine parsing and pilot errors behind the shared public boundary."""
+
+    @wraps(operation)
+    def guarded(*args: P.args, **kwargs: P.kwargs) -> T:
+        try:
+            return operation(*args, **kwargs)
+        except Exception as exc:
+            if type(exc) is FullGameProtocolError:
+                # Even an exact public exception can carry a dict subclass or
+                # hostile keys. Never invoke its lookup/iteration/equality hooks.
+                metadata = {
+                    key: value for key, value in dict.items(exc.__dict__) if type(key) is str
+                }
+                raw_code = metadata.get("code")
+                code = raw_code if type(raw_code) is str or raw_code is None else "ENGINE_FAILURE"
+                # A pilot can attach private notes even to the exact public class.
+                # Rebuild the exception; never copy notes or traceback metadata.
+                raise FullGameProtocolError(
+                    public_full_game_exception_message(exc, code=code),
+                    code=code,
+                    diagnostics=metadata.get("diagnostics", ()),
+                ) from None
+            if issubclass(type(exc), FullGameConformanceError):
+                raise FullGameConformanceError(public_full_game_exception_message(exc)) from None
+            if issubclass(type(exc), FullGameProtocolError):
+                raise FullGameProtocolError(redacted_exception_message(exc)) from None
+            raise redacted_exception(exc) from None
+
+    return guarded
+
+
+class _StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class FullGamePilotBinding(_StrictModel):
+    seat: int = Field(ge=1, le=6)
+    deck_id: str = Field(min_length=1)
+    strategy: str = Field(min_length=1)
+    commander_names: tuple[str, ...]
+    config: PilotConfig
+    pilot_identity: str = Field(min_length=1)
+    pilot_version: str = Field(min_length=1)
+    decision_policy_version: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def identity_matches_config(self) -> FullGamePilotBinding:
+        requested = self.config.pilot_name.casefold().strip()
+        if requested != "auto" and requested != self.pilot_identity.casefold().strip():
+            raise ValueError("pilot_identity must match explicit PilotConfig.pilot_name")
+        if not self.commander_names:
+            raise ValueError("commander_names must not be empty")
+        return self
+
+
+ClaimEvidenceStatus = Literal[
+    "OBSERVED",
+    "CODE_DERIVED",
+    "DECLARED_NOT_OBSERVED",
+    "NOT_CLAIMED",
+]
+
+
+class FullGameClaimBasis(_StrictModel):
+    """What each boolean claim of a full-game result actually rests on (C3).
+
+    The boolean fields of :class:`FullGameConformanceResult` are fixed by the
+    lane's design, not measured per game. This record keeps the declaration
+    and the observation apart so no consumer reads a design constant as
+    runtime evidence:
+
+    * ``OBSERVED``: measured in this run (decision count, terminal state,
+      graceful shutdown);
+    * ``CODE_DERIVED``: enforced by fail-closed code on every path of this
+      run (rules/decision authority, no discretionary fallback), not
+      separately measured;
+    * ``DECLARED_NOT_OBSERVED``: the lane's contract, with no runtime probe in
+      this run (per-actor hidden-information channels);
+    * ``NOT_CLAIMED``: explicitly not claimed (bit-exact replay).
+    """
+
+    decision_count: Literal["OBSERVED"] = "OBSERVED"
+    terminal: Literal["OBSERVED"] = "OBSERVED"
+    shutdown_disposition: Literal["OBSERVED"] = "OBSERVED"
+    xmage_rules_authority: Literal["CODE_DERIVED"] = "CODE_DERIVED"
+    commander_lab_pilot_decision_authority: Literal["CODE_DERIVED"] = "CODE_DERIVED"
+    fallback_used: Literal["CODE_DERIVED"] = "CODE_DERIVED"
+    # OBSERVED only when the run audited at least one decision frame (C2).
+    hidden_information_actor_scoped: Literal["OBSERVED", "DECLARED_NOT_OBSERVED"] = (
+        "DECLARED_NOT_OBSERVED"
+    )
+    bit_exact_replay_validated: Literal["NOT_CLAIMED"] = "NOT_CLAIMED"
+
+
+class FullGameHiddenInformationAudit(_StrictModel):
+    """Per-frame runtime audit of the actor-scoped observation (C2).
+
+    Every decision frame the engine publishes carries the actor's principal-
+    scoped state. The audit checks that exactly one row is the actor's, that
+    it is the frame's actor, and that no other player's private rows (hand,
+    mana pool) appear unless the engine itself marked that row visible to this
+    principal (control, CR 723.4). A frame that breaks this ends the run fail
+    closed; the counts below describe a run that passed every frame.
+    """
+
+    frames_audited: int = Field(default=0, ge=0)
+    non_actor_rows_audited: int = Field(default=0, ge=0)
+    non_actor_rows_engine_visible: int = Field(default=0, ge=0)
+
+
+_PRIVATE_ROW_KEYS = ("hand", "mana_pool")
+
+
+def audit_actor_scoped_frame(decision: dict[str, Any]) -> tuple[int, int, list[str]]:
+    """Audit one decision frame; returns (non_actor_rows, engine_visible_rows, violations).
+
+    Violations name seats and keys only, never card identities.
+    """
+    state = decision.get("pilot_state")
+    if not isinstance(state, dict) or not isinstance(state.get("players"), list):
+        return 0, 0, ["frame carries no principal-scoped player state"]
+    players = [p for p in state["players"] if isinstance(p, dict)]
+    actor_rows = [p for p in players if p.get("is_actor") is True]
+    violations: list[str] = []
+    if len(actor_rows) != 1:
+        violations.append(f"frame marks {len(actor_rows)} actor rows, expected 1")
+    elif actor_rows[0].get("player_id") != decision.get("actor_id"):
+        violations.append("the actor row is not the frame's actor")
+    rows = 0
+    visible = 0
+    for player in players:
+        if player.get("is_actor") is True:
+            continue
+        rows += 1
+        if player.get("private_state_visible") is True:
+            visible += 1
+            continue
+        for key in _PRIVATE_ROW_KEYS:
+            if key in player:
+                seat = player.get("seat")
+                public_seat = seat if type(seat) is int and 0 <= seat <= 5 else "invalid"
+                violations.append(f"seat {public_seat} exposes {key} to another principal")
+    return rows, visible, violations
+
+
+class FullGameConformanceResult(_StrictModel):
+    schema_version: Literal["xmage-full-game-conformance-result-1.2.0"] = (
+        "xmage-full-game-conformance-result-1.2.0"
+    )
+    scenario: FutureXmageScenario
+    engine_version: str
+    xmage_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
+    decision_protocol_version: str
+    decision_count: int = Field(ge=0)
+    terminal: bool
+    winner_seats: tuple[int, ...]
+    result_payload: dict[str, Any]
+    semantic_transcript_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    raw_result_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    # Observed, never defaulted: a game-over result exists only when the bridge
+    # process was shut down gracefully (acked request, exit without kill).
+    shutdown_disposition: Literal["graceful_shutdown"]
+    evidence_class: Literal["technical_conformance_only"] = FULL_GAME_EVIDENCE_CLASS
+    consumed_gameplay_evidence: Literal[False] = False
+    holdout_consumed: Literal[False] = False
+    official_campaign_eligible: Literal[False] = False
+    structural_decision_authority: Literal[False] = False
+    tactical_decision_authority: Literal[False] = False
+    xmage_rules_authority: Literal[True] = True
+    commander_lab_pilot_decision_authority: Literal[True] = True
+    hidden_information_actor_scoped: Literal[True] = True
+    fallback_used: Literal[False] = False
+    bit_exact_replay_validated: Literal[False] = False
+    claim_basis: FullGameClaimBasis = Field(default_factory=FullGameClaimBasis)
+    hidden_information_audit: FullGameHiddenInformationAudit = Field(
+        default_factory=FullGameHiddenInformationAudit
+    )
+
+
+# B8 (#489): (decision_class, seat, turn_number, phase, response_digest,
+# active_seat). active_seat is the turn's active player, resolved inside the
+# decider's own view (active_player_id -> players[].seat).
+ProgressEntry = tuple[str, int | None, int | None, str | None, str, int | None]
+
+
+def _active_seat(pilot_state: Any) -> int | None:
+    """The active player's seat in one actor-scoped view, or None if unresolvable."""
+    if not isinstance(pilot_state, dict):
+        return None
+    active = pilot_state.get("active_player_id")
+    seats = [
+        player.get("seat")
+        for player in pilot_state.get("players") or ()
+        if isinstance(player, dict) and active is not None and player.get("player_id") == active
+    ]
+    return seats[0] if len(seats) == 1 and type(seats[0]) is int else None
+
+
+class FullGameSmokeResult(_StrictModel):
+    """Bounded cardinality smoke outcome (WS223).
+
+    Proves live production startup and authoritative decision progression up
+    to a calibrated decision target (or earlier terminal) with clean bounded
+    shutdown. This is a lifecycle smoke, not a game-over conformance claim:
+    terminal/outcome-shape evidence stays with :class:`FullGameConformanceResult`
+    (live 4P gate) and the per-count unit outcome guards.
+    """
+
+    schema_version: Literal["xmage-full-game-smoke-result-1.1.0"] = (
+        "xmage-full-game-smoke-result-1.1.0"
+    )
+    scenario_id: str
+    player_count: int = Field(ge=2, le=6)
+    seed: int = Field(ge=0)
+    engine_version: str
+    xmage_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
+    decision_protocol_version: str
+    decision_count: int = Field(ge=1)
+    smoke_decision_target: int = Field(ge=1)
+    bounded_criterion_met: Literal[True]
+    terminal_reached: bool
+    seed_preserved: Literal[True]
+    player_count_preserved: Literal[True]
+    observed_decision_classes: tuple[str, ...]
+    # B8 (#489): the public progress trace of the answered decisions, one
+    # (decision_class, seat, turn_number, phase, response_digest) entry each.
+    # Version 1.1 binds semantic selections using the existing replay fingerprints.
+    # Recorded on every smoke; only --progress-turns evaluates it.
+    progress_trace: tuple[ProgressEntry, ...] = ()
+    stop_reason: Literal["turn_boundary", "decision_limit", "terminal"] = "decision_limit"
+    stop_turn_number: int | None = None
+    progress_digest: str | None = None
+    unsupported_callback_seen: Literal[False] = False
+    clean_shutdown: Literal[True] = True
+    evidence_class: Literal["technical_conformance_only"] = FULL_GAME_EVIDENCE_CLASS
+    consumed_gameplay_evidence: Literal[False] = False
+    holdout_consumed: Literal[False] = False
+    official_campaign_eligible: Literal[False] = False
+    fallback_used: Literal[False] = False
+
+
+def smoke_progress_contract(
+    trace: tuple[ProgressEntry, ...],
+    *,
+    player_count: int,
+    through_turn: int,
+) -> dict[str, Any]:
+    """Technical progress through a full seat cycle, with attributable responses.
+
+    The caller separately requires the observed next-turn boundary. This trace
+    requires priority in every completed turn and from every seated player; it
+    never claims card behaviour or terminal full-game qualification.
+    """
+    turns = sorted({row[2] for row in trace if type(row[2]) is int})
+    priority = [(row[1], row[2]) for row in trace if row[0] == "priority"]
+    priority_turns = sorted({turn for _seat, turn in priority if type(turn) is int})
+    priority_seats = sorted({seat for seat, _turn in priority if type(seat) is int})
+    violations = []
+    if type(player_count) is not int or not 2 <= player_count <= 6:
+        violations.append("invalid player count")
+    if type(through_turn) is not int or through_turn < player_count:
+        violations.append("progress target must cover a full seat cycle")
+    if not turns or turns[-1] < through_turn:
+        violations.append(f"game did not reach turn {through_turn} (turns {turns})")
+    if any(turn not in priority_turns for turn in range(1, through_turn + 1)):
+        violations.append(f"priority missing from a required turn ({priority_turns})")
+    if priority_seats != list(range(player_count)):
+        violations.append(f"not every seat answered priority (seats {priority_seats})")
+    if any(row[1] is None for row in trace):
+        violations.append("a decision carried no seat")
+    if any(type(row[1]) is not int or not 0 <= row[1] < player_count for row in trace):
+        violations.append("a decision carried an invalid seat")
+    if any(row[0] == "priority" and (type(row[2]) is not int or row[2] < 1) for row in trace):
+        violations.append("a priority decision carried an invalid turn")
+    if any(
+        not isinstance(row[4], str) or re.fullmatch(r"[0-9a-f]{64}", row[4]) is None
+        for row in trace
+    ):
+        violations.append("a decision carried no valid response digest")
+    # Each completed turn has exactly one active player, and the completed turns
+    # of a full cycle are taken by every seat: priority in every turn and from
+    # every seat alone would accept one player taking turns 2..N. Priority only
+    # exists inside a turn, so every priority decision must resolve the active
+    # seat; pre-game choices (mulligans, commander placement) have no active
+    # player yet, but any active seat they do carry must agree.
+    active_by_turn: dict[int, list[int]] = {}
+    unresolved_turns: set[int] = set()
+    for row in trace:
+        if type(row[2]) is int and 1 <= row[2] <= through_turn:
+            active = row[5] if len(row) > 5 else None
+            if active is None and row[0] != "priority":
+                continue
+            if type(active) is not int or not 0 <= active < player_count:
+                unresolved_turns.add(row[2])
+            elif active not in active_by_turn.setdefault(row[2], []):
+                active_by_turn[row[2]].append(active)
+    if unresolved_turns:
+        violations.append(
+            f"decisions with no valid active seat in turns {sorted(unresolved_turns)}"
+        )
+    active_seats_by_turn = {str(turn): seats for turn, seats in sorted(active_by_turn.items())}
+    if any(len(seats) != 1 for seats in active_by_turn.values()):
+        violations.append(f"a turn had more than one active seat ({active_seats_by_turn})")
+    completed = {seats[0] for seats in active_by_turn.values() if len(seats) == 1}
+    if type(player_count) is int and completed != set(range(player_count)):
+        violations.append(
+            f"the completed turns were not taken by every seat ({active_seats_by_turn})"
+        )
+    return {
+        "schema_version": "xmage-smoke-progress-contract-1.2.0",
+        "active_seats_by_turn": active_seats_by_turn,
+        "through_turn": through_turn,
+        "turns_observed": turns,
+        "priority_turns": priority_turns,
+        "priority_seats": priority_seats,
+        "decisions": len(trace),
+        "violations": violations,
+        "met": not violations,
+    }
+
+
+class FullGameSemanticTapeEvidence(_StrictModel):
+    """C1: replay evidence from the semantic replay tape system (WS218).
+
+    Two tapes are recorded in fresh processes and compared step by step
+    (`compare_tapes`), and the first tape is consumed by a third fresh process
+    (`replay_tape`), which re-derives every legal set, selection, event digest and
+    the terminal outcome from the live engine.
+    """
+
+    basis: Literal["semantic_replay_tape"] = "semantic_replay_tape"
+    tape_schema_version: str
+    first_tape_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    second_tape_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    recorded_steps: int = Field(ge=1)
+    tape_comparison_match: bool
+    compared_steps: int = Field(ge=0)
+    first_divergence_kind: str | None = None
+    fresh_process_replay_pass: bool
+    replay_steps_verified: int = Field(ge=0)
+    replay_divergence_class: str | None = None
+    # The consumer's own message for the divergence. One class can come from
+    # several emit sites (EARLY_TERMINATION has five), so the class alone cannot
+    # say which check failed.
+    replay_divergence_detail: str | None = None
+
+    @property
+    def passed(self) -> bool:
+        return self.tape_comparison_match and self.fresh_process_replay_pass
+
+    @model_validator(mode="after")
+    def _divergence_consistent(self) -> FullGameSemanticTapeEvidence:
+        if self.tape_comparison_match != (self.first_divergence_kind is None):
+            raise ValueError("tape comparison match and first divergence disagree")
+        if self.fresh_process_replay_pass != (self.replay_divergence_class is None):
+            raise ValueError("fresh-process replay verdict and divergence class disagree")
+        if self.replay_divergence_detail is not None and self.replay_divergence_class is None:
+            raise ValueError("a replay divergence detail needs a divergence class")
+        if self.fresh_process_replay_pass and self.replay_steps_verified != self.recorded_steps:
+            raise ValueError("a passing replay must verify every recorded step")
+        return self
+
+
+class FullGameReplayGate(_StrictModel):
+    schema_version: Literal["xmage-full-game-replay-gate-1.1.0"] = (
+        "xmage-full-game-replay-gate-1.1.0"
+    )
+    scenario_id: str
+    seed: int = Field(ge=0)
+    # C1: decided by the semantic replay tape, never by the twin transcript hash.
+    semantic_replay_match: bool
+    semantic_tape: FullGameSemanticTapeEvidence
+    # Diagnostic only: two same-seed runs of the conformance runner hash their
+    # reduced semantic transcripts; a mismatch is reported, not the verdict.
+    twin_transcript_hash_match: bool
+    raw_result_match: bool
+    first_semantic_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    second_semantic_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    first_raw_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    second_raw_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    bit_exact_replay_validated: Literal[False] = False
+    evidence_class: Literal["technical_conformance_only"] = FULL_GAME_EVIDENCE_CLASS
+    consumed_gameplay_evidence: Literal[False] = False
+    holdout_consumed: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _verdict_is_the_tape(self) -> FullGameReplayGate:
+        if self.semantic_replay_match != self.semantic_tape.passed:
+            raise ValueError("semantic_replay_match must be the semantic tape verdict")
+        return self
+
+
+@dataclass(frozen=True, slots=True)
+class _RuntimePilot:
+    binding: FullGamePilotBinding
+    pilot: BasePilot
+
+
+class _RawFullGameClient:
+    """One-process client for the dedicated XMage full-game lane."""
+
+    def __init__(
+        self,
+        command: tuple[str, ...],
+        *,
+        cwd: str | Path | None = None,
+        request_timeout_seconds: float = 120.0,
+    ) -> None:
+        if not command:
+            raise ValueError("full-game bridge command must not be empty")
+        if "full-game" not in command:
+            raise ValueError(
+                "full-game bridge command must explicitly include the full-game subcommand"
+            )
+        self.command = command
+        self.cwd = resolve_engine_working_directory(cwd)
+        self.request_timeout_seconds = request_timeout_seconds
+        self._process: subprocess.Popen[str] | None = None
+        self._stdout_queue: queue.Queue[str | None] = queue.Queue()
+        self._stderr_lines: list[str] = []
+        self._stdout_thread: threading.Thread | None = None
+        self._stderr_thread: threading.Thread | None = None
+        self.shutdown_disposition: str | None = None
+
+    @property
+    def stderr_tail(self) -> tuple[str, ...]:
+        return tuple(self._stderr_lines[-80:])
+
+    def _transport_error(self, code: str, message: str) -> FullGameProtocolError:
+        """A transport failure whose stderr stays in memory only (C4)."""
+        tail = self.stderr_tail
+        return FullGameProtocolError(
+            f"{message}: " + redacted_summary(code, tail),
+            code=code,
+            diagnostics=tail,
+        )
+
+    def start(self) -> None:
+        if self._process is not None:
+            if self._process.poll() is None:
+                return
+            raise FullGameProtocolError(
+                f"full-game bridge already exited with code {self._process.returncode}",
+                code="BRIDGE_EXITED",
+            )
+        try:
+            self._process = subprocess.Popen(
+                self.command,
+                cwd=self.cwd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+        except OSError as exc:
+            raise FullGameProtocolError(
+                redacted_summary("BRIDGE_START_FAILED", (str(exc),)),
+                code="BRIDGE_START_FAILED",
+                diagnostics=(str(exc),),
+            ) from None
+        assert self._process.stdout is not None
+        assert self._process.stderr is not None
+        self._stdout_thread = threading.Thread(
+            target=self._pump_stdout,
+            args=(self._process.stdout,),
+            daemon=True,
+        )
+        self._stderr_thread = threading.Thread(
+            target=self._pump_stderr,
+            args=(self._process.stderr,),
+            daemon=True,
+        )
+        self._stdout_thread.start()
+        self._stderr_thread.start()
+
+    @public_full_game_errors
+    def request(self, message_type: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        self.start()
+        process = self._process
+        assert process is not None
+        if process.poll() is not None or process.stdin is None:
+            raise self._transport_error("BRIDGE_NOT_WRITABLE", "full-game bridge is not writable")
+        request_id = str(uuid.uuid4())
+        body = payload or {}
+        request = {
+            "protocol_version": ENGINE_PROTOCOL_VERSION,
+            "request_id": request_id,
+            "engine": "xmage",
+            "message_type": message_type,
+            "method": message_type,
+            "payload": body,
+            "params": body,
+        }
+        process.stdin.write(json.dumps(request, sort_keys=True) + "\n")
+        process.stdin.flush()
+        try:
+            line = self._stdout_queue.get(timeout=self.request_timeout_seconds)
+        except queue.Empty:
+            raise self._transport_error(
+                "BRIDGE_TIMEOUT", f"full-game bridge timeout for {message_type!r}"
+            ) from None
+        if line is None:
+            raise self._transport_error(
+                "BRIDGE_CLOSED", f"full-game bridge closed before replying to {message_type!r}"
+            )
+        try:
+            response = EngineProtocolResponse.from_wire(json.loads(line))
+        except Exception:
+            raise FullGameProtocolError(
+                f"invalid full-game bridge response for {message_type!r}: "
+                + redacted_summary("INVALID_RESPONSE", (line,)),
+                code="INVALID_RESPONSE",
+                diagnostics=(line,),
+            ) from None
+        if response.protocol_version != ENGINE_PROTOCOL_VERSION:
+            raise FullGameProtocolError(
+                f"protocol mismatch: expected {ENGINE_PROTOCOL_VERSION}, "
+                f"received {response.protocol_version}",
+                code="PROTOCOL_MISMATCH",
+            )
+        if response.request_id != request_id:
+            raise FullGameProtocolError(
+                "full-game bridge response request_id mismatch", code="REQUEST_ID_MISMATCH"
+            )
+        if not response.success:
+            error = response.errors[0] if response.errors else None
+            raw = () if error is None else (error.code, error.message)
+            raise FullGameProtocolError(
+                f"{message_type} failed: " + redacted_summary("BRIDGE_ERROR", raw),
+                code="BRIDGE_ERROR",
+                diagnostics=raw,
+            )
+        return response.payload
+
+    def close(self) -> str:
+        """Shut the bridge process down, returning the observed disposition.
+
+        Same request/wait/kill sequence as always (no parallel lifecycle);
+        the outcome is now returned instead of swallowed so evidence can
+        distinguish graceful shutdown from kill/timeout/failed-shutdown:
+
+        - ``graceful_shutdown``: shutdown request acked, process exited
+          without kill;
+        - ``unacked_exit``: shutdown request failed but the process exited
+          on its own without kill;
+        - ``forced_kill``: the process had to be killed;
+        - ``already_exited``: no live process at entry (or none started).
+
+        Never raises for teardown itself: failures are encoded in the
+        returned disposition and callers fail closed where a shutdown
+        claim matters.
+        """
+        process = self._process
+        if process is None:
+            return FULL_GAME_SHUTDOWN_ALREADY_EXITED
+        try:
+            if process.poll() is not None:
+                return FULL_GAME_SHUTDOWN_ALREADY_EXITED
+            shutdown_acked = True
+            try:
+                self.request("shutdown_engine")
+            except Exception:
+                shutdown_acked = False
+            if process.poll() is None:
+                with contextlib.suppress(subprocess.TimeoutExpired):
+                    process.wait(timeout=5)
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=5)
+                return FULL_GAME_SHUTDOWN_FORCED_KILL
+            if shutdown_acked:
+                return FULL_GAME_SHUTDOWN_GRACEFUL
+            return FULL_GAME_SHUTDOWN_UNACKED_EXIT
+        finally:
+            for stream in (process.stdin, process.stdout, process.stderr):
+                if stream is not None and not stream.closed:
+                    with contextlib.suppress(OSError):
+                        stream.close()
+            for thread in (self._stdout_thread, self._stderr_thread):
+                if thread is not None:
+                    thread.join(timeout=2)
+            self._process = None
+
+    def _pump_stdout(self, stream: Any) -> None:
+        try:
+            for line in iter(stream.readline, ""):
+                self._stdout_queue.put(line)
+        finally:
+            self._stdout_queue.put(None)
+
+    def _pump_stderr(self, stream: Any) -> None:
+        for line in iter(stream.readline, ""):
+            self._stderr_lines.append(line.rstrip("\n"))
+
+    def __enter__(self) -> _RawFullGameClient:
+        self.start()
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        self.shutdown_disposition = self.close()
+
+
+class ExternalPilotDecisionPolicy:
+    """Decision-complete adapter from XMage typed choices to Commander Lab pilots.
+
+    This is the primary policy, not a fallback. Every supported decision class
+    has an explicit deterministic/stochastic rule. Unknown classes fail closed.
+    """
+
+    _SUPPORTED_CLASSES = frozenset(
+        {
+            "priority",
+            "target",
+            "choose_object",
+            "target_amount",
+            "mulligan",
+            "choose_use",
+            "choice",
+            "pile",
+            "mana_payment",
+            "announce_x",
+            "amount",
+            "multi_amount",
+            "replacement_effect",
+            "trigger_order",
+            "mode",
+            "declare_attacker",
+            "declare_blocker",
+        }
+    )
+
+    def __init__(self, runtime_pilots: tuple[_RuntimePilot, ...], scenario_seed: int) -> None:
+        if len(runtime_pilots) < 2 or len(runtime_pilots) > 6:
+            raise ValueError("full-game policy requires two to six pilot bindings")
+        seats = {item.binding.seat for item in runtime_pilots}
+        if seats != set(range(1, len(runtime_pilots) + 1)):
+            raise ValueError("full-game pilot bindings must cover seats 1..N exactly")
+        self._pilots = {item.binding.seat: item for item in runtime_pilots}
+        self._player_count = len(runtime_pilots)
+        self.scenario_seed = scenario_seed
+        self._mulligan_count: dict[int, int] = {
+            seat: 0 for seat in range(1, len(runtime_pilots) + 1)
+        }
+        # No-progress guard memory for mana payments (per seat): last
+        # decision fingerprint plus consecutive-repeat count. A mana
+        # payment whose full offer (unpaid requirement, options, pool
+        # amounts) repeats identically means no selection advanced it;
+        # the guard then takes the engine-offered cancel (graceful abort).
+        self._mana_last_fingerprint: dict[
+            int, tuple[int, str, tuple[tuple[str, str, str], ...]]
+        ] = {}
+        self._mana_repeat_count: dict[int, int] = {}
+        # No-progress guard memory for priority windows (per seat): free
+        # repeatable actions (Equip {0}, untap loops) can re-offer
+        # identically forever with zero game-state progress. An identical
+        # priority window (turn/phase/step/stack/pool/offer) repeating
+        # consecutively means no selection advanced the game; the guard
+        # then passes priority (always legal) so phases advance.
+        self._priority_last_fingerprint: dict[
+            int,
+            tuple[
+                int,
+                object,
+                object,
+                object,
+                tuple[str, ...],
+                tuple[tuple[str, str], ...],
+                tuple[tuple[str, str], ...],
+            ],
+        ] = {}
+        self._priority_repeat_count: dict[int, int] = {}
+        # Liveness guard memory for the repeating multikicker offer (per seat):
+        # (source key, outcome, ordinal of the offer last answered, consecutive
+        # Yes answers paid for it). A prompt with no "Pay N times" ordinal is
+        # never capped and clears this memory, so an ordinary may-trigger
+        # cannot inherit a chain it never took part in.
+        self._boolean_repeat: dict[int, tuple[tuple[str, str], int, int]] = {}
+        # Latch: once tripped, the seat keeps passing while the window
+        # stays identical (a single forced pass would just resume the
+        # loop). Any window change unlatches and resumes normal choice.
+        self._priority_latched: dict[
+            int,
+            tuple[
+                int,
+                object,
+                object,
+                object,
+                tuple[str, ...],
+                tuple[tuple[str, str], ...],
+                tuple[tuple[str, str], ...],
+            ],
+        ] = {}
+        # #700: what the seat's last priority selection cost, as that option's
+        # non-X mana value, keyed by the option's engine ``source_object_id``.
+        # The ``announce_x`` frame the engine raises for the cast or activation
+        # that follows carries no cost at all, so this is where that cost
+        # survives the hop. It is consumed by the announce it was kept for.
+        self._priority_cost_facts: dict[int, dict[str, int]] = {}
+
+    @public_full_game_errors
+    def decide(self, request: dict[str, Any]) -> dict[str, Any]:
+        decision_id = self._required_text(request, "decision_id")
+        actor_id = self._required_text(request, "actor_id")
+        decision_class = self._required_text(request, "decision_class")
+        if decision_class not in self._SUPPORTED_CLASSES:
+            raise FullGameProtocolError(
+                f"unsupported discretionary decision class: {decision_class}"
+            )
+        pilot_state = self._required_object(request, "pilot_state")
+        seat = int(pilot_state.get("seat", -1)) + 1
+        runtime = self._pilots.get(seat)
+        if runtime is None:
+            raise FullGameProtocolError(f"decision actor has unmapped seat: {seat}")
+        options = self._legal_options(request)
+        context = dict(request.get("context") or {})
+        min_selections = int(request.get("minimum_selections", request.get("min_selections", 0)))
+        max_selections = int(request.get("maximum_selections", request.get("max_selections", 0)))
+        decision_offset = int(request.get("decision_offset", -1))
+        if decision_offset < 1:
+            raise FullGameProtocolError("decision_offset must be a positive integer")
+        rng = self._rng(decision_offset, decision_class, seat)
+
+        selected: list[str] = []
+        numeric_choice: int | None = None
+        numeric_choices: list[int] | None = None
+        prompt = str(request.get("prompt", ""))
+
+        if decision_class == "mulligan":
+            selected = [self._decide_mulligan(runtime, pilot_state, options, rng)]
+        elif decision_class in {"announce_x", "amount"}:
+            numeric_choice = self._decide_numeric(
+                runtime,
+                pilot_state,
+                context,
+                rng,
+                decision_class=decision_class,
+                prompt=prompt,
+                source_object=request.get("source_object"),
+            )
+        elif decision_class == "multi_amount":
+            numeric_choices = self._decide_multi_amount(
+                runtime, pilot_state, context, rng, prompt=prompt
+            )
+        elif decision_class == "mana_payment":
+            selected = [self._decide_mana(runtime, pilot_state, options, context, rng)]
+        elif decision_class == "choose_use":
+            selected = [
+                self._decide_boolean(
+                    runtime,
+                    pilot_state,
+                    options,
+                    context,
+                    rng,
+                    prompt=prompt,
+                    source_object=request.get("source_object"),
+                )
+            ]
+        elif decision_class == "pile":
+            selected = [self._decide_pile(runtime, pilot_state, options, context, rng)]
+        elif decision_class in {"choice", "replacement_effect", "trigger_order"}:
+            selected = [self._decide_semantic_option(runtime, pilot_state, options, rng)]
+        elif decision_class == "mode":
+            selected = [self._decide_mode(runtime, pilot_state, options, rng)]
+        elif decision_class == "priority":
+            # #700: this seat's remembered cost describes the action it chose
+            # last time, and the next priority decision of this seat is a
+            # different action, so it is dropped before a new one is picked.
+            self._priority_cost_facts.pop(seat, None)
+            selected = [self._decide_priority(runtime, pilot_state, options, rng)]
+            self._remember_priority_cost_facts(seat, options, selected)
+        elif decision_class in {"target", "choose_object", "target_amount"}:
+            selected = self._decide_targets(
+                runtime,
+                pilot_state,
+                request,
+                options,
+                min_selections,
+                max_selections,
+                rng,
+            )
+            if decision_class == "target_amount":
+                numeric_choice = self._decide_numeric(
+                    runtime,
+                    pilot_state,
+                    context,
+                    rng,
+                    decision_class=decision_class,
+                    prompt=prompt,
+                    source_object=request.get("source_object"),
+                )
+        elif decision_class == "declare_attacker":
+            selected = [self._decide_attack(runtime, pilot_state, options, rng)]
+        elif decision_class == "declare_blocker":
+            selected = self._decide_blocks(
+                runtime,
+                pilot_state,
+                options,
+                min_selections,
+                max_selections,
+                rng,
+            )
+        else:  # pragma: no cover - guarded by exhaustive supported class set
+            raise FullGameProtocolError(f"unhandled decision class: {decision_class}")
+
+        if len(selected) < min_selections or len(selected) > max_selections:
+            raise FullGameProtocolError(
+                f"policy produced {len(selected)} selections outside "
+                f"{min_selections}..{max_selections} for {decision_class}"
+            )
+
+        response: dict[str, Any] = {
+            "decision_id": decision_id,
+            "actor_id": actor_id,
+            "selected_option_ids": selected,
+            "ordering": [],
+        }
+        if numeric_choice is not None:
+            response["numeric_choice"] = numeric_choice
+        if numeric_choices is not None:
+            response["numeric_choices"] = list(numeric_choices)
+        return response
+
+    def _decide_mulligan(
+        self,
+        runtime: _RuntimePilot,
+        state: dict[str, Any],
+        options: list[dict[str, Any]],
+        rng: random.Random,
+    ) -> str:
+        seat = runtime.binding.seat
+        actor = self._actor(state)
+        hand = actor.get("hand")
+        if not isinstance(hand, list):
+            raise FullGameProtocolError("mulligan requires actor hand visibility")
+        cards = tuple(self._hand_action(card) for card in hand if isinstance(card, dict))
+        keep, _score = runtime.pilot.should_keep_opening_hand(
+            cards,
+            mulligans=self._mulligan_count[seat],
+            free_first=True,
+            commander_names=runtime.binding.commander_names,
+            rng=rng,
+        )
+        if self._mulligan_count[seat] >= 3:
+            # WS229 F-RULES-03 disposition: the cap overrides pilot discretion,
+            # so the forced keep is a logged forced-move record, never silent.
+            if not keep:
+                _LOG.info(
+                    "forced mulligan keep: seat=%s mulligans=%s pilot_wanted_mulligan=true",
+                    seat,
+                    self._mulligan_count[seat],
+                )
+            keep = True
+        desired = "keep" if keep else "mulligan"
+        chosen = self._option_by_type(options, desired)
+        if desired == "mulligan":
+            self._mulligan_count[seat] += 1
+        return self._required_text(chosen, "option_id")
+
+    def _decide_priority(
+        self,
+        runtime: _RuntimePilot,
+        state: dict[str, Any],
+        options: list[dict[str, Any]],
+        rng: random.Random,
+    ) -> str:
+        pass_option = self._option_by_type(options, "pass_priority")
+        pass_id = self._required_text(pass_option, "option_id")
+        # Forced pass-only rounds carry no discretion: take them without
+        # touching guard memory, so they can neither trip the guard nor
+        # break a genuine no-progress chain interleaved around them.
+        if len(options) == 1:
+            return pass_id
+        seat = runtime.binding.seat
+        # Priority no-progress guard (liveness only, no MTG semantics):
+        # identical window fingerprint on consecutive same-seat priority
+        # decisions means prior selections changed nothing the offer
+        # reflects (turn/phase/step/stack/pool/options all equal). Any real
+        # progress (tapped land, spent pool, new trigger, advanced phase)
+        # alters the fingerprint and resets the count.
+        stack = state.get("stack")
+        stack_names = (
+            tuple(sorted(str(item.get("name", "")) for item in stack if isinstance(item, dict)))
+            if isinstance(stack, list)
+            else ()
+        )
+        pool = self._actor(state).get("mana_pool")
+        pool_tuple = (
+            tuple(sorted((str(key), str(value)) for key, value in pool.items()))
+            if isinstance(pool, dict)
+            else ()
+        )
+        fingerprint = (
+            seat,
+            state.get("turn_number"),
+            state.get("phase"),
+            state.get("step"),
+            stack_names,
+            pool_tuple,
+            tuple(
+                sorted(
+                    (
+                        self._required_text(option, "option_type"),
+                        str(option.get("label", "")),
+                    )
+                    for option in options
+                )
+            ),
+        )
+        if self._priority_last_fingerprint.get(seat) == fingerprint:
+            repeats = self._priority_repeat_count.get(seat, 1) + 1
+        else:
+            repeats = 1
+        self._priority_last_fingerprint[seat] = fingerprint
+        self._priority_repeat_count[seat] = repeats
+        if self._priority_latched.get(seat) == fingerprint:
+            # Latched: window never changed since the trip; keep passing.
+            return pass_id
+        if seat in self._priority_latched:
+            # Window changed: unlatch and resume normal choice.
+            del self._priority_latched[seat]
+            self._priority_repeat_count[seat] = 1
+        if repeats >= 4:
+            self._priority_repeat_count[seat] = 0
+            self._priority_latched[seat] = fingerprint
+            _LOG.info(
+                "priority no-progress guard: identical window %d times, passing priority",
+                repeats,
+            )
+            return pass_id
+        non_mana = [
+            option
+            for option in options
+            if self._required_text(option, "option_type") not in {"pass_priority", "mana_ability"}
+        ]
+        # Affordability-aware pilot judgment: an activated ability whose
+        # engine-reported costs provably exceed the actor's free resources
+        # (pool mana plus, for tap costs, an untapped source) is not offered
+        # for immediate selection. Withheld options stay engine-offered.
+        # Unknown/absent cost facts mean no gating: the engine remains the
+        # authority.
+        #
+        # An action withheld ONLY for a pool shortfall on an ability that
+        # spends its own source (Hedron Archive's {2}, {T}, Sacrifice) is still
+        # offered, marked needs_mana_first: the pilot chooses the intent and
+        # the Lab answers with a mana ability from another source. Withholding
+        # it outright, while every priority mana ability scores below passing
+        # because activating one there only floats mana, made the pool
+        # impossible to fill and left that activation unreachable
+        # (F-RULES-03). An action withheld for any other reason (a tap cost on
+        # an already tapped source) is impossible whatever mana exists and
+        # stays withheld.
+        affordable: list[dict[str, Any]] = []
+        needs_mana_first: list[dict[str, Any]] = []
+        unreachable = 0
+        for option in non_mana:
+            if self._priority_action_affordable(option, state):
+                affordable.append(option)
+            elif self._priority_awaits_mana(option):
+                needs_mana_first.append(option)
+            else:
+                unreachable += 1
+        if unreachable:
+            _LOG.info(
+                "withheld %d priority action(s) the actor cannot fund from free resources at all",
+                unreachable,
+            )
+        if needs_mana_first:
+            _LOG.info(
+                "offered %d pool-shortfall priority action(s) as needing mana first",
+                len(needs_mana_first),
+            )
+        # WS229 F-RULES-03 disposition: Core-authorized mana abilities were
+        # withheld from the pilot. Mana abilities are discretionary actions,
+        # so they are offered to the pilot with explicit mana metadata
+        # instead of being hidden. Only a lone pass (no discretion) is
+        # auto-submitted, with a forced-move record.
+        #
+        # Affordability applies to mana abilities with activation mana costs
+        # too (e.g. signets): selecting one the pool cannot fund spends a
+        # shared resource mid-payment and fails activation. Pure mana
+        # abilities (no mana cost, untapped source) always pass the gate.
+        mana_options = [
+            option
+            for option in options
+            if self._required_text(option, "option_type") == "mana_ability"
+        ]
+        affordable_mana = [
+            option for option in mana_options if self._priority_action_affordable(option, state)
+        ]
+        if len(affordable_mana) != len(mana_options):
+            _LOG.info(
+                "withheld %d unaffordable mana abilit(ies) from pilot selection",
+                len(mana_options) - len(affordable_mana),
+            )
+        pilot_state = self._pilot_state(runtime, state)
+        # Twin-stable view identities (WS92-D5 pattern): raw engine option
+        # ids embed per-process UUIDs, so pilot tiebreaks on them would make
+        # same-seed fresh-process twins diverge. Views carry content-derived
+        # stable ids (type + label + content occurrence, all Rules-visible);
+        # the pilot's pick maps back to the raw engine id here. Occurrence
+        # counting is keyed by content, never by bridge order, so input
+        # permutation cannot change the outcome.
+        raw_by_stable_id: dict[str, str] = {}
+        deferred_by_stable_id: dict[str, dict[str, Any]] = {}
+        occurrences: dict[str, int] = {}
+        action_views: list[PilotActionView] = []
+        for option in affordable:
+            base = (
+                "priority:"
+                f"{self._required_text(option, 'option_type')}:"
+                f"{str(option.get('label', 'action')).casefold()}"
+            )
+            occurrence = occurrences.get(base, 0)
+            occurrences[base] = occurrence + 1
+            stable_id = f"{base}:{occurrence}"
+            action_views.append(
+                self._priority_action(option, state).model_copy(update={"action_id": stable_id})
+            )
+            raw_by_stable_id[stable_id] = self._required_text(option, "option_id")
+        for option in needs_mana_first:
+            base = (
+                "priority:"
+                f"{self._required_text(option, 'option_type')}:"
+                f"{str(option.get('label', 'action')).casefold()}"
+            )
+            occurrence = occurrences.get(base, 0)
+            occurrences[base] = occurrence + 1
+            stable_id = f"{base}:{occurrence}"
+            view = self._priority_action(option, state).model_copy(
+                update={
+                    "action_id": stable_id,
+                    "metadata": {
+                        "xmage_option_type": self._required_text(option, "option_type"),
+                        # The pilot is choosing the intent, not an immediate
+                        # activation: selecting this answers with a mana
+                        # ability from another source first.
+                        "needs_mana_first": True,
+                    },
+                }
+            )
+            action_views.append(view)
+            deferred_by_stable_id[stable_id] = option
+        for option in affordable_mana:
+            base = f"priority:mana:{str(option.get('label', 'mana')).casefold()}"
+            occurrence = occurrences.get(base, 0)
+            occurrences[base] = occurrence + 1
+            stable_id = f"{base}:{occurrence}"
+            action_views.append(
+                self._priority_mana_action(option, state).model_copy(
+                    update={"action_id": stable_id}
+                )
+            )
+            raw_by_stable_id[stable_id] = self._required_text(option, "option_id")
+        action_views.append(
+            PilotActionView(
+                action_id=pass_id,
+                action_kind="pass",
+                card_name="Pass priority",
+                floor_value=0.15,
+                immediate_impact=0.0,
+                metadata={"flexible_interaction": bool(state.get("stack"))},
+            )
+        )
+        if len(action_views) == 1:
+            _LOG.info("forced priority pass: no discretionary action offered")
+            return pass_id
+        decision = runtime.pilot.choose_action(pilot_state, action_views, rng)
+        if decision.selected_action_id is None:
+            raise FullGameProtocolError("Commander Lab pilot returned no priority action")
+        if decision.selected_action_id == pass_id:
+            return pass_id
+        deferred = deferred_by_stable_id.get(decision.selected_action_id)
+        if deferred is not None:
+            return self._priority_mana_for(deferred, affordable_mana, pass_id)
+        try:
+            return raw_by_stable_id[decision.selected_action_id]
+        except KeyError:
+            raise FullGameProtocolError("pilot returned unknown stable priority action") from None
+
+    @staticmethod
+    def _priority_awaits_mana(option: dict[str, Any]) -> bool:
+        """True when the only proven obstacle to an action is the actor's pool.
+
+        Engine-native cost facts only: the engine's own ``Mana.enough`` verdict
+        is False and the activation also spends its own source. Paying from
+        another source may still fail, which is exactly why the pilot -- not
+        the Lab -- decides whether to try; the engine re-validates the
+        activation and the priority no-progress guard bounds any repetition.
+        A tap cost on an already tapped source, or an untap cost on an
+        already untapped one, is impossible whatever mana exists and never
+        reaches this route.
+        """
+        metadata = option.get("metadata")
+        if not isinstance(metadata, dict):
+            return False
+        if metadata.get("pool_covers_mana_cost") is not False:
+            return False
+        source_tapped = metadata.get("source_tapped")
+        if metadata.get("requires_tap_source") is True and source_tapped is True:
+            return False
+        if metadata.get("requires_untap_source") is True and source_tapped is False:
+            return False
+        return any(
+            metadata.get(key) is True
+            for key in (
+                "requires_tap_source",
+                "requires_sacrifice_source",
+                "requires_untap_source",
+            )
+        )
+
+    @staticmethod
+    def _same_source(left: dict[str, Any], right: dict[str, Any]) -> bool:
+        """Whether two engine options are activations of the same permanent.
+
+        Two permanents of the same card are two different sources: a second
+        Hedron Archive can pay for the first one's ``{2}``. So object ids
+        decide whenever both sides report one, and the Rules-visible name is
+        consulted only when at least one side does not.
+        """
+        left_meta = left.get("metadata")
+        right_meta = right.get("metadata")
+        left_meta = left_meta if isinstance(left_meta, dict) else {}
+        right_meta = right_meta if isinstance(right_meta, dict) else {}
+        left_id = str(left_meta.get("source_object_id") or "")
+        right_id = str(right_meta.get("source_object_id") or "")
+        if left_id and right_id:
+            return left_id == right_id
+        left_name = str(left_meta.get("source_name") or "")
+        right_name = str(right_meta.get("source_name") or "")
+        return bool(left_name) and left_name == right_name
+
+    def _priority_mana_for(
+        self,
+        deferred: dict[str, Any],
+        funding: list[dict[str, Any]],
+        pass_id: str,
+    ) -> str:
+        """Answer a needs-mana-first intent with one mana ability from elsewhere.
+
+        The funding source must not be the action's own permanent: paying
+        Hedron Archive's ``{2}`` by tapping Hedron Archive would consume the
+        source its own ``{T}, Sacrifice`` cost needs. Ranking is
+        ``mana_payment_fit`` against the action's own mana cost, so the pilot's
+        intent is answered with the mana that cost actually names; a source
+        that cannot pay any part of that cost is not spent on it, and when no
+        source can the Lab passes instead. The engine alone decides whether
+        the resulting activation succeeds.
+        """
+        metadata = deferred.get("metadata")
+        meta = metadata if isinstance(metadata, dict) else {}
+        cost_text = _mana_cost_text(meta)
+        # Twin-stable ordering: content-derived keys only. Equal fit and equal
+        # label mean interchangeable sources, so the engine's own offered order
+        # breaks the tie -- never a per-process engine UUID.
+        usable = [
+            option
+            for option in funding
+            if not self._same_source(deferred, option)
+            and mana_payment_fit(str(option.get("label", "")), cost_text) > 0
+        ]
+        ranked = sorted(
+            usable,
+            key=lambda option: (
+                -mana_payment_fit(str(option.get("label", "")), cost_text),
+                str(option.get("label", "")).casefold(),
+            ),
+        )
+        if not ranked:
+            _LOG.info(
+                "pilot chose %s, which needs mana first, but no other source can "
+                "pay for it; passing priority",
+                str(meta.get("source_name") or deferred.get("label") or "action"),
+            )
+            return pass_id
+        chosen = self._required_text(ranked[0], "option_id")
+        _LOG.info(
+            "pilot chose %s, which needs mana first; paying with %s",
+            str(meta.get("source_name") or deferred.get("label") or "action"),
+            str(ranked[0].get("label", "mana ability")),
+        )
+        return chosen
+
+    def _priority_action_affordable(self, option: dict[str, Any], state: dict[str, Any]) -> bool:
+        """Pilot-side discretionary ranking among engine-authorized options.
+
+        Returns False only when engine-native cost facts prove the action
+        cannot be funded from free resources: a tap cost on an already
+        tapped source, an untap cost on an untapped source, or mana costs
+        the current pool cannot cover (``pool_covers_mana_cost`` is the
+        engine's own ``Mana.enough`` verdict, projected losslessly by the
+        bridge) on an action that also taps or sacrifices its own source.
+        That last case is the one a pool shortfall proves: paying the mana
+        can consume the very source the tap/sacrifice cost needs (a fetch
+        with ``{1}, {T}, Sacrifice`` and one untapped land). Any other
+        action is paid through the engine's own mana-payment decisions from
+        untapped sources, which the engine already counted when it offered
+        the action, so an empty pool proves nothing there; withholding it
+        kept every spell with a mana cost out of the pilot's reach unless
+        mana had been floated first. Anything unknown means affordable.
+
+        This is pilot choice, not a legality verdict: withheld options stay
+        engine-offered, the pilot simply selects pass/another legal action
+        instead, and the engine re-validates whatever is selected (a
+        mid-payment cancel aborts to pass natively). No card names, no
+        label parsing, no invented actions. A False result is a pool shortfall
+        on an action that spends its own source; _priority_awaits_mana
+        decides which of those are re-offered as needs-mana-first intent.
+        """
+        del state
+        metadata = option.get("metadata")
+        if not isinstance(metadata, dict):
+            return True
+        if metadata.get("requires_tap_source") is True and metadata.get("source_tapped") is True:
+            return False
+        if metadata.get("requires_untap_source") is True and metadata.get("source_tapped") is False:
+            return False
+        if metadata.get("pool_covers_mana_cost") is not False:
+            return True
+        return not (
+            metadata.get("requires_tap_source") is True
+            or metadata.get("requires_sacrifice_source") is True
+        )
+
+    @staticmethod
+    def _floats_mana_only(meta: dict[str, Any]) -> bool:
+        """Whether activating this in a priority window only floats mana.
+
+        True when the bridge's cost facts prove the ability costs nothing
+        beyond spending its own source: that activation merely adds mana to
+        the pool, which the step will empty (CR 106.4) without the window
+        offering anything new to spend it on. Spending the source is part of
+        producing the mana, not something the window could have spent it on:
+        Treasure and Lotus Petal ("{T}, Sacrifice this: Add one mana") are
+        pure floaters and must keep the flag, or every window spends the
+        board's Treasures for mana that empties at the end of the step. A mana
+        ability carrying its own mana cost (Agent of Stromgald's
+        ``{R}: Add {B}``) buys something and is not scored below passing.
+        Absent cost facts are unknown, and unknown keeps the conservative
+        flag.
+
+        Known limitation, not fixed here: ``requires_sacrifice_source`` is
+        reported only for ``SacrificeSourceCost`` (see
+        ``enrichAbilityCostFacts``), so an ability that sacrifices *another*
+        permanent (Ashnod's Altar, "Sacrifice a creature: Add {C}{C}",
+        answered in response to removal) reports no cost fact at all and keeps
+        the float-only flag until the bridge emits a fact for it.
+        """
+        amounts: list[float] = []
+        for key, _ in _MANA_COST_COLORS:
+            amount = _cost_amount(meta, key)
+            if amount is None:
+                return True
+            amounts.append(amount)
+        generic = _cost_amount(meta, "mana_cost_generic")
+        if generic is None:
+            return True
+        if generic > 0 or any(amount > 0 for amount in amounts):
+            return False
+        return meta.get("requires_untap_source") is not True
+
+    def _priority_mana_action(
+        self, option: dict[str, Any], state: dict[str, Any]
+    ) -> PilotActionView:
+        metadata = option.get("metadata")
+        meta = metadata if isinstance(metadata, dict) else {}
+        source_name = str(meta.get("source_name") or option.get("label") or "Mana ability")
+        return PilotActionView(
+            action_id=self._required_text(option, "option_id"),
+            action_kind="card",
+            card_name=source_name,
+            mana_cost=0.0,
+            floor_value=0.5,
+            immediate_impact=0.35,
+            remaining_mana=self._actor_mana(self._actor(state)),
+            metadata={
+                "xmage_option_type": "mana_ability",
+                "is_mana_ability": True,
+                # Offered in a priority window, not inside a payment. True only
+                # when the bridge's cost facts show the activation costs
+                # nothing beyond tapping its own source (see
+                # _floats_mana_only and STANDALONE_MANA_ABILITY_UTILITY).
+                "floats_mana_only": self._floats_mana_only(meta),
+            },
+        )
+
+    def _decide_targets(
+        self,
+        runtime: _RuntimePilot,
+        state: dict[str, Any],
+        request: dict[str, Any],
+        options: list[dict[str, Any]],
+        min_selections: int,
+        max_selections: int,
+        rng: random.Random,
+    ) -> list[str]:
+        context = request.get("context")
+        structured_context = context if isinstance(context, dict) else {}
+        # WS229 F-RULES-03 disposition: London-bottom routing is driven by
+        # the bridge-supplied structured flag
+        # (context.bottom_of_library_selection), never by prompt-text
+        # heuristics. The flag is set only inside the native
+        # putCardsOnBottomOfLibrary selection path.
+        if structured_context.get("bottom_of_library_selection") is True:
+            actor = self._actor(state)
+            hand = actor.get("hand")
+            if not isinstance(hand, list):
+                raise FullGameProtocolError("London bottom decision requires actor hand visibility")
+            legal_ids = {self._required_text(option, "option_id") for option in options}
+            hand_ids = {
+                self._required_text(card, "object_id") for card in hand if isinstance(card, dict)
+            }
+            # Two engine-native shapes share the bottom-selection path:
+            # London mulligan bottoms cards FROM HAND (options are hand
+            # cards), while library effects (e.g. Dig Through Time) order
+            # looked-at LIBRARY cards (options are not hand cards). Only
+            # the London shape uses opening-hand bottom valuation; library
+            # bottom-ordering falls through to generic offered-option
+            # ranking below (highest utility first: last chosen ends
+            # bottommost, so the best card stays most accessible).
+            if legal_ids and legal_ids <= hand_ids:
+                count = min_selections
+                card_actions = tuple(
+                    self._hand_action(card) for card in hand if isinstance(card, dict)
+                )
+                selected = runtime.pilot.choose_bottom_cards(
+                    card_actions,
+                    count,
+                    commander_names=runtime.binding.commander_names,
+                )
+                if not set(selected).issubset(legal_ids):
+                    raise FullGameProtocolError("pilot bottom-card selection is not XMage-legal")
+                return list(selected)
+
+        if not options:
+            return []
+        outcome = str((request.get("context") or {}).get("outcome", "neutral")).casefold()
+        pilot_state = self._pilot_state(runtime, state)
+        # Twin-stable target identities: (zone, zone_index) pins the same
+        # physical card across fresh processes (identical zone-event
+        # streams); occurrence fallback is content-keyed and order-free.
+        # Raw engine ids never order or identify pilot inputs.
+        raw_by_stable_id: dict[str, str] = {}
+        occurrences: dict[str, int] = {}
+        ranked: list[tuple[float, str, str]] = []
+        for option in options:
+            metadata = option.get("metadata")
+            meta = metadata if isinstance(metadata, dict) else {}
+            zone = meta.get("zone")
+            zone_index = meta.get("zone_index")
+            if (
+                isinstance(zone, str)
+                and zone
+                and isinstance(zone_index, int)
+                and not isinstance(zone_index, bool)
+                and zone_index >= 0
+            ):
+                base = (
+                    "target:"
+                    f"{self._required_text(option, 'option_type')}:"
+                    f"{str(option.get('label', 'target')).casefold()}:"
+                    f"{zone}:{zone_index}"
+                )
+            else:
+                base = (
+                    "target:"
+                    f"{self._required_text(option, 'option_type')}:"
+                    f"{str(option.get('label', 'target')).casefold()}"
+                )
+            occurrence = occurrences.get(base, 0)
+            occurrences[base] = occurrence + 1
+            stable_id = f"{base}:{occurrence}"
+            raw_by_stable_id[stable_id] = self._required_text(option, "option_id")
+            action = self._target_action(option, state, outcome).model_copy(
+                update={"action_id": stable_id}
+            )
+            breakdown = runtime.pilot.evaluate_action(pilot_state, action)
+            score = breakdown.total_utility + self._target_alignment(action, state, outcome)
+            ranked.append((score, action.card_name, stable_id))
+        ranked.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+
+        if max_selections <= 0:
+            return []
+        if outcome in {"benefit", "benefit_to_controller"}:
+            take = max_selections
+        elif min_selections == 0:
+            take = 0 if all(score < 0.0 for score, _label, _oid in ranked) else 1
+        else:
+            take = min_selections
+        take = max(min_selections, min(max_selections, take))
+        try:
+            return [raw_by_stable_id[stable_id] for _score, _label, stable_id in ranked[:take]]
+        except KeyError:
+            raise FullGameProtocolError("pilot returned unknown stable target action") from None
+
+    def _decide_semantic_option(
+        self,
+        runtime: _RuntimePilot,
+        state: dict[str, Any],
+        options: list[dict[str, Any]],
+        rng: random.Random,
+    ) -> str:
+        if not options:
+            raise FullGameProtocolError("semantic decision has no legal options")
+        pilot_state = self._pilot_state(runtime, state)
+        # Twin-stable identities (same pattern as priority/targets).
+        raw_by_stable_id: dict[str, str] = {}
+        occurrences: dict[str, int] = {}
+        actions: list[PilotActionView] = []
+        for option in options:
+            base = f"semantic:{str(option.get('label', 'option')).casefold()}"
+            occurrence = occurrences.get(base, 0)
+            occurrences[base] = occurrence + 1
+            stable_id = f"{base}:{occurrence}"
+            raw_by_stable_id[stable_id] = self._required_text(option, "option_id")
+            actions.append(
+                self._semantic_action(option).model_copy(update={"action_id": stable_id})
+            )
+        decision = runtime.pilot.choose_action(pilot_state, actions, rng)
+        if decision.selected_action_id is None:
+            raise FullGameProtocolError("Commander Lab pilot returned no semantic option")
+        try:
+            raw_id = raw_by_stable_id[decision.selected_action_id]
+        except KeyError:
+            raise FullGameProtocolError("pilot returned unknown stable semantic option") from None
+        return self._require_offered(raw_id, options, "semantic option")
+
+    def _decide_mode(
+        self,
+        runtime: _RuntimePilot,
+        state: dict[str, Any],
+        options: list[dict[str, Any]],
+        rng: random.Random,
+    ) -> str:
+        """Modal choice with native target-availability ranking.
+
+        The bridge projects per-mode ``mode_targets_available`` from the
+        engine's own ``Target.canChoose`` verdict and, per CR 700.2a, offers
+        only choosable modes whenever at least one is (F-35). Modes explicitly
+        lacking targets are still depreferred here, for older transcripts;
+        unknown/absent flags mean no filtering and the engine stays the
+        authority. When every mode lacks targets the bridge lists them all,
+        the pilot still chooses (transcript agency), and the bridge maps the
+        doomed cast to pass via its no-viable-mode flag.
+        """
+        if not options:
+            raise FullGameProtocolError("mode decision has no legal options")
+        viable = [
+            option
+            for option in options
+            if not isinstance(option.get("metadata"), dict)
+            or option["metadata"].get("mode_targets_available") is not False
+        ]
+        return self._decide_semantic_option(runtime, state, viable or options, rng)
+
+    def _decide_boolean(
+        self,
+        runtime: _RuntimePilot,
+        state: dict[str, Any],
+        options: list[dict[str, Any]],
+        context: dict[str, Any],
+        rng: random.Random,
+        *,
+        prompt: str = "",
+        source_object: Any = None,
+    ) -> str:
+        if not options:
+            raise FullGameProtocolError("boolean decision has no legal options")
+        offered = list(options)
+        outcome = str(context.get("outcome", "neutral")).casefold()
+        values: dict[str, bool] = {}
+        for option in options:
+            metadata = option.get("metadata")
+            value = metadata.get("value") if isinstance(metadata, dict) else None
+            if not isinstance(value, bool):
+                raise FullGameProtocolError("boolean option is missing explicit boolean value")
+            values[self._required_text(option, "option_id")] = value
+        # Multikicker-chain guard (liveness only, no may-semantics). Only the
+        # engine's multikicker offer repeats: its own affordability check
+        # covers one payment, so KickerAbility re-asks "Pay N times ..." with
+        # N = previous N + 1 for as long as the pilot says Yes. Counting is
+        # therefore scoped to that chain -- same ability, same outcome, the
+        # next ordinal -- and the affirmative option is withheld only once the
+        # pilot's own visible mana cannot fund another payment. Every other
+        # decision (a different ability, outcome, ordinal, a No, or a prompt
+        # with no ordinal at all) resets the count, and a prompt the Lab cannot
+        # parse is never capped: the Lab never decides a discretionary choice
+        # for a player (F-RULES-03).
+        seat = runtime.binding.seat
+        offer = _multikicker_offer(prompt)
+        chain_key = (self._boolean_source_key(source_object), outcome)
+        prior = self._boolean_repeat.get(seat)
+        answered_yes = 0
+        cap: int | None = None
+        if (
+            offer is not None
+            and prior is not None
+            and prior[0] == chain_key
+            and prior[1] == offer.ordinal - 1
+        ):
+            answered_yes = prior[2]
+            cap = self._boolean_yes_cap(offer, self._actor(state))
+        selectable = [
+            option
+            for option in options
+            if not (
+                values[self._required_text(option, "option_id")]
+                and cap is not None
+                and answered_yes >= cap
+            )
+        ]
+        if selectable and len(selectable) != len(options):
+            _LOG.info(
+                "multikicker guard: %d consecutive yes payments for %s/%s reached the "
+                "cap %d funded by the pilot's visible mana; declining",
+                answered_yes,
+                chain_key[0] or "<unidentified source>",
+                outcome,
+                cap,
+            )
+            options = selectable
+        actions: list[PilotActionView] = []
+        raw_by_stable_id: dict[str, str] = {}
+        for option in options:
+            value = values[self._required_text(option, "option_id")]
+            aligned = (value and outcome in {"benefit", "benefit_to_controller"}) or (
+                not value and outcome in DECLINE_ALIGNED_BOOLEAN_OUTCOMES
+            )
+            # Twin-stable: boolean value words are Rules-visible content.
+            stable_id = f"boolean:{value}"
+            raw_by_stable_id[stable_id] = self._required_text(option, "option_id")
+            actions.append(
+                PilotActionView(
+                    action_id=stable_id,
+                    action_kind="card",
+                    card_name=str(option.get("label", value)),
+                    floor_value=0.8 if aligned else 0.35,
+                    immediate_impact=0.45 if aligned else 0.15,
+                    metadata={"boolean_value": value, "decision_outcome": outcome},
+                )
+            )
+        decision = runtime.pilot.choose_action(self._pilot_state(runtime, state), actions, rng)
+        if decision.selected_action_id is None:
+            raise FullGameProtocolError("Commander Lab pilot returned no boolean decision")
+        try:
+            raw_id = raw_by_stable_id[decision.selected_action_id]
+        except KeyError:
+            raise FullGameProtocolError("pilot returned unknown stable boolean option") from None
+        if offer is None:
+            # Not a repeating offer: it is a single discretionary question, so
+            # it clears any chain and is never capped.
+            self._boolean_repeat.pop(seat, None)
+        else:
+            self._boolean_repeat[seat] = (
+                chain_key,
+                offer.ordinal,
+                (answered_yes + 1) if values[raw_id] else 0,
+            )
+        return self._require_offered(raw_id, offered, "boolean decision")
+
+    @staticmethod
+    def _boolean_source_key(source_object: Any) -> str:
+        """Identity of the ability a may-prompt came from.
+
+        ``ability_original_id`` is the engine's original (card-definition)
+        identity, identical in every process that casts the same card, so
+        chain memory does not depend on a per-instance object id. A source
+        reporting no original id falls back to its Rules-visible name, and
+        only when neither is reported to the engine's per-instance
+        ``source_object_id``; that last fallback only ever discriminates a
+        chain against the immediately preceding decision in this same
+        process, so it cannot desynchronize twins.
+        """
+        if not isinstance(source_object, dict):
+            return ""
+        original = str(source_object.get("ability_original_id") or "").strip()
+        if original:
+            return f"original:{original}"
+        name = str(source_object.get("source_name") or "").strip()
+        if name:
+            return f"name:{name.casefold()}"
+        instance = str(source_object.get("source_object_id") or "").strip()
+        return f"instance:{instance}" if instance else ""
+
+    def _boolean_yes_cap(self, offer: _MultikickerOffer, actor: dict[str, Any]) -> int:
+        """How many further multikicker payments the pilot's mana can fund.
+
+        The engine's affordability check covers a single payment, so the Lab
+        reads the pilot-visible total instead: available mana divided by what
+        one payment of the cost the prompt prints is worth. A prompt that
+        prints no mana symbol states no per-payment value to divide by, so one
+        further payment is assumed -- the minimum a bound needs to hold.
+        """
+        return max(1, self._available_mana(actor) // (offer.per_payment or 1))
+
+    def _available_mana(self, actor: dict[str, Any]) -> int:
+        """Mana the pilot can see it could pay with right now.
+
+        The pool, plus one payment for every untapped permanent that offers a
+        mana ability. A permanent entry that reports no machine-readable mana
+        fact at all is read as a land when its name says so, which is the
+        conservative fallback; a permanent that reports nothing readable and
+        is not a land contributes nothing rather than a guess.
+        """
+        total = int(self._actor_mana(actor))
+        battlefield = actor.get("battlefield")
+        if not isinstance(battlefield, list):
+            return total
+        for item in battlefield:
+            if not isinstance(item, dict) or item.get("tapped") is True:
+                continue
+            offers = self._permanent_offers_mana(item)
+            if offers is None:
+                offers = self._looks_like_basic_land(str(item.get("name") or ""))
+            if offers:
+                total += 1
+        return total
+
+    @staticmethod
+    def _permanent_offers_mana(permanent: dict[str, Any]) -> bool | None:
+        """Whether a battlefield entry states that it offers mana.
+
+        True/False when the entry carries a machine-readable fact, None when
+        it carries none and the caller must fall back.
+        """
+        for key in ("is_mana_ability", "mana_ability"):
+            value = permanent.get(key)
+            if isinstance(value, bool):
+                return value
+        rules = permanent.get("abilities")
+        if isinstance(rules, list):
+            return any(
+                isinstance(rule, str)
+                and "add" in rule.casefold()
+                and ("{" in rule or "mana" in rule.casefold())
+                for rule in rules
+            )
+        return None
+
+    def _decide_pile(
+        self,
+        runtime: _RuntimePilot,
+        state: dict[str, Any],
+        options: list[dict[str, Any]],
+        context: dict[str, Any],
+        rng: random.Random,
+    ) -> str:
+        if not options:
+            raise FullGameProtocolError("pile decision has no legal options")
+        outcome = str(context.get("outcome", "benefit")).casefold()
+        benefit = outcome not in {"detriment", "detriment_to_controller"}
+        actions: list[PilotActionView] = []
+        raw_by_stable_id: dict[str, str] = {}
+        occurrences: dict[str, int] = {}
+        for option in options:
+            metadata = option.get("metadata")
+            cards = metadata.get("cards", []) if isinstance(metadata, dict) else []
+            size = len(cards) if isinstance(cards, list) else 0
+            scaled = min(2.0, size / 4.0)
+            # Twin-stable: pile identity is its Rules-visible content
+            # (sorted member names), never engine UUIDs.
+            names: list[str] = []
+            if isinstance(cards, list):
+                for card in cards:
+                    if isinstance(card, dict):
+                        names.append(str(card.get("name", "")).casefold())
+                    else:
+                        names.append(str(card).casefold())
+            base = f"pile:{size}:{'+'.join(sorted(names))}"
+            occurrence = occurrences.get(base, 0)
+            occurrences[base] = occurrence + 1
+            stable_id = f"{base}:{occurrence}"
+            raw_by_stable_id[stable_id] = self._required_text(option, "option_id")
+            actions.append(
+                PilotActionView(
+                    action_id=stable_id,
+                    action_kind="card",
+                    card_name=str(option.get("label", "Pile")),
+                    floor_value=(0.4 + scaled * 0.25) if benefit else max(0.0, 0.9 - scaled * 0.25),
+                    immediate_impact=(0.3 + scaled * 0.2)
+                    if benefit
+                    else max(0.0, 0.7 - scaled * 0.2),
+                    metadata={"pile_size": size, "decision_outcome": outcome},
+                )
+            )
+        decision = runtime.pilot.choose_action(self._pilot_state(runtime, state), actions, rng)
+        if decision.selected_action_id is None:
+            raise FullGameProtocolError("Commander Lab pilot returned no pile decision")
+        try:
+            raw_id = raw_by_stable_id[decision.selected_action_id]
+        except KeyError:
+            raise FullGameProtocolError("pilot returned unknown stable pile option") from None
+        return self._require_offered(raw_id, options, "pile decision")
+
+    def _decide_mana(
+        self,
+        runtime: _RuntimePilot,
+        state: dict[str, Any],
+        options: list[dict[str, Any]],
+        context: dict[str, Any],
+        rng: random.Random,
+    ) -> str:
+        if not options:
+            raise FullGameProtocolError("mana decision has no legal options")
+
+        # No-progress guard: an identical mana-payment offer repeating
+        # consecutively means no selection advanced the payment (e.g. pool
+        # spends the engine cannot apply, re-prompted unchanged). Take the
+        # engine-offered cancel so the activation aborts gracefully instead
+        # of looping forever. Any progress (pool drain, tapped source,
+        # changed requirement) alters the fingerprint and resets the count.
+        # This is liveness bookkeeping, not payment semantics: the engine
+        # alone decides what each selection does.
+        seat = runtime.binding.seat
+        fingerprint = (
+            seat,
+            str(context.get("unpaid_mana", "")),
+            tuple(
+                sorted(
+                    (
+                        self._required_text(option, "option_id"),
+                        str(option.get("label", "")),
+                        str((option.get("metadata") or {}).get("mana_available")),
+                    )
+                    for option in options
+                )
+            ),
+        )
+        if self._mana_last_fingerprint.get(seat) == fingerprint:
+            repeats = self._mana_repeat_count.get(seat, 1) + 1
+        else:
+            repeats = 1
+        self._mana_last_fingerprint[seat] = fingerprint
+        self._mana_repeat_count[seat] = repeats
+        if repeats >= 3:
+            self._mana_repeat_count[seat] = 0
+            for option in options:
+                if self._required_text(option, "option_type") == "cancel_mana_payment":
+                    _LOG.info(
+                        "mana-payment no-progress guard: identical offer %d times, cancelling",
+                        repeats,
+                    )
+                    return self._required_text(option, "option_id")
+            raise FullGameProtocolError(
+                "mana-payment no-progress guard tripped with no cancel offered"
+            )
+
+        pool_options = [
+            option
+            for option in options
+            if self._required_text(option, "option_type") == "mana_pool"
+        ]
+        if pool_options:
+            unpaid = str(context.get("unpaid_mana", "")).casefold()
+
+            def pool_symbol(option: dict[str, Any]) -> str:
+                metadata = option.get("metadata")
+                meta = metadata if isinstance(metadata, dict) else {}
+                mana_type = str(meta.get("mana_type", "")).casefold()
+                return {
+                    "white": "w",
+                    "blue": "u",
+                    "black": "b",
+                    "red": "r",
+                    "green": "g",
+                    "colorless": "c",
+                }.get(mana_type, "")
+
+            def pool_advances(option: dict[str, Any]) -> bool:
+                # Engine-native affordance (ManaCost.testPay projected by
+                # the bridge): one mana of this pool type advances the
+                # unpaid cost. Unknown/absent means usable; the engine
+                # stays the authority and re-prompts (guarded above) if a
+                # spend cannot apply.
+                metadata = option.get("metadata")
+                if not isinstance(metadata, dict):
+                    return True
+                return metadata.get("advances_payment") is not False
+
+            def pool_key(option: dict[str, Any]) -> tuple[int, str, str]:
+                metadata = option.get("metadata")
+                meta = metadata if isinstance(metadata, dict) else {}
+                mana_type = str(meta.get("mana_type", "")).casefold()
+                symbol = pool_symbol(option)
+                exact_required = 1 if symbol and f"{{{symbol}}}" in unpaid else 0
+                return exact_required, mana_type, str(option.get("label", "")).casefold()
+
+            # WS229 F-RULES-03 disposition: pool-first routing is kept, but
+            # auto-submit is gated to the no-discretion case. A lone pool
+            # candidate is a forced move (logged); several candidates hide
+            # real discretion (which color to spend), so the pilot chooses.
+            # Productive candidates are those the engine reports as
+            # payment-advancing; the prompt-text heuristic below only orders
+            # them and never excludes: exclusion is native-flag-only.
+            candidates = [option for option in pool_options if pool_advances(option)]
+            if len(candidates) == 1:
+                chosen_pool = self._required_text(candidates[0], "option_id")
+                _LOG.info(
+                    "forced mana-pool spend: single productive pool candidate %s",
+                    chosen_pool,
+                )
+                return chosen_pool
+            if candidates:
+                ordered = sorted(candidates, key=pool_key, reverse=True)
+                pool_views: list[PilotActionView] = []
+                raw_by_pool_view: dict[str, str] = {}
+                for rank, option in enumerate(ordered):
+                    view_id = f"mana:pool:{rank}"
+                    raw_by_pool_view[view_id] = self._required_text(option, "option_id")
+                    pool_views.append(
+                        PilotActionView(
+                            action_id=view_id,
+                            action_kind="card",
+                            card_name=str(option.get("label", "Spend pool mana")),
+                            floor_value=max(0.05, 0.75 - 0.01 * rank),
+                            immediate_impact=0.55,
+                            metadata={"xmage_option_type": "mana_pool"},
+                        )
+                    )
+                pool_decision = runtime.pilot.choose_action(
+                    self._pilot_state(runtime, state), pool_views, rng
+                )
+                if pool_decision.selected_action_id is None:
+                    raise FullGameProtocolError("Commander Lab pilot returned no mana decision")
+                try:
+                    return raw_by_pool_view[pool_decision.selected_action_id]
+                except KeyError:
+                    raise FullGameProtocolError(
+                        "pilot returned unknown stable pool-mana action"
+                    ) from None
+
+        non_pool = [
+            option
+            for option in options
+            if self._required_text(option, "option_type") != "mana_pool"
+        ]
+        if not non_pool:
+            raise FullGameProtocolError(
+                "mana decision has no productive option: pool cannot satisfy "
+                "the colored requirement and no ability or cancel is offered"
+            )
+        # Affordability also governs mana abilities picked mid-payment: a
+        # costed mana ability (signet, filter land) the current pool cannot
+        # fund fails inside payManaMode with no pilot recourse. Withhold
+        # such abilities from selection with the same native-flag gate used
+        # at priority; pool spends and cancel are always selectable.
+        selectable: list[dict[str, Any]] = []
+        for option in non_pool:
+            if self._required_text(option, "option_type") == "mana_ability" and not (
+                self._priority_action_affordable(option, state)
+            ):
+                continue
+            selectable.append(option)
+        if not selectable:
+            raise FullGameProtocolError(
+                "mana decision has no affordable option: every mana ability "
+                "is natively unfunded and no cancel is offered"
+            )
+        if len(selectable) != len(non_pool):
+            _LOG.info(
+                "withheld %d unaffordable mana abilit(ies) from payment selection",
+                len(non_pool) - len(selectable),
+            )
+        options = selectable
+
+        actions: list[PilotActionView] = []
+        raw_by_stable_id: dict[str, str] = {}
+        occurrences: dict[tuple[str, str], int] = {}
+        unpaid_mana = str(context.get("unpaid_mana", ""))
+        for option in options:
+            option_type = self._required_text(option, "option_type")
+            label = str(option.get("label", option_type))
+            key = (option_type, label.casefold())
+            occurrence = occurrences.get(key, 0)
+            occurrences[key] = occurrence + 1
+            stable_id = f"mana:{option_type}:{label.casefold()}:{occurrence}"
+            raw_by_stable_id[stable_id] = self._required_text(option, "option_id")
+            if option_type == "cancel_mana_payment":
+                floor_value = 0.1
+            elif option_type == "mana_ability":
+                floor_value = 0.65 + 0.1 * mana_payment_fit(label, unpaid_mana)
+            else:
+                floor_value = 0.75
+            actions.append(
+                PilotActionView(
+                    action_id=stable_id,
+                    action_kind="pass" if option_type == "cancel_mana_payment" else "card",
+                    card_name=label,
+                    floor_value=floor_value,
+                    immediate_impact=0.0 if option_type == "cancel_mana_payment" else 0.55,
+                    metadata={"xmage_option_type": option_type},
+                )
+            )
+        decision = runtime.pilot.choose_action(self._pilot_state(runtime, state), actions, rng)
+        if decision.selected_action_id is None:
+            raise FullGameProtocolError("Commander Lab pilot returned no mana decision")
+        try:
+            return raw_by_stable_id[decision.selected_action_id]
+        except KeyError:
+            raise FullGameProtocolError("pilot returned unknown stable mana action") from None
+
+    @staticmethod
+    def _required_bound(mapping: dict[str, Any], key: str) -> int:
+        """Authoritative integer bound from Core-supplied context (fail closed).
+
+        Strict: missing, boolean, or non-integer bounds raise. No coercion,
+        no default, no clamp — the Lab never invents domain content.
+        """
+        if not isinstance(mapping, dict) or key not in mapping:
+            raise FullGameProtocolError(f"numeric decision missing explicit bound: {key}")
+        raw = mapping[key]
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            raise FullGameProtocolError(f"numeric decision bound is not an integer: {key}")
+        return cast(int, raw)
+
+    def _decide_numeric(
+        self,
+        runtime: _RuntimePilot,
+        state: dict[str, Any],
+        context: dict[str, Any],
+        rng: random.Random,
+        *,
+        decision_class: str,
+        prompt: str = "",
+        source_object: Any = None,
+    ) -> int:
+        """Range-native scalar decision (WS229 Design B).
+
+        The Core-supplied [min, max] is projected losslessly into a domain
+        descriptor; the pilot chooses strategy inside it; the Lab validates
+        exact membership before submission. No enumeration, no sampling, no
+        {min,mid,max} collapse, no clamp, no nearest-value mapping, no
+        default, no fallback. Malformed, non-integer, and out-of-domain
+        pilot returns fail closed.
+
+        For a mana X the descriptor also carries an ``affordable_max``
+        strategy hint (see ``_announce_x_affordable_max``). That hint narrows
+        the band the pilot strategy picks inside; it never narrows, moves or
+        re-derives the authoritative domain, which is still the only thing
+        validated here and the only thing the bridge accepts. It is derived
+        from the cost the engine itself reported on the priority option that
+        started this action, or, failing that, from the budget alone; it never
+        costs the Lab anything to compute and never leaves the domain.
+        """
+        minimum = self._required_bound(context, "numeric_min")
+        maximum = self._required_bound(context, "numeric_max")
+        if maximum < minimum:
+            raise FullGameProtocolError("numeric decision has reversed bounds")
+        outcome = str(context.get("outcome", "benefit")).casefold()
+        domain: dict[str, Any] = {
+            "kind": "contiguous_inclusive_int",
+            "min": minimum,
+            "max": maximum,
+            "outcome": outcome,
+            "prompt": prompt,
+        }
+        if decision_class == "announce_x":
+            affordable_max = self._announce_x_affordable_max(
+                runtime, state, context, source_object, prompt
+            )
+            if affordable_max is not None:
+                domain["affordable_max"] = affordable_max
+        chosen = runtime.pilot.choose_number(self._pilot_state(runtime, state), domain, rng)
+        if isinstance(chosen, bool) or not isinstance(chosen, int):
+            raise FullGameProtocolError(
+                f"pilot returned non-integer numeric decision for {decision_class}"
+            )
+        if not minimum <= chosen <= maximum:
+            raise FullGameProtocolError(
+                f"pilot numeric decision {chosen} outside authoritative domain "
+                f"{minimum}..{maximum} for {decision_class}"
+            )
+        return chosen
+
+    def _remember_priority_cost_facts(
+        self, seat: int, options: list[dict[str, Any]], selected: list[str]
+    ) -> None:
+        """Keep the cost the engine reported for the priority option just chosen.
+
+        The engine answers a priority window with the full legal set, each
+        option carrying the bridge's own ``enrichAbilityCostFacts`` summary of
+        what activating or casting it costs. When the pilot then chooses one,
+        the engine immediately asks for the X in that action's cost — and that
+        ``announce_x`` frame carries no cost whatsoever, only the source it
+        belongs to. Holding the chosen option's reported non-X mana value here,
+        keyed by the engine's own ``source_object_id``, is what lets the later
+        ``announce_x`` budget against a cost the engine stated rather than one
+        the Lab inferred.
+
+        Last selection only, per seat, and dropped again on that seat's next
+        priority decision or by the announce that uses it, so a remembered cost
+        can never be reused for a later or different action. The key is used
+        for equality against the ``source_object`` of the announce frame and
+        for nothing else: it never orders, ranks, counts or sorts anything, so
+        it cannot make same-seed fresh-process twins diverge the way an ordering
+        key could.
+        """
+        if len(selected) != 1:
+            return
+        chosen = selected[0]
+        for option in options:
+            if self._required_text(option, "option_id") != chosen:
+                continue
+            metadata = option.get("metadata")
+            if not isinstance(metadata, dict):
+                return
+            source = str(metadata.get("source_object_id") or "")
+            non_x = _option_non_x_mana_value(metadata)
+            if source and non_x is not None:
+                self._priority_cost_facts[seat] = {source: non_x}
+            return
+
+    def _take_remembered_priority_cost_facts(self, seat: int, source_object: Any) -> int | None:
+        """Consume this seat's remembered non-X cost for this announce source.
+
+        Taken, not copied: one cost is announced once, so a second
+        ``announce_x`` naming the same source before the seat's next priority
+        decision must not re-read the same cost and fall back to the budget
+        alone instead. Nothing is ever reused to answer a later announcement.
+        """
+        if not isinstance(source_object, dict):
+            return None
+        source = str(source_object.get("source_object_id") or "")
+        if not source:
+            return None
+        return self._priority_cost_facts.get(seat, {}).pop(source, None)
+
+    @staticmethod
+    def _x_cost_facts(
+        context: dict[str, Any],
+        source_object: Any,
+        remembered: int | None = None,
+    ) -> tuple[int, int | None] | None:
+        """The announced X's non-X cost, and how many X symbols carry it.
+
+        Read from the Core-supplied request context, or from the bridge's
+        ``source_object`` metadata for the ability being announced. Both are
+        engine-supplied facts; the Lab never derives a mana cost itself.
+
+        When neither names a cost at all, ``remembered`` is used: the non-X
+        value the engine reported on the priority option this seat chose, which
+        is the same action's cost reached by the other half of the frame pair.
+        It is consulted only when both direct reads are absent, so a cost
+        stated on the frame itself always wins.
+
+        Returns ``(non_x_mana_value, x_symbols)``, where ``x_symbols`` is None
+        when the facts do not state a count at all, which is the case for every
+        remembered cost and for a frame carrying neither field: the caller then
+        reads the count off the engine's own prompt. The whole answer is None
+        when the cost is not readable, and None is the conservative answer for
+        every shape that is absent, non-integer, boolean, negative, or
+        zero-symbol. A frame that names only half a cost stays as unusable as it
+        was: no count is filled into a statement the engine left incomplete.
+        """
+        sources: list[dict[str, Any]] = [context]
+        if isinstance(source_object, dict):
+            sources.append(source_object)
+
+        def read(key: str) -> int | None:
+            for source in sources:
+                raw = source.get(key)
+                if isinstance(raw, bool) or not isinstance(raw, int):
+                    continue
+                return raw
+            return None
+
+        non_x = read("numeric_non_x_mana_value")
+        symbols = read("numeric_x_symbols")
+        if non_x is None and symbols is None:
+            return None if remembered is None else (remembered, None)
+        if non_x is None or symbols is None:
+            return None
+        if non_x < 0 or symbols < 1:
+            return None
+        return non_x, symbols
+
+    def _mana_budget(self, state: dict[str, Any]) -> int:
+        """Mana the actor can see it could produce right now.
+
+        Its own floating pool plus each untapped permanent on its own
+        battlefield whose public ability text reads as a mana ability. One
+        permanent counts once: a "tap for two" rock is budgeted as one, which
+        under-states rather than over-states what the pilot believes it has.
+        Only the acting principal's own zones are read, so this is
+        pilot-visible by construction.
+        """
+        actor = self._actor(state)
+        budget = int(self._actor_mana(actor))
+        battlefield = actor.get("battlefield")
+        if not isinstance(battlefield, list):
+            return budget
+        for item in battlefield:
+            if not isinstance(item, dict):
+                continue
+            if item.get("tapped") is not False:
+                continue
+            if item.get("face_down") is True:
+                continue
+            rules = item.get("abilities")
+            if not isinstance(rules, list):
+                continue
+            if any(offers_mana_ability(str(rule)) for rule in rules):
+                budget += 1
+        return budget
+
+    def _announce_x_affordable_max(
+        self,
+        runtime: _RuntimePilot,
+        state: dict[str, Any],
+        context: dict[str, Any],
+        source_object: Any,
+        prompt: str,
+    ) -> int | None:
+        """Largest announced X the pilot's visible mana could pay (#700).
+
+        ``(budget - non_x_mana_value) // x_symbols``, never below zero: the
+        rest of the cost is paid out of the same visible mana, and a cost
+        carrying several X symbols shares what is left between them.
+
+        Only a mana X is budgeted at all. ``Player.announceX`` also serves the
+        engine's non-mana ``announceXCost``, which prints its own "{X}" and
+        then keeps going with the action's text ("... {X} (remove X
+        counters)"), and a power/toughness or counter X is not paid in mana,
+        so budgeting it against the pool would bound a value by a resource
+        that never had anything to do with it. Only the engine's whole mana
+        prompt, "Announce the value for " followed by nothing but its "{X}"
+        symbols, is a mana X (``mana_x_prompt_symbols``); the count of symbols
+        in that same prompt is the ``x_symbols`` this divides by whenever no
+        frame states a count of its own.
+
+        When the cost itself is unreadable, the bounded fallback is a non-X
+        cost of 0 over the prompt's own symbol count: for the ordinary
+        single-X cost that is the whole visible budget. That still keeps the
+        choice inside the mana the pilot can see instead of the engine's
+        ``Integer.MAX_VALUE`` ceiling, and it stays conservative in the safe
+        direction — it can only announce a smaller X than the domain allows,
+        never one the domain forbids. A budget that cannot even cover the rest
+        of the cost clamps to 0, and the band never drops below the Core's own
+        minimum.
+
+        Residual, not repaired here: the budget ignores the announced
+        ability's own tap or sacrifice cost, so a source that spends itself
+        can leave this an over-estimate by one, and one permanent is counted
+        as one mana. Both are already documented on ``_mana_budget``.
+        """
+        prompt_symbols = mana_x_prompt_symbols(prompt)
+        if prompt_symbols is None:
+            return None
+        seat = runtime.binding.seat
+        facts = self._x_cost_facts(
+            context,
+            source_object,
+            self._take_remembered_priority_cost_facts(seat, source_object),
+        )
+        non_x, symbols = facts if facts is not None else (0, None)
+        if symbols is None:
+            symbols = prompt_symbols
+        return max(0, (self._mana_budget(state) - non_x) // symbols)
+
+    def _decide_multi_amount(
+        self,
+        runtime: _RuntimePilot,
+        state: dict[str, Any],
+        context: dict[str, Any],
+        rng: random.Random,
+        *,
+        prompt: str = "",
+    ) -> list[int]:
+        """Joint bounded integer-vector decision (WS229 Design B).
+
+        One pilot-facing decision with per-leg [min, max] plus the total
+        band — the exact isGoodValues predicate projected, not invented.
+        Per-leg frames are never separate pilot strategic choices.
+        """
+        raw_legs = context.get("numeric_legs")
+        if not isinstance(raw_legs, list) or not raw_legs:
+            raise FullGameProtocolError(
+                "multi_amount requires a joint vector context (numeric_legs)"
+            )
+        legs: list[dict[str, Any]] = []
+        for index, raw in enumerate(raw_legs):
+            if not isinstance(raw, dict):
+                raise FullGameProtocolError(f"multi_amount leg {index} is not a bounds object")
+            leg_min = self._required_bound(raw, "min")
+            leg_max = self._required_bound(raw, "max")
+            if leg_max < leg_min:
+                raise FullGameProtocolError(f"multi_amount leg {index} has reversed bounds")
+            legs.append({"min": leg_min, "max": leg_max, "prompt": str(raw.get("prompt", ""))})
+        total_min = self._required_bound(context, "numeric_total_min")
+        total_max = self._required_bound(context, "numeric_total_max")
+        if total_max < total_min:
+            raise FullGameProtocolError("multi_amount has a reversed total band")
+        if (
+            sum(leg["min"] for leg in legs) > total_max
+            or sum(leg["max"] for leg in legs) < total_min
+        ):
+            raise FullGameProtocolError("multi_amount joint domain is empty")
+        outcome = str(context.get("outcome", "benefit")).casefold()
+        domain: dict[str, Any] = {
+            "kind": "joint_bounded_int_vector",
+            "legs": legs,
+            "total_min": total_min,
+            "total_max": total_max,
+            "outcome": outcome,
+            "prompt": prompt,
+        }
+        chosen = runtime.pilot.choose_numbers(self._pilot_state(runtime, state), domain, rng)
+        if not isinstance(chosen, (list, tuple)) or len(chosen) != len(legs):
+            raise FullGameProtocolError("pilot joint numeric decision has the wrong vector length")
+        values: list[int] = []
+        for element in chosen:
+            if isinstance(element, bool) or not isinstance(element, int):
+                raise FullGameProtocolError(
+                    "pilot joint numeric decision has a non-integer element"
+                )
+            values.append(element)
+        for index, (value, leg) in enumerate(zip(values, legs, strict=True)):
+            if not leg["min"] <= value <= leg["max"]:
+                raise FullGameProtocolError(
+                    f"pilot joint numeric leg {index} value {value} outside "
+                    f"authoritative domain {leg['min']}..{leg['max']}"
+                )
+        if not total_min <= sum(values) <= total_max:
+            raise FullGameProtocolError(
+                f"pilot joint numeric total {sum(values)} outside authoritative band "
+                f"{total_min}..{total_max}"
+            )
+        return values
+
+    def _decide_attack(
+        self,
+        runtime: _RuntimePilot,
+        state: dict[str, Any],
+        options: list[dict[str, Any]],
+        rng: random.Random,
+    ) -> str:
+        hold = self._option_by_type(options, "hold_attacker")
+        attacks = [
+            option
+            for option in options
+            if self._required_text(option, "option_type") == "declare_attacker"
+        ]
+        if not attacks:
+            return self._required_text(hold, "option_id")
+        pilot_state = self._pilot_state(runtime, state)
+        actions: list[PilotActionView] = []
+        raw_by_stable_id: dict[str, str] = {}
+        occurrences: dict[str, int] = {}
+        for option in attacks:
+            label = str(option.get("label", "Attack"))
+            base = f"attack:{label.casefold()}"
+            occurrence = occurrences.get(base, 0)
+            occurrences[base] = occurrence + 1
+            stable_id = f"{base}:{occurrence}"
+            action = self._combat_action(option, state).model_copy(update={"action_id": stable_id})
+            actions.append(action)
+            raw_by_stable_id[stable_id] = self._required_text(option, "option_id")
+        actions.append(
+            PilotActionView(
+                action_id="attack:hold",
+                action_kind="pass",
+                card_name="Hold attacker",
+                floor_value=0.1,
+            )
+        )
+        raw_by_stable_id["attack:hold"] = self._required_text(hold, "option_id")
+        decision = runtime.pilot.choose_combat_target(pilot_state, actions, rng)
+        if decision.selected_action_id is None:
+            raise FullGameProtocolError("Commander Lab pilot returned no attack decision")
+        try:
+            return raw_by_stable_id[decision.selected_action_id]
+        except KeyError:
+            raise FullGameProtocolError("pilot returned unknown stable attack action") from None
+
+    def _decide_blocks(
+        self,
+        runtime: _RuntimePilot,
+        state: dict[str, Any],
+        options: list[dict[str, Any]],
+        min_selections: int,
+        max_selections: int,
+        rng: random.Random,
+    ) -> list[str]:
+        if not options or max_selections == 0:
+            return []
+        pilot_state = self._pilot_state(runtime, state)
+        ranked: list[tuple[float, str]] = []
+        raw_by_stable_id: dict[str, str] = {}
+        occurrences: dict[str, int] = {}
+        for option in options:
+            label = str(option.get("label", "Block"))
+            base = f"block:{label.casefold()}"
+            occurrence = occurrences.get(base, 0)
+            occurrences[base] = occurrence + 1
+            stable_id = f"{base}:{occurrence}"
+            action = self._combat_action(option, state).model_copy(update={"action_id": stable_id})
+            score = runtime.pilot.evaluate_action(pilot_state, action).total_utility
+            ranked.append((score, stable_id))
+            raw_by_stable_id[stable_id] = self._required_text(option, "option_id")
+        ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        actor = self._actor(state)
+        life = float(actor.get("life", 40))
+        take = max_selections if life <= 15 else min(max_selections, max(min_selections, 1))
+        return [raw_by_stable_id[stable_id] for _score, stable_id in ranked[:take]]
+
+    def _pilot_state(self, runtime: _RuntimePilot, state: dict[str, Any]) -> PilotStateView:
+        actor = self._actor(state)
+        actor_id = self._required_text(state, "actor_id")
+        opponents: list[PilotOpponentView] = []
+        players = state.get("players")
+        if not isinstance(players, list):
+            raise FullGameProtocolError("pilot_state.players must be an array")
+        for raw in players:
+            if not isinstance(raw, dict) or raw.get("player_id") == actor_id:
+                continue
+            battlefield = raw.get("battlefield")
+            board_size = len(battlefield) if isinstance(battlefield, list) else 0
+            graveyard_count = int(raw.get("graveyard_count", 0))
+            life = float(raw.get("life", 40))
+            threat = board_size * 0.75 + graveyard_count * 0.08 + max(0.0, 40.0 - life) * 0.04
+            opponents.append(
+                PilotOpponentView(
+                    player_id=self._required_text(raw, "player_id"),
+                    life=life,
+                    threat=max(0.0, threat),
+                    board_power=float(board_size),
+                    engine_value=float(board_size) * 0.35,
+                    graveyard_size=graveyard_count,
+                    hand_size=int(raw.get("hand_count", 0)),
+                )
+            )
+        battlefield = actor.get("battlefield")
+        battlefield_items = battlefield if isinstance(battlefield, list) else []
+        hand = actor.get("hand")
+        hand_items = hand if isinstance(hand, list) else []
+        mana_pool = actor.get("mana_pool")
+        mana = (
+            sum(float(value) for value in mana_pool.values() if isinstance(value, (int, float)))
+            if isinstance(mana_pool, dict)
+            else 0.0
+        )
+        command = actor.get("command")
+        command_items = command if isinstance(command, list) else []
+        commanders = tuple(
+            PilotCommanderView(
+                name=str(item.get("name", "Unknown commander")),
+                base_cost=0.0,
+                next_cost=0.0,
+                casts=0,
+                on_battlefield=False,
+            )
+            for item in command_items
+            if isinstance(item, dict)
+        )
+        return PilotStateView(
+            player_id=actor_id,
+            deck_id=runtime.binding.deck_id,
+            strategy=runtime.binding.strategy,
+            turn=max(1, int(state.get("turn_number", 1))),
+            pod_size=self._player_count,
+            seat_position=runtime.binding.seat,
+            life=float(actor.get("life", 40)),
+            hand_size=int(actor.get("hand_count", len(hand_items))),
+            mana_available=max(0.0, mana),
+            lands=sum(
+                1
+                for item in battlefield_items
+                if isinstance(item, dict) and "land" in str(item.get("name", "")).casefold()
+            ),
+            ramp_mana=0.0,
+            resources=float(len(battlefield_items)),
+            tokens=0.0,
+            board_power=float(len(battlefield_items)),
+            engine_value=float(len(battlefield_items)) * 0.35,
+            graveyard_size=int(actor.get("graveyard_count", 0)),
+            battlefield_names=tuple(
+                str(item.get("name", ""))
+                for item in battlefield_items
+                if isinstance(item, dict) and item.get("name")
+            ),
+            hand_names=tuple(
+                str(item.get("name", ""))
+                for item in hand_items
+                if isinstance(item, dict) and item.get("name")
+            ),
+            role_counts={},
+            commanders=commanders,
+            opponents=tuple(opponents),
+            hidden_information_uncertainty=1.0,
+            opponent_intent_uncertainty=1.0,
+            unknown_opponent_fraction=1.0,
+            opponents_to_act_before_next_turn=self._player_count - 1,
+        )
+
+    def _priority_action(self, option: dict[str, Any], state: dict[str, Any]) -> PilotActionView:
+        metadata = option.get("metadata")
+        meta = metadata if isinstance(metadata, dict) else {}
+        source_name = str(meta.get("source_name") or option.get("label") or "XMage action")
+        source_id = str(meta.get("source_object_id") or "")
+        actor = self._actor(state)
+        command = actor.get("command")
+        command_items = command if isinstance(command, list) else []
+        command_ids = {
+            str(item.get("object_id")) for item in command_items if isinstance(item, dict)
+        }
+        action_kind: Literal["card", "commander"] = (
+            "commander" if source_id in command_ids else "card"
+        )
+        return PilotActionView(
+            action_id=self._required_text(option, "option_id"),
+            action_kind=action_kind,
+            card_name=source_name,
+            mana_cost=0.0,
+            floor_value=0.65,
+            immediate_impact=0.45,
+            commander_synergy=0.6 if action_kind == "commander" else 0.15,
+            remaining_mana=self._actor_mana(actor),
+            metadata={"xmage_option_type": self._required_text(option, "option_type")},
+        )
+
+    def _target_action(
+        self,
+        option: dict[str, Any],
+        state: dict[str, Any],
+        outcome: str,
+    ) -> PilotActionView:
+        option_id = self._required_text(option, "option_id")
+        owner_id = self._object_owner(option_id, state)
+        actor_id = self._required_text(state, "actor_id")
+        target_threat = self._player_threat(owner_id, state)
+        beneficial = outcome in {"benefit", "benefit_to_controller"}
+        roles = frozenset({CardRole.PROTECTION}) if beneficial else frozenset({CardRole.REMOVAL})
+        return PilotActionView(
+            action_id=option_id,
+            action_kind="protection" if beneficial else "removal_target",
+            card_name=str(option.get("label", option_id)),
+            roles=roles,
+            role_strengths={role: 1.0 for role in roles},
+            floor_value=0.3,
+            immediate_impact=0.6,
+            target_player_id=owner_id,
+            target_threat=target_threat,
+            threat_score=target_threat,
+            metadata={"target_is_actor_controlled": owner_id == actor_id},
+        )
+
+    def _combat_action(self, option: dict[str, Any], state: dict[str, Any]) -> PilotActionView:
+        metadata = option.get("metadata")
+        meta = metadata if isinstance(metadata, dict) else {}
+        target_id = str(meta.get("defender_id") or meta.get("attacker_id") or "") or None
+        target_threat = self._player_threat(target_id, state)
+        return PilotActionView(
+            action_id=self._required_text(option, "option_id"),
+            action_kind="combat_target",
+            card_name=str(option.get("label", "Combat")),
+            floor_value=0.35,
+            immediate_impact=0.8,
+            target_player_id=target_id,
+            target_threat=target_threat,
+            threat_score=target_threat,
+            metadata={"target_life": self._player_life(target_id, state)},
+        )
+
+    def _semantic_action(self, option: dict[str, Any]) -> PilotActionView:
+        label = str(option.get("label", "XMage option"))
+        normalized = label.casefold()
+        roles: set[CardRole] = set()
+        if any(word in normalized for word in ("draw", "card advantage")):
+            roles.add(CardRole.DRAW)
+        if any(word in normalized for word in ("destroy", "exile", "damage", "counter target")):
+            roles.add(CardRole.REMOVAL)
+        if any(word in normalized for word in ("create", "token")):
+            roles.add(CardRole.TOKEN_SOURCE)
+        if any(word in normalized for word in ("return", "graveyard")):
+            roles.add(CardRole.RECURSION)
+        role_set = frozenset(roles)
+        return PilotActionView(
+            action_id=self._required_text(option, "option_id"),
+            action_kind="card",
+            card_name=label,
+            roles=role_set,
+            role_strengths={role: 1.0 for role in role_set},
+            floor_value=0.4,
+            immediate_impact=0.4 + min(0.5, len(role_set) * 0.15),
+        )
+
+    def _hand_action(self, card: dict[str, Any]) -> PilotActionView:
+        name = self._required_text(card, "name")
+        return PilotActionView(
+            action_id=self._required_text(card, "object_id"),
+            action_kind="card",
+            card_name=name,
+            floor_value=0.5,
+            immediate_impact=0.3,
+            metadata={"is_land": self._looks_like_basic_land(name)},
+        )
+
+    def _target_alignment(
+        self,
+        action: PilotActionView,
+        state: dict[str, Any],
+        outcome: str,
+    ) -> float:
+        actor_id = self._required_text(state, "actor_id")
+        same = action.target_player_id == actor_id
+        if outcome in {"benefit", "benefit_to_controller"}:
+            return 8.0 if same else -8.0
+        if outcome in {"detriment", "detriment_to_controller"}:
+            return -8.0 if same else 8.0
+        return 0.0
+
+    def _object_owner(self, object_id: str, state: dict[str, Any]) -> str | None:
+        players = state.get("players")
+        if not isinstance(players, list):
+            return None
+        for raw in players:
+            if not isinstance(raw, dict):
+                continue
+            player_id = str(raw.get("player_id", ""))
+            if player_id == object_id:
+                return player_id
+            for zone in ("battlefield", "graveyard", "command", "hand"):
+                items = raw.get(zone)
+                if not isinstance(items, list):
+                    continue
+                if any(
+                    isinstance(item, dict) and str(item.get("object_id", "")) == object_id
+                    for item in items
+                ):
+                    return player_id
+        return None
+
+    def _player_threat(self, player_id: str | None, state: dict[str, Any]) -> float:
+        if player_id is None:
+            return 0.0
+        player = self._player(player_id, state)
+        if player is None:
+            return 0.0
+        battlefield = player.get("battlefield")
+        board_size = len(battlefield) if isinstance(battlefield, list) else 0
+        return max(
+            0.0,
+            board_size * 0.8
+            + int(player.get("graveyard_count", 0)) * 0.08
+            + max(0.0, 40.0 - float(player.get("life", 40))) * 0.04,
+        )
+
+    def _player_life(self, player_id: str | None, state: dict[str, Any]) -> float:
+        if player_id is None:
+            return 40.0
+        player = self._player(player_id, state)
+        return 40.0 if player is None else float(player.get("life", 40))
+
+    def _player(self, player_id: str, state: dict[str, Any]) -> dict[str, Any] | None:
+        players = state.get("players")
+        if not isinstance(players, list):
+            return None
+        return next(
+            (
+                raw
+                for raw in players
+                if isinstance(raw, dict) and str(raw.get("player_id")) == player_id
+            ),
+            None,
+        )
+
+    def _actor(self, state: dict[str, Any]) -> dict[str, Any]:
+        actor_id = self._required_text(state, "actor_id")
+        actor = self._player(actor_id, state)
+        if actor is None:
+            raise FullGameProtocolError("actor is absent from actor-scoped state")
+        return actor
+
+    @staticmethod
+    def _actor_mana(actor: dict[str, Any]) -> float:
+        mana = actor.get("mana_pool")
+        if not isinstance(mana, dict):
+            return 0.0
+        return max(
+            0.0,
+            sum(float(value) for value in mana.values() if isinstance(value, (int, float))),
+        )
+
+    def _rng(self, decision_offset: int, decision_class: str, seat: int) -> random.Random:
+        material = f"{self.scenario_seed}:{seat}:{decision_offset}:{decision_class}"
+        digest = hashlib.sha256(material.encode()).digest()
+        return random.Random(int.from_bytes(digest[:8], "big"))
+
+    @staticmethod
+    def _looks_like_basic_land(name: str) -> bool:
+        return name.casefold() in {
+            "plains",
+            "island",
+            "swamp",
+            "mountain",
+            "forest",
+            "wastes",
+        }
+
+    @staticmethod
+    def _legal_options(request: dict[str, Any]) -> list[dict[str, Any]]:
+        raw = request.get("legal_options")
+        if not isinstance(raw, list):
+            raise FullGameProtocolError("decision legal_options must be an array")
+        if not all(isinstance(item, dict) for item in raw):
+            raise FullGameProtocolError("decision legal_options contains non-object entries")
+        return cast(list[dict[str, Any]], raw)
+
+    @staticmethod
+    def _option_by_type(options: list[dict[str, Any]], option_type: str) -> dict[str, Any]:
+        matches = [option for option in options if option.get("option_type") == option_type]
+        if len(matches) != 1:
+            raise FullGameProtocolError(
+                f"expected exactly one {option_type!r} option; observed {len(matches)}"
+            )
+        return matches[0]
+
+    @staticmethod
+    def _require_offered(selected_id: str, options: list[dict[str, Any]], kind: str) -> str:
+        """Fail closed when the pilot returns an unoffered option id."""
+        offered = {str(option.get("option_id")) for option in options if isinstance(option, dict)}
+        if selected_id not in offered:
+            raise FullGameProtocolError(f"pilot returned unknown {kind}")
+        return selected_id
+
+    @staticmethod
+    def _required_text(value: dict[str, Any], key: str) -> str:
+        raw = value.get(key)
+        text = "" if raw is None else str(raw).strip()
+        if not text:
+            raise FullGameProtocolError(f"required text field is blank: {key}")
+        return text
+
+    @staticmethod
+    def _required_object(value: dict[str, Any], key: str) -> dict[str, Any]:
+        raw = value.get(key)
+        if not isinstance(raw, dict):
+            raise FullGameProtocolError(f"required object field missing: {key}")
+        return raw
+
+
+class XmageFullGameRunner:
+    """Run one isolated 2..6-player XMage Commander game with Commander Lab pilot policy."""
+
+    MIN_PLAYERS = 2
+    MAX_PLAYERS = 6
+
+    def __init__(
+        self,
+        command: tuple[str, ...] | None = None,
+        *,
+        cwd: str | Path | None = None,
+        request_timeout_seconds: float = 120.0,
+        max_decisions: int = 50_000,
+    ) -> None:
+        self.command = command or self.command_from_environment()
+        self.cwd = cwd
+        self.request_timeout_seconds = request_timeout_seconds
+        self.max_decisions = max_decisions
+        if self.max_decisions < 1:
+            raise ValueError("max_decisions must be positive")
+        # Armed by run() for the duration of one game (C2 per-frame audit).
+        self._hidden_audit: FullGameHiddenInformationAudit | None = None
+
+    @staticmethod
+    def command_from_environment() -> tuple[str, ...] | None:
+        raw = os.getenv(XMAGE_FULL_GAME_COMMAND_ENV)
+        return tuple(shlex.split(raw)) if raw else None
+
+    @public_full_game_errors
+    def run(
+        self,
+        *,
+        scenario: FutureXmageScenario,
+        decks: tuple[RulesDeckInput, ...],
+        pilots: tuple[FullGamePilotBinding, ...],
+    ) -> FullGameConformanceResult:
+        command = self.command
+        if command is None:
+            raise FullGameConformanceError(
+                f"full-game bridge is not configured; set {XMAGE_FULL_GAME_COMMAND_ENV}"
+            )
+        policy = self._validated_policy(scenario, decks, pilots)
+        audit = FullGameHiddenInformationAudit()
+        self._hidden_audit = audit
+
+        with _RawFullGameClient(
+            command,
+            cwd=self.cwd,
+            request_timeout_seconds=self.request_timeout_seconds,
+        ) as client:
+            provider = self._open_game(client, scenario, decks)
+            try:
+                _decision_count, _, terminal = self._drive(client, policy, stop_after=None)
+            finally:
+                self._hidden_audit = None
+            assert terminal is True
+            result = client.request("get_full_game_result")
+        # The same lifecycle gate as the bounded smoke: a game-over result rests
+        # on an observed graceful shutdown, never on a suppressed kill/timeout.
+        disposition = getattr(client, "shutdown_disposition", None)
+        if disposition != FULL_GAME_SHUTDOWN_GRACEFUL:
+            raise FullGameConformanceError(f"full game shutdown not graceful: {disposition}")
+        return self._build_result(
+            scenario, provider, result, shutdown_disposition=disposition, hidden_audit=audit
+        )
+
+    @public_full_game_errors
+    def run_smoke(
+        self,
+        *,
+        scenario: FutureXmageScenario,
+        decks: tuple[RulesDeckInput, ...],
+        pilots: tuple[FullGamePilotBinding, ...],
+        smoke_decision_target: int = 25,
+        stop_at_turn: int | None = None,
+    ) -> FullGameSmokeResult:
+        """Drive a bounded live lifecycle smoke for one supported cardinality.
+
+        Reuses the exact fail-closed validation, handshake, seed/count binding,
+        and authoritative pilot policy of :meth:`run`, but stops after
+        ``smoke_decision_target`` answered decisions (or earlier terminal) and
+        shuts the engine down cleanly instead of requiring game over. Any
+        unsupported engine callback surfaces as ``FullGameProtocolError`` /
+        ``FullGameConformanceError`` from the shared drive loop, failing the
+        smoke closed.
+        """
+        if smoke_decision_target < 1:
+            raise ValueError("smoke_decision_target must be positive")
+        command = self.command
+        if command is None:
+            raise FullGameConformanceError(
+                f"full-game bridge is not configured; set {XMAGE_FULL_GAME_COMMAND_ENV}"
+            )
+        policy = self._validated_policy(scenario, decks, pilots)
+
+        client = _RawFullGameClient(
+            command,
+            cwd=self.cwd,
+            request_timeout_seconds=self.request_timeout_seconds,
+        )
+        with client:
+            provider = self._open_game(client, scenario, decks)
+            progress: list[ProgressEntry] = []
+            stop: dict[str, Any] = {}
+            decision_count, observed, terminal = self._drive(
+                client,
+                policy,
+                stop_after=smoke_decision_target,
+                stop_at_turn=stop_at_turn,
+                progress=progress,
+                stop=stop,
+            )
+        # P1 shutdown evidence: a bounded smoke PASS must rest on observed
+        # graceful shutdown, never on a suppressed kill/timeout. Anything
+        # else fails the smoke closed (message carries the disposition).
+        disposition = getattr(client, "shutdown_disposition", None)
+        if disposition != FULL_GAME_SHUTDOWN_GRACEFUL:
+            raise FullGameConformanceError(
+                "bounded smoke shutdown not graceful: "
+                f"{disposition} (decisions={decision_count} terminal={terminal})"
+            )
+        if decision_count == 0:
+            raise FullGameConformanceError(
+                "bounded smoke observed no authoritative decisions before terminal"
+            )
+
+        if stop_at_turn is not None and stop.get("reason") != "turn_boundary":
+            raise FullGameConformanceError(
+                f"bounded smoke stopped before required turn boundary: {stop.get('reason')}"
+            )
+
+        return FullGameSmokeResult(
+            scenario_id=scenario.scenario_id,
+            player_count=scenario.player_count,
+            seed=scenario.seed,
+            engine_version=str(provider.get("engine_version", "unknown")),
+            xmage_commit=scenario.xmage_commit,
+            decision_protocol_version=FULL_GAME_DECISION_PROTOCOL_VERSION,
+            decision_count=decision_count,
+            smoke_decision_target=smoke_decision_target,
+            bounded_criterion_met=True,
+            terminal_reached=terminal,
+            seed_preserved=True,
+            player_count_preserved=True,
+            observed_decision_classes=tuple(observed),
+            stop_reason=stop.get("reason", "terminal" if terminal else "decision_limit"),
+            stop_turn_number=stop.get("turn"),
+            progress_trace=tuple(progress),
+            progress_digest=hashlib.sha256(
+                json.dumps(progress, separators=(",", ":")).encode("utf-8")
+            ).hexdigest(),
+        )
+
+    def _validated_policy(
+        self,
+        scenario: FutureXmageScenario,
+        decks: tuple[RulesDeckInput, ...],
+        pilots: tuple[FullGamePilotBinding, ...],
+    ) -> ExternalPilotDecisionPolicy:
+        self._validate_inputs(scenario, decks, pilots)
+        runtime_pilots = tuple(
+            _RuntimePilot(
+                binding=binding,
+                pilot=build_pilot(binding.config, strategy=binding.strategy),
+            )
+            for binding in sorted(pilots, key=lambda item: item.seat)
+        )
+        return ExternalPilotDecisionPolicy(runtime_pilots, scenario.seed)
+
+    def _open_game(
+        self,
+        client: _RawFullGameClient,
+        scenario: FutureXmageScenario,
+        decks: tuple[RulesDeckInput, ...],
+    ) -> dict[str, Any]:
+        started = client.request("start_engine")
+        if started.get("lane") != FULL_GAME_LANE:
+            raise FullGameConformanceError("bridge did not enter explicit full-game lane")
+        provider = client.request("get_provider_version")
+        capabilities = client.request("get_capabilities")
+        self._validate_handshake(scenario, provider, capabilities)
+
+        handles: list[str] = []
+        for deck in decks:
+            imported = client.request("import_deck", {"deck": self._deck_payload(deck)})
+            handle = imported.get("deck_handle")
+            if not isinstance(handle, dict):
+                raise FullGameConformanceError("IMPORT_DECK returned no deck_handle")
+            handle_id = str(handle.get("handle_id", "")).strip()
+            if not handle_id:
+                raise FullGameConformanceError("IMPORT_DECK returned blank handle_id")
+            handles.append(handle_id)
+
+        game_id = f"{scenario.scenario_id}:{scenario.candidate_id}:{scenario.seed}"
+        player_count = scenario.player_count
+        created = client.request(
+            "create_full_game",
+            {
+                "game_id": game_id,
+                "deck_handles": handles,
+                "seed": scenario.seed,
+                "starting_player_seat": scenario.seed % player_count,
+                "starting_life": 40,
+            },
+        )
+        if created.get("player_count") != player_count or created.get("seed") != scenario.seed:
+            raise FullGameConformanceError(
+                "full-game creation did not preserve player-count/seed contract"
+            )
+        if created.get("evidence_class") != FULL_GAME_EVIDENCE_CLASS:
+            raise FullGameConformanceError("full-game creation returned unsafe evidence class")
+        if created.get("holdout_consumed") is not False:
+            raise FullGameConformanceError("technical conformance must not consume holdout")
+        return provider
+
+    def _drive(
+        self,
+        client: _RawFullGameClient,
+        policy: ExternalPilotDecisionPolicy,
+        *,
+        stop_after: int | None,
+        stop_at_turn: int | None = None,
+        progress: list[ProgressEntry] | None = None,
+        stop: dict[str, Any] | None = None,
+    ) -> tuple[int, list[str], bool]:
+        """Drive authoritative decisions until terminal (or ``stop_after`` answers).
+
+        With ``stop_at_turn`` the drive also stops before answering the first
+        decision of that turn. ``progress`` collects each answered decision's
+        public metadata plus the semantic response digest after acknowledged submission.
+
+        Returns ``(decision_count, observed_decision_classes, terminal)``.
+        Shared verbatim by :meth:`run` (``stop_after=None``) and
+        :meth:`run_smoke` so smoke progression and full-game progression
+        cannot diverge.
+        """
+        status = client.request("start_full_game")
+        decision_count = 0
+        observed: list[str] = []
+        while True:
+            failure = status.get("failure")
+            if isinstance(failure, dict):
+                raw_failure = json.dumps(failure, sort_keys=True)
+                raise FullGameConformanceError(
+                    "XMage full-game engine failed: "
+                    + redacted_summary("ENGINE_FAILURE", (raw_failure,))
+                )
+            decision = status.get("decision")
+            if isinstance(decision, dict):
+                decision_class = decision.get("decision_class")
+                pilot_state = decision.get("pilot_state")
+                turn = pilot_state.get("turn_number") if isinstance(pilot_state, dict) else None
+                if stop_at_turn is not None and type(turn) is int and turn >= stop_at_turn:
+                    if stop is not None:
+                        stop.update(reason="turn_boundary", turn=turn)
+                    return decision_count, observed, False
+                # Inspect the frame returned by the final permitted submission
+                # before applying the cap; it may already be the turn boundary.
+                if stop_after is not None and decision_count >= stop_after:
+                    if stop is not None:
+                        stop.update(reason="decision_limit")
+                    return decision_count, observed, False
+                decision_count += 1
+                if decision_count > self.max_decisions:
+                    raise FullGameConformanceError(
+                        f"full-game exceeded max_decisions={self.max_decisions}"
+                    )
+                if isinstance(decision_class, str) and decision_class not in observed:
+                    observed.append(decision_class)
+                audit = self._hidden_audit
+                if audit is not None:
+                    rows, visible, violations = audit_actor_scoped_frame(decision)
+                    if violations:
+                        raise FullGameConformanceError(
+                            "hidden information not actor-scoped at decision "
+                            f"{decision_count}: " + "; ".join(violations)
+                        )
+                    audit.frames_audited += 1
+                    audit.non_actor_rows_audited += rows
+                    audit.non_actor_rows_engine_visible += visible
+                response = policy.decide(decision)
+                status = client.request(
+                    "submit_full_game_decision",
+                    {"response": response},
+                )
+                if progress is not None and not isinstance(status.get("failure"), dict):
+                    selected, _labels = selected_fingerprints_for_response(
+                        decision, list(response.get("selected_option_ids", []))
+                    )
+                    ordered, _ordered_labels = selected_fingerprints_for_response(
+                        decision, list(response.get("ordering", []))
+                    )
+                    response_digest = canonical_hash(
+                        {
+                            "selected": selected,
+                            "ordering": ordered,
+                            "numeric_choice": response.get("numeric_choice"),
+                            "numeric_choices": response.get("numeric_choices"),
+                        }
+                    )
+                    seat = decision.get("seat")
+                    phase = pilot_state.get("phase") if isinstance(pilot_state, dict) else None
+                    progress.append(
+                        (
+                            str(decision_class),
+                            seat if type(seat) is int else None,
+                            turn if type(turn) is int else None,
+                            phase if isinstance(phase, str) else None,
+                            response_digest,
+                            _active_seat(pilot_state),
+                        )
+                    )
+                continue
+            if bool(status.get("terminal")):
+                if stop is not None:
+                    stop.update(reason="terminal")
+                return decision_count, observed, True
+            if stop_after is not None and decision_count >= stop_after:
+                if stop is not None:
+                    stop.update(reason="decision_limit")
+                return decision_count, observed, False
+            status = client.request("get_full_game_decision")
+
+    @staticmethod
+    def replay_gate(
+        *,
+        scenario: FutureXmageScenario,
+        first: FullGameConformanceResult,
+        second: FullGameConformanceResult,
+        tape: FullGameSemanticTapeEvidence,
+    ) -> FullGameReplayGate:
+        return FullGameReplayGate(
+            scenario_id=scenario.scenario_id,
+            seed=scenario.seed,
+            semantic_replay_match=tape.passed,
+            semantic_tape=tape,
+            twin_transcript_hash_match=(
+                first.semantic_transcript_sha256 == second.semantic_transcript_sha256
+            ),
+            raw_result_match=first.raw_result_sha256 == second.raw_result_sha256,
+            first_semantic_sha256=first.semantic_transcript_sha256,
+            second_semantic_sha256=second.semantic_transcript_sha256,
+            first_raw_sha256=first.raw_result_sha256,
+            second_raw_sha256=second.raw_result_sha256,
+            bit_exact_replay_validated=False,
+        )
+
+    @staticmethod
+    def _validate_inputs(
+        scenario: FutureXmageScenario,
+        decks: tuple[RulesDeckInput, ...],
+        pilots: tuple[FullGamePilotBinding, ...],
+    ) -> None:
+        player_count = scenario.player_count
+        if (
+            player_count < XmageFullGameRunner.MIN_PLAYERS
+            or player_count > XmageFullGameRunner.MAX_PLAYERS
+        ):
+            raise FullGameConformanceError("operational full-game scope is two to six players")
+        if len(decks) != player_count or len(pilots) != player_count:
+            raise FullGameConformanceError(
+                "deck/pilot cardinality must equal the scenario player count"
+            )
+        if len({deck.deck_id for deck in decks}) != player_count:
+            raise FullGameConformanceError("full-game requires distinct deck identities per seat")
+        if {pilot.seat for pilot in pilots} != set(range(1, player_count + 1)):
+            raise FullGameConformanceError("pilot bindings must cover seats 1..N exactly")
+        for index, (deck, pilot) in enumerate(
+            zip(decks, sorted(pilots, key=lambda item: item.seat), strict=True),
+            start=1,
+        ):
+            if deck.deck_id != pilot.deck_id:
+                raise FullGameConformanceError(
+                    f"seat {index} deck/pilot mismatch: {deck.deck_id} != {pilot.deck_id}"
+                )
+            if tuple(deck.commander_names) != tuple(pilot.commander_names):
+                raise FullGameConformanceError(f"seat {index} commander/pilot mismatch")
+            if deck.deck_hash is None:
+                raise FullGameConformanceError(f"seat {index} deck_hash is required")
+        own = decks[scenario.seat - 1]
+        if own.deck_id != scenario.candidate_id:
+            raise FullGameConformanceError(
+                "FutureXmageScenario candidate_id must occupy the declared scenario seat"
+            )
+        if own.deck_hash != scenario.deck_hash:
+            raise FullGameConformanceError("FutureXmageScenario deck_hash does not match own deck")
+        opponent_ids = tuple(
+            deck.deck_id for index, deck in enumerate(decks, start=1) if index != scenario.seat
+        )
+        if opponent_ids != scenario.opponent_deck_ids:
+            raise FullGameConformanceError(
+                "FutureXmageScenario opponent_deck_ids do not match seat-ordered opponents"
+            )
+        own_pilot = sorted(pilots, key=lambda item: item.seat)[scenario.seat - 1]
+        if own_pilot.pilot_identity != scenario.pilot_identity:
+            raise FullGameConformanceError("scenario pilot_identity mismatch")
+        if own_pilot.pilot_version != scenario.pilot_version:
+            raise FullGameConformanceError("scenario pilot_version mismatch")
+        if own_pilot.decision_policy_version != scenario.decision_policy_version:
+            raise FullGameConformanceError("scenario decision_policy_version mismatch")
+
+    @staticmethod
+    def _validate_handshake(
+        scenario: FutureXmageScenario,
+        provider: dict[str, Any],
+        capabilities_payload: dict[str, Any],
+    ) -> None:
+        if provider.get("engine") != "xmage":
+            raise FullGameConformanceError("full-game provider is not XMage")
+        if provider.get("engine_commit") != scenario.xmage_commit:
+            raise FullGameConformanceError(
+                f"XMage commit mismatch: scenario={scenario.xmage_commit} "
+                f"provider={provider.get('engine_commit')}"
+            )
+        lane = capabilities_payload.get("full_game_lane")
+        caps = capabilities_payload.get("capabilities")
+        if not isinstance(lane, dict) or not isinstance(caps, dict):
+            raise FullGameConformanceError("full-game capability handshake is incomplete")
+        if lane.get("lane") != FULL_GAME_LANE:
+            raise FullGameConformanceError("full-game lane identity mismatch")
+        if lane.get("decision_protocol_version") != FULL_GAME_DECISION_PROTOCOL_VERSION:
+            raise FullGameConformanceError("full-game decision protocol mismatch")
+        lane_min = lane.get("min_players")
+        lane_max = lane.get("max_players")
+        if (
+            not isinstance(lane_min, int)
+            or not isinstance(lane_max, int)
+            or lane_min != XmageFullGameRunner.MIN_PLAYERS
+            or lane_max != XmageFullGameRunner.MAX_PLAYERS
+            or not lane_min <= scenario.player_count <= lane_max
+        ):
+            raise FullGameConformanceError(
+                "full-game capability player-count range does not cover the scenario"
+            )
+        if lane.get("evidence_class") != FULL_GAME_EVIDENCE_CLASS:
+            raise FullGameConformanceError("full-game capability evidence class is unsafe")
+        if lane.get("generic_capability_promotion") is not False:
+            raise FullGameConformanceError("full-game lane must not promote generic capabilities")
+        if lane.get("one_game_per_process") is not True:
+            raise FullGameConformanceError("full-game lane must isolate one game per JVM")
+        if lane.get("bit_exact_replay_validated") is not False:
+            raise FullGameConformanceError("bit-exact replay may not be preclaimed")
+        required_true = {
+            "commander_supported",
+            "partner_supported",
+            "multiplayer_supported",
+            "headless_supported",
+            "seed_supported",
+            "deck_import_supported",
+            "target_selection_supported",
+            "mode_selection_supported",
+            "trigger_order_supported",
+            "mulligan_supported",
+        }
+        missing = sorted(name for name in required_true if caps.get(name) is not True)
+        if missing:
+            raise FullGameConformanceError(
+                "full-game lane missing required capabilities: " + ", ".join(missing)
+            )
+
+    @staticmethod
+    def _deck_payload(deck: RulesDeckInput) -> dict[str, Any]:
+        if deck.deck_hash is None:
+            raise FullGameConformanceError(f"deck_hash required for {deck.deck_id}")
+        return {
+            "deck_id": deck.deck_id,
+            "deck_hash": deck.deck_hash,
+            "mainboard": list(deck.mainboard),
+            "commander_names": list(deck.commander_names),
+            "sideboard": list(deck.sideboard),
+        }
+
+    @classmethod
+    def _build_result(
+        cls,
+        scenario: FutureXmageScenario,
+        provider: dict[str, Any],
+        result: dict[str, Any],
+        *,
+        shutdown_disposition: str | None = None,
+        hidden_audit: FullGameHiddenInformationAudit | None = None,
+    ) -> FullGameConformanceResult:
+        if shutdown_disposition != FULL_GAME_SHUTDOWN_GRACEFUL:
+            raise FullGameConformanceError(
+                f"full game shutdown not graceful: {shutdown_disposition}"
+            )
+        if result.get("evidence_class") != FULL_GAME_EVIDENCE_CLASS:
+            raise FullGameConformanceError("result evidence class is not technical conformance")
+        for field in (
+            "consumed_gameplay_evidence",
+            "holdout_consumed",
+            "official_campaign_eligible",
+        ):
+            if result.get(field) is not False:
+                raise FullGameConformanceError(f"unsafe full-game result flag: {field}")
+        if result.get("rules_authority") != "xmage":
+            raise FullGameConformanceError("result rules authority is not XMage")
+        if result.get("decision_policy_authority") != "commander_lab_external_pilot":
+            raise FullGameConformanceError("result decision authority is not Commander Lab pilot")
+        if result.get("bit_exact_replay_validated") is not False:
+            raise FullGameConformanceError("bit-exact replay was promoted without gate")
+        if result.get("seed") != scenario.seed:
+            raise FullGameConformanceError("result seed mismatch")
+        if result.get("terminal") is not True:
+            raise FullGameConformanceError("XMage full-game did not terminate")
+
+        outcomes = result.get("outcomes")
+        if not isinstance(outcomes, list) or len(outcomes) != scenario.player_count:
+            raise FullGameConformanceError(
+                "full-game result must contain one seat outcome per player"
+            )
+        winner_seats = tuple(
+            int(item.get("seat", -1)) + 1
+            for item in outcomes
+            if isinstance(item, dict) and item.get("won") is True
+        )
+        semantic = cls.semantic_transcript(result)
+        audit = hidden_audit or FullGameHiddenInformationAudit()
+        return FullGameConformanceResult(
+            scenario=scenario,
+            engine_version=str(provider.get("engine_version", "unknown")),
+            xmage_commit=str(provider.get("engine_commit", "")),
+            decision_protocol_version=FULL_GAME_DECISION_PROTOCOL_VERSION,
+            decision_count=int(result.get("decision_count", 0)),
+            terminal=True,
+            winner_seats=winner_seats,
+            result_payload=result,
+            semantic_transcript_sha256=cls._sha256(semantic),
+            raw_result_sha256=cls._sha256(result),
+            shutdown_disposition=FULL_GAME_SHUTDOWN_GRACEFUL,
+            hidden_information_audit=audit,
+            claim_basis=FullGameClaimBasis(
+                hidden_information_actor_scoped=(
+                    "OBSERVED" if audit.frames_audited > 0 else "DECLARED_NOT_OBSERVED"
+                )
+            ),
+        )
+
+    @staticmethod
+    def semantic_transcript(result: dict[str, Any]) -> dict[str, Any]:
+        transcript = result.get("transcript")
+        semantic_events: list[dict[str, Any]] = []
+        if isinstance(transcript, list):
+            for raw in transcript:
+                if not isinstance(raw, dict):
+                    continue
+                semantic_events.append(
+                    {
+                        "sequence": raw.get("sequence"),
+                        "kind": raw.get("kind"),
+                        "decision_class": raw.get("decision_class"),
+                        "actor_seat": raw.get("actor_seat"),
+                        "prompt": XmageFullGameRunner._semantic_text(raw.get("prompt")),
+                        "selected_option_types": raw.get("selected_option_types"),
+                        "selected_option_labels": XmageFullGameRunner._semantic_text_list(
+                            raw.get("selected_option_labels")
+                        ),
+                        "numeric_choice": raw.get("numeric_choice"),
+                    }
+                )
+        outcomes = result.get("outcomes")
+        semantic_outcomes = []
+        if isinstance(outcomes, list):
+            semantic_outcomes = [
+                {
+                    "seat": item.get("seat"),
+                    "life": item.get("life"),
+                    "won": item.get("won"),
+                    "lost": item.get("lost"),
+                    "left": item.get("left"),
+                }
+                for item in outcomes
+                if isinstance(item, dict)
+            ]
+        return {
+            "seed": result.get("seed"),
+            "turn_number": result.get("turn_number"),
+            "decision_count": result.get("decision_count"),
+            "events": semantic_events,
+            "outcomes": semantic_outcomes,
+        }
+
+    @staticmethod
+    def _semantic_text(value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        text = re.sub(
+            r"\s+object_id=(['\"])[^'\"]+\1",
+            "",
+            value,
+            flags=re.IGNORECASE,
+        )
+        text = re.sub(
+            r"(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
+            "<engine-object>",
+            text,
+        )
+        text = re.sub(r"(</font>)\s*\[[0-9a-fA-F]{3,8}\]", r"\1", text)
+        text = re.sub(r"\s*\[[0-9a-fA-F]{3,8}\](?=</div>|$)", "", text)
+        return text
+
+    @staticmethod
+    def _semantic_text_list(value: object) -> object:
+        if not isinstance(value, list):
+            return value
+        return [XmageFullGameRunner._semantic_text(item) for item in value]
+
+    @staticmethod
+    def _sha256(value: dict[str, Any]) -> str:
+        payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        return hashlib.sha256(payload.encode()).hexdigest()
+
+
+__all__ = [
+    "FULL_GAME_DECISION_PROTOCOL_VERSION",
+    "FULL_GAME_EVIDENCE_CLASS",
+    "FULL_GAME_LANE",
+    "XMAGE_FULL_GAME_COMMAND_ENV",
+    "ExternalPilotDecisionPolicy",
+    "FullGameConformanceError",
+    "FullGameConformanceResult",
+    "FullGamePilotBinding",
+    "FullGameProtocolError",
+    "FullGameReplayGate",
+    "FullGameSemanticTapeEvidence",
+    "XmageFullGameRunner",
+]

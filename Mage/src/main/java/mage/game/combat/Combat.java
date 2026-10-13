@@ -485,21 +485,38 @@ public class Combat implements Serializable, Copyable<Combat> {
                     if (!effect.mustAttack(game)) {
                         continue;
                     }
-                    mustAttack = true;
+                    // a requirement to attack a defender who has left the game imposes nothing on
+                    // this creature; it must not cancel the other creatures' requirements (CR 800.4a)
+                    boolean effectApplies = true;
                     for (Ability ability : entry.getValue()) {
-                        UUID defenderId = effect.mustAttackDefender(ability, game);
+                        Set<UUID> defenderIds = effect.mustAttackDefenders(ability, game);
+                        if (defenderIds != null && defenderIds.size() > 1) {
+                            // must attack one of several defenders (still in the game)
+                            boolean anyLeft = false;
+                            for (UUID defenderId : defenderIds) {
+                                Player defendingPlayer = game.getPlayer(defenderId);
+                                if (defenders.contains(defenderId) && (defendingPlayer == null || !defendingPlayer.hasLost())) {
+                                    defendersForcedToAttack.add(defenderId);
+                                    anyLeft = true;
+                                }
+                            }
+                            effectApplies = anyLeft;
+                            break;
+                        }
+                        UUID defenderId = defenderIds == null || defenderIds.isEmpty() ? null : defenderIds.iterator().next();
 
                         if (defenderId != null) {
                             // creature is not forced to attack players that are no longer in the game
                             if (game.getPermanentOrLKIBattlefield(defenderId) == null && game.getPlayer(defenderId).hasLost()) {
-                                // TODO: must attack bugged (not goad)? Must use not LKI here or must check controller's lost too?
-                                // TODO: multiple must attack bugged (not goad)? It skip ALL other effects on outdated one of the effects (must continue instead?)
-                                return;
+                                effectApplies = false;
                             } else if (defenders.contains(defenderId)) {
                                 defendersForcedToAttack.add(defenderId);
                             }
                         }
                         break;
+                    }
+                    if (effectApplies) {
+                        mustAttack = true;
                     }
                 }
             } else {
