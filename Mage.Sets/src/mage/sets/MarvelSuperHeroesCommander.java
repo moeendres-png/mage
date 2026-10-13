@@ -789,5 +789,17 @@ public final class MarvelSuperHeroesCommander extends ExpansionSet {
         cards.add(new SetCardInfo("Typhoid Mary, Fractured", 99, Rarity.RARE, mage.cards.t.TyphoidMaryFractured.class));
         cards.add(new SetCardInfo("Ultron, Unlimited", 100, Rarity.RARE, mage.cards.u.UltronUnlimited.class));
         cards.add(new SetCardInfo("Willie Lumpkin, Postman", 101, Rarity.RARE, mage.cards.w.WillieLumpkinPostman.class));
+        cards.add(new SetCardInfo("Fight for the Throne", 65, Rarity.RARE, mage.cards.f.FightForTheThrone.class));
+        cards.add(new SetCardInfo("Heart-Shaped Herb", 105, Rarity.RARE, mage.cards.h.HeartShapedHerb.class));
+        cards.add(new SetCardInfo("King Solomon's Frogs", 20, Rarity.RARE, mage.cards.k.KingSolomonsFrogs.class));
+        cards.add(new SetCardInfo("M'Baku, Jabari Chieftain", 67, Rarity.RARE, mage.cards.m.MBakuJabariChieftain.class));
+        cards.add(new SetCardInfo("N'Yami-Class Mother Ship", 110, Rarity.RARE, mage.cards.n.NYamiClassMotherShip.class));
+        cards.add(new SetCardInfo("Okoye, Mighty and Adored", 89, Rarity.RARE, mage.cards.o.OkoyeMightyAndAdored.class));
+        cards.add(new SetCardInfo("Panther Habit", 112, Rarity.RARE, mage.cards.p.PantherHabit.class));
+        cards.add(new SetCardInfo("Shuri, the Black Panther", 95, Rarity.MYTHIC, mage.cards.s.ShuriTheBlackPanther.class));
+        cards.add(new SetCardInfo("Storm, Queen of Wakanda", 97, Rarity.RARE, mage.cards.s.StormQueenOfWakanda.class));
+        cards.add(new SetCardInfo("The Spear of Bashenga", 25, Rarity.RARE, mage.cards.t.TheSpearOfBashenga.class));
+        cards.add(new SetCardInfo("W'Kabi, Shield of the Nation", 70, Rarity.RARE, mage.cards.w.WKabiShieldOfTheNation.class));
+        cards.add(new SetCardInfo("Wakanda Forever!", 71, Rarity.RARE, mage.cards.w.WakandaForever.class));
     }
 }

@@ -27,8 +27,12 @@ public final class CardSmoke {
             long t = System.currentTimeMillis();
             JsonObject row = new JsonObject();
             row.addProperty("card", card);
+            String engineName = engineName(card);
+            if (!engineName.equals(card)) {
+                row.addProperty("engine_name", engineName);
+            }
             try {
-                smoke(card, "smoke-" + (i++), row);
+                smoke(engineName, "smoke-" + (i++), row);
             } catch (Throwable e) {
                 row.addProperty("status", "HARNESS_ERROR");
                 row.addProperty("detail", String.valueOf(e).replace('\n', ' '));
@@ -38,6 +42,17 @@ public final class CardSmoke {
             System.out.println(row);
         }
         System.exit(0);
+    }
+
+    /**
+     * XMage stores names ASCII-folded (Grishnakh, Lord of the Nazgul) and names a prepare card by
+     * its creature face only; decklists and Scryfall use the printed name and "Front // Spell".
+     */
+    static String engineName(String card) {
+        String folded = java.text.Normalizer.normalize(card, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+        mage.cards.repository.CardInfo info = mage.cards.repository.CardRepository.instance.findCard(folded, true);
+        return info == null ? card : info.getName();
     }
 
     static void smoke(String card, String tag, JsonObject row) {

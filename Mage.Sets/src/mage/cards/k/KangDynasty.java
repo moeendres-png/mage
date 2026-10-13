@@ -24,6 +24,7 @@ import mage.game.permanent.Permanent;
 import mage.target.common.TargetControlledCreaturePermanent;
 import mage.target.common.TargetCreaturePermanent;
 import mage.target.targetadjustment.ForEachPlayerTargetsAdjuster;
+import mage.target.targetpointer.EachTargetPointer;
 import mage.target.targetpointer.FixedTarget;
 
 import java.util.ArrayList;
@@ -45,7 +46,7 @@ public final class KangDynasty extends CardImpl {
 
         // I, II -- For each opponent, tap up to one target creature that player controls. Goad those creatures. Until your next turn, whenever any of those creatures deals combat damage to a player, draw a card.
         sagaAbility.addChapterEffect(this, SagaChapter.CHAPTER_I, SagaChapter.CHAPTER_II, ability -> {
-            ability.addEffect(new KangDynastyEffect());
+            ability.addEffect(new KangDynastyEffect().setTargetPointer(new EachTargetPointer()));
             ability.addTarget(new TargetCreaturePermanent(0, 1));
             ability.setTargetAdjuster(new ForEachPlayerTargetsAdjuster(false, true));
         });
