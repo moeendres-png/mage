@@ -36,7 +36,7 @@ public class DirgurFocusmageTest extends CardTestPlayerBase {
         execute();
 
         assertGraveyardCount(playerA, "Divination", 1);
-        assertHandCount(playerA, 1 + 2);
+        assertHandCount(playerA, 2); // Divination draws two; castable on two Islands only at {1}{U}
     }
 
     @Test
