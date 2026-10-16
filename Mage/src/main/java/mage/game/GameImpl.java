@@ -120,6 +120,10 @@ public abstract class GameImpl implements Game {
     protected transient PlayerQueryEventSource playerQueryEventSource = new PlayerQueryEventSource();
 
     protected Map<UUID, Card> gameCards = new HashMap<>();
+    // Playable calculation copies copy a card only when it is first read (see copyCardsLazily):
+    // until then gameCards holds the parent's card object and its id is listed here.
+    private transient Set<UUID> sharedGameCards = null;
+    private static final ThreadLocal<Boolean> LAZY_CARD_COPY = ThreadLocal.withInitial(() -> false);
     protected Map<UUID, MeldCard> meldCards = new HashMap<>(0);
 
     protected Map<Zone, Map<UUID, MageObject>> lki = new EnumMap<>(Zone.class);
@@ -219,7 +223,12 @@ public abstract class GameImpl implements Game {
         //this.tableEventSource = game.tableEventSource; // client-server part, not need on copy/simulations
         //this.playerQueryEventSource = game.playerQueryEventSource; // client-server part, not need on copy/simulations
 
-        this.gameCards = CardUtil.deepCopyObject(game.gameCards);
+        if (LAZY_CARD_COPY.get()) {
+            copyCardsLazily(game);
+        } else {
+            // shared entries hold the card the parent would copy, so this copies it right
+            this.gameCards = CardUtil.deepCopyObject(game.gameCards);
+        }
         this.meldCards = CardUtil.deepCopyObject(game.meldCards);
 
         this.lki = CardUtil.deepCopyObject(game.lki);
@@ -337,7 +346,16 @@ public abstract class GameImpl implements Game {
 
     @Override
     public Game createSimulationForPlayableCalc() {
-        Game res = this.copy();
+        // A playable calculation copy is thrown away before the game it was copied from
+        // changes again, so its cards are copied on first read instead of all up front.
+        boolean outer = LAZY_CARD_COPY.get();
+        LAZY_CARD_COPY.set(true);
+        Game res;
+        try {
+            res = this.copy();
+        } finally {
+            LAZY_CARD_COPY.set(outer);
+        }
         ((GameImpl) res).simulation = true;
         ((GameImpl) res).checkPlayableState = true;
         return res;
@@ -429,13 +447,53 @@ public abstract class GameImpl implements Game {
         }
     }
 
+    /**
+     * Same map as CardUtil.deepCopyObject(game.gameCards) builds (same capacity, same
+     * insertion order, so the same iteration order), but every value is still the
+     * parent's card. A card is copied when it is first read; until then it is only
+     * reachable through this map, so the copy can never change the parent's card.
+     */
+    private void copyCardsLazily(GameImpl game) {
+        HashMap<UUID, Card> cards = new HashMap<>(game.gameCards.size());
+        Set<UUID> shared = new HashSet<>(game.gameCards.size());
+        for (Map.Entry<UUID, Card> entry : game.gameCards.entrySet()) {
+            cards.put(entry.getKey(), entry.getValue());
+            shared.add(entry.getKey());
+        }
+        this.gameCards = cards;
+        this.sharedGameCards = shared;
+    }
+
+    private Card ownGameCard(UUID cardId) {
+        Card card = gameCards.get(cardId);
+        if (card != null && sharedGameCards != null && sharedGameCards.remove(cardId)) {
+            card = CardUtil.deepCopyObject(card);
+            gameCards.put(cardId, card); // existing key: iteration order unchanged
+        }
+        return card;
+    }
+
+    private void copyAllSharedCards() {
+        if (sharedGameCards == null) {
+            return;
+        }
+        for (UUID cardId : new ArrayList<>(sharedGameCards)) {
+            ownGameCard(cardId);
+        }
+        sharedGameCards = null;
+    }
+
     private void addCardToState(Card card) {
+        if (sharedGameCards != null) {
+            sharedGameCards.remove(card.getId());
+        }
         gameCards.put(card.getId(), card);
         state.addCard(card);
     }
 
     @Override
     public Collection<Card> getCards() {
+        copyAllSharedCards();
         return gameCards.values();
     }
 
@@ -856,7 +914,7 @@ public abstract class GameImpl implements Game {
         if (cardId == null) {
             return null;
         }
-        Card card = gameCards.get(cardId);
+        Card card = ownGameCard(cardId);
         if (card == null) {
             card = state.getCopiedCard(cardId);
         }
@@ -1133,6 +1191,7 @@ public abstract class GameImpl implements Game {
     @Override
     public void cleanUp() {
         gameCards.clear();
+        sharedGameCards = null;
         meldCards.clear();
     }
 
@@ -3646,6 +3705,7 @@ public abstract class GameImpl implements Game {
                 }
             }
         }
+        copyAllSharedCards();
         Iterator<Entry<UUID, Card>> it = gameCards.entrySet().iterator();
 
         while (it.hasNext()) {
