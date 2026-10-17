@@ -69,15 +69,17 @@ public class EnabledPrepareCardsTest extends CardTestPlayerBase {
     public void testSpellbookSeekerPreparedCopyCanBeCast() {
         addCard(Zone.HAND, playerA, "Spellbook Seeker");
         addCard(Zone.BATTLEFIELD, playerA, "Island", 5);
+        // cards to draw: an empty library would lose the game in the turn 3 draw step
+        addCard(Zone.LIBRARY, playerA, "Island", 6);
         castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Spellbook Seeker");
         assertPrepared("Spellbook Seeker", 1, PhaseStep.BEGIN_COMBAT, true);
-        castSpell(1, PhaseStep.POSTCOMBAT_MAIN, playerA, "Careful Study");
-        assertPrepared("Spellbook Seeker", 1, PhaseStep.END_TURN, false);
-        setStopAt(1, PhaseStep.END_TURN);
+        // turn 3: cast the prepared copy, Careful Study (draw two cards, discard one)
+        castSpell(3, PhaseStep.PRECOMBAT_MAIN, playerA, "Careful Study");
+        assertPrepared("Spellbook Seeker", 3, PhaseStep.BEGIN_COMBAT, false);
+        setStopAt(3, PhaseStep.BEGIN_COMBAT);
         execute();
         assertPermanentCount(playerA, "Spellbook Seeker", 1);
-        // Careful Study: draw two, discard one
-        assertHandCount(playerA, 1);
+        assertGraveyardCount(playerA, 1);
     }
 
     @Test
@@ -88,6 +90,19 @@ public class EnabledPrepareCardsTest extends CardTestPlayerBase {
         playLand(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Forest");
         assertPrepared("Tam, Observant Sequencer", 1, PhaseStep.BEGIN_COMBAT, true);
         setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+    }
+
+    @Test
+    public void testTamPreparedCopyCanBeCast() {
+        addCard(Zone.BATTLEFIELD, playerA, "Tam, Observant Sequencer");
+        addCard(Zone.BATTLEFIELD, playerA, "Island", 2);
+        addCard(Zone.BATTLEFIELD, playerA, "Forest", 2);
+        addCard(Zone.HAND, playerA, "Forest");
+        playLand(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Forest");
+        castSpell(3, PhaseStep.PRECOMBAT_MAIN, playerA, "Deep Sight");
+        assertPrepared("Tam, Observant Sequencer", 3, PhaseStep.BEGIN_COMBAT, false);
+        setStopAt(3, PhaseStep.BEGIN_COMBAT);
         execute();
     }
 }

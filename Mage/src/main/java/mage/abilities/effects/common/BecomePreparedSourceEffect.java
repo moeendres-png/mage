@@ -89,7 +89,12 @@ public class BecomePreparedSourceEffect extends OneShotEffect {
 
         game.getState().setValue(
                 PrepareCard.getPrepareCopyKey(spellCopy.getId()),
-                new MageObjectReference(permanent, game)
+                // a permanent that is still entering gets its final zone change counter
+                // only after the enters-the-battlefield replacement effects are done
+                new MageObjectReference(
+                        permanent, game,
+                        game.getPermanentEntering(permanent.getId()) != null ? 1 : 0
+                )
         );
 
         permanent.setPrepared(true, game);
