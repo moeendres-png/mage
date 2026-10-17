@@ -37,7 +37,7 @@ public final class CoerciveImpetus extends CardImpl {
         this.addAbility(new EnchantAbility(auraTarget));
 
         // Enchanted creature gets +1/+1 and is goaded.
-        Ability ability = new SimpleStaticAbility(new BoostEnchantedEffect(2, 2));
+        Ability ability = new SimpleStaticAbility(new BoostEnchantedEffect(1, 1));
         ability.addEffect(new GoadAttachedEffect());
         this.addAbility(ability);
 
