@@ -875,7 +875,7 @@ public interface Game extends MageItem, Serializable, Copyable<Game> {
                 .map(this::getCard)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        Set<Card> res = new HashSet<>();
+        Set<Card> res = new LinkedHashSet<>();
 
         // hand
         if (needZones.contains(Zone.ALL) || needZones.contains(Zone.HAND)) {

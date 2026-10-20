@@ -5102,7 +5102,7 @@ public abstract class PlayerImpl implements Player, Serializable {
 
     @Override
     public boolean moveCards(Card card, Zone toZone, Ability source, Game game, boolean tapped, boolean faceDown, boolean byOwner, List<UUID> appliedEffects) {
-        Set<Card> cardList = new HashSet<>();
+        Set<Card> cardList = new LinkedHashSet<>();
         if (card != null) {
             cardList.add(card);
         }
@@ -5258,7 +5258,7 @@ public abstract class PlayerImpl implements Player, Serializable {
 
     @Override
     public boolean moveCardsToExile(Card card, Ability source, Game game, boolean withName, UUID exileId, String exileZoneName) {
-        Set<Card> cards = new HashSet<>();
+        Set<Card> cards = new LinkedHashSet<>();
         if (card != null) {
             cards.add(card);
         }

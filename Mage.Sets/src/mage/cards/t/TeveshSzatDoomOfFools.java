@@ -1,5 +1,6 @@
 package mage.cards.t;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.LoyaltyAbility;
 import mage.abilities.common.CanBeYourCommanderAbility;
@@ -165,7 +166,7 @@ class TeveshSzatDoomOfFoolsCommanderEffect extends OneShotEffect {
 
         // put all commanders to battlefield under control
         // TODO: doesn't support range of influence (e.g. take control of all commanders)
-        Set<Card> commandersToPut = new HashSet<>();
+        Set<Card> commandersToPut = new LinkedHashSet<>();
         game.getPlayerList().stream()
                 .map(game::getPlayer)
                 .filter(Objects::nonNull)

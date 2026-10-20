@@ -1,5 +1,6 @@
 package mage.cards.b;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -67,7 +68,7 @@ class BoldwyrHeavyweightsEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Set<Player> playersThatSearched = new HashSet<>(1);
+        Set<Player> playersThatSearched = new LinkedHashSet<>(1);
         for (UUID opponentId : game.getOpponents(source.getControllerId())) {
             Player opponent = game.getPlayer(opponentId);
             if (opponent != null && opponent.chooseUse(Outcome.PutCreatureInPlay, "Search your library for a creature card and put it onto the battlefield?", source, game)) {

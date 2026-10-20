@@ -1,6 +1,7 @@
 
 package mage.abilities.effects.common;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -36,7 +37,7 @@ public class ReturnToHandFromBattlefieldAllEffect extends OneShotEffect {
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            Set<Card> permanentsToHand = new HashSet<>();
+            Set<Card> permanentsToHand = new LinkedHashSet<>();
             for (Permanent permanent : game.getBattlefield().getActivePermanents(filter, source.getControllerId(), source, game)) {
                 permanentsToHand.add(permanent);
             }

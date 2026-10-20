@@ -1,5 +1,6 @@
 package mage.cards.p;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.effects.OneShotEffect;
 import mage.abilities.effects.common.DamageAllEffect;
@@ -60,7 +61,7 @@ class PlanetaryAnnihilationEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Set<Permanent> toSave = new HashSet<>();
+        Set<Permanent> toSave = new LinkedHashSet<>();
         for (UUID playerId : game.getState().getPlayersInRange(source.getControllerId(), game)) {
             Player player = game.getPlayer(playerId);
             if (player == null || game.getBattlefield().count(

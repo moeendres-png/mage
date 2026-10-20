@@ -1,5 +1,6 @@
 package mage.cards.g;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.common.ActivateIfConditionActivatedAbility;
@@ -84,9 +85,9 @@ class GeneralJarkeldSwitchBlockersEffect extends OneShotEffect {
                 CombatGroup chosenGroup1 = game.getCombat().findGroup(attacker1.getId());
                 CombatGroup chosenGroup2 = game.getCombat().findGroup(attacker2.getId());
                 if (chosenGroup1 != null && chosenGroup2 != null) {
-                    Set<Permanent> blockers1 = new HashSet<>();
-                    Set<Permanent> blockers2 = new HashSet<>();
-                    Set<Permanent> multiBlockers = new HashSet<>();
+                    Set<Permanent> blockers1 = new LinkedHashSet<>();
+                    Set<Permanent> blockers2 = new LinkedHashSet<>();
+                    Set<Permanent> multiBlockers = new LinkedHashSet<>();
 
                     blockerSearch1:
                     for (UUID blockerId : chosenGroup1.getBlockers()) {

@@ -1,6 +1,7 @@
 
 package mage.cards.h;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -60,7 +61,7 @@ class HeatStrokeEffect extends OneShotEffect {
         BlockedThisTurnWatcher blockedWatcher = game.getState().getWatcher(BlockedThisTurnWatcher.class);
         WasBlockedThisTurnWatcher wasBlockedThisTurnWatcher = game.getState().getWatcher(WasBlockedThisTurnWatcher.class);
 
-        Set<Permanent> inROI = new HashSet<>(game.getBattlefield().getActivePermanents(StaticFilters.FILTER_PERMANENT_CREATURE, source.getControllerId(), source, game));
+        Set<Permanent> inROI = new LinkedHashSet<>(game.getBattlefield().getActivePermanents(StaticFilters.FILTER_PERMANENT_CREATURE, source.getControllerId(), source, game));
         boolean toRet = false;
         Set<MageObjectReference> toDestroy = new HashSet<>();
 

@@ -1,6 +1,7 @@
 
 package mage.cards.u;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.LoyaltyAbility;
 import mage.abilities.effects.OneShotEffect;
@@ -90,7 +91,7 @@ class UginTheSpiritDragonEffect2 extends OneShotEffect {
         FilterPermanent filter = new FilterPermanent("permanent with mana value X or less that's one or more colors");
         filter.add(new ManaValuePredicate(ComparisonType.FEWER_THAN, cmc + 1));
         filter.add(Predicates.not(ColorlessPredicate.instance));
-        Set<Card> permanentsToExile = new HashSet<>();
+        Set<Card> permanentsToExile = new LinkedHashSet<>();
         permanentsToExile.addAll(game.getBattlefield().getActivePermanents(filter, source.getControllerId(), source, game));
         controller.moveCards(permanentsToExile, Zone.EXILED, source, game);
         return true;

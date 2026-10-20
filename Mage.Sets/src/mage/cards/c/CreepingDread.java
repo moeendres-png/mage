@@ -84,7 +84,7 @@ class CreepingDreadEffect extends OneShotEffect {
                 }
             }
             
-            Set<Player> opponentsAffected = new HashSet<>();
+            Set<Player> opponentsAffected = new LinkedHashSet<>();
             for (UUID playerId : game.getOpponents(source.getControllerId())) {
                 Player opponent = game.getPlayer(playerId);
                 // opponent discards a card - if it is same card type as controller, add to opponentsAffected

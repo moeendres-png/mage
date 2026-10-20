@@ -1,5 +1,6 @@
 package mage.cards.e;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.effects.OneShotEffect;
 import mage.abilities.effects.common.ExileSpellEffect;
@@ -96,7 +97,7 @@ class EcologicalAppreciationEffect extends OneShotEffect {
                     Set<Card> disallowedCards = this.getTargets().stream()
                             .map(game::getCard)
                             .collect(Collectors.toSet());
-                    Set<Card> checkList = new HashSet<>();
+                    Set<Card> checkList = new LinkedHashSet<>();
                     checkList.addAll(disallowedCards);
                     checkList.addAll(cards.getCards(game));
                     return isValidTarget(card, checkList);

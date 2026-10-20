@@ -1,5 +1,6 @@
 package mage.cards.c;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import mage.abilities.Ability;
 import mage.abilities.effects.OneShotEffect;
@@ -61,7 +62,7 @@ class CollectiveVoyageEffect extends OneShotEffect {
     @Override
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
-        Set<Card> toBattlefield = new HashSet<>();
+        Set<Card> toBattlefield = new LinkedHashSet<>();
         if (controller != null) {
             int xSum = 0;
             xSum += ManaUtil.playerPaysXGenericMana(false, "Collective Voyage", controller, source, game);

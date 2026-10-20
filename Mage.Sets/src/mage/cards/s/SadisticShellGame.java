@@ -72,7 +72,7 @@ class SadisticShellGameEffect extends OneShotEffect {
         if (!game.getBattlefield().contains(filter, source, game, 1)) {
             return false;
         }
-        Set<Permanent> permanents = new HashSet<>();
+        Set<Permanent> permanents = new LinkedHashSet<>();
         List<UUID> playerIds = game
                 .getState()
                 .getPlayersInRange(source.getControllerId(), game)

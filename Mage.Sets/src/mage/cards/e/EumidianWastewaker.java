@@ -84,8 +84,8 @@ class EumidianWastewakerEffect extends OneShotEffect {
         if (controller == null) {
             return false;
         }
-        Set<Permanent> toSacrifice = new HashSet<>();
-        Set<Card> toDiscard = new HashSet<>();
+        Set<Permanent> toSacrifice = new LinkedHashSet<>();
+        Set<Card> toDiscard = new LinkedHashSet<>();
         for (Player player : Arrays.asList(controller, defendingPlayer)) {
             if (player == null) {
                 continue;

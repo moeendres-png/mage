@@ -1,5 +1,6 @@
 package mage.cards.h;
 
+import java.util.LinkedHashSet;
 import mage.ObjectColor;
 import mage.abilities.Ability;
 import mage.abilities.effects.OneShotEffect;
@@ -68,7 +69,7 @@ class HourOfEternityEffect extends OneShotEffect {
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            Set<Card> cardsToExile = new HashSet<>(this.getTargetPointer().getTargets(game, source).size());
+            Set<Card> cardsToExile = new LinkedHashSet<>(this.getTargetPointer().getTargets(game, source).size());
             for (UUID targetId : this.getTargetPointer().getTargets(game, source)) {
                 Card card = controller.getGraveyard().get(targetId, game);
                 if (card != null) {

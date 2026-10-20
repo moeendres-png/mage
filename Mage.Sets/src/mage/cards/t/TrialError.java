@@ -1,6 +1,7 @@
 
 package mage.cards.t;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -81,7 +82,7 @@ class TrialEffect extends OneShotEffect {
         Player controller = game.getPlayer(source.getControllerId());
         Permanent creature = game.getPermanent(getTargetPointer().getFirst(game, source));
         if (controller != null && creature != null) {
-            Set<Card> toHand = new HashSet<>();
+            Set<Card> toHand = new LinkedHashSet<>();
             for (CombatGroup combatGroup : game.getCombat().getGroups()) {
                 if (combatGroup.getBlockers().contains(creature.getId())) {
                     for (UUID attackerId : combatGroup.getAttackers()) {

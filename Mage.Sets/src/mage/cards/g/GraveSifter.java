@@ -1,5 +1,6 @@
 package mage.cards.g;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -73,7 +74,7 @@ class GraveSifterEffect extends OneShotEffect {
         Choice typeChoice = new ChoiceCreatureType(game, source);
         typeChoice.setMessage("Choose creature type to return cards from your graveyard");
         Player controller = game.getPlayer(source.getControllerId());
-        Set<Card> toHand = new HashSet<>();
+        Set<Card> toHand = new LinkedHashSet<>();
         if (controller != null) {
             for (UUID playerId : game.getState().getPlayersInRange(controller.getId(), game)) {
                 Player player = game.getPlayer(playerId);

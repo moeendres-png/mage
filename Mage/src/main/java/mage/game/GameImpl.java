@@ -1418,8 +1418,8 @@ public abstract class GameImpl implements Game {
         Map<Player, Card> playerCompanionMap = new HashMap<>();
         for (Player player : state.getPlayers().values()) {
             // Make a list of legal companions present in the sideboard
-            Set<Card> cards = new HashSet<>(player.getLibrary().getCards(this));
-            Set<Card> potentialCompanions = new HashSet<>();
+            Set<Card> cards = new LinkedHashSet<>(player.getLibrary().getCards(this));
+            Set<Card> potentialCompanions = new LinkedHashSet<>();
             for (Card card : player.getSideboard().getUniqueCards(this)) {
                 for (Ability ability : card.getAbilities(this)) {
                     if (ability instanceof CompanionAbility) {
@@ -2773,7 +2773,7 @@ public abstract class GameImpl implements Game {
         //
         // Copied cards can be stored in GameState.copiedCards or in game state value (until LKI rework)
         // Copied cards list contains all parts of split/adventure/mdfc
-        Set<Card> allCopiedCards = new HashSet<>();
+        Set<Card> allCopiedCards = new LinkedHashSet<>();
         allCopiedCards.addAll(this.getState().getCopiedCards());
         Map<String, Object> stateSavedCopiedCards = this.getState().getValues(GameState.COPIED_CARD_KEY);
         allCopiedCards.addAll(stateSavedCopiedCards.values()
@@ -2782,7 +2782,7 @@ public abstract class GameImpl implements Game {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList())
         );
-        Set<Card> copiedCardsToRemove = new HashSet<>();
+        Set<Card> copiedCardsToRemove = new LinkedHashSet<>();
         for (Card copiedCard : allCopiedCards) {
             UUID copiedCardId = copiedCard.getMainCard().getId();
             UUID persistentCopySource = state.getPersistentCardCopySource(copiedCardId);
@@ -3680,7 +3680,7 @@ public abstract class GameImpl implements Game {
             return;
         }
         //20100423 - 800.4a
-        Set<Card> toOutside = new HashSet<>();
+        Set<Card> toOutside = new LinkedHashSet<>();
         for (Iterator<Permanent> it = getBattlefield().getAllPermanents().iterator(); it.hasNext(); ) {
             Permanent perm = it.next();
             if (perm.isOwnedBy(playerId)) {
@@ -4220,7 +4220,7 @@ public abstract class GameImpl implements Game {
         if (cards == null) {
             return;
         }
-        Set<Card> set = new HashSet<>(cards);
+        Set<Card> set = new LinkedHashSet<>(cards);
         loadCards(set, ownerId);
     }
 

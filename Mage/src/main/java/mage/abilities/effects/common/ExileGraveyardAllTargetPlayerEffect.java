@@ -1,5 +1,6 @@
 package mage.abilities.effects.common;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.Mode;
 import mage.abilities.effects.OneShotEffect;
@@ -46,7 +47,7 @@ public class ExileGraveyardAllTargetPlayerEffect extends OneShotEffect {
         if (controller == null) {
             return false;
         }
-        Set<Card> cardsToExile = new HashSet<>();
+        Set<Card> cardsToExile = new LinkedHashSet<>();
 
         for (UUID playerId : this.getTargetPointer().getTargets(game, source)) {
             Player targetPlayer = game.getPlayer(playerId);

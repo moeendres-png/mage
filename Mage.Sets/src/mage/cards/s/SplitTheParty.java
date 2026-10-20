@@ -1,5 +1,6 @@
 package mage.cards.s;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.effects.OneShotEffect;
 import mage.cards.Card;
@@ -73,7 +74,7 @@ class SplitThePartyEffect extends OneShotEffect {
             filter.add(new ControllerIdPredicate(targetPlayer.getId()));
             TargetPermanent target = new TargetPermanent(halfCreatures, halfCreatures, filter, true);
             if (controller.chooseTarget(outcome, target, source, game)) {
-                Set<Card> cardsToHand = new HashSet<>();
+                Set<Card> cardsToHand = new LinkedHashSet<>();
                 for (UUID creatureId : target.getTargets()) {
                     Card card = game.getPermanent(creatureId);
                     if (card != null) {

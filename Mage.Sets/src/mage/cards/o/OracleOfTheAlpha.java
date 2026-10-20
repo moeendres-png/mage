@@ -89,7 +89,7 @@ class OracleOfTheAlphaEffect extends OneShotEffect {
         if (player == null) {
             return false;
         }
-        Set<Card> cards = new HashSet<>();
+        Set<Card> cards = new LinkedHashSet<>();
         for (String cardName : power9) {
             CardRepository
                     .instance

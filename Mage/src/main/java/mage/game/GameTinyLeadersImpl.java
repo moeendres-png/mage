@@ -1,5 +1,6 @@
 package mage.game;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.common.SimpleStaticAbility;
@@ -62,7 +63,7 @@ public abstract class GameTinyLeadersImpl extends GameImpl {
                     // create new commander
                     commander = getCommanderCard(commanderName, player.getId());
                     if (commander != null) {
-                        Set<Card> cards = new HashSet<>();
+                        Set<Card> cards = new LinkedHashSet<>();
                         cards.add(commander);
                         this.loadCards(cards, playerId);
                         player.addCommanderId(commander.getId());

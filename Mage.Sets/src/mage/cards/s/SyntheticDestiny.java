@@ -63,7 +63,7 @@ class SyntheticDestinyEffect extends OneShotEffect {
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            Set<Card> cardsToExile = new HashSet<>();
+            Set<Card> cardsToExile = new LinkedHashSet<>();
             cardsToExile.addAll(game.getBattlefield().getAllActivePermanents(StaticFilters.FILTER_PERMANENT_CREATURE, controller.getId(), game));
             controller.moveCards(cardsToExile, Zone.EXILED, source, game);
             //Delayed ability

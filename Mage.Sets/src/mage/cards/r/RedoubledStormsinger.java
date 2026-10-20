@@ -1,5 +1,6 @@
 package mage.cards.r;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.common.AttacksTriggeredAbility;
@@ -82,7 +83,7 @@ class RedoubledStormsingerEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Set<Permanent> addedTokens = new HashSet<>();
+        Set<Permanent> addedTokens = new LinkedHashSet<>();
         for (Permanent permanent : game.getBattlefield().getActivePermanents(
                 filter, source.getControllerId(), source, game
         )) {

@@ -1,6 +1,7 @@
 
 package mage.cards.s;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.common.EntersBattlefieldTriggeredAbility;
@@ -79,7 +80,7 @@ class SepulchralPrimordialEffect extends OneShotEffect {
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            Set<Card> cardsToBattlefield = new HashSet<>();
+            Set<Card> cardsToBattlefield = new LinkedHashSet<>();
             for (Target target : source.getTargets()) {
                 if (target instanceof TargetCardInOpponentsGraveyard) {
                     Card targetCard = game.getCard(target.getFirstTarget());

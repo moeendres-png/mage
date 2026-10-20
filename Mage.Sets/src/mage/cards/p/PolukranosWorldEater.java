@@ -1,6 +1,7 @@
 
 package mage.cards.p;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.common.BecomesMonstrousSourceTriggeredAbility;
@@ -103,7 +104,7 @@ class PolukranosWorldEaterEffect extends OneShotEffect {
     public boolean apply(Game game, Ability source) {
         if (!source.getTargets().isEmpty()) {
             Target multiTarget = source.getTargets().get(0);
-            Set<Permanent> permanents = new HashSet<>();
+            Set<Permanent> permanents = new LinkedHashSet<>();
             for (UUID target : multiTarget.getTargets()) {
                 Permanent permanent = game.getPermanent(target);
                 if (permanent != null) {

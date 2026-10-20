@@ -1,5 +1,6 @@
 package mage.abilities.effects.common;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.Mode;
 import mage.abilities.effects.OneShotEffect;
@@ -63,7 +64,7 @@ public class ConjureCardEffect extends OneShotEffect {
         if (cardInfo == null) {
             return false;
         }
-        Set<Card> cards = new HashSet<>();
+        Set<Card> cards = new LinkedHashSet<>();
         for (int i = 0; i < amount; i++) {
             Card card = cardInfo.createCard();
             cards.add(card);

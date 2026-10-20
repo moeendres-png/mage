@@ -1,5 +1,6 @@
 package mage.cards.c;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -70,7 +71,7 @@ class CharmedGriffinEffect extends OneShotEffect {
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            Set<Card> toBattlefield = new HashSet<>();
+            Set<Card> toBattlefield = new LinkedHashSet<>();
             for (UUID playerId : game.getState().getPlayersInRange(controller.getId(), game)) {
                 if (!playerId.equals(controller.getId())) {
                     Player player = game.getPlayer(playerId);

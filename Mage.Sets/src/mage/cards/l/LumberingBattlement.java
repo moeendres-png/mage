@@ -1,5 +1,6 @@
 package mage.cards.l;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.common.EntersBattlefieldTriggeredAbility;
@@ -104,7 +105,7 @@ class LumberingBattlementEffect extends OneShotEffect {
         if (!player.choose(Outcome.Neutral, target, source, game)) {
             return false;
         }
-        Set<Card> cards = new HashSet<>();
+        Set<Card> cards = new LinkedHashSet<>();
         for (UUID targetId : target.getTargets()) {
             Permanent permanent = game.getPermanent(targetId);
             if (permanent != null) {

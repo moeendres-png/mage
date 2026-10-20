@@ -1,5 +1,6 @@
 package mage.cards.e;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.MageObject;
 import mage.abilities.Ability;
@@ -95,7 +96,7 @@ class ElrondOfWhiteCouncilEffect extends OneShotEffect {
         vote.doVotes(source, game);
 
 
-        Set<Permanent> chosenCreatures = new HashSet<>();
+        Set<Permanent> chosenCreatures = new LinkedHashSet<>();
 
         // For each fellowship vote,
         for (UUID playerId : game.getState().getPlayersInRange(source.getControllerId(), game)) {

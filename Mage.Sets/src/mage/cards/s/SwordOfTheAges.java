@@ -1,5 +1,6 @@
 package mage.cards.s;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.common.EntersBattlefieldTappedAbility;
 import mage.abilities.common.SimpleActivatedAbility;
@@ -79,7 +80,7 @@ class SwordOfTheAgesEffect extends OneShotEffect {
     @Override
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
-        Set<Card> cardsToExile = new HashSet<>();
+        Set<Card> cardsToExile = new LinkedHashSet<>();
         if (controller != null) {
             int totalPower = 0;
             Card card = game.getCard(source.getSourceId());

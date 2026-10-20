@@ -1,5 +1,6 @@
 package mage.cards.d;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -137,7 +138,7 @@ class DawnbreakReclaimerEffect extends OneShotEffect {
                                 + " of " + controller.getLogName());
                     }
                 }
-                Set<Card> cards = new HashSet<>();
+                Set<Card> cards = new LinkedHashSet<>();
                 if (cardOpponentGraveyard != null) {
                     cards.add(cardOpponentGraveyard);
                 }

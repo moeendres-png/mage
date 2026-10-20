@@ -144,7 +144,7 @@ public class PlayFromNotOwnHandZoneTargetEffect extends AsThoughEffectImpl {
         if (card == null) {
             return true;
         }
-        Set<Card> cards = new HashSet<>();
+        Set<Card> cards = new LinkedHashSet<>();
         cards.add(card);
         return exileAndPlayFromExile(game, source, cards, allowedCaster, duration, withoutMana, anyColor, onlyCastAllowed);
     }

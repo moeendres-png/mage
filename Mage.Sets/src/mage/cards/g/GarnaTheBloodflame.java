@@ -1,6 +1,7 @@
 
 package mage.cards.g;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -82,7 +83,7 @@ class GarnaTheBloodflameEffect extends OneShotEffect {
         if (controller != null) {
             GarnaTheBloodflameWatcher watcher = game.getState().getWatcher(GarnaTheBloodflameWatcher.class);
             if (watcher != null) {
-                Set<Card> toHand = new HashSet<>();
+                Set<Card> toHand = new LinkedHashSet<>();
                 for (UUID cardId : watcher.getCardsPutToGraveyardThisTurn()) {
                     Card card = game.getCard(cardId);
                     if (card != null && card.isOwnedBy(source.getControllerId()) && game.getState().getZone(cardId) == Zone.GRAVEYARD) {

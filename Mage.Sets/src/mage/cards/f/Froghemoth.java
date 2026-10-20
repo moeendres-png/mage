@@ -1,5 +1,6 @@
 package mage.cards.f;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.common.DealsCombatDamageToAPlayerTriggeredAbility;
@@ -113,7 +114,7 @@ class FroghemothEffect extends OneShotEffect {
         if (controller == null) {
             return false;
         }
-        Set<Card> cardsToExile = new HashSet<>();
+        Set<Card> cardsToExile = new LinkedHashSet<>();
         int numCounters = 0;
         int lifeGain = 0;
         for (UUID cardId : getTargetPointer().getTargets(game, source)) {

@@ -1,5 +1,6 @@
 package mage.cards.s;
 
+import java.util.LinkedHashSet;
 import mage.MageObjectReference;
 import mage.abilities.Ability;
 import mage.abilities.common.BecomesTappedSourceTriggeredAbility;
@@ -98,8 +99,8 @@ class SorrowsPathSwitchBlockersEffect extends OneShotEffect {
                 // Take into account whether those creatures are tapped, but not whether they have costs to block (since those apply only as blockers are declared).
                 CombatGroup chosenGroup1 = findBlockingGroup(blocker1, game);
                 CombatGroup chosenGroup2 = findBlockingGroup(blocker2, game);
-                Set<Permanent> attackers1 = new HashSet<>();
-                Set<Permanent> attackers2 = new HashSet<>();
+                Set<Permanent> attackers1 = new LinkedHashSet<>();
+                Set<Permanent> attackers2 = new LinkedHashSet<>();
                 boolean blockPossible = false;
 
                 if (chosenGroup1 != null && chosenGroup2 != null) {

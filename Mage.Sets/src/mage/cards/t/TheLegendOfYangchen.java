@@ -1,5 +1,6 @@
 package mage.cards.t;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.common.CastSecondSpellTriggeredAbility;
 import mage.abilities.common.SagaAbility;
@@ -112,7 +113,7 @@ class TheLegendOfYangchenEffect extends OneShotEffect {
         FilterPermanent filter = new FilterPermanent();
         filter.add(new ManaValuePredicate(ComparisonType.MORE_THAN, 2));
         filter.add(Predicates.not(new ControllerIdPredicate(source.getControllerId())));
-        Set<Permanent> permanents = new HashSet<>();
+        Set<Permanent> permanents = new LinkedHashSet<>();
         for (UUID playerId : game.getState().getPlayersInRange(source.getControllerId(), game)) {
             Player player = game.getPlayer(playerId);
             if (player == null) {

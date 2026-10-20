@@ -1,6 +1,7 @@
 
 package mage.cards.o;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.common.EntersBattlefieldTriggeredAbility;
@@ -65,7 +66,7 @@ class OldGrowthDryadsEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Set<Player> playersThatSearched = new HashSet<>(1);
+        Set<Player> playersThatSearched = new LinkedHashSet<>(1);
         for (UUID opponentId : game.getOpponents(source.getControllerId())) {
             Player opponent = game.getPlayer(opponentId);
             if (opponent != null && opponent.chooseUse(Outcome.PutLandInPlay, "Search your library for a basic land card and put it onto the battlefield tapped?", source, game)) {

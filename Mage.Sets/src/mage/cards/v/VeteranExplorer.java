@@ -1,5 +1,6 @@
 package mage.cards.v;
 
+import java.util.LinkedHashSet;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -71,7 +72,7 @@ class VeteranExplorerEffect extends OneShotEffect {
     @Override
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
-        Set<Card> toBattlefield = new HashSet<>();
+        Set<Card> toBattlefield = new LinkedHashSet<>();
         List<Player> usingPlayers = new ArrayList<>();
         if (controller != null) {
             toBattlefield.addAll(this.chooseAndSearchLibrary(usingPlayers, controller, source, game));
@@ -98,7 +99,7 @@ class VeteranExplorerEffect extends OneShotEffect {
     }
 
     private Set<Card> chooseAndSearchLibrary(List<Player> usingPlayers, Player player, Ability source, Game game) {
-        Set<Card> toBattlefield = new HashSet<>();
+        Set<Card> toBattlefield = new LinkedHashSet<>();
         if (player.chooseUse(Outcome.PutCardInPlay, "Search your library for up to two basic land cards and put them onto the battlefield?", source, game)) {
             usingPlayers.add(player);
             TargetCardInLibrary target = new TargetCardInLibrary(0, 2, StaticFilters.FILTER_CARD_BASIC_LAND);

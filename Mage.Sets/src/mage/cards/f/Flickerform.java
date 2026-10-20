@@ -1,6 +1,7 @@
 
 package mage.cards.f;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -165,7 +166,7 @@ class FlickerformReturnEffect extends OneShotEffect {
         owner.moveCards(enchantedCard, Zone.BATTLEFIELD, source, game);
         Permanent newPermanent = CardUtil.getPermanentFromCardPutToBattlefield(enchantedCard, game);
         if (newPermanent != null) {
-            Set<Card> toBattlefieldAttached = new HashSet<>();
+            Set<Card> toBattlefieldAttached = new LinkedHashSet<>();
             for (Card enchantment : exileZone.getCards(game)) {
                 if (filterAura.match(enchantment, game)) {
                     boolean canTarget = false;

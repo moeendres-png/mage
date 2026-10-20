@@ -1,5 +1,6 @@
 package mage.cards.u;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.effects.OneShotEffect;
 import mage.abilities.effects.common.DamageAllEffect;
@@ -91,7 +92,7 @@ class UltimateMagicMeteorEffect extends OneShotEffect {
         if (player == null) {
             return false;
         }
-        Set<Permanent> permanents = new HashSet<>();
+        Set<Permanent> permanents = new LinkedHashSet<>();
         for (UUID playerId : game.getOpponents(source.getControllerId())) {
             FilterPermanent filter = this.filter.copy();
             Optional.ofNullable(playerId)

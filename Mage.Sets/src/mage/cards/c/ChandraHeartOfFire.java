@@ -1,5 +1,6 @@
 package mage.cards.c;
 
+import java.util.LinkedHashSet;
 import mage.Mana;
 import mage.ObjectColor;
 import mage.abilities.Ability;
@@ -99,7 +100,7 @@ class ChandraHeartOfFireUltimateEffect extends OneShotEffect {
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            Set<Card> exiledCards = new HashSet<>();
+            Set<Card> exiledCards = new LinkedHashSet<>();
 
             // from graveyard
             Target target = new TargetCardInYourGraveyard(0, Integer.MAX_VALUE, filter, true).withChooseHint("from graveyard");

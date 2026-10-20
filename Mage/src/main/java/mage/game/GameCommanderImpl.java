@@ -110,7 +110,7 @@ public abstract class GameCommanderImpl extends GameImpl {
                 continue;
             }
             // add new commanders
-            Set<Card> commanders = new HashSet<>();
+            Set<Card> commanders = new LinkedHashSet<>();
             for (UUID cardId : player.getSideboard()) {
                 Card card = this.getCard(cardId);
                 if (card == null) {

@@ -1,5 +1,6 @@
 package mage.cards.s;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -66,7 +67,7 @@ class SuspendAggressionEffect extends OneShotEffect {
         if (controller == null) {
             return false;
         }
-        Set<Card> cardsToExile = new HashSet<>();
+        Set<Card> cardsToExile = new LinkedHashSet<>();
 
         Permanent permanent = game.getPermanent(getTargetPointer().getFirst(game, source));
         if (permanent != null) {

@@ -71,7 +71,7 @@ class CallToTheVoidEffect extends OneShotEffect {
     @Override
     public boolean apply(Game game, Ability source) {
         Map<String, List<String>> map = new HashMap<>();
-        Set<Permanent> permanents = new HashSet<>();
+        Set<Permanent> permanents = new LinkedHashSet<>();
         for (UUID playerId : game.getState().getPlayersInRange(source.getControllerId(), game)) {
             Player player = game.getPlayer(playerId);
             if (player != null) {

@@ -1,5 +1,6 @@
 package mage.cards.g;
 
+import java.util.LinkedHashSet;
 import mage.MageIdentifier;
 import mage.abilities.Ability;
 import mage.abilities.common.SimpleStaticAbility;
@@ -152,7 +153,7 @@ class GlimpseTheCosmosReplacementEffect extends ReplacementEffectImpl {
 
 class GlimpseTheCosmosWatcher extends Watcher {
 
-    private final Set<Card> sourceCards = new HashSet<>();
+    private final Set<Card> sourceCards = new LinkedHashSet<>();
 
     public GlimpseTheCosmosWatcher() {
         super(WatcherScope.GAME);

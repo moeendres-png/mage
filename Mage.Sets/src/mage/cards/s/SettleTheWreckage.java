@@ -1,5 +1,6 @@
 package mage.cards.s;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -65,7 +66,7 @@ class SettleTheWreckageEffect extends OneShotEffect {
         if (controller == null || player == null) {
             return false;
         }
-        Set<Card> toExile = new HashSet<>(game.getBattlefield().getAllActivePermanents(StaticFilters.FILTER_ATTACKING_CREATURES, player.getId(), game));
+        Set<Card> toExile = new LinkedHashSet<>(game.getBattlefield().getAllActivePermanents(StaticFilters.FILTER_ATTACKING_CREATURES, player.getId(), game));
         int attackers = toExile.size();
         if (attackers == 0) {
             return true;

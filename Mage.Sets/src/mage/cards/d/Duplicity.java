@@ -1,5 +1,6 @@
 package mage.cards.d;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -122,7 +123,7 @@ class DuplicityExileHandEffect extends OneShotEffect {
                     controller.moveCardsToExile(card, source, game, true, exileId, sourceObject.getName());
                     card.setFaceDown(true, game);
                 }
-                Set<Card> cardsToReturnToHandFromExile = new HashSet<>();
+                Set<Card> cardsToReturnToHandFromExile = new LinkedHashSet<>();
                 for (Card card : cardsInExile) {
                     if (!cardsFromHandToExile.contains(card)) {
                         cardsToReturnToHandFromExile.add(card);

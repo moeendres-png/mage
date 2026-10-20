@@ -1,6 +1,7 @@
 
 package mage.cards.p;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -70,7 +71,7 @@ class PlanarGuideExileEffect extends OneShotEffect {
         MageObject sourceObject = game.getObject(source);
         Player controller = game.getPlayer(source.getControllerId());
         if (sourceObject != null && controller != null) {
-            Set<Card> toExile = new HashSet<>();
+            Set<Card> toExile = new LinkedHashSet<>();
             toExile.addAll(game.getBattlefield().getActivePermanents(StaticFilters.FILTER_PERMANENT_CREATURE, source.getControllerId(), source, game));
             controller.moveCardsToExile(toExile, source, game, true, source.getSourceId(), sourceObject.getIdName());
             ExileZone exile = game.getExile().getExileZone(source.getSourceId());
