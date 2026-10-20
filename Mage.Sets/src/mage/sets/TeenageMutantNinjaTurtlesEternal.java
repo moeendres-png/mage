@@ -150,7 +150,5 @@ public final class TeenageMutantNinjaTurtlesEternal extends ExpansionSet {
         cards.add(new SetCardInfo("Waste Not", 132, Rarity.MYTHIC, mage.cards.w.WasteNot.class));
         cards.add(new SetCardInfo("Wave Goodbye", 46, Rarity.RARE, mage.cards.w.WaveGoodbye.class));
         cards.add(new SetCardInfo("Wooden Cane", 106, Rarity.UNCOMMON, mage.cards.w.WoodenCane.class));
-        cards.add(new SetCardInfo("Dimension X Pizzasaur", 16, Rarity.RARE, mage.cards.d.DimensionXPizzasaur.class));
-        cards.add(new SetCardInfo("Foot Chopper", 17, Rarity.RARE, mage.cards.f.FootChopper.class));
     }
 }
