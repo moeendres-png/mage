@@ -33,6 +33,16 @@ public class AbilitiesImpl<T extends Ability> extends ArrayList<T> implements Ab
         Collections.addAll(this, abilities);
     }
 
+    /**
+     * Creates a single-element Abilities without varargs array allocation.
+     * Use instead of {@code new AbilitiesImpl<>(ability)} in hot paths.
+     */
+    public static <T extends Ability> AbilitiesImpl<T> singleton(T ability) {
+        AbilitiesImpl<T> result = new AbilitiesImpl<>();
+        result.add(ability);
+        return result;
+    }
+
     public AbilitiesImpl(final AbilitiesImpl<T> abilities) {
         this.ensureCapacity(abilities.size());
         for (T ability : abilities) {

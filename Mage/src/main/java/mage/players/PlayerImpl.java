@@ -3622,7 +3622,15 @@ public abstract class PlayerImpl implements Player, Serializable {
     @Override
     public ManaOptions getManaAvailable(Game originalGame) {
         // workaround to fix a triggers list modification bug (game must be immutable on playable calculations)
-        Game game = originalGame.createSimulationForPlayableCalc();
+        // Optimization: if the passed game is already a playable-calc simulation (e.g. called from
+        // getPlayable() which already created one), reuse it instead of creating a nested copy.
+        // This eliminates one full GameState copy per playable check.
+        Game game;
+        if (originalGame.inCheckPlayableState()) {
+            game = originalGame;
+        } else {
+            game = originalGame.createSimulationForPlayableCalc();
+        }
 
         ManaOptions availableMana = new ManaOptions();
         availableMana.addMana(manaPool.getMana());
@@ -3637,7 +3645,7 @@ public abstract class PlayerImpl implements Player, Serializable {
             Abilities<ActivatedManaAbilityImpl> manaAbilities
                     = card.getAbilities(game).getAvailableActivatedManaAbilities(Zone.HAND, playerId, game);
             for (ActivatedManaAbilityImpl ability : manaAbilities) {
-                Abilities<ActivatedManaAbilityImpl> noTapAbilities = new AbilitiesImpl<>(ability);
+                Abilities<ActivatedManaAbilityImpl> noTapAbilities = AbilitiesImpl.singleton(ability);
                 if (ability.getManaCosts().isEmpty() && !ability.isPoolDependant()) {
                     sourceWithoutManaCosts.add(noTapAbilities);
                 } else {
@@ -3661,7 +3669,7 @@ public abstract class PlayerImpl implements Player, Serializable {
                     // abilities without Tap costs have to be handled as separate sources, because they can be used also
                     if (!ability.hasTapCost()) {
                         it.remove();
-                        Abilities<ActivatedManaAbilityImpl> noTapAbilities = new AbilitiesImpl<>(ability);
+                        Abilities<ActivatedManaAbilityImpl> noTapAbilities = AbilitiesImpl.singleton(ability);
                         if (ability.getManaCosts().isEmpty() && !ability.isPoolDependant()) {
                             sourceWithoutManaCosts.add(noTapAbilities);
                         } else {
@@ -4362,7 +4370,13 @@ public abstract class PlayerImpl implements Player, Serializable {
             return playable;
         }
 
-        Game game = originalGame.createSimulationForPlayableCalc();
+        // Optimization: reuse the simulation if already in playable-calc state (avoids nested GameState copy)
+        Game game;
+        if (originalGame.inCheckPlayableState()) {
+            game = originalGame;
+        } else {
+            game = originalGame.createSimulationForPlayableCalc();
+        }
         ManaOptions availableMana = getManaAvailable(game); // get available mana options (mana pool and conditional mana added (but conditional still lose condition))
         if (hidden && fromZone.match(Zone.HAND)) {
             for (Card card : hand.getCards(game)) {
