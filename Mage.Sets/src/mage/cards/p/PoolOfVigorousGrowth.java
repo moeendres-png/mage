@@ -23,7 +23,6 @@ import mage.game.Game;
 import mage.game.permanent.token.Token;
 import mage.game.permanent.token.custom.CreatureToken;
 import mage.util.CardUtil;
-import mage.util.RandomUtil;
 import mage.util.functions.CopyTokenFunction;
 
 /**
@@ -85,7 +84,7 @@ class PoolOfVigorousGrowthEffect extends OneShotEffect {
         }
         Token token = null;
         while (!options.isEmpty()) {
-            int index = RandomUtil.nextInt(options.size());
+            int index = game.getRulesRandom().nextInt(options.size());
             ExpansionSet expansionSet = Sets.findSet(options.get(index).getSetCode());
             if (expansionSet == null || !expansionSet.getSetType().isEternalLegal()) {
                 options.remove(index);
