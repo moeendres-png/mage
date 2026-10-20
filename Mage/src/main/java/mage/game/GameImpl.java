@@ -1805,7 +1805,7 @@ public abstract class GameImpl implements Game {
                 decidedBy = "random";
             }
         }
-        Player winner = candidates.isEmpty() ? null : candidates.get(RandomUtil.nextInt(candidates.size()));
+        Player winner = candidates.isEmpty() ? null : candidates.get(getRulesRandom().nextInt(candidates.size()));
 
         // skip game events, e.g. replacement effects
         if (winner != null) {
