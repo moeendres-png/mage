@@ -113,7 +113,7 @@ public class EvokeTest extends CardTestPlayerBase {
 
         setChoice(
                 playerA,
-                "Cast with Evoke alternative cost: {4} (source: Cloudkin Seer"
+                "Cast with Evoke alternative cost: {4}"
         );
 
         castSpell(

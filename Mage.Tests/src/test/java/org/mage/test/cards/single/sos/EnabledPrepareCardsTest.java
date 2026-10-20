@@ -73,13 +73,14 @@ public class EnabledPrepareCardsTest extends CardTestPlayerBase {
         addCard(Zone.LIBRARY, playerA, "Island", 6);
         castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Spellbook Seeker");
         assertPrepared("Spellbook Seeker", 1, PhaseStep.BEGIN_COMBAT, true);
-        // turn 3: cast the prepared copy, Careful Study (draw two cards, discard one)
+        // turn 3: cast the prepared copy, Careful Study (draw two cards, then discard two cards)
         castSpell(3, PhaseStep.PRECOMBAT_MAIN, playerA, "Careful Study");
         assertPrepared("Spellbook Seeker", 3, PhaseStep.BEGIN_COMBAT, false);
         setStopAt(3, PhaseStep.BEGIN_COMBAT);
         execute();
         assertPermanentCount(playerA, "Spellbook Seeker", 1);
-        assertGraveyardCount(playerA, 1);
+        // the two discarded cards only: the cast copy of the prepare spell ceases to exist
+        assertGraveyardCount(playerA, 2);
     }
 
     @Test
