@@ -88,7 +88,9 @@ class ExoticPetsEffect extends OneShotEffect {
                 .flatMap(Collection::stream)
                 .distinct()
                 .map(CounterType::findByName)
-                .collect(Collectors.toSet());
+                .filter(Objects::nonNull)
+                // enum order, not identity-hash order: the prompts must come in the same order every run
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(CounterType.class)));
         if (counterTypes.isEmpty()) {
             return true;
         }

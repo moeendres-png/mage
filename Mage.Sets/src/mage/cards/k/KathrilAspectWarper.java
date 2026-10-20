@@ -23,6 +23,8 @@ import mage.target.Target;
 import mage.target.common.TargetControlledPermanent;
 
 import java.util.Collection;
+import java.util.EnumSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -89,7 +91,9 @@ class KathrilAspectWarperEffect extends OneShotEffect {
                 .map(Card::getAbilities)
                 .flatMap(Collection::stream)
                 .map(this::checkAbility)
-                .collect(Collectors.toSet());
+                .filter(Objects::nonNull)
+                // enum order, not identity-hash order: the prompts must come in the same order every run
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(CounterType.class)));
         if (counterSet == null || counterSet.size() == 0) {
             return false;
         }
