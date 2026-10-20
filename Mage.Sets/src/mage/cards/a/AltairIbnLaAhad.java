@@ -1,5 +1,6 @@
 package mage.cards.a;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.common.AttacksTriggeredAbility;
@@ -126,7 +127,7 @@ class AltairIbnLaAhadTokenEffect extends OneShotEffect {
         if (cards.isEmpty()) {
             return false;
         }
-        Set<Permanent> permanents = new HashSet<>();
+        Set<Permanent> permanents = new LinkedHashSet<>();
         for (Card card : cards) {
             CreateTokenCopyTargetEffect effect = new CreateTokenCopyTargetEffect(
                     source.getControllerId(), null,

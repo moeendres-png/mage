@@ -1,5 +1,6 @@
 package mage.cards.t;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -80,7 +81,7 @@ class TibaltsTrickeryEffect extends OneShotEffect {
                 game.informPlayers(random + " was chosen at random");
                 controller.millCards(random, source, game);
                 Card cardToCast = null;
-                Set<Card> cardsToExile = new HashSet<>();
+                Set<Card> cardsToExile = new LinkedHashSet<>();
                 FilterCard filter = new FilterCard();
                 filter.add(Predicates.not(CardType.LAND.getPredicate()));
                 filter.add(Predicates.not(new NamePredicate(spellName)));

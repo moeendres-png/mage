@@ -1,6 +1,7 @@
 
 package mage.cards.s;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -87,7 +88,7 @@ class SorinLordOfInnistradEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Set<Card> toBattlefield = new HashSet<>();
+        Set<Card> toBattlefield = new LinkedHashSet<>();
         for (UUID targetId : source.getTargets().get(0).getTargets()) {
             Permanent perm = game.getPermanent(targetId);
             if (perm != null) {

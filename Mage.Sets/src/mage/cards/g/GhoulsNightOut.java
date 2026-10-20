@@ -1,5 +1,6 @@
 package mage.cards.g;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -64,7 +65,7 @@ class GhoulsNightOutEffect extends OneShotEffect {
         UUID controllerId = source.getControllerId();
         Player controller = game.getPlayer(controllerId);
         if (controller != null) {
-            Set<Card> cardsToBattlefield = new HashSet<>();
+            Set<Card> cardsToBattlefield = new LinkedHashSet<>();
             for (UUID playerId : game.getState().getPlayersInRange(controllerId, game)) {
                 Player player = game.getPlayer(playerId);
                 if (player != null) {

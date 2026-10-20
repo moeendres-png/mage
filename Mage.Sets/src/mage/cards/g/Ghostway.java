@@ -1,5 +1,6 @@
 package mage.cards.g;
 
+import java.util.LinkedHashSet;
 import mage.MageObject;
 import mage.abilities.Ability;
 import mage.abilities.common.delayed.AtTheBeginOfNextEndStepDelayedTriggeredAbility;
@@ -65,7 +66,7 @@ class GhostwayEffect extends OneShotEffect {
         Player controller = game.getPlayer(source.getControllerId());
         MageObject sourceObject = source.getSourceObject(game);
         if (sourceObject != null && controller != null) {
-            Set<Card> toExile = new HashSet<>();
+            Set<Card> toExile = new LinkedHashSet<>();
             toExile.addAll(game.getBattlefield().getActivePermanents(filter, source.getControllerId(), game));
             UUID exileId = CardUtil.getExileZoneId(game, source.getSourceId(), source.getStackMomentSourceZCC());
             controller.moveCardsToExile(toExile, source, game, true, exileId, sourceObject.getIdName());

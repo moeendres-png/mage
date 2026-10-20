@@ -1,5 +1,6 @@
 package mage.cards.d;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.common.EntersBattlefieldTriggeredAbility;
@@ -81,7 +82,7 @@ class DruidOfPurificationEffect extends OneShotEffect {
         }
         TargetPermanent target = new TargetPermanent(0, 1, filter);
         target.withNotTarget(true);
-        Set<Permanent> permanents = new HashSet<>();
+        Set<Permanent> permanents = new LinkedHashSet<>();
         for (UUID playerId : game.getState().getPlayersInRange(source.getControllerId(), game)) {
             Player player = game.getPlayer(playerId);
             if (player == null) {

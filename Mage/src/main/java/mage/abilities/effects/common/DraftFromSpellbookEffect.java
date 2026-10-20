@@ -1,5 +1,6 @@
 package mage.abilities.effects.common;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.effects.OneShotEffect;
 import mage.cards.Card;
@@ -69,7 +70,7 @@ public class DraftFromSpellbookEffect extends OneShotEffect {
         if (cardInfo == null) {
             return false;
         }
-        Set<Card> cards = new HashSet<>();
+        Set<Card> cards = new LinkedHashSet<>();
         cards.add(cardInfo.createCard());
         game.loadCards(cards, player.getId());
         player.moveCards(cards, Zone.HAND, source, game);

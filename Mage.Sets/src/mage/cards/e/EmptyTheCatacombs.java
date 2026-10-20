@@ -1,5 +1,6 @@
 package mage.cards.e;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -58,7 +59,7 @@ class EmptyTheCatacombsEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Set<Card> toHand = new HashSet<>();
+        Set<Card> toHand = new LinkedHashSet<>();
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
             for (UUID playerId : game.getState().getPlayersInRange(source.getControllerId(), game)) {

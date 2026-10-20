@@ -49,7 +49,7 @@ public class ReturnToHandChosenControlledPermanentCost extends CostImpl {
         Player controller = game.getPlayer(controllerId);
         if (controller != null) {
             if (this.getTargets().choose(Outcome.ReturnToHand, controllerId, source.getSourceId(), source, game)) {
-                Set<Card> permanentsToReturn = new HashSet<>();
+                Set<Card> permanentsToReturn = new LinkedHashSet<>();
                 for (UUID targetId : this.getTargets().get(0).getTargets()) {
                     Permanent permanent = game.getPermanent(targetId);
                     if (permanent == null) {

@@ -1,6 +1,7 @@
 
 package mage.game.draft;
 
+import java.util.LinkedHashSet;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -45,7 +46,7 @@ public class DraftPlayer {
 
     public void prepareDeck() {
         if (!hiddenCards.isEmpty()) {
-            Set<Card> cardsToDeck = new HashSet<>();
+            Set<Card> cardsToDeck = new LinkedHashSet<>();
             for (Card card : deck.getSideboard()) {
                 if (!hiddenCards.contains(card.getId())) {
                     cardsToDeck.add(card);

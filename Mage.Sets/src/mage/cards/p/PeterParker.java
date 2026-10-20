@@ -1,5 +1,6 @@
 package mage.cards.p;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.common.ActivateAsSorceryActivatedAbility;
 import mage.abilities.common.EntersBattlefieldTriggeredAbility;
@@ -100,7 +101,7 @@ class AmazingSpiderManEffect extends ContinuousEffectImpl {
         if (controller == null) {
             return false;
         }
-        Set<Card> cardsToGainAbility = new HashSet<>();
+        Set<Card> cardsToGainAbility = new LinkedHashSet<>();
         cardsToGainAbility.addAll(controller.getHand().getCards(filter, game));
         cardsToGainAbility.addAll(controller.getGraveyard().getCards(filter, game));
         controller.getLibrary().getCards(game).stream()

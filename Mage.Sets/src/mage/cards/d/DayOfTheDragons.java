@@ -1,6 +1,7 @@
 
 package mage.cards.d;
 
+import java.util.LinkedHashSet;
 import mage.MageObject;
 import mage.abilities.Ability;
 import mage.abilities.common.EntersBattlefieldTriggeredAbility;
@@ -75,7 +76,7 @@ class DayOfTheDragonsEntersEffect extends OneShotEffect {
         Player controller = game.getPlayer(source.getControllerId());
         MageObject sourceObject = game.getObject(source);
         if (controller != null && sourceObject != null) {
-            Set<Card> toExile = new HashSet<>();
+            Set<Card> toExile = new LinkedHashSet<>();
             toExile.addAll(game.getBattlefield().getAllActivePermanents(filter, source.getControllerId(), game));
             if (!toExile.isEmpty()) {
                 UUID exileId = CardUtil.getExileZoneId(game, source.getSourceId(), source.getStackMomentSourceZCC());

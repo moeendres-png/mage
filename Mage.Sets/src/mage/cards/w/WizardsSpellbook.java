@@ -1,5 +1,6 @@
 package mage.cards.w;
 
+import java.util.LinkedHashSet;
 import mage.ApprovingObject;
 import mage.abilities.Ability;
 import mage.abilities.SpellAbility;
@@ -130,7 +131,7 @@ class WizardsSpellbookEffect extends OneShotEffect {
         if (exile == null || exile.isEmpty()) {
             return true;
         }
-        Set<Card> cards = new HashSet<>();
+        Set<Card> cards = new LinkedHashSet<>();
         for (Card exiledCard : exile.getCards(game)) {
             cards.add(game.copyCard(exiledCard, source, source.getControllerId()));
         }

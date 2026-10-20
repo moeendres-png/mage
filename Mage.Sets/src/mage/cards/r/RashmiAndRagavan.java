@@ -1,5 +1,6 @@
 package mage.cards.r;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.MageObject;
 import mage.abilities.Ability;
@@ -141,7 +142,7 @@ class RashmiAndRagavanEffect extends OneShotEffect {
         String exileName = sourceObject.getIdName() + " play on turn " + game.getState().getTurnNum()
                 + " for " + controller.getName();
         game.getExile().createZone(exileId, exileName).setCleanupOnEndTurn(true);
-        Set<Card> cards = new HashSet<>();
+        Set<Card> cards = new LinkedHashSet<>();
         cards.add(card);
         if (card == null || !controller.moveCardsToExile(cards, source, game, true, exileId, exileName)) {
             return false;

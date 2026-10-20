@@ -1,5 +1,6 @@
 package mage.cards.h;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.common.SimpleStaticAbility;
@@ -81,7 +82,7 @@ class HerigastEruptingNullkiteEffect extends ContinuousEffectImpl {
         if (controller == null) {
             return false;
         }
-        Set<Card> cardsToGainEmerge = new HashSet<>();
+        Set<Card> cardsToGainEmerge = new LinkedHashSet<>();
         cardsToGainEmerge.addAll(controller.getHand().getCards(StaticFilters.FILTER_CARD_CREATURE, game));
         cardsToGainEmerge.addAll(controller.getGraveyard().getCards(StaticFilters.FILTER_CARD_CREATURE, game));
         controller.getLibrary().getCards(game).stream()

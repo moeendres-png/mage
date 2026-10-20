@@ -1,5 +1,6 @@
 package mage.cards.b;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.MageObject;
 import mage.ObjectColor;
@@ -83,7 +84,7 @@ class BenthicAnomalyEffect extends OneShotEffect {
         if (player == null) {
             return false;
         }
-        Set<Permanent> permanents = new HashSet<>();
+        Set<Permanent> permanents = new LinkedHashSet<>();
         for (UUID opponentId : game.getOpponents(source.getControllerId())) {
             Player opponent = game.getPlayer(opponentId);
             if (opponent == null) {

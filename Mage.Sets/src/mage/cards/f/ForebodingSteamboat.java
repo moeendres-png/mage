@@ -95,7 +95,7 @@ class ForebodingSteamboatExileEffect extends OneShotEffect {
             // if source permanent is already gone then nothing gets exiled in the first place
             return false;
         }
-        Set<Permanent> toExile = new HashSet<>();
+        Set<Permanent> toExile = new LinkedHashSet<>();
         for (UUID playerId : game.getState().getPlayersInRange(source.getControllerId(), game)) {
             Player player = game.getPlayer(playerId);
             if (player == null) {

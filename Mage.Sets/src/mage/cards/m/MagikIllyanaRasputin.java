@@ -1,5 +1,6 @@
 package mage.cards.m;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.common.SimpleActivatedAbility;
@@ -133,7 +134,7 @@ class MagikIllyanaRasputinEffect extends OneShotEffect {
         if (controller == null) {
             return false;
         }
-        Set<Card> cards = new HashSet<>();
+        Set<Card> cards = new LinkedHashSet<>();
         for (Card card : controller.getLibrary().getCards(game)) {
             cards.add(card);
             if (!card.isLand(game)) {

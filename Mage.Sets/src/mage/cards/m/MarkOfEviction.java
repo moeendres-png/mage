@@ -1,6 +1,7 @@
 
 package mage.cards.m;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -77,7 +78,7 @@ class MarkOfEvictionEffect extends OneShotEffect {
         if (controller != null && sourceObject != null && sourceObject.getAttachedTo() != null) {
             Permanent enchanted = game.getPermanent(sourceObject.getAttachedTo());
             if (enchanted != null) {
-                Set<Card> toHand = new HashSet<>();
+                Set<Card> toHand = new LinkedHashSet<>();
                 toHand.add(enchanted);
                 for (UUID attachmentId : enchanted.getAttachments()) {
                     Permanent attachment = game.getPermanent(attachmentId);

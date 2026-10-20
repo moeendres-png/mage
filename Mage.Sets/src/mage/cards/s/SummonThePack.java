@@ -1,6 +1,7 @@
 
 package mage.cards.s;
 
+import java.util.LinkedHashSet;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -99,7 +100,7 @@ class SummonThePackEffect extends OneShotEffect {
                     }
 
                     if (creatureCards.size() > 0) {
-                        Set<Card> ccs = new HashSet<>(creatureCards);
+                        Set<Card> ccs = new LinkedHashSet<>(creatureCards);
                         game.loadCards(ccs, controller.getId());
                         controller.moveCards(ccs, Zone.BATTLEFIELD, source, game);
                     }

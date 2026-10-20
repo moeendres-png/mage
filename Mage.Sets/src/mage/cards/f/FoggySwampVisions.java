@@ -1,5 +1,6 @@
 package mage.cards.f;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.common.SimpleStaticAbility;
 import mage.abilities.common.delayed.AtTheBeginOfNextEndStepDelayedTriggeredAbility;
@@ -82,7 +83,7 @@ class FoggySwampVisionsEffect extends OneShotEffect {
         }
         player.moveCards(cards, Zone.EXILED, source, game);
         cards.retainZone(Zone.EXILED, game);
-        Set<Permanent> permanents = new HashSet<>();
+        Set<Permanent> permanents = new LinkedHashSet<>();
         for (Card card : cards.getCards(game)) {
             CreateTokenCopyTargetEffect effect = new CreateTokenCopyTargetEffect();
             effect.setTargetPointer(new FixedTarget(card, game));

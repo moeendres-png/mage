@@ -1,5 +1,6 @@
 package mage.abilities.effects.common.continuous;
 
+import java.util.LinkedHashSet;
 import mage.MageObjectReference;
 import mage.abilities.Ability;
 import mage.abilities.Mode;
@@ -71,7 +72,7 @@ public class BecomesCreatureAllEffect extends ContinuousEffectImpl {
 
     @Override
     public boolean apply(Layer layer, SubLayer sublayer, Ability source, Game game) {
-        Set<Permanent> affectedPermanents = new HashSet<>();
+        Set<Permanent> affectedPermanents = new LinkedHashSet<>();
         if (getAffectedObjectsSet()) {
             for (MageObjectReference ref : affectedObjectList) {
                 affectedPermanents.add(ref.getPermanent(game));

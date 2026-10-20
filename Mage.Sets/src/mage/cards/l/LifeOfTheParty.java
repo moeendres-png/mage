@@ -1,5 +1,6 @@
 package mage.cards.l;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.common.AttacksTriggeredAbility;
@@ -104,7 +105,7 @@ class LifeOfThePartyEffect extends OneShotEffect {
         if (permanent == null) {
             return false;
         }
-        Set<Permanent> permanents = new HashSet<>();
+        Set<Permanent> permanents = new LinkedHashSet<>();
         for (UUID playerId : game.getOpponents(source.getControllerId())) {
             CreateTokenCopyTargetEffect effect = new CreateTokenCopyTargetEffect(playerId);
             effect.setSavedPermanent(permanent);

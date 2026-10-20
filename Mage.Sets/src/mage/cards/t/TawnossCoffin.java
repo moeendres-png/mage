@@ -1,5 +1,6 @@
 package mage.cards.t;
 
+import java.util.LinkedHashSet;
 import java.util.ArrayList;
 import java.util.HashMap;
 import mage.abilities.Ability;
@@ -138,7 +139,7 @@ class TawnossCoffinEffect extends OneShotEffect {
         String uniqueKey = exileZoneId.toString() + source.getId().toString();
         // exileData keeps track of all creatures/auras/counters and their relationship
         Map<String, Object> exileData = new HashMap<>();
-        Set<Card> toExile = new HashSet<>();
+        Set<Card> toExile = new LinkedHashSet<>();
         toExile.add(creature);
         Map<UUID, List<UUID>> creatureToAurasMap = new HashMap<>();
         List<UUID> auras = new ArrayList<>();
@@ -241,7 +242,7 @@ class TawnossCoffinReturnEffect extends OneShotEffect {
             if (auraIds == null) {
                 continue;
             }
-            Set<Card> returningAuras = new HashSet<>();
+            Set<Card> returningAuras = new LinkedHashSet<>();
             for (UUID auraId : auraIds) {
                 Card auraCard = game.getCard(auraId);
                 if (auraCard != null && exileZone.contains(auraId)) {

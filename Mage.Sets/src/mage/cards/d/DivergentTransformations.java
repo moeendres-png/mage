@@ -65,7 +65,7 @@ class DivergentTransformationsEffect extends OneShotEffect {
         MageObject sourceObject = source.getSourceObject(game);
         if (controller != null && sourceObject != null) {
             List<UUID> controllerList = new ArrayList<>();
-            Set<Card> toExile = new HashSet<>();
+            Set<Card> toExile = new LinkedHashSet<>();
             for (UUID targetId : getTargetPointer().getTargets(game, source)) {
                 Permanent permanent = game.getPermanent(targetId);
                 if (permanent != null) {

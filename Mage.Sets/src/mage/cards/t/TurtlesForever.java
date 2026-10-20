@@ -1,5 +1,6 @@
 package mage.cards.t;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -108,7 +109,7 @@ class TurtlesForeverEffect extends OneShotEffect {
                         Set<Card> disallowedCards = this.getTargets().stream()
                                 .map(game::getCard)
                                 .collect(Collectors.toSet());
-                        Set<Card> checkList = new HashSet<>();
+                        Set<Card> checkList = new LinkedHashSet<>();
                         checkList.addAll(disallowedCards);
                         checkList.addAll(cards.getCards(game));
                         return isValidSideboardTarget(card, checkList);

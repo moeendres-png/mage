@@ -1,6 +1,7 @@
 
 package mage.cards.e;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -70,7 +71,7 @@ class EngulfTheShoreEffect extends OneShotEffect {
             int islands = game.getBattlefield().count(filter, source.getControllerId(), source, game);
             FilterPermanent creatureFilter = new FilterCreaturePermanent();
             creatureFilter.add(new ToughnessPredicate(ComparisonType.FEWER_THAN, islands + 1));
-            Set<Card> cardsToHand = new HashSet<>();
+            Set<Card> cardsToHand = new LinkedHashSet<>();
             for (Permanent permanent : game.getBattlefield().getActivePermanents(creatureFilter, source.getControllerId(), source, game)) {
                 cardsToHand.add(permanent);
             }

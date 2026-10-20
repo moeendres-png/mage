@@ -131,7 +131,7 @@ class HelmOfKaldraEffect extends OneShotEffect {
         if (permanent == null) {
             return true;
         }
-        Set<Permanent> equipments = new HashSet<>();
+        Set<Permanent> equipments = new LinkedHashSet<>();
         equipments.addAll(game.getBattlefield().getActivePermanents(filterHelm, source.getControllerId(), source, game));
         equipments.addAll(game.getBattlefield().getActivePermanents(filterSword, source.getControllerId(), source, game));
         equipments.addAll(game.getBattlefield().getActivePermanents(filterShield, source.getControllerId(), source, game));

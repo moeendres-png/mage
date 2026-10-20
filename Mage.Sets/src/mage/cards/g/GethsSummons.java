@@ -1,5 +1,6 @@
 package mage.cards.g;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.effects.OneShotEffect;
 import mage.cards.Card;
@@ -101,7 +102,7 @@ class GethsSummonsEffect extends OneShotEffect {
         if (controller == null) {
             return false;
         }
-        Set<Card> cardsToBattlefield = new HashSet<>();
+        Set<Card> cardsToBattlefield = new LinkedHashSet<>();
         for (Target target : source.getTargets()) {
             if (target instanceof TargetCardInYourGraveyard || target instanceof TargetCardInOpponentsGraveyard) {
                 Card targetCard = game.getCard(target.getFirstTarget());

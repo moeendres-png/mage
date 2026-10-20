@@ -1,5 +1,6 @@
 package mage.cards.t;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -66,7 +67,7 @@ class TwilightsCallEffect extends OneShotEffect {
     @Override
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
-        Set<Card> toBattlefield = new HashSet<>();
+        Set<Card> toBattlefield = new LinkedHashSet<>();
         if (controller != null) {
             for (UUID playerId : game.getState().getPlayersInRange(source.getControllerId(), game)) {
                 Player player = game.getPlayer(playerId);

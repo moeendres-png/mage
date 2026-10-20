@@ -1,5 +1,6 @@
 package mage.cards.h;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.common.SimpleStaticAbility;
@@ -81,7 +82,7 @@ class HenzieToolboxTorreGainBlitzEffect extends ContinuousEffectImpl {
         if (controller == null) {
             return false;
         }
-        Set<Card> cardsToGainBlitz = new HashSet<>();
+        Set<Card> cardsToGainBlitz = new LinkedHashSet<>();
         cardsToGainBlitz.addAll(controller.getHand().getCards(filter, game));
         cardsToGainBlitz.addAll(controller.getGraveyard().getCards(filter, game));
         controller.getLibrary().getCards(game).stream()

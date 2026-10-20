@@ -1,5 +1,6 @@
 package mage.cards.g;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.MageObject;
 import mage.abilities.Ability;
@@ -142,7 +143,7 @@ class FlameshapeEffect extends OneShotEffect {
                         ? "Flameshape"
                         : sourceObject.getIdName();
 
-        Set<Card> exiledCards = new HashSet<>();
+        Set<Card> exiledCards = new LinkedHashSet<>();
 
         for (Card card : cards.getCards(game)) {
 

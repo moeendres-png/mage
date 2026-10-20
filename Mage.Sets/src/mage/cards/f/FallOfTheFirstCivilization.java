@@ -1,5 +1,6 @@
 package mage.cards.f;
 
+import java.util.LinkedHashSet;
 import mage.MageObject;
 import mage.abilities.Ability;
 import mage.abilities.common.SagaAbility;
@@ -89,7 +90,7 @@ class FallOfTheFirstCivilizationEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Set<Permanent> permanents = new HashSet<>();
+        Set<Permanent> permanents = new LinkedHashSet<>();
         for (UUID playerId : game.getState().getPlayersInRange(source.getControllerId(), game)) {
             Player player = game.getPlayer(playerId);
             if (player == null) {
@@ -98,7 +99,7 @@ class FallOfTheFirstCivilizationEffect extends OneShotEffect {
             int count = game
                     .getBattlefield()
                     .count(StaticFilters.FILTER_CONTROLLED_PERMANENT_NON_LAND, playerId, source, game);
-            Set<Permanent> toSave = new HashSet<>();
+            Set<Permanent> toSave = new LinkedHashSet<>();
             switch (count) {
                 case 0:
                     break;

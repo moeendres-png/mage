@@ -1,5 +1,6 @@
 package mage.cards.z;
 
+import java.util.LinkedHashSet;
 import mage.MageInt;
 import mage.MageObject;
 import mage.abilities.Ability;
@@ -92,7 +93,7 @@ class ZodiarkUmbralGodEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Set<Permanent> permanents = new HashSet<>();
+        Set<Permanent> permanents = new LinkedHashSet<>();
         for (UUID playerId : game.getState().getPlayersInRange(source.getControllerId(), game)) {
             Player player = game.getPlayer(playerId);
             if (player == null) {

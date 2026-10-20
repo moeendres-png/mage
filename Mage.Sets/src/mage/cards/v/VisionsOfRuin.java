@@ -1,5 +1,6 @@
 package mage.cards.v;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.costs.costadjusters.CommanderManaValueAdjuster;
 import mage.abilities.costs.mana.ManaCostsImpl;
@@ -68,7 +69,7 @@ class VisionsOfRuinEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Set<Permanent> permanents = new HashSet<>();
+        Set<Permanent> permanents = new LinkedHashSet<>();
         for (UUID playerId : game.getOpponents(source.getControllerId())) {
             Player opponent = game.getPlayer(playerId);
             if (opponent == null || game.getBattlefield().count(

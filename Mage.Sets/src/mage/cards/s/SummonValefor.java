@@ -121,7 +121,7 @@ class SummonValeforEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Set<Permanent> permanents = new HashSet<>();
+        Set<Permanent> permanents = new LinkedHashSet<>();
         for (UUID opponentId : game.getOpponents(source.getControllerId())) {
             Player player = game.getPlayer(opponentId);
             if (player == null || !game.getBattlefield().contains(

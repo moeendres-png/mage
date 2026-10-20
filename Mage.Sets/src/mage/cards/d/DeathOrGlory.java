@@ -102,8 +102,8 @@ class DeathOrGloryEffect extends OneShotEffect {
                             pile1Zone = Zone.BATTLEFIELD;
                             pile2Zone = Zone.EXILED;
                         }
-                        Set<Card> pile1Set = new HashSet<>(pile1);
-                        Set<Card> pile2Set = new HashSet<>(pile2);
+                        Set<Card> pile1Set = new LinkedHashSet<>(pile1);
+                        Set<Card> pile2Set = new LinkedHashSet<>(pile2);
                         controller.moveCards(pile1Set, pile1Zone, source, game, false, false, false, null);
                         controller.moveCards(pile2Set, pile2Zone, source, game, false, false, false, null);
                     }

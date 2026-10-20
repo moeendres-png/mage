@@ -1,6 +1,7 @@
 
 package mage.cards.b;
 
+import java.util.LinkedHashSet;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -102,8 +103,8 @@ class BoneyardParleyEffect extends OneShotEffect {
                             pile1Zone = Zone.BATTLEFIELD;
                             pile2Zone = Zone.GRAVEYARD;
                         }
-                        Set<Card> pile1Set = new HashSet<>();
-                        Set<Card> pile2Set = new HashSet<>();
+                        Set<Card> pile1Set = new LinkedHashSet<>();
+                        Set<Card> pile2Set = new LinkedHashSet<>();
                         pile1Set.addAll(pile1);
                         pile2Set.addAll(pile2);
 

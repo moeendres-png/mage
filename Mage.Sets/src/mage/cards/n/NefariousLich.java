@@ -1,6 +1,7 @@
 
 package mage.cards.n;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -78,7 +79,7 @@ class NefariousLichDamageReplacementEffect extends ReplacementEffectImpl {
             Target target = new TargetCardInYourGraveyard(amount, new FilterCard("card in your graveyard"));
             if (target.canChoose(controller.getId(), source, game)) {
                 if (controller.choose(Outcome.Exile, target, source, game)) {
-                    Set<Card> cards = new HashSet<>(amount);
+                    Set<Card> cards = new LinkedHashSet<>(amount);
                     for (UUID targetId : target.getTargets()) {
                         Card card = controller.getGraveyard().get(targetId, game);
                         if (card != null) {

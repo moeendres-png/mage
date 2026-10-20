@@ -116,7 +116,7 @@ class WarpWorldEffect extends OneShotEffect {
         for (UUID playerId : game.getState().getPlayersInRange(source.getControllerId(), game)) {
             Player player = game.getPlayer(playerId);
             if (player != null) {
-                Set<Card> toBattlefield = new HashSet<>();
+                Set<Card> toBattlefield = new LinkedHashSet<>();
                 CardsImpl cards = cardsRevealed.get(player.getId());
                 for (Card card : cards.getCards(game)) {
                     if (card != null && (card.isArtifact(game)
@@ -134,7 +134,7 @@ class WarpWorldEffect extends OneShotEffect {
         for (UUID playerId : game.getState().getPlayersInRange(source.getControllerId(), game)) {
             Player player = game.getPlayer(playerId);
             if (player != null) {
-                Set<Card> toBattlefield = new HashSet<>();
+                Set<Card> toBattlefield = new LinkedHashSet<>();
                 CardsImpl cards = cardsRevealed.get(player.getId());
                 for (Card card : cards.getCards(game)) {
                     if (card != null && card.isEnchantment(game)) {

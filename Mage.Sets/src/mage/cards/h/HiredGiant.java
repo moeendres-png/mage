@@ -1,6 +1,7 @@
 
 package mage.cards.h;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -66,7 +67,7 @@ class HiredGiantEffect extends OneShotEffect {
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            Set<Player> playersThatSearched = new HashSet<>(1);
+            Set<Player> playersThatSearched = new LinkedHashSet<>(1);
             for (UUID playerId : game.getState().getPlayersInRange(controller.getId(), game)) {
                 if (!playerId.equals(controller.getId())) {
                     Player player = game.getPlayer(playerId);

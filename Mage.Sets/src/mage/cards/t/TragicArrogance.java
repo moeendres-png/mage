@@ -1,5 +1,6 @@
 package mage.cards.t;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.effects.OneShotEffect;
 import mage.cards.CardImpl;
@@ -64,7 +65,7 @@ class TragicArroganceEffect extends OneShotEffect {
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            Set<Permanent> chosenPermanents = new HashSet<>();
+            Set<Permanent> chosenPermanents = new LinkedHashSet<>();
             for (UUID playerId : game.getState().getPlayersInRange(controller.getId(), game)) {
                 Player player = game.getPlayer(playerId);
                 if (player != null) {

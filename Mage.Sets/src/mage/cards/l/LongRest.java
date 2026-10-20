@@ -1,5 +1,6 @@
 package mage.cards.l;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.effects.OneShotEffect;
 import mage.abilities.effects.common.ExileSpellEffect;
@@ -117,7 +118,7 @@ class LongRestEffect extends OneShotEffect {
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            Set<Card> cardsToHand = new HashSet<>();
+            Set<Card> cardsToHand = new LinkedHashSet<>();
             for (UUID targetId : getTargetPointer().getTargets(game, source)) {
                 Card card = game.getCard(targetId);
                 if (card != null && game.getState().getZone(targetId) == Zone.GRAVEYARD) {

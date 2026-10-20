@@ -1,6 +1,7 @@
 
 package mage.cards.h;
 
+import java.util.LinkedHashSet;
 import mage.MageObject;
 import mage.abilities.Ability;
 import mage.abilities.effects.OneShotEffect;
@@ -73,7 +74,7 @@ class HourOfGloryEffect extends OneShotEffect {
                     Player targetController = game.getPlayer(targetCreature.getControllerId());
                     if (targetController != null) {
                         targetController.revealCards(sourceObject.getIdName(), targetController.getHand(), game);
-                        Set<Card> toExile = new HashSet<>();
+                        Set<Card> toExile = new LinkedHashSet<>();
                         for (Card card : targetController.getHand().getCards(game)) {
                             if (card.getName().equals(targetCreature.getName())) {
                                 toExile.add(card);

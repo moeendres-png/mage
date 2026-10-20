@@ -1,6 +1,7 @@
 
 package mage.cards.v;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -114,7 +115,7 @@ class VanishIntoMemoryReturnFromExileEffect extends OneShotEffect {
         Cards cards = new CardsImpl(getTargetPointer().getTargets(game, source));
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            Set<Card> cardsToBattlefield = new HashSet<>();
+            Set<Card> cardsToBattlefield = new LinkedHashSet<>();
             cardsToBattlefield.addAll(cards.getCards(game));
             ContinuousEffect effect = new VanishIntoMemoryEntersBattlefieldEffect();
             effect.setTargetPointer(new FixedTargets(cards, game));

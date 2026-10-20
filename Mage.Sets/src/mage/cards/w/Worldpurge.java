@@ -1,5 +1,6 @@
 package mage.cards.w;
 
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -65,7 +66,7 @@ class WorldpurgeEffect extends OneShotEffect {
         Player controller = game.getPlayer(source.getControllerId());
         MageObject sourceObject = game.getObject(source);
         if (controller != null && sourceObject != null) {
-            Set<Card> allPermanents = new HashSet<>();
+            Set<Card> allPermanents = new LinkedHashSet<>();
             allPermanents.addAll(game.getBattlefield().getActivePermanents(new FilterPermanent(), source.getControllerId(), source, game));
             controller.moveCards(allPermanents, Zone.HAND, source, game, false, false, true, null);
             game.informPlayers(sourceObject.getLogName() + " - All permanents returned to owners' hands");

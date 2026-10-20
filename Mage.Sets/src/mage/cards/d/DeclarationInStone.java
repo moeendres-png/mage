@@ -1,5 +1,6 @@
 package mage.cards.d;
 
+import java.util.LinkedHashSet;
 import mage.MageObject;
 import mage.abilities.Ability;
 import mage.abilities.effects.OneShotEffect;
@@ -65,7 +66,7 @@ class DeclarationInStoneEffect extends OneShotEffect {
         if (controller == null || sourceObject == null || targetPermanent == null) {
             return false;
         }
-        Set<Card> cardsToExile = new HashSet<>();
+        Set<Card> cardsToExile = new LinkedHashSet<>();
         int nonTokenCount = 0;
         if (CardUtil.haveEmptyName(targetPermanent)) { // face down creature
             cardsToExile.add(targetPermanent);

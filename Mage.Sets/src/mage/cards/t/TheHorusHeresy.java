@@ -1,5 +1,6 @@
 package mage.cards.t;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.common.SagaAbility;
 import mage.abilities.dynamicvalue.DynamicValue;
@@ -127,7 +128,7 @@ class TheHorusHeresyDestroyEffect extends OneShotEffect {
         ) < 1) {
             return false;
         }
-        Set<Permanent> permanents = new HashSet<>();
+        Set<Permanent> permanents = new LinkedHashSet<>();
         for (UUID playerId : game.getState().getPlayersInRange(source.getControllerId(), game)) {
             Player player = game.getPlayer(playerId);
             if (player == null) {

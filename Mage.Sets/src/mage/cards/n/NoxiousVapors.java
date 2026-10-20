@@ -1,5 +1,6 @@
 package mage.cards.n;
 
+import java.util.LinkedHashSet;
 import mage.ObjectColor;
 import mage.abilities.Ability;
 import mage.abilities.effects.OneShotEffect;
@@ -80,7 +81,7 @@ class NoxiousVaporsEffect extends OneShotEffect {
             if (player == null) {
                 continue;
             }
-            Set<Card> chosenCards = new HashSet<>();
+            Set<Card> chosenCards = new LinkedHashSet<>();
             chooseCardForColor(ObjectColor.WHITE, chosenCards, player, game, source);
             chooseCardForColor(ObjectColor.BLUE, chosenCards, player, game, source);
             chooseCardForColor(ObjectColor.BLACK, chosenCards, player, game, source);

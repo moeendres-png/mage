@@ -1,5 +1,6 @@
 package mage.abilities.effects.common;
 
+import java.util.LinkedHashSet;
 import mage.abilities.Ability;
 import mage.abilities.Mode;
 import mage.abilities.effects.OneShotEffect;
@@ -55,7 +56,7 @@ public class ReturnFromGraveyardToBattlefieldTargetEffect extends OneShotEffect 
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            Set<Card> cardsToMove = new HashSet<>();
+            Set<Card> cardsToMove = new LinkedHashSet<>();
             for (UUID targetId : getTargetPointer().getTargets(game, source)) {
                 Card card = game.getCard(targetId);
                 if (card != null && game.getState().getZone(card.getId()) == Zone.GRAVEYARD) {

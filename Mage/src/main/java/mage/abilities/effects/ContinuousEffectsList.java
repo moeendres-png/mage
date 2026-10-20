@@ -33,7 +33,7 @@ public class ContinuousEffectsList<T extends ContinuousEffect> extends ArrayList
             this.add((T) cost.copy());
         }
         for (Map.Entry<UUID, Set<Ability>> entry : effects.effectAbilityMap.entrySet()) {
-            Set<Ability> newSet = new HashSet<>();
+            Set<Ability> newSet = new LinkedHashSet<>();
             for (Ability ability : entry.getValue()) {
                 newSet.add(ability.copy());
             }
