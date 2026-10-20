@@ -20,7 +20,7 @@ import mage.util.CardUtil;
 import java.util.UUID;
 
 /**
- * @author commander-lab
+ * @author DarioBarrabinoDev
  */
 public final class ThorAsgardsAvenger extends CardImpl {
 
@@ -55,12 +55,17 @@ class ThorAsgardsAvengerEffect extends ReplacementEffectImpl {
 
     ThorAsgardsAvengerEffect() {
         super(Duration.WhileOnBattlefield, Outcome.Damage);
-        this.staticText = "If another source you control would deal damage to an opponent "
-                + "or a permanent an opponent controls, it deals that much damage plus 1 instead.";
+        this.staticText = "if another source you control would deal damage to an opponent "
+                + "or a permanent an opponent controls, it deals that much damage plus 1 instead";
     }
 
     private ThorAsgardsAvengerEffect(final ThorAsgardsAvengerEffect effect) {
         super(effect);
+    }
+
+    @Override
+    public ThorAsgardsAvengerEffect copy() {
+        return new ThorAsgardsAvengerEffect(this);
     }
 
     @Override
@@ -86,17 +91,12 @@ class ThorAsgardsAvengerEffect extends ReplacementEffectImpl {
         return controller != null
                 && event.getAmount() > 0
                 && !event.getSourceId().equals(source.getSourceId())
-                && controller.hasOpponent(getControllerOrSelf(event.getTargetId(), game), game)
-                && source.isControlledBy(game.getControllerId(event.getSourceId()));
+                && source.isControlledBy(game.getControllerId(event.getSourceId()))
+                && controller.hasOpponent(getControllerOrSelf(event.getTargetId(), game), game);
     }
 
     private static UUID getControllerOrSelf(UUID id, Game game) {
         UUID outId = game.getControllerId(id);
         return outId == null ? id : outId;
-    }
-
-    @Override
-    public ThorAsgardsAvengerEffect copy() {
-        return new ThorAsgardsAvengerEffect(this);
     }
 }

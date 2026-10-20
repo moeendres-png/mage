@@ -31,6 +31,7 @@ import mage.game.command.Emblem;
 import mage.game.command.Plane;
 import mage.game.events.BatchEvent;
 import mage.game.events.GameEvent;
+import mage.game.events.NumberOfTriggersEvent;
 import mage.game.events.ZoneChangeEvent;
 import mage.game.permanent.Permanent;
 import mage.game.permanent.PermanentToken;
@@ -662,7 +663,7 @@ public abstract class AbilityImpl implements Ability {
                 String message = controller.getLogName() + " announces a value of " + xValue + " (" + variableCost.getActionText() + ')'
                         + CardUtil.getSourceLogName(game, this);
                 announceString.append(message);
-                setCostsTag("X", xValue);
+                CardUtil.setSourceCostsTag(game, this, "X", xValue);
             }
         }
         return announceString.toString();
@@ -872,7 +873,7 @@ public abstract class AbilityImpl implements Ability {
                 addManaCostsToPay(new WaterbendCost(amountMana));
             }
             getManaCostsToPay().setX(xValue, amountMana);
-            setCostsTag("X", xValue);
+            CardUtil.setSourceCostsTag(game, this, "X", xValue);
         }
         variableManaCost.setPaid();
 
@@ -1397,11 +1398,25 @@ public abstract class AbilityImpl implements Ability {
             return false;
         }
 
+        // there are game engine only special proxy/packed events like batch and number of triggers,
+        // so make sure it's spread to real game events
         List<GameEvent> allEvents = new ArrayList<>();
-        if (event instanceof BatchEvent) {
-            allEvents.addAll(((BatchEvent) event).getEvents());
+
+        // number of triggers support
+        GameEvent checkingEvent;
+        if (event instanceof NumberOfTriggersEvent) {
+            // number of triggers event must be checked by its source event 
+            // (e.g. doubler dies at the same time as other creatures)
+            checkingEvent = ((NumberOfTriggersEvent) event).getSourceEvent();
         } else {
-            allEvents.add(event);
+            checkingEvent = event;
+        }
+
+        // batch support
+        if (checkingEvent instanceof BatchEvent) {
+            allEvents.addAll(((BatchEvent) checkingEvent).getEvents());
+        } else if (checkingEvent != null) {
+            allEvents.add(checkingEvent);
         }
 
         return allEvents.stream().anyMatch(e -> {
@@ -1411,6 +1426,7 @@ public abstract class AbilityImpl implements Ability {
             //   - ability's task: code like ability.setLookBackInTime
             //   - event's task: code like current switch
             // TODO: alternative solution: replace check by source.isLeavesTheBattlefieldTrigger?
+
             switch (e.getType()) {
                 case DESTROYED_PERMANENT:
                 case EXPLOITED_CREATURE:

@@ -94,6 +94,11 @@ public class ConniveSourceEffect extends OneShotEffect {
         if (player == null) {
             return false;
         }
+        if (game.replaceEvent(new GameEvent(
+            GameEvent.EventType.CONNIVE, permanent.getId(), source, player.getId(), amount, false
+        ))) {
+            return false;
+        }
 
         player.drawCards(amount, source, game);
         int counters = player

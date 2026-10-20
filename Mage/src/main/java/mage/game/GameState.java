@@ -22,7 +22,6 @@ import mage.game.events.*;
 import mage.game.permanent.Battlefield;
 import mage.game.permanent.Permanent;
 import mage.game.permanent.PermanentCard;
-import mage.game.permanent.PermanentToken;
 import mage.game.stack.SpellStack;
 import mage.game.stack.StackObject;
 import mage.game.turn.Phase;
@@ -106,6 +105,9 @@ public class GameState implements Serializable, Copyable<GameState> {
     private Map<UUID, MageObjectAttribute> mageObjectAttribute = new HashMap<>();
     private Map<UUID, Integer> zoneChangeCounter = new HashMap<>();
     private Map<UUID, Card> copiedCards = new HashMap<>();
+    // Card copies that remain in a nonstandard zone while a source permanent exists.
+    // The normal state-based action removes all other card copies outside the stack/battlefield.
+    private Map<UUID, UUID> persistentCardCopySources = new HashMap<>();
     private int permanentOrderNumber;
     private final Map<UUID, FilterCreaturePermanent> usePowerInsteadOfToughnessForDamageLethalityFilters = new HashMap<>();
     private Set<MageObjectReference> commandersToStay = new HashSet<>(); // commanders that do not go back to command zone
@@ -180,6 +182,7 @@ public class GameState implements Serializable, Copyable<GameState> {
         this.mageObjectAttribute = CardUtil.deepCopyObject(state.mageObjectAttribute);
         this.zoneChangeCounter.putAll(state.zoneChangeCounter);
         this.copiedCards.putAll(state.copiedCards);
+        this.persistentCardCopySources.putAll(state.persistentCardCopySources);
         this.permanentOrderNumber = state.permanentOrderNumber;
         this.applyEffectsCounter = state.applyEffectsCounter;
         state.usePowerInsteadOfToughnessForDamageLethalityFilters.forEach((uuid, filter)
@@ -226,6 +229,7 @@ public class GameState implements Serializable, Copyable<GameState> {
         zones.clear();
         simultaneousEvents.clear();
         copiedCards.clear();
+        persistentCardCopySources.clear();
         usePowerInsteadOfToughnessForDamageLethalityFilters.clear();
         permanentOrderNumber = 0;
     }
@@ -274,6 +278,7 @@ public class GameState implements Serializable, Copyable<GameState> {
         this.mageObjectAttribute = state.mageObjectAttribute;
         this.zoneChangeCounter = state.zoneChangeCounter;
         this.copiedCards = state.copiedCards;
+        this.persistentCardCopySources = state.persistentCardCopySources;
         this.permanentOrderNumber = state.permanentOrderNumber;
         this.applyEffectsCounter = state.applyEffectsCounter;
         state.usePowerInsteadOfToughnessForDamageLethalityFilters.forEach((uuid, filter)
@@ -701,10 +706,16 @@ public class GameState implements Serializable, Copyable<GameState> {
         delayed.removeStartOfNewTurn(game);
     }
 
+    /**
+     * Registers the effect as-is, without copying or initializing it. You probably want {@link Game#addEffect}.
+     */
     public void addEffect(ContinuousEffect effect, Ability source) {
         addEffect(effect, null, source);
     }
 
+    /**
+     * Registers the effect as-is, without copying or initializing it. You probably want {@link Game#addEffect}.
+     */
     public void addEffect(ContinuousEffect effect, UUID sourceId, Ability source) {
         if (sourceId == null) {
             effects.addEffect(effect, source);
@@ -1054,93 +1065,11 @@ public class GameState implements Serializable, Copyable<GameState> {
     }
 
     public List<GameEvent> createEventGroups(List<GameEvent> events, Game game) {
-
-        class ZoneChangeData {
-
-            private final Zone fromZone;
-            private final Zone toZone;
-            private final UUID sourceId;
-            private final UUID playerId;
-            Ability source;
-
-            public ZoneChangeData(Ability source, UUID sourceId, UUID playerId, Zone fromZone, Zone toZone) {
-                this.sourceId = sourceId;
-                this.playerId = playerId;
-                this.fromZone = fromZone;
-                this.toZone = toZone;
-                this.source = source;
-            }
-
-            @Override
-            public int hashCode() {
-                return (this.fromZone.ordinal() + 1) * 1
-                        + (this.toZone.ordinal() + 1) * 10
-                        + (this.sourceId != null ? this.sourceId.hashCode() : 0)
-                        + (this.source != null ? this.source.hashCode() : 0);
-            }
-
-            @Override
-            public boolean equals(Object obj) {
-                if (obj instanceof ZoneChangeData) {
-                    ZoneChangeData data = (ZoneChangeData) obj;
-                    return this.fromZone == data.fromZone
-                            && this.toZone == data.toZone
-                            && Objects.equals(this.sourceId, data.sourceId)
-                            && Objects.equals(this.source, data.source);
-                }
-                return false;
-            }
-        }
-
-        Map<ZoneChangeData, List<GameEvent>> eventsByKey = new HashMap<>();
         List<GameEvent> groupEvents = new LinkedList<>();
         ZoneChangeBatchEvent batchEvent = new ZoneChangeBatchEvent();
         for (GameEvent event : events) {
             if (event instanceof ZoneChangeEvent) {
-                ZoneChangeEvent castEvent = (ZoneChangeEvent) event;
-                batchEvent.addEvent(castEvent);
-                ZoneChangeData key = new ZoneChangeData(
-                        castEvent.getSource(),
-                        castEvent.getSourceId(),
-                        castEvent.getPlayerId(),
-                        castEvent.getFromZone(),
-                        castEvent.getToZone());
-                if (eventsByKey.containsKey(key)) {
-                    eventsByKey.get(key).add(event);
-                } else {
-                    List<GameEvent> list = new LinkedList<>();
-                    list.add(event);
-                    eventsByKey.put(key, list);
-                }
-            }
-        }
-        for (Map.Entry<ZoneChangeData, List<GameEvent>> entry : eventsByKey.entrySet()) {
-            Set<Card> movedCards = new LinkedHashSet<>();
-            Set<PermanentToken> movedTokens = new LinkedHashSet<>();
-            for (Iterator<GameEvent> it = entry.getValue().iterator(); it.hasNext(); ) {
-                GameEvent event = it.next();
-                ZoneChangeEvent castEvent = (ZoneChangeEvent) event;
-                UUID targetId = castEvent.getTargetId();
-                Card card = ZonesHandler.getTargetCard(game, targetId);
-                if (card instanceof PermanentToken) {
-                    movedTokens.add((PermanentToken) card);
-                } else if (game.getObject(targetId) instanceof PermanentToken) {
-                    movedTokens.add((PermanentToken) game.getObject(targetId));
-                } else if (card != null) {
-                    movedCards.add(card);
-                }
-            }
-            ZoneChangeData eventData = entry.getKey();
-            if (!movedCards.isEmpty() || !movedTokens.isEmpty()) {
-                ZoneChangeGroupEvent event = new ZoneChangeGroupEvent(
-                        movedCards,
-                        movedTokens,
-                        eventData.sourceId,
-                        eventData.source,
-                        eventData.playerId,
-                        eventData.fromZone,
-                        eventData.toZone);
-                groupEvents.add(event);
+                batchEvent.addEvent((ZoneChangeEvent) event);
             }
         }
         if (!batchEvent.getEvents().isEmpty()) {
@@ -1157,11 +1086,24 @@ public class GameState implements Serializable, Copyable<GameState> {
     private void addCard(Card card, Zone zone) {
         setZone(card.getId(), zone);
 
-        // Actually put the card in the exile zone if it's exiled;
-        // see https://github.com/magefree/mage/issues/14005 for why this is necessary.
-        // This is only called from addCard(card) which uses Zone.OUTSIDE, and in the copy spell code.
-        if (zone != null && zone.match(Zone.EXILED)) {
+        // Multipart copies register every part in state, but zone collections contain only the main card.
+        // See https://github.com/magefree/mage/issues/14005 for why exiled copies must be added here.
+        if (zone != null && zone.match(Zone.EXILED)
+                && card.getId().equals(card.getMainCard().getId())) {
             getExile().add(card);
+        }
+
+        // add card specific abilities to game
+        for (Ability ability : card.getInitAbilities()) {
+            addAbility(ability, null, card);
+        }
+    }
+
+    private void addCardToExile(Card card, String exileZoneName) {
+        setZone(card.getId(), Zone.EXILED);
+
+        if (card.getId().equals(card.getMainCard().getId())) {
+            getExile().createZone(card.getId(), exileZoneName).add(card);
         }
 
         // add card specific abilities to game
@@ -1594,6 +1536,19 @@ public class GameState implements Serializable, Copyable<GameState> {
         return copiedCards.values();
     }
 
+    public void keepCardCopyWhileSourceExists(UUID cardId, UUID sourcePermanentId) {
+        // Some rules create persistent card copies that are exempt from the normal copy cleanup SBA.
+        persistentCardCopySources.put(cardId, sourcePermanentId);
+    }
+
+    public void stopKeepingCardCopy(UUID cardId) {
+        persistentCardCopySources.remove(cardId);
+    }
+
+    public UUID getPersistentCardCopySource(UUID cardId) {
+        return persistentCardCopySources.get(cardId);
+    }
+
     /**
      * Make full copy of the card and all of the card's parts and put to the
      * game.
@@ -1604,6 +1559,29 @@ public class GameState implements Serializable, Copyable<GameState> {
      * @return
      */
     public Card copyCard(Card mainCardToCopy, UUID newController, Game game) {
+        Zone sourceZone = game.getState().getZone(mainCardToCopy.getId());
+        if (sourceZone == Zone.BATTLEFIELD) {
+            throw new UnsupportedOperationException("Cards cannot be copied while on the Battlefield");
+        }
+        return copyCard(mainCardToCopy, newController, game, sourceZone);
+    }
+
+    /**
+     * Registers a standalone copy built from one part of a multipart card.
+     * The supplied copy already contains the characteristics that become normal.
+     */
+    public Card addCardPartCopyToExileZone(Card owningCard, Card partToCopy, Card copiedCard, UUID newController) {
+        if (!copiedCard.getId().equals(copiedCard.getMainCard().getId())) {
+            throw new IllegalArgumentException("The promoted copy must be a standalone card");
+        }
+        prepareCardForCopy(partToCopy, copiedCard, newController);
+        copiedCards.put(copiedCard.getId(), copiedCard);
+        addCardToExile(copiedCard, "Prepared by " + owningCard.getIdName());
+        this.setValue(COPIED_CARD_KEY + copiedCard.getId(), copiedCard.copy());
+        return copiedCard;
+    }
+
+    private Card copyCard(Card mainCardToCopy, UUID newController, Game game, Zone copyToZone) {
         // runtime check
         if (!mainCardToCopy.getId().equals(mainCardToCopy.getMainCard().getId())) {
             // copyCard allows for main card only, if you catch it then check your targeting code
@@ -1661,11 +1639,6 @@ public class GameState implements Serializable, Copyable<GameState> {
         prepareCardForCopy(mainCardToCopy, copiedCard, newController);
 
         // 707.12. An effect that instructs a player to cast a copy of an object (and not just copy a spell) follows the rules for casting spells, except that the copy is created in the same zone the object is in and then cast while another spell or ability is resolving.
-        Zone copyToZone = game.getState().getZone(mainCardToCopy.getId());
-        if (copyToZone == Zone.BATTLEFIELD) {
-            throw new UnsupportedOperationException("Cards cannot be copied while on the Battlefield");
-        }
-
         // add all parts to the game
         copiedParts.forEach(card -> {
             copiedCards.put(card.getId(), card);

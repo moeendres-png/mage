@@ -4,8 +4,9 @@ import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.TriggeredAbilityImpl;
 import mage.abilities.common.AttacksTriggeredAbility;
+import mage.abilities.dynamicvalue.DynamicValue;
 import mage.abilities.dynamicvalue.common.SourcePermanentPowerValue;
-import mage.abilities.effects.OneShotEffect;
+import mage.abilities.dynamicvalue.common.StaticValue;
 import mage.abilities.effects.common.DamageTargetEffect;
 import mage.abilities.effects.common.continuous.BoostTargetEffect;
 import mage.abilities.effects.common.continuous.GainAbilityTargetEffect;
@@ -14,7 +15,6 @@ import mage.cards.CardImpl;
 import mage.cards.CardSetInfo;
 import mage.constants.CardType;
 import mage.constants.Duration;
-import mage.constants.Outcome;
 import mage.constants.SubType;
 import mage.constants.SuperType;
 import mage.constants.Zone;
@@ -29,7 +29,7 @@ import mage.target.targetpointer.FixedTarget;
 import java.util.UUID;
 
 /**
- * @author commander-lab
+ * @author DarioBarrabinoDev
  */
 public final class StormQueenOfWakanda extends CardImpl {
 
@@ -53,7 +53,10 @@ public final class StormQueenOfWakanda extends CardImpl {
         this.addAbility(FlyingAbility.getInstance());
 
         // Whenever Storm attacks, until end of turn, another target attacking creature gains flying and gets +X/+0, where X is Storm's power.
-        Ability ability = new AttacksTriggeredAbility(new StormQueenOfWakandaEffect());
+        Ability ability = new AttacksTriggeredAbility(new GainAbilityTargetEffect(FlyingAbility.getInstance(), Duration.EndOfTurn)
+                .setText("until end of turn, another target attacking creature gains flying"));
+        ability.addEffect(new BoostTargetEffect(SourcePermanentPowerValue.NOT_NEGATIVE, StaticValue.get(0), Duration.EndOfTurn)
+                .setText("and gets +X/+0, where X is {this}'s power"));
         ability.addTarget(new TargetPermanent(filter));
         this.addAbility(ability);
 
@@ -71,43 +74,12 @@ public final class StormQueenOfWakanda extends CardImpl {
     }
 }
 
-class StormQueenOfWakandaEffect extends OneShotEffect {
-
-    StormQueenOfWakandaEffect() {
-        super(Outcome.BoostCreature);
-        staticText = "until end of turn, another target attacking creature gains flying and gets +X/+0, "
-                + "where X is {this}'s power";
-    }
-
-    private StormQueenOfWakandaEffect(final StormQueenOfWakandaEffect effect) {
-        super(effect);
-    }
-
-    @Override
-    public StormQueenOfWakandaEffect copy() {
-        return new StormQueenOfWakandaEffect(this);
-    }
-
-    @Override
-    public boolean apply(Game game, Ability source) {
-        Permanent target = game.getPermanent(getTargetPointer().getFirst(game, source));
-        if (target == null) {
-            return false;
-        }
-        // X is locked in as the ability resolves (last known power if Storm has left)
-        int power = SourcePermanentPowerValue.NOT_NEGATIVE.calculate(game, source, this);
-        game.addEffect(new GainAbilityTargetEffect(FlyingAbility.getInstance(), Duration.EndOfTurn)
-                .setTargetPointer(new FixedTarget(target, game)), source);
-        game.addEffect(new BoostTargetEffect(power, 0, Duration.EndOfTurn)
-                .setTargetPointer(new FixedTarget(target, game)), source);
-        return true;
-    }
-}
-
 class StormQueenOfWakandaTriggeredAbility extends TriggeredAbilityImpl {
 
+    private static final DynamicValue xValue = SourcePermanentPowerValue.NOT_NEGATIVE;
+
     StormQueenOfWakandaTriggeredAbility() {
-        super(Zone.BATTLEFIELD, new DamageTargetEffect(SourcePermanentPowerValue.NOT_NEGATIVE)
+        super(Zone.BATTLEFIELD, new DamageTargetEffect(xValue)
                 .setText("{this} deals damage equal to her power to that creature"));
         setTriggerPhrase("Whenever a creature with flying attacks you, ");
     }

@@ -5,7 +5,9 @@ Aetherdrift|DFT|
 Alara Reborn|ARB|
 Alchemy: Dominaria|YDMU|
 Alchemy: Innistrad|Y22|
+Alchemy: Murders at Karlov Manor|YMKM|
 Alchemy: Secrets of Strixhaven|YSOS|
+Alchemy: Wilds of Eldraine|YWOE|
 Alliances|ALL|
 Amonkhet|AKH|
 Anthologies|ATH|
@@ -59,6 +61,7 @@ Core Set 2020|M20|
 Core Set 2021|M21|
 Crimson Vow Commander|VOC|
 Dark Ascension|DKA|
+Darkhold Destiny Commander|MDC|
 Darksteel|DST|
 Deckmasters|DKM|
 Dissension|DIS|
@@ -115,6 +118,7 @@ Final Fantasy|FIN|
 Forgotten Realms Commander|AFC|
 Foundations Jumpstart|J25|
 Foundations|FDN|
+Foundations Commander|FDC|
 Fourth Edition|4ED|
 Friday Night Magic|FNMP|
 From the Vault: Angels|V15|
@@ -182,6 +186,7 @@ Magic Player Rewards|MPRP|
 March of the Machine Commander|MOC|
 March of the Machine: The Aftermath|MAT|
 March of the Machine|MOM|
+Marvel: Darkhold Destiny|MDD|
 Marvel Super Heroes Commander|MSC|
 Marvel Super Heroes|MSH|
 Marvel's Spider-Man Eternal|SPE|
@@ -287,6 +292,7 @@ The Hobbit|HOB|
 The Lord of the Rings: Tales of Middle-earth|LTR|
 The Lost Caverns of Ixalan Commander|LCC|
 The Lost Caverns of Ixalan|LCI|
+The Zeta Set|SLZ|
 Theros Beyond Death|THB|
 Theros|THS|
 Throne of Eldraine|ELD|

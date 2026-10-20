@@ -1,917 +1,693 @@
 package org.mage.test.cards.abilities.keywords;
 
+import mage.cards.Card;
+import mage.constants.CardType;
 import mage.constants.PhaseStep;
+import mage.constants.SpellAbilityType;
+import mage.constants.SubType;
 import mage.constants.Zone;
+import mage.counters.CounterType;
 import mage.game.permanent.Permanent;
+import mage.game.stack.Spell;
+import mage.view.CardView;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mage.test.player.TestPlayer;
 import org.mage.test.serverside.base.CardTestPlayerBase;
+
 
 public class PrepareTest extends CardTestPlayerBase {
 
-    private static final String ARCHIVIST = "Lorehold Archivist";
-    private static final String PREPARE_SPELL = "Restore Relic";
+    private static final String CREATURE = "Goblin Glasswright";
+    private static final String PREPARE_SPELL = "Craft with Pride";
+    private static final String TOMEKEEPER = "Biblioplex Tomekeeper";
+    private static final String PEST_FRIEND = "Pest Friend";
+    private static final String DEMONIC_TUTOR = "Demonic Tutor";
+    private static final String BRAINGEYSER = "Braingeyser";
 
     @Test
-    public void test_PreparingCreatesSpellCopyInExile() {
-        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
-
-        addCard(Zone.GRAVEYARD, playerA, "Ornithopter", 3);
-
-        runCode(
-                "Lorehold Archivist becomes prepared",
-                1,
-                PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                (info, player, game) -> {
-                    Permanent archivist = game
-                            .getBattlefield()
-                            .getAllActivePermanents(player.getId())
-                            .stream()
-                            .filter(permanent -> ARCHIVIST.equals(permanent.getName()))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
-
-                    Assert.assertTrue(
-                            "Lorehold Archivist must be prepared after its upkeep trigger resolves",
-                            archivist.isPrepared()
-                    );
-                }
-        );
-
-        setStopAt(1, PhaseStep.BEGIN_COMBAT);
-        execute();
-
-        assertExileCount(playerA, PREPARE_SPELL, 1);
-    }
-
-    @Test
-    public void test_PreparedSpellCanBeCastFromExile() {
-        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
-
-        // Three qualifying graveyard cards cause Archivist to become prepared.
-        // Solemn is the unique Restore Relic target.
-        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
-        addCard(Zone.GRAVEYARD, playerA, "Ornithopter");
-        addCard(Zone.GRAVEYARD, playerA, "Memnite");
-
-        // Restore Relic costs {2}{R}{W}.
-        addCard(Zone.BATTLEFIELD, playerA, "Plains", 2);
+    public void prepareCardAndPrepareSpellReturnTheirOwnNames() {
+        addCard(Zone.HAND, playerA, CREATURE);
         addCard(Zone.BATTLEFIELD, playerA, "Mountain", 2);
 
-        // The prepared spell copy should be castable from exile
-        // during PlayerA's precombat main phase.
-        castSpell(
-                1,
-                PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                PREPARE_SPELL,
-                "Solemn Simulacrum"
-        );
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
 
-        // Decline Solemn Simulacrum's optional ETB search.
-        setChoice(playerA, false);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertPermanentCount(playerA, CREATURE, 1);
+        assertExileCount(playerA, PREPARE_SPELL, 1);
+    }
+
+    @Test
+    public void tomekeeperCanRePrepareCreatureWithPrepareSpell() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.HAND, playerA, TOMEKEEPER);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 8);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Craft with Pride");
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        checkPlayableAbility("prepare spell consumed prepared designation", 1, PhaseStep.PRECOMBAT_MAIN,
+                playerA, "Cast " + PREPARE_SPELL, false);
+        checkExileCount("prepare spell copy was consumed", 1, PhaseStep.PRECOMBAT_MAIN,
+                playerA, PREPARE_SPELL, 0);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, TOMEKEEPER);
+        setModeChoice(playerA, "1"); // Target creature becomes prepared.
+        addTarget(playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        checkPlayableAbility("prepare copy is castable", 1, PhaseStep.PRECOMBAT_MAIN,
+                playerA, "Cast " + PREPARE_SPELL, true);
 
         setStrictChooseMode(true);
         setStopAt(1, PhaseStep.BEGIN_COMBAT);
         execute();
 
-        // Restore Relic exiles the targeted graveyard card...
-        assertGraveyardCount(playerA, "Solemn Simulacrum", 0);
-        assertExileCount(playerA, "Solemn Simulacrum", 1);
-
-        // ...and creates a token copy of it.
-        assertPermanentCount(playerA, "Solemn Simulacrum", 1);
+        assertExileCount(playerA, 1);
+        assertPermanentCount(playerA, "Treasure Token", 1);
+        Permanent permanent = getPermanent(CREATURE, playerA);
+        Assert.assertNotNull(permanent);
+        Assert.assertTrue(permanent.isPrepared());
     }
 
     @Test
-    public void test_CastingPreparedSpellMakesPermanentUnprepared() {
-        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
-
-        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
-        addCard(Zone.GRAVEYARD, playerA, "Ornithopter");
-        addCard(Zone.GRAVEYARD, playerA, "Memnite");
-
-        // Restore Relic costs {2}{R}{W}.
-        addCard(Zone.BATTLEFIELD, playerA, "Plains", 2);
+    public void prepareSpellCannotBeCastFromHand() {
+        addCard(Zone.HAND, playerA, CREATURE);
         addCard(Zone.BATTLEFIELD, playerA, "Mountain", 2);
 
-        castSpell(
-                1,
-                PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                PREPARE_SPELL,
-                "Solemn Simulacrum"
-        );
+        checkPlayableAbility("base is castable", 1, PhaseStep.PRECOMBAT_MAIN,
+                playerA, "Cast Goblin Glasswright", true);
+        checkPlayableAbility("prepare spell isn't castable", 1, PhaseStep.PRECOMBAT_MAIN,
+                playerA, "Cast Craft with Pride", false);
 
-        // Decline the token Solemn Simulacrum's optional ETB search.
-        setChoice(playerA, false);
-
-        runCode(
-                "Lorehold Archivist is unprepared after its prepare spell is cast",
-                1,
-                PhaseStep.BEGIN_COMBAT,
-                playerA,
-                (info, player, game) -> {
-                    Permanent archivist = game
-                            .getBattlefield()
-                            .getAllActivePermanents(player.getId())
-                            .stream()
-                            .filter(permanent -> ARCHIVIST.equals(permanent.getName()))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
-
-                    Assert.assertFalse(
-                            "Lorehold Archivist must become unprepared when its prepare spell is cast",
-                            archivist.isPrepared()
-                    );
-                }
-        );
-
-        setStrictChooseMode(true);
-        setStopAt(1, PhaseStep.END_COMBAT);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
         execute();
     }
 
     @Test
-    public void test_PrepareCopyDisappearsWhenParentLeavesBattlefield() {
-        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
+    public void entersPreparedAndCastsPersistentExileCopy() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 3);
 
-        // Lorehold Archivist prepares during upkeep if there are at least
-        // three artifact and/or creature cards in its owner's graveyard.
-        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
-        addCard(Zone.GRAVEYARD, playerA, "Ornithopter");
-        addCard(Zone.GRAVEYARD, playerA, "Memnite");
-
-        // Remove the prepared permanent after its upkeep trigger has resolved.
-        addCard(Zone.HAND, playerA, "Unsummon");
-        addCard(Zone.BATTLEFIELD, playerA, "Island");
-
-        castSpell(
-                1,
-                PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                "Unsummon",
-                ARCHIVIST
-        );
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Goblin Glasswright");
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        checkPlayableAbility("prepare copy is castable", 1, PhaseStep.PRECOMBAT_MAIN,
+                playerA, "Cast Craft with Pride", true);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Craft with Pride");
 
         setStrictChooseMode(true);
         setStopAt(1, PhaseStep.BEGIN_COMBAT);
         execute();
 
-        // The parent permanent is gone...
-        assertPermanentCount(playerA, ARCHIVIST, 0);
-        assertHandCount(playerA, ARCHIVIST, 1);
-
-        // ...so its associated prepare-spell copy must cease to exist.
-        assertExileCount(playerA, PREPARE_SPELL, 0);
+        assertPermanentCount(playerA, "Goblin Glasswright", 1);
+        assertPermanentCount(playerA, "Treasure Token", 1);
+        assertExileCount(playerA, 0);
     }
 
     @Test
-    public void test_PrepareCopyDisappearsWhenPermanentBecomesUnprepared() {
-        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
+    public void sorceryPrepareSpellCannotBeCastAtInstantSpeed() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 3);
 
-        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
-        addCard(Zone.GRAVEYARD, playerA, "Ornithopter");
-        addCard(Zone.GRAVEYARD, playerA, "Memnite");
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        checkPlayableAbility("sorcery prepare spell is not castable on an opponent's turn", 2,
+                PhaseStep.PRECOMBAT_MAIN, playerA, "Cast " + PREPARE_SPELL, false);
+        checkPlayableAbility("sorcery prepare spell remains castable during its controller's main phase", 3,
+                PhaseStep.PRECOMBAT_MAIN, playerA, "Cast " + PREPARE_SPELL, true);
 
-        runCode(
-                "make Lorehold Archivist unprepared without casting its prepare spell",
-                1,
-                PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                (info, player, game) -> {
-                    Permanent archivist = game
-                            .getBattlefield()
-                            .getAllActivePermanents(player.getId())
-                            .stream()
-                            .filter(permanent -> ARCHIVIST.equals(permanent.getName()))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
-
-                    Assert.assertTrue(
-                            "Lorehold Archivist must be prepared before this cleanup test",
-                            archivist.isPrepared()
-                    );
-
-                    archivist.setPrepared(false, game);
-
-                    Assert.assertFalse(
-                            "Lorehold Archivist must now be unprepared",
-                            archivist.isPrepared()
-                    );
-                }
-        );
-
-        setStrictChooseMode(true);
-        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        setStopAt(3, PhaseStep.BEGIN_COMBAT);
         execute();
-
-        // The parent remains on the battlefield.
-        assertPermanentCount(playerA, ARCHIVIST, 1);
-
-        // But its prepare-spell copy must cease to exist.
-        assertExileCount(playerA, PREPARE_SPELL, 0);
     }
 
     @Test
-    public void test_NewControllerCanCastPreparedSpell() {
-        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
+    public void costIncreaseAppliesToPrepareSpell() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 2);
+        addCard(Zone.BATTLEFIELD, playerB, "Thalia, Guardian of Thraben");
 
-        // Player A prepares Lorehold Archivist during turn 1 upkeep.
-        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
-        addCard(Zone.GRAVEYARD, playerA, "Memnite");
-        addCard(Zone.GRAVEYARD, playerA, "Burnished Hart");
-
-        // Player B needs a legal Restore Relic target after gaining control.
-        addCard(Zone.GRAVEYARD, playerB, "Ornithopter");
-
-        // Gain control of Archivist during player B's turn.
-        addCard(Zone.HAND, playerB, "Act of Treason");
-
-        // Act of Treason {2}{R} plus Restore Relic {2}{R}{W}.
-        addCard(Zone.BATTLEFIELD, playerB, "Mountain", 4);
-        addCard(Zone.BATTLEFIELD, playerB, "Plains", 3);
-
-        castSpell(
-                2,
-                PhaseStep.PRECOMBAT_MAIN,
-                playerB,
-                "Act of Treason",
-                ARCHIVIST
-        );
-
-        // The prepare-copy must follow the permanent's current controller.
-        castSpell(
-                2,
-                PhaseStep.POSTCOMBAT_MAIN,
-                playerB,
-                PREPARE_SPELL,
-                "Ornithopter"
-        );
-
-        setStrictChooseMode(true);
-        setStopAt(2, PhaseStep.END_TURN);
-        execute();
-
-        // Player B successfully used Restore Relic from exile.
-        assertGraveyardCount(playerB, "Ornithopter", 0);
-        assertExileCount(playerB, "Ornithopter", 1);
-        assertPermanentCount(playerB, "Ornithopter", 1);
-    }
-
-    @Test
-    public void test_AlreadyPreparedPermanentDoesNotCreateSecondCopy() {
-        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
-
-        // The condition remains true across both of player A's upkeeps.
-        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
-        addCard(Zone.GRAVEYARD, playerA, "Ornithopter");
-        addCard(Zone.GRAVEYARD, playerA, "Memnite");
-
-        setStrictChooseMode(true);
-        setStopAt(3, PhaseStep.PRECOMBAT_MAIN);
-        execute();
-
-        // The first upkeep prepares Archivist. The second upkeep must not
-        // create another prepare-spell copy while Archivist is still prepared.
-        assertPermanentCount(playerA, ARCHIVIST, 1);
-        assertExileCount(playerA, PREPARE_SPELL, 1);
-    }
-
-    @Test
-    public void test_TargetEffectCreatesPrepareSpellCopy() {
-        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
-        addCard(Zone.BATTLEFIELD, playerA, "Skycoach Waypoint");
-
-        // Pay {3} for Skycoach Waypoint's prepare ability.
-        addCard(Zone.BATTLEFIELD, playerA, "Plains", 3);
-
-        activateAbility(
-                1,
-                PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                "{3}, {T}: Target creature becomes prepared",
-                ARCHIVIST
-        );
-
-        runCode(
-                "Lorehold Archivist is prepared by Skycoach Waypoint",
-                1,
-                PhaseStep.BEGIN_COMBAT,
-                playerA,
-                (info, player, game) -> {
-                    Permanent archivist = game
-                            .getBattlefield()
-                            .getAllActivePermanents(player.getId())
-                            .stream()
-                            .filter(permanent -> ARCHIVIST.equals(permanent.getName()))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
-
-                    Assert.assertTrue(
-                            "Lorehold Archivist must become prepared",
-                            archivist.isPrepared()
-                    );
-                }
-        );
-
-        setStrictChooseMode(true);
-        setStopAt(1, PhaseStep.END_COMBAT);
-        execute();
-
-        // Becoming prepared through a target effect must create the same
-        // prepare-spell copy as becoming prepared through the card's own effect.
-        assertExileCount(playerA, PREPARE_SPELL, 1);
-    }
-
-    @Test
-    public void test_TargetEffectPrepareCopyCanBeCast() {
-        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
-        addCard(Zone.BATTLEFIELD, playerA, "Skycoach Waypoint");
-
-        // Only one artifact/creature card is in the graveyard, so
-        // Lorehold Archivist's own upkeep trigger cannot prepare it.
-        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
-
-        // Turn 1: {3} for Skycoach Waypoint.
-        // Turn 3: the lands untap and provide {2}{R}{W} for Restore Relic.
-        addCard(Zone.BATTLEFIELD, playerA, "Plains", 3);
-        addCard(Zone.BATTLEFIELD, playerA, "Mountain");
-
-        activateAbility(
-                1,
-                PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                "{3}, {T}: Target creature becomes prepared",
-                ARCHIVIST
-        );
-
-        castSpell(
-                3,
-                PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                PREPARE_SPELL,
-                "Solemn Simulacrum"
-        );
-
-        // Decline Solemn Simulacrum's ETB search choice in the test harness.
-        setChoice(playerA, false);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        checkPlayableAbility("Thalia increases the noncreature prepare spell by one", 3,
+                PhaseStep.PRECOMBAT_MAIN, playerA, "Cast " + PREPARE_SPELL, true);
+        castSpell(3, PhaseStep.PRECOMBAT_MAIN, playerA, PREPARE_SPELL);
 
         setStrictChooseMode(true);
         setStopAt(3, PhaseStep.BEGIN_COMBAT);
         execute();
 
-        // Restore Relic was successfully cast and resolved.
-        assertGraveyardCount(playerA, "Solemn Simulacrum", 0);
-        assertExileCount(playerA, "Solemn Simulacrum", 1);
-        assertPermanentCount(playerA, "Solemn Simulacrum", 1);
+        assertPermanentCount(playerA, "Treasure Token", 1);
+        assertTappedCount("Mountain", true, 2);
     }
 
     @Test
-    public void test_CancelledPrepareSpellCastKeepsPermanentPrepared() {
-        addCard(Zone.BATTLEFIELD, playerA, ARCHIVIST);
+    public void costReductionAppliesToPrepareSpell() {
+        addCard(Zone.HAND, playerA, "Quill-Blade Laureate");
+        addCard(Zone.BATTLEFIELD, playerA, "Plains", 2);
+        addCard(Zone.BATTLEFIELD, playerA, "Pearl Medallion", 1);
 
-        // Archivist prepares during turn 1 upkeep.
-        addCard(Zone.GRAVEYARD, playerA, "Solemn Simulacrum");
-        addCard(Zone.GRAVEYARD, playerA, "Memnite");
-        addCard(Zone.GRAVEYARD, playerA, "Burnished Hart");
-
-        // Restore Relic is affordable, but the player will cancel
-        // during mana payment instead of completing the cast.
-        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 3);
-        addCard(Zone.BATTLEFIELD, playerA, "Plains");
-
-        disableManaAutoPayment(playerA);
-
-        castSpell(
-                1,
-                PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                PREPARE_SPELL,
-                "Solemn Simulacrum"
-        );
-
-        setChoice(
-                playerA,
-                org.mage.test.player.TestPlayer.MANA_CANCEL
-        );
-        setChoice(
-                playerA,
-                org.mage.test.player.TestPlayer.SKIP_FAILED_COMMAND
-        );
-
-        runCode(
-                "cancelled prepare-spell cast preserves prepare state",
-                1,
-                PhaseStep.BEGIN_COMBAT,
-                playerA,
-                (info, player, game) -> {
-                    Permanent archivist = game
-                            .getBattlefield()
-                            .getAllActivePermanents(player.getId())
-                            .stream()
-                            .filter(permanent -> ARCHIVIST.equals(permanent.getName()))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
-
-                    Assert.assertTrue(
-                            "Cancelling the prepare-spell cast must not unprepare Lorehold Archivist",
-                            archivist.isPrepared()
-                    );
-                }
-        );
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Quill-Blade Laureate");
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        checkPlayableAbility("reducer removes the generic mana from the prepare spell", 1,
+                PhaseStep.PRECOMBAT_MAIN, playerA, "Cast Twofold Intent", true);
+        addTarget(playerA, "Quill-Blade Laureate");
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Twofold Intent");
 
         setStrictChooseMode(true);
-        setStopAt(1, PhaseStep.END_COMBAT);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
         execute();
 
-        // The cancelled cast must leave the complete prepare relationship intact.
+        assertTappedCount("Plains", true, 2);
+    }
+
+    @Test
+    public void preparedCopyCannotCastBaseCreature() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 2);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        checkPlayableAbility("base creature is not castable from prepare copy", 1, PhaseStep.PRECOMBAT_MAIN,
+                playerA, "Cast " + CREATURE, false);
+
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+    }
+
+    @Test
+    public void prepareCopySurvivesStateBasedActions() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 2);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        checkPlayableAbility("copy remains through later SBA checks", 3, PhaseStep.PRECOMBAT_MAIN,
+                playerA, "Cast " + PREPARE_SPELL, true);
+
+        setStopAt(3, PhaseStep.BEGIN_COMBAT);
+        execute();
+
         assertExileCount(playerA, PREPARE_SPELL, 1);
-        assertGraveyardCount(playerA, "Solemn Simulacrum", 1);
-        assertPermanentCount(playerA, "Solemn Simulacrum", 0);
     }
 
-    @org.junit.Test
-    public void test_TargetPrepareDoesNothingForCreatureWithoutPrepareSpell() {
-        // Skycoach Waypoint
-        // {3}, {T}: Target creature becomes prepared.
-        //
-        // A creature without a prepare spell can't become prepared.
-        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Skycoach Waypoint");
-        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Mountain", 3);
-        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Grizzly Bears");
+    @Test
+    public void prepareCopyCeasesToExistWhenPermanentLeavesBattlefield() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 2);
+        addCard(Zone.HAND, playerB, "Murder");
+        addCard(Zone.BATTLEFIELD, playerB, "Swamp", 3);
 
-        activateAbility(
-                1,
-                mage.constants.PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                "{3}, {T}: Target creature becomes prepared",
-                "Grizzly Bears"
-        );
-        waitStackResolved(1, mage.constants.PhaseStep.PRECOMBAT_MAIN);
-
-        runCode(
-                "non-prepare creature must remain unprepared",
-                1,
-                mage.constants.PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                (info, player, game) -> {
-                    mage.game.permanent.Permanent bears = game.getBattlefield()
-                            .getAllActivePermanents()
-                            .stream()
-                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
-                            .filter(permanent -> permanent.getName().equals("Grizzly Bears"))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("Grizzly Bears not found"));
-
-                    org.junit.Assert.assertFalse(
-                            "Creature without a prepare spell must remain unprepared",
-                            bears.isPrepared()
-                    );
-
-                    org.junit.Assert.assertEquals(
-                            "Preparing a creature without a prepare spell must not create an exile copy",
-                            0,
-                            game.getExile().getAllCards(game).size()
-                    );
-                }
-        );
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerB, "Murder", CREATURE);
+        checkPlayableAbility("prepare copy is removed with its permanent", 1, PhaseStep.POSTCOMBAT_MAIN,
+                playerA, "Cast " + PREPARE_SPELL, false);
 
         setStrictChooseMode(true);
-        setStopAt(1, mage.constants.PhaseStep.END_TURN);
+        setStopAt(1, PhaseStep.END_TURN);
+        execute();
+
+        assertPermanentCount(playerA, CREATURE, 0);
+        assertExileCount(playerA, 0);
+    }
+
+    @Test
+    public void cannotBecomePreparedTwiceAtTheSameTime() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.HAND, playerA, TOMEKEEPER);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 6);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, TOMEKEEPER);
+        setModeChoice(playerA, "1"); // Target creature becomes prepared.
+        addTarget(playerA, CREATURE);
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertExileCount(playerA, PREPARE_SPELL, 1);
+    }
+
+    @Test
+    public void becomingUnpreparedRemovesAssociatedCopy() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.HAND, playerA, TOMEKEEPER);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 6);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, TOMEKEEPER);
+        setModeChoice(playerA, "2"); // Target creature becomes unprepared.
+        addTarget(playerA, CREATURE);
+        checkPlayableAbility("removed copy cannot be cast", 1, PhaseStep.PRECOMBAT_MAIN,
+                playerA, "Cast " + PREPARE_SPELL, false);
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertExileCount(playerA, 0);
+    }
+
+    @Test
+    public void currentControllerCanCastPrepareCopy() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 2);
+        addCard(Zone.HAND, playerB, "Act of Treason");
+        addCard(Zone.BATTLEFIELD, playerB, "Mountain", 4);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        castSpell(2, PhaseStep.PRECOMBAT_MAIN, playerB, "Act of Treason", CREATURE);
+        waitStackResolved(2, PhaseStep.PRECOMBAT_MAIN);
+        checkPlayableAbility("current controller can cast copy", 2, PhaseStep.PRECOMBAT_MAIN,
+                playerB, "Cast " + PREPARE_SPELL, true);
+        castSpell(2, PhaseStep.PRECOMBAT_MAIN, playerB, PREPARE_SPELL);
+
+        setStrictChooseMode(true);
+        setStopAt(2, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertPermanentCount(playerB, "Treasure Token", 1);
+        assertExileCount(playerA, 0);
+    }
+
+    @Test
+    public void prepareSpellIsIndependentOfPermanentOnceCast() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 3);
+        addCard(Zone.HAND, playerB, "Murder");
+        addCard(Zone.BATTLEFIELD, playerB, "Swamp", 3);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, PREPARE_SPELL);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerB, "Murder", CREATURE);
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertPermanentCount(playerA, CREATURE, 0);
+        assertPermanentCount(playerA, "Treasure Token", 1);
+    }
+
+    @Test
+    public void preparedCopyDoesNotTriggerEffectsThatRequireCastingACard() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "Eye of the Storm");
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 3);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, PREPARE_SPELL);
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertPermanentCount(playerA, "Treasure Token", 1);
+        assertExileCount(playerA, 0);
+    }
+
+    @Test
+    public void preparedCopyCountsAsCastFromExile() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "The Thirteenth Doctor");
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 3);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, PREPARE_SPELL);
+        addTarget(playerA, "The Thirteenth Doctor");
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertCounterCount("The Thirteenth Doctor", CounterType.P1P1, 1);
+    }
+
+    @Test
+    public void alreadyPreparedPermanentCanStillPayPrepareAbilityCost() {
+        addCard(Zone.HAND, playerA, "Lluwen, Exchange Student");
+        addCard(Zone.GRAVEYARD, playerA, "Grizzly Bears", 2);
+        addCard(Zone.BATTLEFIELD, playerA, "Bayou", 4);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Lluwen, Exchange Student");
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        activateAbility(1, PhaseStep.PRECOMBAT_MAIN, playerA,
+                "Exile a creature card from your graveyard");
+        setChoice(playerA, "Grizzly Bears");
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        activateAbility(1, PhaseStep.PRECOMBAT_MAIN, playerA,
+                "Exile a creature card from your graveyard");
+        setChoice(playerA, "Grizzly Bears");
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertGraveyardCount(playerA, "Grizzly Bears", 0);
+        assertExileCount(playerA, "Grizzly Bears", 2);
+        assertExileCount(playerA, PEST_FRIEND, 1);
+    }
+
+    @Test
+    public void losingAbilitiesDoesNotRemovePreparedOrItsExiledCopy() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 6);
+        addCard(Zone.BATTLEFIELD, playerA, "Skycoach Waypoint");
+        addCard(Zone.HAND, playerB, "Darksteel Mutation");
+        addCard(Zone.BATTLEFIELD, playerB, "Plains", 2);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        castSpell(2, PhaseStep.PRECOMBAT_MAIN, playerB, "Darksteel Mutation", CREATURE);
+        waitStackResolved(2, PhaseStep.PRECOMBAT_MAIN);
+        checkPlayableAbility("ability loss leaves prepared copy castable", 3, PhaseStep.PRECOMBAT_MAIN,
+                playerA, "Cast " + PREPARE_SPELL, true);
+        castSpell(3, PhaseStep.PRECOMBAT_MAIN, playerA, PREPARE_SPELL);
+        waitStackResolved(3, PhaseStep.PRECOMBAT_MAIN);
+        activateAbility(3, PhaseStep.PRECOMBAT_MAIN, playerA,
+                "{3}, {T}: Target creature becomes prepared", CREATURE);
+
+        setStrictChooseMode(true);
+        setStopAt(3, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertPermanentCount(playerA, "Treasure Token", 1);
+        assertExileCount(playerA, PREPARE_SPELL, 1);
+        Permanent permanent = getPermanent(CREATURE, playerA);
+        Assert.assertNotNull(permanent);
+        Assert.assertTrue(permanent.isPrepared());
+    }
+
+    @Test
+    public void creatingPreparedCopyDoesNotTriggerMagecraftOrTwinningStaff() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "Storm-Kiln Artist");
+        addCard(Zone.BATTLEFIELD, playerA, "Twinning Staff");
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 3);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        checkPermanentCount("creating exile copy did not trigger magecraft", 1, PhaseStep.PRECOMBAT_MAIN,
+                playerA, "Treasure Token", 0);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, PREPARE_SPELL);
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        // One from Craft with Pride and one from casting it with Storm-Kiln Artist.
+        // Twinning Staff did not create an additional prepared copy or spell copy.
+        assertPermanentCount(playerA, "Treasure Token", 2);
+        assertExileCount(playerA, 0);
+    }
+
+    @Test
+    public void gainingPrepareCharacteristicsLaterDoesNotRetroactivelyPrepareCreature() {
+        addCard(Zone.BATTLEFIELD, playerA, "Llanowar Elves");
+        addCard(Zone.BATTLEFIELD, playerA, "Emeritus of Woe");
+        addCard(Zone.BATTLEFIELD, playerA, "Skycoach Waypoint");
+        addCard(Zone.BATTLEFIELD, playerA, "Island", 7);
+        addCard(Zone.HAND, playerA, "Nanogene Conversion");
+
+        activateAbility(1, PhaseStep.PRECOMBAT_MAIN, playerA,
+                "{3}, {T}: Target creature becomes prepared", "Llanowar Elves");
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Nanogene Conversion", "Emeritus of Woe");
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertPermanentCount(playerA, "Emeritus of Woe", 2);
+        // Only the original Emeritus supplied a prepared copy. The Llanowar
+        // Elves did not become prepared retroactively after copying it.
+        assertExileCount(playerA, DEMONIC_TUTOR, 1);
+    }
+
+    @Test
+    public void changingPreparedPermanentCopyDoesNotChangePreparedSpellCopy() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.HAND, playerA, "Mirrorform");
+        addCard(Zone.BATTLEFIELD, playerA, "Volcanic Island", 8);
+        addCard(Zone.BATTLEFIELD, playerB, "Emeritus of Woe");
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Mirrorform", "Emeritus of Woe");
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertExileCount(playerA, PREPARE_SPELL, 1);
+        assertExileCount(playerA, DEMONIC_TUTOR, 0);
+    }
+
+    @Test
+    public void phasingPreparedCopyRecreatesSpellFromCurrentCharacteristics() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.HAND, playerA, "Infinite Reflection");
+        addCard(Zone.BATTLEFIELD, playerA, "Volcanic Island", 8);
+        addCard(Zone.BATTLEFIELD, playerB, "Dirgur Focusmage");
+        addCard(Zone.BATTLEFIELD, playerB, "Teferi, Master of Time");
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA,
+                "Infinite Reflection", "Dirgur Focusmage");
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        checkExileCount("copying does not replace the associated spell", 1,
+                PhaseStep.PRECOMBAT_MAIN, playerA, PREPARE_SPELL, 1);
+        checkExileCount("copying does not create the new associated spell", 1,
+                PhaseStep.PRECOMBAT_MAIN, playerA, BRAINGEYSER, 0);
+
+        activateAbility(2, PhaseStep.PRECOMBAT_MAIN, playerB,
+                "-3: Target creature you don't control phases out.", "Dirgur Focusmage");
+        checkExileCount("phasing out removes the original associated spell", 2,
+                PhaseStep.POSTCOMBAT_MAIN, playerA, PREPARE_SPELL, 0);
+        checkExileCount("phasing out does not create the copied associated spell", 2,
+                PhaseStep.POSTCOMBAT_MAIN, playerA, BRAINGEYSER, 0);
+        checkExileCount("phasing in uses the copied prepare spell characteristics", 3,
+                PhaseStep.PRECOMBAT_MAIN, playerA, BRAINGEYSER, 1);
+        checkExileCount("the original associated spell is not recreated", 3,
+                PhaseStep.PRECOMBAT_MAIN, playerA, PREPARE_SPELL, 0);
+
+        setStrictChooseMode(true);
+        setStopAt(3, PhaseStep.BEGIN_COMBAT);
         execute();
     }
 
-    @org.junit.Test
-    public void test_CanPrepareAgainAfterPreparedSpellWasCast() {
-        // Lorehold Archivist prepares at upkeep with at least three
-        // artifact and/or creature cards in its controller's graveyard.
-        // Start with four so that after Restore Relic #1 exiles one,
-        // three remain and the Archivist can prepare again next upkeep.
-        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Lorehold Archivist");
-        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Mountain", 2);
-        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Plains", 2);
-        addCard(mage.constants.Zone.GRAVEYARD, playerA, "Grizzly Bears", 4);
+    @Test
+    public void counteredPrepareSpellStillConsumesPreparedDesignation() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 2);
+        addCard(Zone.HAND, playerB, "Counterspell");
+        addCard(Zone.BATTLEFIELD, playerB, "Island", 2);
 
-        // First prepare cycle.
-        waitStackResolved(1, mage.constants.PhaseStep.UPKEEP);
-        runCode(
-                "first prepare created one castable copy",
-                1,
-                mage.constants.PhaseStep.UPKEEP,
-                playerA,
-                (info, player, game) -> {
-                    mage.game.permanent.Permanent archivist = game.getBattlefield()
-                            .getAllActivePermanents()
-                            .stream()
-                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
-                            .filter(permanent -> permanent.getName().equals("Lorehold Archivist"))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
-
-                    org.junit.Assert.assertTrue(
-                            "Lorehold Archivist must be prepared after first upkeep trigger",
-                            archivist.isPrepared()
-                    );
-
-                    long copies = game.getExile().getAllCards(game)
-                            .stream()
-                            .filter(card -> card.getName().equals("Restore Relic"))
-                            .count();
-
-                    org.junit.Assert.assertEquals(
-                            "First prepare must create exactly one Restore Relic copy in exile",
-                            1L,
-                            copies
-                    );
-                }
-        );
-
-        castSpell(
-                1,
-                mage.constants.PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                "Restore Relic",
-                "Grizzly Bears"
-        );
-        waitStackResolved(1, mage.constants.PhaseStep.PRECOMBAT_MAIN);
-
-        runCode(
-                "first cast completed prepare lifecycle",
-                1,
-                mage.constants.PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                (info, player, game) -> {
-                    mage.game.permanent.Permanent archivist = game.getBattlefield()
-                            .getAllActivePermanents()
-                            .stream()
-                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
-                            .filter(permanent -> permanent.getName().equals("Lorehold Archivist"))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
-
-                    org.junit.Assert.assertFalse(
-                            "Casting the first prepared spell must unprepare Lorehold Archivist",
-                            archivist.isPrepared()
-                    );
-
-                    long copies = game.getExile().getAllCards(game)
-                            .stream()
-                            .filter(card -> card.getName().equals("Restore Relic"))
-                            .count();
-
-                    org.junit.Assert.assertEquals(
-                            "First Restore Relic prepare copy must be gone after it is cast",
-                            0L,
-                            copies
-                    );
-
-                    org.junit.Assert.assertEquals(
-                            "Exactly three Grizzly Bears must remain in the graveyard after first Restore Relic",
-                            3L,
-                            player.getGraveyard().getCards(game)
-                                    .stream()
-                                    .filter(card -> card.getName().equals("Grizzly Bears"))
-                                    .count()
-                    );
-                }
-        );
-
-        // Turn 2 belongs to player B. On player A's next upkeep (turn 3),
-        // the remaining three creature cards must allow a fresh prepare.
-        waitStackResolved(3, mage.constants.PhaseStep.UPKEEP);
-        runCode(
-                "second prepare created a fresh copy",
-                3,
-                mage.constants.PhaseStep.UPKEEP,
-                playerA,
-                (info, player, game) -> {
-                    mage.game.permanent.Permanent archivist = game.getBattlefield()
-                            .getAllActivePermanents()
-                            .stream()
-                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
-                            .filter(permanent -> permanent.getName().equals("Lorehold Archivist"))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
-
-                    org.junit.Assert.assertTrue(
-                            "Lorehold Archivist must become prepared again on the later upkeep",
-                            archivist.isPrepared()
-                    );
-
-                    long copies = game.getExile().getAllCards(game)
-                            .stream()
-                            .filter(card -> card.getName().equals("Restore Relic"))
-                            .count();
-
-                    org.junit.Assert.assertEquals(
-                            "Re-prepare must create exactly one new Restore Relic copy in exile",
-                            1L,
-                            copies
-                    );
-                }
-        );
-
-        // Prove that the newly created copy is actually castable too.
-        castSpell(
-                3,
-                mage.constants.PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                "Restore Relic",
-                "Grizzly Bears"
-        );
-        waitStackResolved(3, mage.constants.PhaseStep.PRECOMBAT_MAIN);
-
-        runCode(
-                "second cast completed prepare lifecycle",
-                3,
-                mage.constants.PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                (info, player, game) -> {
-                    mage.game.permanent.Permanent archivist = game.getBattlefield()
-                            .getAllActivePermanents()
-                            .stream()
-                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
-                            .filter(permanent -> permanent.getName().equals("Lorehold Archivist"))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("Lorehold Archivist not found"));
-
-                    org.junit.Assert.assertFalse(
-                            "Casting the second prepared spell must unprepare Lorehold Archivist again",
-                            archivist.isPrepared()
-                    );
-
-                    long copies = game.getExile().getAllCards(game)
-                            .stream()
-                            .filter(card -> card.getName().equals("Restore Relic"))
-                            .count();
-
-                    org.junit.Assert.assertEquals(
-                            "Second Restore Relic prepare copy must be gone after it is cast",
-                            0L,
-                            copies
-                    );
-                }
-        );
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        castSpell(3, PhaseStep.PRECOMBAT_MAIN, playerA, PREPARE_SPELL);
+        castSpell(3, PhaseStep.PRECOMBAT_MAIN, playerB, "Counterspell", PREPARE_SPELL);
 
         setStrictChooseMode(true);
-        setStopAt(3, mage.constants.PhaseStep.END_TURN);
+        setStopAt(3, PhaseStep.BEGIN_COMBAT);
         execute();
+
+        assertPermanentCount(playerA, "Treasure Token", 0);
+        assertExileCount(playerA, 0);
+        Permanent permanent = getPermanent(CREATURE, playerA);
+        Assert.assertNotNull(permanent);
+        Assert.assertFalse(permanent.isPrepared());
     }
 
-    @org.junit.Test
-    public void test_NaktamunLorespinnerPrepareLifecycle() {
-        // Naktamun Lorespinner
-        // At the beginning of your upkeep, if a player has one or fewer
-        // cards in hand, this creature becomes prepared.
-        // Prepare spell: Wheel of Fortune {2}{R}.
-        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Naktamun Lorespinner");
-        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Mountain", 3);
+    @Test
+    public void tomekeeperCanUnprepareCreatureWithPrepareSpell() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.HAND, playerA, TOMEKEEPER);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 6);
 
-        // Make the intervening-if condition explicit: player B has exactly
-        // one card in hand at player A's first upkeep.
-        addCard(mage.constants.Zone.HAND, playerA, "Plains", 2);
-        addCard(mage.constants.Zone.HAND, playerB, "Island", 1);
-
-        // Wheel of Fortune must be able to draw seven for both players
-        // without introducing an empty-library loss into this test.
-        addCard(mage.constants.Zone.LIBRARY, playerA, "Plains", 7);
-        addCard(mage.constants.Zone.LIBRARY, playerB, "Island", 7);
-
-        waitStackResolved(1, mage.constants.PhaseStep.UPKEEP);
-
-        runCode(
-                "Naktamun prepares and creates Wheel of Fortune copy",
-                1,
-                mage.constants.PhaseStep.UPKEEP,
-                playerA,
-                (info, player, game) -> {
-                    mage.game.permanent.Permanent naktamun = game.getBattlefield()
-                            .getAllActivePermanents()
-                            .stream()
-                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
-                            .filter(permanent -> permanent.getName().equals("Naktamun Lorespinner"))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("Naktamun Lorespinner not found"));
-
-                    org.junit.Assert.assertTrue(
-                            "Naktamun must become prepared when a player has one or fewer cards in hand",
-                            naktamun.isPrepared()
-                    );
-
-                    long copies = game.getExile().getAllCards(game)
-                            .stream()
-                            .filter(card -> card.getName().equals("Wheel of Fortune"))
-                            .count();
-
-                    org.junit.Assert.assertEquals(
-                            "Preparing Naktamun must create exactly one Wheel of Fortune copy in exile",
-                            1L,
-                            copies
-                    );
-                }
-        );
-
-        // This must find and cast the prepared spell copy from exile.
-        castSpell(
-                1,
-                mage.constants.PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                "Wheel of Fortune"
-        );
-        waitStackResolved(1, mage.constants.PhaseStep.PRECOMBAT_MAIN);
-
-        runCode(
-                "Naktamun prepared spell resolves correctly",
-                1,
-                mage.constants.PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                (info, player, game) -> {
-                    mage.game.permanent.Permanent naktamun = game.getBattlefield()
-                            .getAllActivePermanents()
-                            .stream()
-                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
-                            .filter(permanent -> permanent.getName().equals("Naktamun Lorespinner"))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("Naktamun Lorespinner not found"));
-
-                    org.junit.Assert.assertFalse(
-                            "Casting Wheel of Fortune prepare copy must unprepare Naktamun",
-                            naktamun.isPrepared()
-                    );
-
-                    long copies = game.getExile().getAllCards(game)
-                            .stream()
-                            .filter(card -> card.getName().equals("Wheel of Fortune"))
-                            .count();
-
-                    org.junit.Assert.assertEquals(
-                            "Wheel of Fortune prepare copy must be gone from exile after casting",
-                            0L,
-                            copies
-                    );
-
-                    org.junit.Assert.assertEquals(
-                            "Player A must draw seven from Wheel of Fortune",
-                            7,
-                            player.getHand().size()
-                    );
-
-                    mage.players.Player opponent = game.getPlayer(playerB.getId());
-                    if (opponent == null) {
-                        throw new AssertionError("Player B not found");
-                    }
-
-                    org.junit.Assert.assertEquals(
-                            "Player B must draw seven from Wheel of Fortune",
-                            7,
-                            opponent.getHand().size()
-                    );
-                }
-        );
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, TOMEKEEPER);
+        setModeChoice(playerA, "2"); // Target creature becomes unprepared.
+        addTarget(playerA, CREATURE);
+        checkPlayableAbility("unprepared creature has no prepare copy", 1, PhaseStep.POSTCOMBAT_MAIN,
+                playerA, "Cast " + PREPARE_SPELL, false);
 
         setStrictChooseMode(true);
-        setStopAt(1, mage.constants.PhaseStep.END_TURN);
+        setStopAt(1, PhaseStep.END_TURN);
         execute();
+
+        assertExileCount(playerA, 0);
+        Permanent permanent = getPermanent(CREATURE, playerA);
+        Assert.assertNotNull(permanent);
+        Assert.assertFalse(permanent.isPrepared());
     }
 
-    @org.junit.Test
-    public void test_KirolHistoryBuffPrepareLifecycle() {
-        // Kirol, History Buff
-        // Whenever one or more cards leave your graveyard, Kirol becomes prepared.
-        //
-        // Pack a Punch {1}{R}{W}
-        // Mill a card. Put two +1/+1 counters on target creature.
-        // It gains trample until end of turn.
-        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Kirol, History Buff");
-        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Silvercoat Lion");
+    @Test
+    public void tomekeeperCannotPrepareCreatureWithoutPrepareSpell() {
+        addCard(Zone.HAND, playerA, TOMEKEEPER);
+        addCard(Zone.BATTLEFIELD, playerA, "Grizzly Bears");
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 4);
 
-        // Mana for Cremate {B} and later Pack a Punch {1}{R}{W}.
-        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Swamp", 1);
-        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Mountain", 2);
-        addCard(mage.constants.Zone.BATTLEFIELD, playerA, "Plains", 1);
-
-        // Cremate supplies a real leave-your-graveyard event.
-        addCard(mage.constants.Zone.GRAVEYARD, playerA, "Grizzly Bears");
-        addCard(mage.constants.Zone.HAND, playerA, "Cremate");
-
-        // Cremate draws one; Pack a Punch then mills one.
-        addCard(mage.constants.Zone.LIBRARY, playerA, "Island", 2);
-
-        castSpell(
-                1,
-                mage.constants.PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                "Cremate",
-                "Grizzly Bears"
-        );
-        waitStackResolved(1, mage.constants.PhaseStep.PRECOMBAT_MAIN);
-
-        runCode(
-                "Kirol prepares when a card leaves its controller graveyard",
-                1,
-                mage.constants.PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                (info, player, game) -> {
-                    mage.game.permanent.Permanent kirol = game.getBattlefield()
-                            .getAllActivePermanents()
-                            .stream()
-                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
-                            .filter(permanent -> permanent.getName().equals("Kirol, History Buff"))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("Kirol, History Buff not found"));
-
-                    org.junit.Assert.assertTrue(
-                            "Kirol must become prepared after a card leaves its controller graveyard",
-                            kirol.isPrepared()
-                    );
-
-                    long copies = game.getExile().getAllCards(game)
-                            .stream()
-                            .filter(card -> card.getName().equals("Pack a Punch"))
-                            .count();
-
-                    org.junit.Assert.assertEquals(
-                            "Preparing Kirol must create exactly one Pack a Punch copy in exile",
-                            1L,
-                            copies
-                    );
-                }
-        );
-
-        // Prove that Kirol's actual prepared spell copy is castable.
-        castSpell(
-                1,
-                mage.constants.PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                "Pack a Punch",
-                "Silvercoat Lion"
-        );
-        waitStackResolved(1, mage.constants.PhaseStep.PRECOMBAT_MAIN);
-
-        // Pack a Punch must apply both its persistent counter effect and
-        // its temporary trample effect to the chosen creature.
-        checkPermanentCounters(
-                "Pack a Punch counters",
-                1,
-                mage.constants.PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                "Silvercoat Lion",
-                mage.counters.CounterType.P1P1,
-                2
-        );
-
-        checkAbility(
-                "Pack a Punch trample",
-                1,
-                mage.constants.PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                "Silvercoat Lion",
-                mage.abilities.keyword.TrampleAbility.class,
-                true
-        );
-
-        runCode(
-                "Kirol prepared spell completes lifecycle",
-                1,
-                mage.constants.PhaseStep.PRECOMBAT_MAIN,
-                playerA,
-                (info, player, game) -> {
-                    mage.game.permanent.Permanent kirol = game.getBattlefield()
-                            .getAllActivePermanents()
-                            .stream()
-                            .filter(permanent -> permanent.getControllerId().equals(player.getId()))
-                            .filter(permanent -> permanent.getName().equals("Kirol, History Buff"))
-                            .findFirst()
-                            .orElseThrow(() -> new AssertionError("Kirol, History Buff not found"));
-
-                    org.junit.Assert.assertFalse(
-                            "Casting Pack a Punch prepare copy must unprepare Kirol",
-                            kirol.isPrepared()
-                    );
-
-                    long copies = game.getExile().getAllCards(game)
-                            .stream()
-                            .filter(card -> card.getName().equals("Pack a Punch"))
-                            .count();
-
-                    org.junit.Assert.assertEquals(
-                            "Pack a Punch prepare copy must be gone from exile after casting",
-                            0L,
-                            copies
-                    );
-
-                    org.junit.Assert.assertEquals(
-                            "Pack a Punch must mill exactly one card",
-                            2,
-                            player.getGraveyard().size()
-                    );
-                }
-        );
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, TOMEKEEPER);
+        setModeChoice(playerA, "1"); // Target creature becomes prepared.
+        addTarget(playerA, "Grizzly Bears");
 
         setStrictChooseMode(true);
-        setStopAt(1, mage.constants.PhaseStep.END_TURN);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
         execute();
+
+        Permanent permanent = getPermanent("Grizzly Bears", playerA);
+        Assert.assertNotNull(permanent);
+        Assert.assertFalse(permanent.isPrepared());
+        assertExileCount(playerA, 0);
+    }
+
+    @Test
+    public void canChoosePrepareSpellAsCardName() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.HAND, playerA, "Meddling Mage");
+        addCard(Zone.BATTLEFIELD, playerA, "Tundra", 2);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 2);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, "Meddling Mage");
+        setChoice(playerA, PREPARE_SPELL);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        checkPlayableAbility("chosen prepare spell name is prohibited", 1, PhaseStep.PRECOMBAT_MAIN,
+                playerA, "Cast " + PREPARE_SPELL, false);
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertPermanentCount(playerA, "Meddling Mage", 1);
+        assertPermanentCount(playerA, CREATURE, 1);
+        assertExileCount(playerA, PREPARE_SPELL, 1);
+    }
+    
+    @Test
+    public void cancelPreparedCastStillAvailable(){
+        disableManaAutoPayment(playerA); //manual mode so can be canceled
+
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 3);
+
+        activateManaAbility(1, PhaseStep.PRECOMBAT_MAIN, playerA, "{T}: Add {R}", 2);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        setChoice(playerA, "Red");
+        setChoice(playerA, "Red");
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        
+        activateManaAbility(1, PhaseStep.PRECOMBAT_MAIN, playerA, "{T}: Add {R}");
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, PREPARE_SPELL);
+        setChoice(playerA, TestPlayer.MANA_CANCEL); //cancel cast
+        setChoice(playerA, TestPlayer.SKIP_FAILED_COMMAND);
+
+        setStrictChooseMode(true);
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        Permanent permanent = getPermanent(CREATURE, playerA);
+        Assert.assertNotNull(permanent);
+        Assert.assertTrue(permanent.isPrepared());
+
+        assertExileCount(playerA, PREPARE_SPELL, 1);
+        assertGraveyardCount(playerA, PREPARE_SPELL, 0);
+        assertHandCount(playerA, PREPARE_SPELL, 0);
+    }
+
+    @Test
+    public void preparedCopyHasPrepareSpellAsNormalCharacteristics() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 2);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        Card copy = currentGame.getExile().getCardsOwned(currentGame, playerA.getId())
+                .stream()
+                .filter(card -> PREPARE_SPELL.equals(card.getName()))
+                .findFirst()
+                .orElse(null);
+        Assert.assertNotNull(copy);
+        Assert.assertEquals(1, copy.getManaValue());
+        Assert.assertTrue(copy.getCardType(currentGame).contains(CardType.SORCERY));
+        Assert.assertFalse(copy.getCardType(currentGame).contains(CardType.CREATURE));
+        Assert.assertEquals(SpellAbilityType.PREPARE_SPELL,
+                copy.getSpellAbility().getSpellAbilityType());
+
+        CardView copyView = new CardView(copy, currentGame, true, false);
+        Assert.assertFalse(copyView.isSplitCard());
+        Assert.assertTrue(copyView.getRules().stream().anyMatch(rule ->
+                rule.contains("Create a Treasure token")
+        ));
+        Assert.assertFalse(copyView.getRules().stream().anyMatch(rule ->
+                rule.contains("Sorcery &mdash;") || rule.contains(PREPARE_SPELL)
+        ));
+    }
+
+    //722.3c Comprehensive Rules Example
+    @Test
+    public void croakingCounterpartExceptionDoesNotAffectPreparedCopy() {
+        addCard(Zone.BATTLEFIELD, playerB, "Encouraging Aviator");
+        addCard(Zone.HAND, playerA, "Croaking Counterpart");
+        addCard(Zone.BATTLEFIELD, playerA, "Tropical Island", 3);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA,
+                "Croaking Counterpart", "Encouraging Aviator");
+        attack(3, playerA, "Encouraging Aviator", playerB);
+
+        setStopAt(3, PhaseStep.POSTCOMBAT_MAIN);
+        execute();
+
+        Card copy = currentGame.getExile().getCardsOwned(currentGame, playerA.getId())
+                .stream()
+                .filter(card -> "Jump".equals(card.getName()))
+                .findFirst()
+                .orElse(null);
+        Assert.assertNotNull(copy);
+        Assert.assertTrue(copy.getColor(currentGame).isBlue());
+        Assert.assertFalse(copy.getColor(currentGame).isGreen());
+        Assert.assertTrue(copy.getCardType(currentGame).contains(CardType.INSTANT));
+        Assert.assertFalse(copy.getCardType(currentGame).contains(CardType.CREATURE));
+        Assert.assertFalse(copy.getSubtype(currentGame).contains(SubType.FROG));
+    }
+
+    @Test
+    public void copiedPrepareSpellRemainsPrepareSpell() {
+        addCard(Zone.HAND, playerA, CREATURE);
+        addCard(Zone.BATTLEFIELD, playerA, "Double Vision");
+        addCard(Zone.BATTLEFIELD, playerA, "Mountain", 3);
+
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, CREATURE);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN);
+        castSpell(1, PhaseStep.PRECOMBAT_MAIN, playerA, PREPARE_SPELL);
+        waitStackResolved(1, PhaseStep.PRECOMBAT_MAIN, 1);
+        runCode("original and copied spell retain prepare identity", 1,
+                PhaseStep.PRECOMBAT_MAIN, playerA, (info, player, game) -> {
+                    long prepareSpells = game.getStack().stream()
+                            .filter(Spell.class::isInstance)
+                            .map(Spell.class::cast)
+                            .filter(spell -> PREPARE_SPELL.equals(spell.getName()))
+                            .peek(spell -> Assert.assertEquals(
+                                    SpellAbilityType.PREPARE_SPELL,
+                                    spell.getSpellAbility().getSpellAbilityType()
+                            ))
+                            .count();
+                    Assert.assertEquals(2, prepareSpells);
+                });
+
+        setStopAt(1, PhaseStep.BEGIN_COMBAT);
+        execute();
+
+        assertPermanentCount(playerA, "Treasure Token", 2);
     }
 }

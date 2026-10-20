@@ -10,50 +10,39 @@ import mage.abilities.effects.OneShotEffect;
 import mage.abilities.effects.common.CreateTokenCopyTargetEffect;
 import mage.abilities.effects.common.DoUnlessControllerPaysEffect;
 import mage.abilities.effects.common.SacrificeTargetEffect;
-import mage.abilities.effects.common.continuous.GainAbilityControlledSpellsEffect;
+import mage.abilities.effects.common.continuous.GainEvokeAbilityEffect;
 import mage.abilities.effects.common.continuous.GainAbilityTargetEffect;
-import mage.abilities.keyword.EvokeAbility;
 import mage.abilities.keyword.HasteAbility;
 import mage.cards.CardImpl;
 import mage.cards.CardSetInfo;
 import mage.constants.*;
-import mage.filter.FilterPermanent;
 import mage.filter.common.FilterPermanentCard;
+import mage.filter.common.FilterControlledPermanent;
 import mage.filter.predicate.permanent.TokenPredicate;
 import mage.game.Game;
 import mage.game.permanent.Permanent;
 import mage.target.targetpointer.FixedTargets;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
- * @author
+ * @author nandmp
  */
 public final class AshlingTheLimitless extends CardImpl {
 
-    private static final FilterPermanentCard spellFilter =
-            new FilterPermanentCard(
-                    "Elemental permanent spells you cast from your hand"
-            );
-
-    private static final FilterPermanent sacrificeFilter =
-            new FilterPermanent("nontoken Elemental");
+    private static final FilterControlledPermanent sacrificeFilter
+            = new FilterControlledPermanent("nontoken Elemental you control");
+    private static final FilterPermanentCard evokeFilter
+            = new FilterPermanentCard("Elemental permanent card");
 
     static {
-        spellFilter.add(SubType.ELEMENTAL.getPredicate());
-
         sacrificeFilter.add(SubType.ELEMENTAL.getPredicate());
         sacrificeFilter.add(TokenPredicate.FALSE);
+        evokeFilter.add(SubType.ELEMENTAL.getPredicate());
     }
 
     public AshlingTheLimitless(UUID ownerId, CardSetInfo setInfo) {
-        super(
-                ownerId,
-                setInfo,
-                new CardType[]{CardType.CREATURE},
-                "{2}{R}"
-        );
+        super(ownerId, setInfo, new CardType[]{CardType.CREATURE}, "{2}{R}");
 
         this.supertype.add(SuperType.LEGENDARY);
         this.subtype.add(SubType.ELEMENTAL);
@@ -61,29 +50,16 @@ public final class AshlingTheLimitless extends CardImpl {
         this.power = new MageInt(2);
         this.toughness = new MageInt(3);
 
-        // Elemental permanent spells you cast from your hand gain
-        // evoke {4} as you cast them.
-        this.addAbility(
-                new SimpleStaticAbility(
-                        new GainAbilityControlledSpellsEffect(
-                                new EvokeAbility("{4}"),
-                                spellFilter,
-                                Zone.HAND,
-                                true
-                        )
-                )
-        );
+        // Elemental permanent spells you cast from your hand gain evoke {4} as you cast them.
+        this.addAbility(new SimpleStaticAbility(new GainEvokeAbilityEffect(
+                new ManaCostsImpl<>("{4}"), evokeFilter, Zone.HAND,
+                "Elemental permanent spells you cast from your hand gain evoke {4} as you cast them"
+        )));
 
-        // Whenever you sacrifice a nontoken Elemental, create a token
-        // that's a copy of it. The token gains haste until end of turn.
-        // At the beginning of your next end step, sacrifice it unless
-        // you pay {W}{U}{B}{R}{G}.
-        this.addAbility(
-                new SacrificePermanentTriggeredAbility(
-                        new AshlingTheLimitlessCopyEffect(),
-                        sacrificeFilter
-                )
-        );
+        // Whenever you sacrifice a nontoken Elemental, create a token that's a copy of it. The token gains haste until end of turn. At the beginning of your next end step, sacrifice it unless you pay {W}{U}{B}{R}{G}.
+        this.addAbility(new SacrificePermanentTriggeredAbility(
+                new AshlingTheLimitlessEffect(), sacrificeFilter
+        ));
     }
 
     private AshlingTheLimitless(final AshlingTheLimitless card) {
@@ -96,92 +72,49 @@ public final class AshlingTheLimitless extends CardImpl {
     }
 }
 
-class AshlingTheLimitlessCopyEffect extends OneShotEffect {
+class AshlingTheLimitlessEffect extends OneShotEffect {
 
-    AshlingTheLimitlessCopyEffect() {
+    AshlingTheLimitlessEffect() {
         super(Outcome.Benefit);
-        staticText = "create a token that's a copy of it. "
-                + "The token gains haste until end of turn. "
-                + "At the beginning of your next end step, "
-                + "sacrifice it unless you pay {W}{U}{B}{R}{G}";
+        staticText = "create a token that's a copy of it. The token gains haste until end of turn. "
+                + "At the beginning of your next end step, sacrifice it unless you pay {W}{U}{B}{R}{G}";
     }
 
-    private AshlingTheLimitlessCopyEffect(
-            final AshlingTheLimitlessCopyEffect effect
-    ) {
+    private AshlingTheLimitlessEffect(final AshlingTheLimitlessEffect effect) {
         super(effect);
     }
 
     @Override
-    public AshlingTheLimitlessCopyEffect copy() {
-        return new AshlingTheLimitlessCopyEffect(this);
+    public AshlingTheLimitlessEffect copy() {
+        return new AshlingTheLimitlessEffect(this);
     }
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Permanent sacrificedPermanent =
-                (Permanent) getValue("sacrificedPermanent");
-
+        Permanent sacrificedPermanent = (Permanent) getValue("sacrificedPermanent");
         if (sacrificedPermanent == null) {
             return false;
         }
 
-        // Copy the sacrificed permanent from LKI/copiable values.
-        CreateTokenCopyTargetEffect copyEffect =
-                new CreateTokenCopyTargetEffect();
-
-        copyEffect.setSavedPermanent(sacrificedPermanent);
-
+        CreateTokenCopyTargetEffect copyEffect = new CreateTokenCopyTargetEffect()
+                .setSavedPermanent(sacrificedPermanent);
         if (!copyEffect.apply(game, source)) {
             return false;
         }
 
-        List<Permanent> tokens = copyEffect.getAddedPermanents();
+        FixedTargets tokenTargets = new FixedTargets(copyEffect.getAddedTokenPermanents(), game);
+        game.addEffect(new GainAbilityTargetEffect(HasteAbility.getInstance(), Duration.EndOfTurn)
+                .setTargetPointer(tokenTargets), source);
 
-        if (tokens.isEmpty()) {
-            return false;
-        }
-
-        // "The token gains haste until end of turn."
-        GainAbilityTargetEffect hasteEffect =
-                new GainAbilityTargetEffect(
-                        HasteAbility.getInstance(),
-                        Duration.EndOfTurn
-                );
-
-        hasteEffect.setTargetPointer(
-                new FixedTargets(tokens, game)
+        DoUnlessControllerPaysEffect sacrificeUnlessPaid = new DoUnlessControllerPaysEffect(
+                new SacrificeTargetEffect("sacrifice it", source.getControllerId()),
+                new ManaCostsImpl<>("{W}{U}{B}{R}{G}"),
+                "Pay {W}{U}{B}{R}{G}?"
         );
-
-        game.addEffect(hasteEffect, source);
-
-        // "At the beginning of your next end step,
-        // sacrifice it unless you pay {W}{U}{B}{R}{G}."
-        SacrificeTargetEffect sacrificeEffect =
-                new SacrificeTargetEffect(
-                        "sacrifice it",
-                        source.getControllerId()
-                );
-
-        DoUnlessControllerPaysEffect sacrificeUnlessPaid =
-                new DoUnlessControllerPaysEffect(
-                        sacrificeEffect,
-                        new ManaCostsImpl<>("{W}{U}{B}{R}{G}"),
-                        "Pay {W}{U}{B}{R}{G}?"
-                );
-
-        sacrificeUnlessPaid.setTargetPointer(
-                new FixedTargets(tokens, game)
-        );
-
-        game.addDelayedTriggeredAbility(
-                new AtTheBeginOfNextEndStepDelayedTriggeredAbility(
-                        sacrificeUnlessPaid,
-                        TargetController.YOU
-                ),
-                source
-        );
-
+        sacrificeUnlessPaid.setTargetPointer(tokenTargets);
+        game.addDelayedTriggeredAbility(new AtTheBeginOfNextEndStepDelayedTriggeredAbility(
+                sacrificeUnlessPaid, TargetController.YOU
+        ), source);
         return true;
     }
 }

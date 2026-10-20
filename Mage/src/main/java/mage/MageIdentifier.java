@@ -42,6 +42,8 @@ public enum MageIdentifier {
     AccessMazeWatcher,
     ZaffaiAndTheTempestsWatcher("Without paying manacost"),
     MikeyAndDonWatcher,
+    VisionSpectralSynthezoidWatcher("Without paying manacost"),
+    TheEighthDoctorWatcher,
 
     // ----------------------------//
     //       alternate casts       //
@@ -94,7 +96,8 @@ public enum MageIdentifier {
     UndeadSprinterAlternateCast,
     GwenomRemorselessAlternateCast,
     AlienSymbiosisAlternateCast,
-    DragonManReformedRobotAlternateCast;
+    DragonManReformedRobotAlternateCast,
+    InsideInformationAlternateCast;
 
     /**
      * Additional text if there is need to differentiate two very similar effects
