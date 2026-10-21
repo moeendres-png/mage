@@ -117,6 +117,8 @@ class ProtectorOfTheWastesTriggeredAbility extends TriggeredAbilityImpl {
 
     @Override
     public boolean checkTrigger(GameEvent event, Game game) {
-        return event.getSourceId().equals(this.getSourceId());
+        // the creature that enters or becomes monstrous is the target of both events; the source of an
+        // enters event is whatever put it there and is null for an Aura that returns to the battlefield
+        return this.getSourceId().equals(event.getTargetId());
     }
 }
