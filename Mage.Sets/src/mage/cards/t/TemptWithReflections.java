@@ -14,7 +14,7 @@ import mage.players.Player;
 import mage.players.PlayerList;
 import mage.target.common.TargetControlledCreaturePermanent;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 
@@ -65,7 +65,9 @@ class TemptWithReflectionsEffect extends OneShotEffect {
             effect.setTargetPointer(this.getTargetPointer().copy());
             effect.apply(game, source);
 
-            Set<UUID> playersSaidYes = new HashSet<>();
+            // keep the table order (starting with the active player): player ids are random per game, so a
+            // HashSet would create the tokens in a different order every game
+            Set<UUID> playersSaidYes = new LinkedHashSet<>();
             PlayerList playerList = game.getPlayerList().copy();
             playerList.setCurrent(game.getActivePlayerId());
             Player player = game.getPlayer(game.getActivePlayerId());
