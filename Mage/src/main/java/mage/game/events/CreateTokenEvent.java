@@ -3,14 +3,16 @@ package mage.game.events;
 import mage.abilities.Ability;
 import mage.game.permanent.token.Token;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 public class CreateTokenEvent extends GameEvent {
 
-    private final Map<Token, Integer> tokens = new HashMap<>();
+    // insertion order: tokens carry no hashCode, so a HashMap would create them in an order that
+    // changes from run to run (Wurmcoil Engine's two Wurms)
+    private final Map<Token, Integer> tokens = new LinkedHashMap<>();
 
     /**
      * Multiple tokens per event (Double Season and other effects can change amount and tokens list with it)

@@ -277,7 +277,7 @@ public abstract class TokenImpl extends MageObjectImpl implements Token {
             return;
         }
 
-        Set<PermanentToken> allAddedTokens = new HashSet<>();
+        Set<PermanentToken> allAddedTokens = new LinkedHashSet<>();
         for (Map.Entry<Token, Integer> entry : event.getTokens().entrySet()) {
             Token token = entry.getKey();
             int amount = entry.getValue();
