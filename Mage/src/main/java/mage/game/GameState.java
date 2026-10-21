@@ -93,7 +93,8 @@ public class GameState implements Serializable, Copyable<GameState> {
     private boolean gameOver;
     private boolean paused;
     private ContinuousEffects effects;
-    private TriggeredAbilities triggers; // all normal triggers
+    private TriggeredAbilities triggers; // all normal triggers; null until first use on a lazy copy, see triggers()
+    private TriggeredAbilities lazyTriggersSource;
     private DelayedTriggeredAbilities delayed; // all delayed triggers
     private List<TriggeredAbility> triggered = new ArrayList<>(); // raised triggers, waiting to resolve (can contains both normal and delayed)
     private Combat combat;
@@ -168,7 +169,14 @@ public class GameState implements Serializable, Copyable<GameState> {
         this.extraTurnId = state.extraTurnId;
         this.effects = state.effects.copy();
         this.triggered = CardUtil.deepCopyObject(state.triggered);
-        this.triggers = state.triggers.copy();
+        if (GameImpl.LAZY_CARD_COPY.get()) {
+            // A playable calculation copy is thrown away before its parent changes again and most
+            // never read the triggers, so they are copied on first use (see triggers()). A copy of
+            // a copy that has not read them yet shares the same unchanged source.
+            this.lazyTriggersSource = state.triggers != null ? state.triggers : state.lazyTriggersSource;
+        } else {
+            this.triggers = state.triggers().copy();
+        }
         this.delayed = state.delayed.copy();
         this.specialActions = state.specialActions.copy();
         this.combat = state.combat.copy();
@@ -202,7 +210,7 @@ public class GameState implements Serializable, Copyable<GameState> {
 
         battlefield.clear();
         effects.clear();
-        triggers.clear();
+        triggers().clear();
         delayed.clear();
         triggered.clear();
         stack.clear();
@@ -260,7 +268,8 @@ public class GameState implements Serializable, Copyable<GameState> {
         this.extraTurnId = state.extraTurnId;
         this.effects = state.effects;
         this.triggered = state.triggered;
-        this.triggers = state.triggers;
+        this.triggers = state.triggers();
+        this.lazyTriggersSource = null;
         this.delayed = state.delayed;
         this.specialActions = state.specialActions;
         this.combat = state.combat;
@@ -726,9 +735,9 @@ public class GameState implements Serializable, Copyable<GameState> {
 
     private void addTrigger(TriggeredAbility ability, UUID sourceId, MageObject attachedTo) {
         if (sourceId == null) {
-            triggers.add(ability, attachedTo);
+            triggers().add(ability, attachedTo);
         } else {
-            triggers.add(ability, sourceId, attachedTo);
+            triggers().add(ability, sourceId, attachedTo);
         }
     }
 
@@ -1050,7 +1059,7 @@ public class GameState implements Serializable, Copyable<GameState> {
     public void handleEvent(GameEvent event, Game game) {
         watchers.watch(event, game);
         delayed.checkTriggers(event, game);
-        triggers.checkTriggers(event, game);
+        triggers().checkTriggers(event, game);
     }
 
     public boolean replaceEvent(GameEvent event, Game game) {
@@ -1423,7 +1432,7 @@ public class GameState implements Serializable, Copyable<GameState> {
      * @param sourceId
      */
     public void removeTriggersOfSourceId(UUID sourceId) {
-        triggers.removeAbilitiesOfSource(sourceId);
+        triggers().removeAbilitiesOfSource(sourceId);
     }
 
     /**
@@ -1431,7 +1440,7 @@ public class GameState implements Serializable, Copyable<GameState> {
      */
     private void reset() {
         // All gained abilities have to be removed to prevent adding it multiple times
-        triggers.removeAllGainedAbilities();
+        triggers().removeAllGainedAbilities();
         getContinuousEffects().removeAllTemporaryEffects();
         for (CardState state : cardState.values()) {
             state.clearAbilities();
@@ -1458,6 +1467,14 @@ public class GameState implements Serializable, Copyable<GameState> {
      * @return
      */
     public TriggeredAbilities getTriggers() {
+        return triggers();
+    }
+
+    private TriggeredAbilities triggers() {
+        if (triggers == null) {
+            triggers = lazyTriggersSource.copy();
+            lazyTriggersSource = null;
+        }
         return triggers;
     }
 

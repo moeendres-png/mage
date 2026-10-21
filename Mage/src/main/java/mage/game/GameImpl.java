@@ -123,7 +123,7 @@ public abstract class GameImpl implements Game {
     // Playable calculation copies copy a card only when it is first read (see copyCardsLazily):
     // until then gameCards holds the parent's card object and its id is listed here.
     private transient Set<UUID> sharedGameCards = null;
-    private static final ThreadLocal<Boolean> LAZY_CARD_COPY = ThreadLocal.withInitial(() -> false);
+    static final ThreadLocal<Boolean> LAZY_CARD_COPY = ThreadLocal.withInitial(() -> false);
     protected Map<UUID, MeldCard> meldCards = new HashMap<>(0);
 
     protected Map<Zone, Map<UUID, MageObject>> lki = new EnumMap<>(Zone.class);
