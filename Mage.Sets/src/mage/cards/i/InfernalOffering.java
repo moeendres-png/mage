@@ -72,7 +72,7 @@ class InfernalOfferingSacrificeEffect extends OneShotEffect {
             Player opponent = game.getPlayer(target.getFirstTarget());
             if (opponent != null) {
                 //Choose creatures to sacrifice
-                Map<UUID, UUID> toSacrifice = new HashMap<>(2);
+                Map<UUID, UUID> toSacrifice = new LinkedHashMap<>(2);
                 for (UUID playerId : game.getState().getPlayersInRange(player.getId(), game)) {
                     if (playerId.equals(player.getId()) || playerId.equals(opponent.getId())) {
                         target = new TargetSacrifice(StaticFilters.FILTER_PERMANENT_CREATURE);

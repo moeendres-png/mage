@@ -20,6 +20,7 @@ import mage.target.TargetPlayer;
 import mage.target.targetpointer.FixedTarget;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 
@@ -79,7 +80,7 @@ class CurseOfOpulenceEffect extends OneShotEffect {
         if (enchantedPlayer == null) {
             return false;
         }
-        Set<UUID> players = new HashSet<>();
+        Set<UUID> players = new LinkedHashSet<>();
         for (UUID attacker : game.getCombat().getAttackers()) {
             UUID defender = game.getCombat().getDefenderId(attacker);
             if (defender.equals(enchantedPlayer.getId())

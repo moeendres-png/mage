@@ -1,6 +1,7 @@
 package mage.cards.o;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import mage.abilities.Ability;
@@ -69,7 +70,7 @@ class OrderOfSuccessionEffect extends OneShotEffect {
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            Map<UUID, UUID> playerCreature = new HashMap<>(2);
+            Map<UUID, UUID> playerCreature = new LinkedHashMap<>(2);
             Choice choice = new ChoiceLeftOrRight();
             if (!controller.choose(Outcome.Neutral, choice, game)) {
                 return false;

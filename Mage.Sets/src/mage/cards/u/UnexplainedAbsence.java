@@ -86,7 +86,7 @@ class UnexplainedAbsenceEffect extends OneShotEffect {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         // set of controllers for the second part of the effect.
-        Set<UUID> controllers = new HashSet<>();
+        Set<UUID> controllers = new LinkedHashSet<>();
         for (Permanent permanent : permanents) {
             Player effectedController = game.getPlayer(permanent.getControllerId());
 

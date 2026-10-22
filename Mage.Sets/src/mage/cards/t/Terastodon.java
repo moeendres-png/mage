@@ -17,6 +17,7 @@ import mage.game.permanent.token.ElephantToken;
 import mage.target.TargetPermanent;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
@@ -67,7 +68,7 @@ class TerastodonEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Map<UUID, Integer> destroyedPermanents = new HashMap<>();
+        Map<UUID, Integer> destroyedPermanents = new LinkedHashMap<>();
         for (UUID targetID : this.getTargetPointer().getTargets(game, source)) {
             Permanent permanent = game.getPermanent(targetID);
             if (permanent != null) {

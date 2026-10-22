@@ -15,6 +15,7 @@ import mage.target.common.TargetCreaturePermanent;
 import mage.target.targetadjustment.XTargetsCountAdjuster;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -67,7 +68,7 @@ class CurseOfTheSwineEffect extends OneShotEffect {
         Player controller = game.getPlayer(source.getControllerId());
         Cards creaturesToExile = new CardsImpl();
         if (controller != null) {
-            Map<UUID, Integer> playersWithTargets = new HashMap<>();
+            Map<UUID, Integer> playersWithTargets = new LinkedHashMap<>();
             for (UUID targetId : this.getTargetPointer().getTargets(game, source)) {
                 Permanent creature = game.getPermanent(targetId);
                 // handle creature tokens here due to LKI being non-existent for them
