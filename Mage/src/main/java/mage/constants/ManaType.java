@@ -143,7 +143,7 @@ public enum ManaType {
     }
 
     public static Set<ManaType> getManaTypesFromManaList(List<Mana> manaList) {
-        Set<ManaType> manaTypes = new HashSet<>();
+        Set<ManaType> manaTypes = EnumSet.noneOf(ManaType.class);
         for (Mana mana : manaList) {
             manaTypes.addAll(getManaTypesFromManaList(mana));
         }

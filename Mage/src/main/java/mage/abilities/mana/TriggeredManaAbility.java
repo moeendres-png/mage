@@ -10,7 +10,7 @@ import mage.constants.Zone;
 import mage.game.Game;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
@@ -80,7 +80,7 @@ public abstract class TriggeredManaAbility extends TriggeredAbilityImpl implemen
 
     @Override
     public Set<ManaType> getProducableManaTypes(Game game) {
-        Set<ManaType> manaTypes = new HashSet<>();
+        Set<ManaType> manaTypes = EnumSet.noneOf(ManaType.class);
         for (Effect effect : getEffects()) {
             if (effect instanceof ManaEffect) {
                 manaTypes.addAll(((ManaEffect) effect).getProducableManaTypes(game, this));

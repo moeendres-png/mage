@@ -106,7 +106,7 @@ public abstract class ActivatedManaAbilityImpl extends ActivatedAbilityImpl impl
 
     @Override
     public Set<ManaType> getProducableManaTypes(Game game) {
-        Set<ManaType> manaTypes = new HashSet<>();
+        Set<ManaType> manaTypes = EnumSet.noneOf(ManaType.class);
         for (Effect effect : getEffects()) {
             if (effect instanceof ManaEffect) {
                 manaTypes.addAll(((ManaEffect) effect).getProducableManaTypes(game, this));

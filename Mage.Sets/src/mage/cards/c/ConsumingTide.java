@@ -1,6 +1,8 @@
 package mage.cards.c;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 import mage.abilities.Ability;
@@ -77,7 +79,7 @@ class ConsumingTideEffect extends OneShotEffect {
                 }
             }
         }
-        HashSet<Card> permanentsToHand = new HashSet<>();
+        Set<Card> permanentsToHand = new LinkedHashSet<>();
         for (Permanent permanent : game.getBattlefield().getActivePermanents(StaticFilters.FILTER_PERMANENT_NON_LAND, controller.getId(), source, game)) {
             if (!chosenPermanents.contains(permanent.getId())) {
                 permanentsToHand.add(permanent);

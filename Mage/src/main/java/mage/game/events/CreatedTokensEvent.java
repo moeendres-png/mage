@@ -7,7 +7,8 @@ import mage.game.Game;
 import mage.game.permanent.PermanentToken;
 
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -17,7 +18,9 @@ import java.util.stream.Collectors;
  */
 public class CreatedTokensEvent extends GameEvent {
 
-    private final Set<PermanentToken> createdTokens = new HashSet<>();
+    // insertion order: a token has no hashCode, so a HashSet would hand the tokens to triggers in an
+    // order that changes from run to run
+    private final Set<PermanentToken> createdTokens = new LinkedHashSet<>();
 
     private CreatedTokensEvent(UUID playerId, Set<PermanentToken> createdTokens, Ability source) {
         super(EventType.CREATED_TOKENS, playerId, source, playerId);
@@ -30,7 +33,8 @@ public class CreatedTokensEvent extends GameEvent {
                 .collect(Collectors.toMap(
                         Controllable::getControllerId,
                         Collections::singleton,
-                        Sets::union
+                        Sets::union,
+                        LinkedHashMap::new
                 ))
                 .entrySet()
                 .stream()

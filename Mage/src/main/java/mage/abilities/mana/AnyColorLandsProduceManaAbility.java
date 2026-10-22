@@ -16,7 +16,7 @@ import mage.game.permanent.Permanent;
 import mage.players.Player;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
@@ -59,7 +59,7 @@ public class AnyColorLandsProduceManaAbility extends ActivatedManaAbilityImpl {
     }
 
     public static Set<ManaType> getManaTypesFromPermanent(Permanent permanent, Game game) {
-        Set<ManaType> allTypes = new HashSet<>(6);
+        Set<ManaType> allTypes = EnumSet.noneOf(ManaType.class);
         if (permanent != null) {
             Abilities<ActivatedManaAbilityImpl> manaAbilities = permanent.getAbilities().getActivatedManaAbilities(Zone.BATTLEFIELD);
             for (ActivatedManaAbilityImpl ability : manaAbilities) {
@@ -128,7 +128,7 @@ class AnyColorLandsProduceManaEffect extends ManaEffect {
     }
 
     private Set<ManaType> getManaTypes(Game game, Ability source) {
-        Set<ManaType> types = new HashSet<>(6);
+        Set<ManaType> types = EnumSet.noneOf(ManaType.class);
         if (game == null || game.getPhase() == null) {
             return types;
         }

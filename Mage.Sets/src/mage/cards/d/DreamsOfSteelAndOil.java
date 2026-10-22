@@ -1,6 +1,7 @@
 package mage.cards.d;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 import mage.abilities.Ability;
@@ -66,7 +67,7 @@ class DreamsOfSteelAndOilEffect extends OneShotEffect {
             return false;
         }
 
-        HashSet<Card> toExile = new HashSet<>();
+        Set<Card> toExile = new LinkedHashSet<>();
         opponent.revealCards(source, opponent.getHand(), game);
         FilterCard filter = new FilterCard("artifact or creature card from " + opponent.getName() + "'s hand");
         filter.add(Predicates.or(CardType.ARTIFACT.getPredicate(), CardType.CREATURE.getPredicate()));

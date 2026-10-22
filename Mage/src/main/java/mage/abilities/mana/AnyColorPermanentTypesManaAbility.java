@@ -16,7 +16,7 @@ import mage.game.permanent.Permanent;
 import mage.players.Player;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
@@ -101,7 +101,7 @@ class AnyColorPermanentTypesManaEffect extends ManaEffect {
     }
 
     private Set<ManaType> getManaTypes(Game game, Ability source) {
-        Set<ManaType> manaTypes = new HashSet<>(6);
+        Set<ManaType> manaTypes = EnumSet.noneOf(ManaType.class);
         if (game == null || game.getPhase() == null || inManaTypeCalculation) {
             return manaTypes;
         }

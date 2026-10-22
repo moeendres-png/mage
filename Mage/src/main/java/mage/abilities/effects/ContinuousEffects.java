@@ -262,7 +262,7 @@ public class ContinuousEffects implements Serializable {
     }
 
     public Map<RequirementEffect, Set<Ability>> getApplicableRequirementEffects(Permanent permanent, boolean playerRelated, Game game) {
-        Map<RequirementEffect, Set<Ability>> effects = new HashMap<>();
+        Map<RequirementEffect, Set<Ability>> effects = new LinkedHashMap<>();
         for (RequirementEffect effect : requirementEffects) {
             if (playerRelated == effect.isPlayerRelated()) {
                 Set<Ability> abilities = requirementEffects.getAbility(effect.getId());
@@ -283,7 +283,7 @@ public class ContinuousEffects implements Serializable {
     }
 
     public Map<RestrictionEffect, Set<Ability>> getApplicableRestrictionEffects(Permanent permanent, Game game) {
-        Map<RestrictionEffect, Set<Ability>> effects = new HashMap<>();
+        Map<RestrictionEffect, Set<Ability>> effects = new LinkedHashMap<>();
         for (RestrictionEffect effect : restrictionEffects) {
             Set<Ability> abilities = restrictionEffects.getAbility(effect.getId());
             Set<Ability> applicableAbilities = new LinkedHashSet<>();
@@ -302,7 +302,7 @@ public class ContinuousEffects implements Serializable {
     }
 
     public Map<RestrictionUntapNotMoreThanEffect, Set<Ability>> getApplicableRestrictionUntapNotMoreThanEffects(Player player, Game game) {
-        Map<RestrictionUntapNotMoreThanEffect, Set<Ability>> effects = new HashMap<>();
+        Map<RestrictionUntapNotMoreThanEffect, Set<Ability>> effects = new LinkedHashMap<>();
         for (RestrictionUntapNotMoreThanEffect effect : restrictionUntapNotMoreThanEffects) {
             Set<Ability> abilities = restrictionUntapNotMoreThanEffects.getAbility(effect.getId());
             Set<Ability> applicableAbilities = new LinkedHashSet<>();
@@ -635,7 +635,7 @@ public class ContinuousEffects implements Serializable {
      * @return Set of all the ApprovingObject related to that asThough.
      */
     public Set<ApprovingObject> asThough(UUID objectId, AsThoughEffectType type, Ability affectedAbility, UUID controllerId, Game game) {
-        Set<ApprovingObject> possibleApprovingObjects = new HashSet<>();
+        Set<ApprovingObject> possibleApprovingObjects = new LinkedHashSet<>();
 
         // usage check: effect must apply for specific ability only, not to full object (example: PLAY_FROM_NOT_OWN_HAND_ZONE)
         if (type.needAffectedAbility() && affectedAbility == null) {

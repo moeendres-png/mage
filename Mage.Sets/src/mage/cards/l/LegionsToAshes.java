@@ -17,7 +17,8 @@ import mage.game.permanent.Permanent;
 import mage.players.Player;
 import mage.target.TargetPermanent;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -70,7 +71,7 @@ class LegionsToAshesEffect extends OneShotEffect {
         filter.add(TokenPredicate.TRUE);
         filter.add(new ControllerIdPredicate(targetPermanent.getControllerId()));
         filter.add(new NamePredicate(targetPermanent.getName()));
-        HashSet<Permanent> toExile = new HashSet<>(game.getBattlefield().getActivePermanents(filter, controller.getId(), source, game));
+        Set<Permanent> toExile = new LinkedHashSet<>(game.getBattlefield().getActivePermanents(filter, controller.getId(), source, game));
         toExile.add(targetPermanent);
         controller.moveCards(toExile, Zone.EXILED, source, game);
         return true;

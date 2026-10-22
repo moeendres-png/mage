@@ -128,7 +128,7 @@ public class AddManaInAnyCombinationEffect extends ManaEffect {
 
     @Override
     public Set<ManaType> getProducableManaTypes(Game game, Ability source) {
-        Set<ManaType> manaTypes = new HashSet<>();
+        Set<ManaType> manaTypes = EnumSet.noneOf(ManaType.class);
         for (ColoredManaSymbol coloredManaSymbol : manaSymbols) {
             if (coloredManaSymbol.equals(ColoredManaSymbol.B)) {
                 manaTypes.add(ManaType.BLACK);

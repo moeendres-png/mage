@@ -1,6 +1,8 @@
 package mage.cards.t;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 import mage.abilities.Ability;
@@ -90,7 +92,7 @@ class TeferiTemporalPilgrimEffect extends OneShotEffect {
             opponent.moveCards(toHand, Zone.HAND, source, game);
             game.processAction();
         }
-        HashSet<Permanent> toLibrary = new HashSet<>(game.getBattlefield().getAllActivePermanents(StaticFilters.FILTER_PERMANENT_NON_LAND, opponent.getId(), game));
+        Set<Permanent> toLibrary = new LinkedHashSet<>(game.getBattlefield().getAllActivePermanents(StaticFilters.FILTER_PERMANENT_NON_LAND, opponent.getId(), game));
         if (toLibrary.isEmpty()) {
             return true;
         }
