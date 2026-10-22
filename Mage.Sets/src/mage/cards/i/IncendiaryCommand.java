@@ -2,6 +2,7 @@
 package mage.cards.i;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import mage.abilities.Ability;
@@ -78,7 +79,7 @@ class IncendiaryCommandDrawEffect extends OneShotEffect {
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            Map<UUID, Integer> cardsToDraw = new HashMap<>();
+            Map<UUID, Integer> cardsToDraw = new LinkedHashMap<>();
             for (UUID playerId : game.getState().getPlayersInRange(controller.getId(), game)) {
                 Player player = game.getPlayer(playerId);
                 if (player != null) {

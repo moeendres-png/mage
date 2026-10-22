@@ -71,9 +71,9 @@ class MasterOfCeremoniesChoiceEffect extends OneShotEffect {
             return false;
         }
 
-        HashSet<UUID> moneyChoosers   = new HashSet<>();
-        HashSet<UUID> friendChoosers  = new HashSet<>();
-        HashSet<UUID> secretsChoosers = new HashSet<>();
+        HashSet<UUID> moneyChoosers   = new LinkedHashSet<>();
+        HashSet<UUID> friendChoosers  = new LinkedHashSet<>();
+        HashSet<UUID> secretsChoosers = new LinkedHashSet<>();
 
         // Get opponents choices
         for (UUID opponentId : game.getOpponents(source.getControllerId())) {

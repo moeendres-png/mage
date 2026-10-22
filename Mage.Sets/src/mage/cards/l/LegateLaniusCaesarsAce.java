@@ -19,6 +19,7 @@ import mage.players.Player;
 import mage.target.common.TargetSacrifice;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 
@@ -74,7 +75,7 @@ class LegateLaniusCaesarsAceSacrificeEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Set<UUID> perms = new HashSet<>();
+        Set<UUID> perms = new LinkedHashSet<>();
         for (UUID playerId : game.getOpponents(source.getControllerId())) {
             Player player = game.getPlayer(playerId);
             if (player == null) {

@@ -77,7 +77,7 @@ class WaveOfVitriolEffect extends OneShotEffect {
     public boolean apply(Game game, Ability source) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller != null) {
-            Map<Player, Integer> sacrificedLands = new HashMap<>();
+            Map<Player, Integer> sacrificedLands = new LinkedHashMap<>();
             for (UUID playerId : game.getState().getPlayersInRange(controller.getId(), game)) {
                 Player player = game.getPlayer(playerId);
                 if (player != null) {

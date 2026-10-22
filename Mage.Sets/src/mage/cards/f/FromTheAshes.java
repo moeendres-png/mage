@@ -2,6 +2,7 @@
 package mage.cards.f;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import mage.abilities.Ability;
@@ -64,7 +65,7 @@ class FromTheAshesEffect extends OneShotEffect {
             return false;
         }
         // Destroy all nonbasic lands.
-        Map<UUID, Integer> playerAmount = new HashMap<>();
+        Map<UUID, Integer> playerAmount = new LinkedHashMap<>();
         for (Permanent permanent : game.getBattlefield().getActivePermanents(StaticFilters.FILTER_LANDS_NONBASIC, source.getControllerId(), source, game)) {
             UUID controllerId = permanent.getControllerId();
             if (permanent.destroy(source, game, false)) {

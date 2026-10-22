@@ -73,7 +73,7 @@ class FandanielTelophoroiAscianEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Set<UUID> players = new HashSet<>();
+        Set<UUID> players = new LinkedHashSet<>();
         List<Permanent> permanents = new ArrayList<>();
         for (UUID playerId : game.getOpponents(source.getControllerId())) {
             Player player = game.getPlayer(playerId);

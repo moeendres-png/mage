@@ -22,6 +22,7 @@ import mage.players.Player;
 import mage.target.TargetPermanent;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -79,7 +80,7 @@ class HighcliffFelidarEffect extends OneShotEffect {
         if (controller == null) {
             return false;
         }
-        Set<UUID> toDestroy = new HashSet();
+        Set<UUID> toDestroy = new LinkedHashSet<>();
         game.getOpponents(source.getControllerId(), true)
                 .stream()
                 .map(game::getPlayer)

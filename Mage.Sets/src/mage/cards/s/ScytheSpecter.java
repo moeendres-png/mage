@@ -18,6 +18,7 @@ import mage.target.Target;
 import mage.target.common.TargetDiscard;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -64,7 +65,7 @@ class ScytheSpecterEffect extends OneShotEffect {
 
     @Override
     public boolean apply(Game game, Ability source) {
-        Map<UUID, Card> cardDiscarded = new HashMap<>();
+        Map<UUID, Card> cardDiscarded = new LinkedHashMap<>();
         Map<UUID, Integer> discardedCheck = new HashMap<>();
         Integer highestCMC = 0;
         Integer currentCMC = 0;
