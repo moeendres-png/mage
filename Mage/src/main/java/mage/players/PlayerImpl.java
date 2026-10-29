@@ -5679,6 +5679,9 @@ public abstract class PlayerImpl implements Player, Serializable {
             if (!cardsToMove.isEmpty()) {
                 Set<Card> movedCards = moveCardsToGraveyardWithInfo(cardsToMove.getCards(game), source, game, Zone.LIBRARY);
                 cardsPutInGraveyard.addAllCards(movedCards);
+                for (Card movedCard : movedCards) {
+                    game.fireEvent(new GameEvent(GameEvent.EventType.SURVEILED_INTO_GRAVEYARD, movedCard.getId(), source, getId()));
+                }
             }
             cards.removeIf(target.getTargets()::contains);
             putCardsOnTopOfLibrary(cards, game, source, true);

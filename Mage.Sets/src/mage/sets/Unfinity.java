@@ -52,6 +52,7 @@ public final class Unfinity extends ExpansionSet {
         cards.add(new SetCardInfo("Dissatisfied Customer", 72, Rarity.COMMON, mage.cards.d.DissatisfiedCustomer.class, NON_FULL_USE_VARIOUS));
         cards.add(new SetCardInfo("Embiggen", 137, Rarity.COMMON, mage.cards.e.Embiggen.class, NON_FULL_USE_VARIOUS));
         cards.add(new SetCardInfo("Embiggen", 423, Rarity.COMMON, mage.cards.e.Embiggen.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("Exchange of Words", 45, Rarity.RARE, mage.cards.e.ExchangeOfWords.class));
         cards.add(new SetCardInfo("Forest", 239, Rarity.LAND, mage.cards.basiclands.Forest.class, FULL_ART_UST_VARIOUS));
         cards.add(new SetCardInfo("Forest", 244, Rarity.LAND, mage.cards.basiclands.Forest.class, FULL_ART_UST_VARIOUS));
         cards.add(new SetCardInfo("Forest", 490, Rarity.LAND, mage.cards.basiclands.Forest.class, FULL_ART_UST_VARIOUS));
@@ -100,6 +101,7 @@ public final class Unfinity extends ExpansionSet {
         cards.add(new SetCardInfo("Six-Sided Die", 92, Rarity.COMMON, mage.cards.s.SixSidedDie.class, NON_FULL_USE_VARIOUS));
         cards.add(new SetCardInfo("Slight Malfunction", 123, Rarity.COMMON, mage.cards.s.SlightMalfunction.class, NON_FULL_USE_VARIOUS));
         cards.add(new SetCardInfo("Slight Malfunction", 409, Rarity.COMMON, mage.cards.s.SlightMalfunction.class, NON_FULL_USE_VARIOUS));
+        cards.add(new SetCardInfo("Space Beleren", 178, Rarity.MYTHIC, mage.cards.s.SpaceBeleren.class));
         cards.add(new SetCardInfo("Starlight Spectacular", 28, Rarity.RARE, mage.cards.s.StarlightSpectacular.class, NON_FULL_USE_VARIOUS));
         cards.add(new SetCardInfo("Starlight Spectacular", 314, Rarity.RARE, mage.cards.s.StarlightSpectacular.class, NON_FULL_USE_VARIOUS));
         cards.add(new SetCardInfo("Steam Vents", 283, Rarity.RARE, mage.cards.s.SteamVents.class, NON_FULL_USE_VARIOUS));

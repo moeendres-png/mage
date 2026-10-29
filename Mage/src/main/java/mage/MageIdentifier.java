@@ -63,6 +63,7 @@ public enum MageIdentifier {
     // If there are other ways to cast from the top of the library, then the MageIdentifier being different
     // means that the alternate cast won't apply to the other ways to cast.
     BolassCitadelAlternateCast,
+    EyeOfDuskmantleAlternateCast,
     RisenExectutionerAlternateCast,
     DemilichAlternateCast,
     DemonicEmbraceAlternateCast,
