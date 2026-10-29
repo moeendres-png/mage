@@ -3,6 +3,7 @@ package mage.cards.t;
 import mage.MageInt;
 import mage.abilities.Ability;
 import mage.abilities.BatchTriggeredAbility;
+import mage.abilities.TriggeredAbility;
 import mage.abilities.TriggeredAbilityImpl;
 import mage.abilities.common.AttacksTriggeredAbility;
 import mage.abilities.dynamicvalue.common.CountersSourceCount;
@@ -51,11 +52,13 @@ public final class TheWarDoctor extends CardImpl {
 
         // Whenever The War Doctor attacks, it deals damage equal to the number of time counters on it to any target.
         // If a creature dealt damage this way would die this turn, exile it instead.
-        Ability ability = new AttacksTriggeredAbility(new DamageTargetEffect(
+        TriggeredAbility ability = new AttacksTriggeredAbility(new DamageTargetEffect(
                 new CountersSourceCount(CounterType.TIME), "it"
         ).setText("it deals damage equal to the number of time counters on it to any target"));
         ability.addEffect(new ExileTargetIfDiesEffect("creature dealt damage this way"));
         ability.addTarget(new TargetAnyTarget());
+        // "would die" in the text makes Mage.Verify ask for the flag, an attack trigger is not hurt by it
+        ability.setLeavesTheBattlefieldTrigger(true);
         this.addAbility(ability);
     }
 
