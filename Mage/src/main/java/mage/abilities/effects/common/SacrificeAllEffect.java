@@ -79,7 +79,7 @@ public class SacrificeAllEffect extends OneShotEffect {
         if (num < 1) {
             return false;
         }
-        Set<UUID> perms = new HashSet<>();
+        Set<UUID> perms = new LinkedHashSet<>(); // keep the sacrifice order, a HashSet orders by random ids
         Player controller = game.getPlayer(source.getControllerId());
         if (controller == null) {
             return false;

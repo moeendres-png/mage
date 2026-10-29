@@ -23,6 +23,7 @@ import mage.cards.CardSetInfo;
 import mage.filter.FilterPermanent;
 import mage.filter.StaticFilters;
 import mage.filter.common.FilterControlledPermanent;
+import mage.filter.predicate.permanent.TappedPredicate;
 import mage.game.Game;
 import mage.game.permanent.token.custom.CreatureToken;
 import mage.target.TargetPermanent;
@@ -35,6 +36,11 @@ import mage.target.common.TargetControlledPermanent;
 public final class SageOfTheMaze extends CardImpl {
 
     private static final FilterControlledPermanent filter = new FilterControlledPermanent("untapped Gate you control");
+
+    static {
+        filter.add(SubType.GATE.getPredicate());
+        filter.add(TappedPredicate.UNTAPPED);
+    }
 
     public SageOfTheMaze(UUID ownerId, CardSetInfo setInfo) {
         super(ownerId, setInfo, new CardType[]{CardType.CREATURE}, "{2}{G}");

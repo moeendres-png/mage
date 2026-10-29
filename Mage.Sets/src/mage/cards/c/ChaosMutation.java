@@ -14,6 +14,7 @@ import mage.game.permanent.Permanent;
 import mage.players.Player;
 import mage.target.TargetPermanent;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -71,7 +72,7 @@ class ChaosMutationEffect extends OneShotEffect {
                 .stream()
                 .map(game::getPermanent)
                 .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toCollection(LinkedHashSet::new)); // keep the target order, a HashSet orders by random ids
         if (controller == null || permanents.isEmpty()) {
             return false;
         }
