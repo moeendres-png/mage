@@ -1037,6 +1037,17 @@ public class GameState implements Serializable, Copyable<GameState> {
         }
     }
 
+    public void addSimultaneousPhasedOutToBatch(GameEvent phasedOutEvent, Game game) {
+        // Combine multiple phased out events in the single event (batch)
+        for (GameEvent event : simultaneousEvents) {
+            if (event instanceof PhasedOutBatchEvent) {
+                ((PhasedOutBatchEvent) event).addEvent(phasedOutEvent);
+                return;
+            }
+        }
+        addSimultaneousEvent(new PhasedOutBatchEvent(phasedOutEvent), game);
+    }
+
     public void addSimultaneousUntappedToBatch(UntappedEvent untappedEvent, Game game) {
         // Combine multiple untapped events in the single event (batch)
 

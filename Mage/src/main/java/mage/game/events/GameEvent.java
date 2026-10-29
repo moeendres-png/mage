@@ -426,6 +426,7 @@ public class GameEvent implements Serializable {
         CAN_TAKE_MULLIGAN,
         SCRY, SCRIED, SCRY_TO_BOTTOM,
         SURVEIL, SURVEILED,
+        SURVEILED_INTO_GRAVEYARD, // a card surveil put into its owner's graveyard; targetId = card, playerId = surveilling player
         PROLIFERATE, PROLIFERATED,
         FATESEALED,
         FLIP_COIN, FLIP_COINS, COIN_FLIPPED,
@@ -511,6 +512,10 @@ public class GameEvent implements Serializable {
         BECOMES_DAY_NIGHT,
         MEDITATED,
         PHASE_OUT, PHASED_OUT,
+        /*  PHASED_OUT_BATCH
+         combine all PHASED_OUT events occuring at the same time in a single event
+         */
+        PHASED_OUT_BATCH(true),
         PHASE_IN, PHASED_IN,
         TURN_FACE_UP, TURNED_FACE_UP,
         TURN_FACE_DOWN, TURNED_FACE_DOWN,

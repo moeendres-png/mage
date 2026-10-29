@@ -22,6 +22,7 @@ import mage.filter.predicate.Predicates;
 import mage.filter.predicate.mageobject.AbilityPredicate;
 import mage.game.ExileZone;
 import mage.game.Game;
+import mage.game.permanent.Permanent;
 import mage.game.events.GameEvent;
 import mage.players.Player;
 import mage.target.targetpointer.FixedTarget;
@@ -109,6 +110,17 @@ public class ForetellAbility extends SpecialAction {
      * Its foretell cost is its mana cost reduced by [amountToReduceCost]
      */
     public static boolean doExileBecomesForetold(Card card, Game game, Ability source, int amountToReduceCost) {
+        return doExileBecomesForetold(card, game, source, amountToReduceCost, null);
+    }
+
+    /**
+     * Same as above, but a card that is neither split, modal double-faced nor has a spell option
+     * takes the given printed foretell cost instead of its reduced mana cost
+     * (for a card that says "it becomes foretold" and keeps its own foretell cost).
+     *
+     * @param explicitForetellCost the foretell cost as text, e.g. "{1}{G}", or null to reduce the mana cost
+     */
+    public static boolean doExileBecomesForetold(Card card, Game game, Ability source, int amountToReduceCost, String explicitForetellCost) {
         Player controller = game.getPlayer(source.getControllerId());
         if (controller == null) {
             return false;
@@ -145,14 +157,24 @@ public class ForetellAbility extends SpecialAction {
             foretellAbility = new ForetellAbility(card, creatureCost, spellCost);
         } else if (!card.isLand(game)) {
             // normal card
-            String costText = CardUtil.reduceCost(card.getManaCost(), amountToReduceCost).getText();
+            String costText = explicitForetellCost != null
+                    ? explicitForetellCost
+                    : CardUtil.reduceCost(card.getManaCost(), amountToReduceCost).getText();
             game.getState().setValue(card.getId().toString() + "Foretell Cost", costText);
             foretellAbility = new ForetellAbility(card, costText);
         }
 
         // All card types (including lands) must be exiled
         UUID exileId = CardUtil.getExileZoneId(card.getMainCard().getId().toString() + "foretellAbility", game);
-        controller.moveCardsToExile(card, source, game, false, exileId, " Foretell Turn Number: " + game.getTurnNum());
+        // a card that leaves the battlefield (a permanent exiling itself) must be moved as its permanent
+        Card cardToMove = card;
+        if (game.getState().getZone(card.getId()) == Zone.BATTLEFIELD && !(card instanceof Permanent)) {
+            Permanent permanent = game.getPermanent(card.getId());
+            if (permanent != null) {
+                cardToMove = permanent;
+            }
+        }
+        controller.moveCardsToExile(cardToMove, source, game, false, exileId, " Foretell Turn Number: " + game.getTurnNum());
         card.setFaceDown(true, game);
 
         // all done pre-processing so stick the foretell cost effect onto the main card
