@@ -356,7 +356,7 @@
                 <!-- extended lib from google (collections, io, etc) -->
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
-                <version>33.4.8-jre</version>
+                <version>33.7.2-jre</version>
             </dependency>
             <dependency>
                 <!-- escape/unescape html in texts -->
@@ -380,7 +380,7 @@
                 <!-- scraping lib to download and parse html/symbols/images/svg -->
                 <groupId>org.jsoup</groupId>
                 <artifactId>jsoup</artifactId>
-                <version>1.21.2</version>
+                <version>1.23.2</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
