@@ -112,9 +112,9 @@ class DoomsdayConfluenceChooseCost extends CostImpl {
                     discard++;
             }
         }
-        CardUtil.setSourceCostsTag(game, source, TAG_SACRIFICE, sacrifice);
-        CardUtil.setSourceCostsTag(game, source, TAG_DALEK, dalek);
-        CardUtil.setSourceCostsTag(game, source, TAG_DISCARD, discard);
+        source.setCostsTag(TAG_SACRIFICE, sacrifice);
+        source.setCostsTag(TAG_DALEK, dalek);
+        source.setCostsTag(TAG_DISCARD, discard);
         this.paid = true;
         return true;
     }

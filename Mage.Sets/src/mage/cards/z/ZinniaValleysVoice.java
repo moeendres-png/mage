@@ -140,7 +140,7 @@ class ZinniaOffspringAbility extends StaticAbility implements OptionalAdditional
         }
         additionalCost.activate();
         ability.addCost(additionalCost.copy());
-        CardUtil.setSourceCostsTag(game, ability, KEY, null);
+        ability.setCostsTag(KEY, null);
     }
 
     @Override
