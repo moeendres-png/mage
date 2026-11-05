@@ -233,7 +233,7 @@ public class CommanderPlaysCountStateRestoreTest extends CardTestCommander4Playe
             watcher.restoreStateForGameLoad(state(id, 0), game);
             Assert.assertEquals(0, watcher.getPlaysCount(id));
 
-            game.getState().restore(saved);
+            game.getState().restore(saved, false);
             CommanderPlaysCountWatcher restoredWatcher = watcher(game);
             Assert.assertEquals(2, restoredWatcher.getPlaysCount(id));
             Assert.assertEquals(2, restoredWatcher.getPlayerCount(player.getId()));
